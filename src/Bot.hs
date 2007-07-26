@@ -82,8 +82,8 @@ main = do
 
 bot :: BotConfig -> (String -> Bool -> IO String) -> IO ()
 bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ port cfg))) $ \h -> do
-  let cmd c a = hPutStrLn h $ c ++ concatMap (' ':) (init a) ++ " :" ++ last a
   jail cfg
+  let cmd c a = hPutStrLn h $ c ++ concatMap (' ':) (init a) ++ " :" ++ last a
   hSetBuffering h NoBuffering
   cmd "NICK" [nick cfg]
   cmd "USER" [nick cfg, "0", "*", nick cfg]
