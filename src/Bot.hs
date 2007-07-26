@@ -101,4 +101,5 @@ bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ 
       maybeM (nick_pass cfg) $ \np -> cmd "PRIVMSG" ["NickServ",  "identify " ++ np]
     _ -> return ()
 
--- (filter isPrint) works properly because (1) evalCpp returns a proper Unicode String, not a load of bytes; and (2) we use System.IO.UTF8's hPutStrLn which properly UTF-8 encodes the filtered String. Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.
+-- (filter isPrint) works properly because (1) evalCpp returns a proper Unicode String, not a load of bytes; and (2) we use System.IO.UTF8's hPutStrLn which properly UTF-8 encodes the filtered String.
+-- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.
