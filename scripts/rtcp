@@ -1,0 +1,5 @@
+#!/bin/bash -v
+
+EXECS="/usr/bin/g++ /usr/bin/as /usr/bin/ld /usr/bin/strace /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"
+LIBS=`ldd $EXECS | grep -o -P "(?<=\\s)/\\S*" | sort | uniq`
+cp -r -v --parents $EXECS $LIBS rt

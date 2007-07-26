@@ -1,0 +1,4 @@
+#!/bin/bash -v
+source scripts/g++flags
+chroot rt strace -s 3000 -v -q -f -e signal=none -e trace=execve g++ -Winvalid-pch t.cpp prelude.o $GXXFLAGS 2>&1 | grep -v ENOENT | runhaskell scripts/processtrace.hs > gcc-execs
+rm rt/a.out

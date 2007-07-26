@@ -1,0 +1,170 @@
+<?xml version='1.0' encoding='UTF-8'?>
+
+<!DOCTYPE html PUBLIC '-//W3C//DTD XHTML 1.1//EN' 'http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd'>
+
+<html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en'>
+  <head>
+    <title>README - geordi source package</title>
+  </head>
+  <body>
+    <h1>README - geordi source package</h1>
+    <p>Version 2007-07-24</p>
+
+    <h2>License</h2>
+    <p>I hereby release everything in this package into the Public Domain.</p>
+    <h2>Introduction</h2>
+    <p>
+      This is an extremely rough source package. Geordi was primarily written for one specific use (namely as freenode/##c++ bot), and as such lacks things like proper configuration-, build-, and installation infrastructure. The installation procedure below is mostly just a reminder to myself.
+    </p>
+    <h2>Prerequisites</h2>
+    <ul>
+      <li>GNU/Linux on an i386 or x86_64 machine</li>
+      <li>GCC/G++ &ge; 4</li>
+      <li><a href='http://www.boost.org/'>Boost</a> &ge; 1.33 (not strictly needed for the operation of geordi itself, but many prelude parts use Boost.)</li>
+      <li><a href='http://www.haskell.org/ghc/'>GHC</a> &ge; 6.6</li>
+      <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/utf8-string-0.1'>utf8-string</a> &ge; 0.1
+        <p>For those of us not familiar with GHC packages, to install this do:</p>
+        <code>
+          tar xf utf8-string-0.1.tar.gz<br/>
+          cd utf8-string-0.1<br/>
+          runhaskell Setup.lhs configure<br/>
+          runhaskell Setup.lhs build<br/>
+          su -c "runhaskell Setup.lhs install"
+        </code>
+      </li>
+    </ul>
+
+    <h2>Optional step for improved error messages:</h2>
+    <p>
+      Edit your system's equivalent of /usr/include/c++/4.1.0/debug/formatter.h and change 78 into 780 (the need to do this manually is a <a href='http://gcc.gnu.org/bugzilla/show_bug.cgi?id=31518'>GCC bug</a>).
+    </p>
+    <h2>Installation procedure:</h2>
+    <p>
+      The following is a list of steps needed to set up the environment geordi runs in. Don't copy/paste this into your terminal, this is not a shell script! It is intended to be read and interpreted by a human.
+    </p>
+    <p>
+      Assuming you extracted this package in some directory, cd into it and do:
+    </p>
+    <ol>
+      <li>scripts/compile</li>
+      <li>Edit `config' to your liking.</li>
+      <li>mkdir rt # This will be our chroot root.</li>
+      <li>scripts/compile-prelude</li>
+      <li>rtcp () { cp -L -r -v --parents $@ rt ; }</li>
+      <li>libs () { echo `ldd $@ | grep -o -P "(?&lt;=\\s)/\\S*" | sort | uniq` ; }</li>
+      <li>EXECS="/usr/bin/g++ /usr/bin/as /usr/bin/ld /usr/bin/strace /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus" # Have these match your system.</li>
+      <li>rtcp $EXECS `libs $EXECS`</li>
+      <li>scripts/perms</li>
+      <li>su # Because we're going to be chroot-ing.</li>
+      <li>scripts/trycompile # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/a.out is produced successfully.</li>
+      <li>rtcp `libs rt/a.out`</li>
+      <li>chroot rt /a.out # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
+      <li>scripts/trace-execs</li>
+      <li>find rt -perm -o+w # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
+      <li>find rt -user nobody # This should find no files at all.</li>
+      <li>./Bot "geordi &lt;&lt; 'x'" # If this does not print 'x', something is messed up. (Replace "geordi" with the configured nick, of course.)</li>
+      <li>If you want, you can now rm -f rt/usr/bin/strace rt/usr/bin/g++</li>
+      <li>To get an idea of what the result could look like, look at the tree and file listing below.</li>
+      <li>The bot can now be started with <code>./Bot</code></li>
+      <li>Geordi does not auto-reconnect. For that, just use <code>while true; do ./Bot; sleep 120; done</code></li>
+    </ol>
+
+    <h2>Example rt tree</h2>
+    <pre>
+      rt
+      |-- lib
+      |   |-- ld-linux.so.2
+      |   |-- libc.so.6
+      |   `-- libgcc_s.so.1
+      |-- prelude.h.gch
+      |-- prelude.o
+      |-- t
+      |-- t.cpp
+      |-- t.o
+      |-- t.s
+      `-- usr
+          |-- bin
+          |   |-- as
+          |   |-- ld
+          `-- lib
+              |-- crt1.o
+              |-- crti.o
+              |-- crtn.o
+              |-- gcc
+              |   `-- i586-suse-linux
+              |       `-- 4.1.2
+              |           |-- cc1plus
+              |           |-- crtbegin.o
+              |           |-- crtend.o
+              |           |-- libgcc.a
+              |           |-- libgcc_eh.a
+              |           |-- libgcc_s.so
+              |           `-- libstdc++.a
+              |-- libbfd-2.17.50.0.5.so
+              |-- libc.a
+              |-- libc.so
+              |-- libc_nonshared.a
+              `-- libm.a
+    </pre>
+
+    <h2>Example rt file listing</h2>
+    <pre>
+      rt:
+      total 39839
+      drwxr-xr-x 2 eelis users      144 2007-07-20 15:44 lib
+      -rw-r--r-- 1 eelis users 39953800 2007-07-20 15:41 prelude.h.gch
+      -rw-r--r-- 1 eelis users    23964 2007-07-20 15:41 prelude.o
+      -rwxrwxrwx 1 eelis users   690916 2007-07-20 16:08 t
+      -rw-rw-rw- 1 eelis users       64 2007-07-20 16:07 t.cpp
+      -rw-rw-rw- 1 eelis users    31320 2007-07-20 16:07 t.o
+      -rw-rw-rw- 1 eelis users   110455 2007-07-20 16:07 t.s
+      drwxr-xr-x 4 eelis users       96 2007-07-20 15:40 usr
+
+      rt/lib:
+      total 1637
+      -rwxr-xr-x 1 eelis users  129767 2007-07-20 15:42 ld-linux.so.2
+      -rwxr-xr-x 1 eelis users 1491141 2007-07-20 15:42 libc.so.6
+      -rwxr-xr-x 1 eelis users   46460 2007-07-20 15:44 libgcc_s.so.1
+
+      rt/usr:
+      total 0
+      drwxr-xr-x 2 eelis users  96 2007-07-20 16:10 bin
+      drwxr-xr-x 3 eelis users 288 2007-07-20 16:03 lib
+
+      rt/usr/bin:
+      total 2118
+      -rwxr-xr-x 1 eelis users  316820 2007-07-20 15:42 as
+      -rwxr-xr-x 1 eelis users 1843756 2007-07-20 15:42 ld
+
+      rt/usr/lib:
+      total 4869
+      -rw-r--r-- 1 eelis users    2587 2007-07-20 15:43 crt1.o
+      -rw-r--r-- 1 eelis users    2284 2007-07-20 15:43 crti.o
+      -rw-r--r-- 1 eelis users    1824 2007-07-20 15:43 crtn.o
+      drwxr-xr-x 3 eelis users      80 2007-07-20 15:40 gcc
+      -rwxr-xr-x 1 eelis users 1587724 2007-07-20 15:42 libbfd-2.17.50.0.5.so
+      -rw-r--r-- 1 eelis users 2847282 2007-07-20 15:44 libc.a
+      -rw-r--r-- 1 eelis users   16458 2007-07-20 15:44 libc_nonshared.a
+      -rw-r--r-- 1 eelis users     238 2007-07-20 15:44 libc.so
+      -rw-r--r-- 1 eelis users  502694 2007-07-20 15:44 libm.a
+
+      rt/usr/lib/gcc:
+      total 0
+      drwxr-xr-x 3 eelis users 72 2007-07-20 15:40 i586-suse-linux
+
+      rt/usr/lib/gcc/i586-suse-linux:
+      total 0
+      drwxr-xr-x 2 eelis users 248 2007-07-20 16:08 4.1.2
+
+      rt/usr/lib/gcc/i586-suse-linux/4.1.2:
+      total 7190
+      -rwxr-xr-x 1 eelis users 5189960 2007-07-20 15:40 cc1plus
+      -rw-r--r-- 1 eelis users    1624 2007-07-20 15:40 crtbegin.o
+      -rw-r--r-- 1 eelis users    1320 2007-07-20 15:40 crtend.o
+      -rw-r--r-- 1 eelis users   78420 2007-07-20 15:40 libgcc.a
+      -rw-r--r-- 1 eelis users   35564 2007-07-20 15:40 libgcc_eh.a
+      -rwxr-xr-x 1 eelis users   46460 2007-07-20 15:54 libgcc_s.so
+      -rw-r--r-- 1 eelis users 1984760 2007-07-20 15:40 libstdc++.a
+    </pre>
+  </body>
+</html>

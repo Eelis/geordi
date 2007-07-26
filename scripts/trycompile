@@ -1,0 +1,3 @@
+#!/bin/bash -v
+source scripts/g++flags
+chroot rt g++ t.cpp -Winvalid-pch prelude.o $GXXFLAGS

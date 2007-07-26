@@ -1,0 +1,2 @@
+#!/bin/bash
+rm -f Bot src/*.o src/*.hi src/*_hsc.* src/EvalCpp.hs src/Ptrace.hs

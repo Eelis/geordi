@@ -1,0 +1,7 @@
+#!/bin/bash -v
+chmod 700 rt
+chmod o+x rt
+touch rt/t.s rt/t.o rt/t
+echo -e "#include \"prelude.h\"\nint main(){cout<<9<<endl;}" > rt/t.cpp
+chmod 666 rt/t.cpp rt/t.s rt/t.o
+chmod 777 rt/t
