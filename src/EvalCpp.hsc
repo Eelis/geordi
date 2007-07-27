@@ -195,7 +195,7 @@ allowed_syscalls =
 
 process_as_errors, process_ld_errors, process_cc1plus_errors :: String -> String
 
-process_as_errors e = maybe e (!!1) $ matchRegex (mkRegex "t.s: Assembler messages:\nt.s:[0-9]+: (Error|Warning): ([^\n]*)") e
+process_as_errors e = maybe e (!!1) $ matchRegex (mkRegex "\\b(Error|Warning): ([^\n]*)") e
 
 process_ld_errors e = maybe e head $ matchRegex (mkRegex "\\b(undefined reference to [^\n]*)") e
 
