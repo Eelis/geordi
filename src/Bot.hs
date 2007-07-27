@@ -1,5 +1,5 @@
 
-import Network (PortNumber, connectTo)
+import Network (PortID(..), connectTo)
 import System.IO (hSetBuffering, BufferMode(..), hGetLine)
 import System.Environment (getArgs)
 import System.Directory (setCurrentDirectory)
