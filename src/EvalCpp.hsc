@@ -203,10 +203,12 @@ process_cc1plus_errors e = maybe e' (!!1) $ matchRegex (mkRegex "\\b(error|warni
   where
     e' = foldl (\u (regex, repl) -> subRegex (mkRegex regex) u repl) e $
       [ ("\\bstd::", "")
-      , ("\\b(vector|list|deque)<([\\w\\s]+), allocator<(\\2)> >", "\\1<\\2>")
-      , ("\\bbasic_(string|[io]?(f|string)?stream)<(\\w+), char_traits<(\\3)>(, allocator<(\\3)>)? ?>", "basic_\\1<\\3>")
+      , ("\\b(multimap|map)<([^,]+), ([^,]+), less<\\2>, allocator<pair<const \\2, \\3> > >", "\\1<\\2, \\3>")
+      , ("\\b(multiset|set)<([^,]+), less<\\2>, allocator<\\2> >", "\\1<\\2>")
+      , ("\\b(vector|list|deque)<([^,]+), allocator<\\2> >", "\\1<\\2>")
+      , ("\\bbasic_(string|[io]?(f|string)?stream)<(\\w+), char_traits<\\3>(, allocator<\\3>)? ?>", "basic_\\1<\\3>")
       , ("\\bbasic_(string|[io]?(f|string)?stream)<char>", "\\1")
-      , ("\\b__gnu_(cxx|debug(_def)?)::", "")
+      , ("\\b__gnu_(norm|cxx|debug(_def)?)::", "")
       ]
 
 process_prog_errors :: String -> String -> String
