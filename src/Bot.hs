@@ -13,7 +13,7 @@ import Data.Char
 import Data.Maybe
 import EvalCpp (evalCpp)
 import Util
-import System.IO.UTF8 hiding (hGetLine)
+import System.IO.UTF8 hiding (hGetLine, getLine)
 
 data BotConfig = BotConfig
   { server :: String, port :: Integer, max_msg_length :: Int
@@ -73,11 +73,17 @@ main = do
   cfg <- read . readFile "config"
   eval <- evalCpp
   args <- getArgs
+  let
+    localEval l =
+      case parse (cmd_parser $ nick cfg) "" l of
+        Left e -> putStrLn $ "parse error: " ++ show e
+        Right (also_run, code) -> putStrLn =<< filter isPrint . eval code also_run
   case args of
+    ["-i"] -> do
+      jail cfg
+      forever $ localEval =<< getLine
     [] -> bot cfg eval
-    [c] -> jail cfg >> case parse (cmd_parser $ nick cfg) "" c of
-      Left e -> putStrLn $ "parse error: " ++ show e
-      Right (also_run, code) -> putStrLn =<< filter isPrint . eval code also_run
+    [c] -> jail cfg >> localEval c
 
 bot :: BotConfig -> (String -> Bool -> IO String) -> IO ()
 bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ port cfg))) $ \h -> do
