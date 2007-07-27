@@ -53,7 +53,7 @@ jail cfg = do
 cmd_parser :: String -> CharParser st (Bool, String)
 cmd_parser (botnick_h:botnick_t) = do
   spaces
-  char (toLower botnick_h) <|> char (toUpper botnick_h)
+  oneOf [toLower botnick_h, toUpper botnick_h]
     -- There is currently no proper case-insensitive char/string comparison function in Data.Char (see GHC ticket #1506).
   string botnick_t
   spaces
