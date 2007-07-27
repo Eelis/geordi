@@ -1,17 +1,17 @@
 
-import Network
+import Network (PortNumber, connectTo)
 import System.IO (hSetBuffering, BufferMode(..), hGetLine)
-import System.Environment
-import System.Directory
+import System.Environment (getArgs)
+import System.Directory (setCurrentDirectory)
 import System.Posix.Env (setEnv)
 import System.Posix.User
 import Control.Monad.Reader
 import Control.Monad
 import Text.ParserCombinators.Parsec
-import Prelude hiding (catch, (.), readFile, putStrLn)
+import Prelude hiding (catch, (.), readFile, putStrLn, print)
 import Data.Char
 import Data.Maybe
-import EvalCpp
+import EvalCpp (evalCpp)
 import Util
 import System.IO.UTF8 hiding (hGetLine)
 
