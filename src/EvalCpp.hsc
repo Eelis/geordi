@@ -147,6 +147,9 @@ syscall_names = Map.fromList . mapMaybe (either (const Nothing) Just . parse par
 evalCpp :: IO (String -> Bool -> IO String)
   -- Two-stage IO: first must happen before jail time, because gcc-execs and the syscall names need to be read from file, second happens inside jail and does actual evaluation.
 
+leaf :: FilePath -> String
+leaf = reverse . takeWhile (/= '/') . reverse
+
 evalCpp = do
   show_sr <- show_SuperviseResult . syscall_names
   (cc1plus, as, ld) <- read . readFile "gcc-execs"
@@ -157,7 +160,7 @@ evalCpp = do
       case res of
         Exited ExitSuccess -> act
         Exited (ExitFailure _) -> return $ err out
-        _ -> ((a ++ ": ") ++) . show_sr res
+        _ -> ((leaf a ++ ": ") ++) . show_sr res
   return $ \code also_run -> do
     writeFile "t.cpp" code
     cap (head cc1plus) (tail cc1plus) cc1plus_resources process_cc1plus_errors $ do
