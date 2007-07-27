@@ -9,6 +9,7 @@ import System.Posix.IO
 import Control.Monad.Instances
 import System.Posix.Types
 import System.IO
+import GHC.Read
 
 (.) :: Functor f => (a -> b) -> f a -> f b
 (.) = fmap
@@ -53,3 +54,6 @@ chroot s = throwErrnoIfMinus1_ "chroot" (withCString s c_chroot)
 
 leaf :: FilePath -> String
 leaf = reverse . takeWhile (/= '/') . reverse
+
+readTypedFile :: Read a => FilePath -> IO a
+readTypedFile f = either (const $ fail $ "parsing \"" ++ f ++ "\"") return =<< readEither . readFile f

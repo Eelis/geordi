@@ -149,7 +149,7 @@ evalCpp :: IO (String -> Bool -> IO String)
 
 evalCpp = do
   show_sr <- show_SuperviseResult . syscall_names
-  (cc1plus, as, ld) <- read . readFile "gcc-execs"
+  (cc1plus, as, ld) <- readTypedFile "gcc-execs"
   let
     cap :: FilePath -> [String] -> Resources -> (String -> String) -> IO String -> IO String
     cap a argv r err act = do

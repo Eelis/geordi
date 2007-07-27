@@ -70,7 +70,7 @@ cmd_parser (botnick_h:botnick_t) = do
 
 main :: IO ()
 main = do
-  cfg <- read . readFile "config"
+  cfg <- readTypedFile "config"
   eval <- evalCpp
   args <- getArgs
   let
