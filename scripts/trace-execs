@@ -1,5 +1,5 @@
 #!/bin/bash -v
-echo -e "#include \"prelude.h\"\nint main(){cout<<9<<endl;}" > rt/t.cpp
+echo -e "#include \"prelude.h\"\nGEORDI_PRINT_PRE 9 GEORDI_PRINT_POST" > rt/t.cpp
 source scripts/g++flags
 chroot rt strace -s 3000 -v -q -f -e signal=none -e trace=execve g++ -Winvalid-pch t.cpp prelude.o tracked.o $GXXFLAGS 2>&1 | grep -v ENOENT | runhaskell scripts/processtrace.hs > gcc-execs
 rm rt/a.out
