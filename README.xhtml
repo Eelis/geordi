@@ -36,7 +36,10 @@
 
     <h2>Optional step for improved error messages:</h2>
     <p>
-      Edit your system's equivalent of /usr/include/c++/4.1.0/debug/formatter.h and change 78 into 780 (the need to do this manually is a <a href='http://gcc.gnu.org/bugzilla/show_bug.cgi?id=31518'>GCC bug</a>).
+      Do <code>grep get_max_length /usr/include/c++/4.3.0/debug/formatter.h</code>. If you don't get output, it means that your gcc version does not yet have configurable debug mode error formatter line width, which means that you should do the following manually: in that file, find the value 78, and change it into 780.
+    </p>
+    <p>
+      (See <a href='http://gcc.gnu.org/bugzilla/show_bug.cgi?id=31518'>GCC bug 31518</a> for more information.)
     </p>
     <h2>Installation procedure:</h2>
     <p>

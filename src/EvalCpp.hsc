@@ -167,7 +167,7 @@ evalCpp = do
     if not also_run then return "Compilation successful" else do
     cap (head as) (tail as) as_resources process_as_errors $ do
     cap (head ld) (tail ld) ld_resources process_ld_errors $ do
-    (prog_result, prog_output) <- capture_restricted "/t" [] [] prog_resources
+    (prog_result, prog_output) <- capture_restricted "/t" [] ["GLIBCXX_DEBUG_MESSAGE_LENGTH=0"] prog_resources
     if prog_result == Exited ExitSuccess then return prog_output else return . process_prog_errors prog_output =<< show_sr prog_result
 
 ------------- Config (or at least things that are likely more prone to per-site modification):
