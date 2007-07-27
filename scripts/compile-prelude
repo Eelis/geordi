@@ -1,4 +1,5 @@
 #/bin/bash -v
 source scripts/g++flags
 cd rt
-g++ -c ../prelude/*.cpp ../prelude/prelude.h $GXXFLAGS
+g++ -c ../prelude/*.cpp $GXXFLAGS
+g++ -c ../prelude/prelude.h -o prelude.h.gch $GXXFLAGS
