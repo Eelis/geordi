@@ -3,7 +3,7 @@ import Network
 import System.IO (hSetBuffering, BufferMode(..), hGetLine)
 import System.Environment
 import System.Directory
-import System.Posix.Env
+import System.Posix.Env (setEnv)
 import System.Posix.User
 import Control.Monad.Reader
 import Control.Monad
@@ -70,7 +70,6 @@ cmd_parser (botnick_h:botnick_t) = do
 
 main :: IO ()
 main = do
-  setEnv "LC_ALL" "C" True -- Otherwise cc1plus warnings use fancy Unicode (e.g. for quotes).
   cfg <- read . readFile "config"
   eval <- evalCpp
   args <- getArgs
@@ -82,6 +81,7 @@ main = do
 
 bot :: BotConfig -> (String -> Bool -> IO String) -> IO ()
 bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ port cfg))) $ \h -> do
+  setEnv "LC_ALL" "C" True -- Otherwise compiler warnings may use non-ASCII characters (e.g. for quotes).
   jail cfg
   let cmd c a = hPutStrLn h $ c ++ concatMap (' ':) (init a) ++ " :" ++ last a
   hSetBuffering h NoBuffering
