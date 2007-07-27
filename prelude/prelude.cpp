@@ -55,6 +55,9 @@ namespace tracked
   // B:
 
     B::B () { reg.s.insert(this); prt(this) << "B() "; }
+    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+      B::B (B && b) { reg.s.insert(this); prt(this) << "mB(" << b << ") "; } // 'm' for "move"
+    #endif
     B::B (int const i) { reg.s.insert(this); prt(this) << "B(" << i << ") "; }
     B::B (B const & b) { reg.s.insert(this); prt(this) << "B(" << b << ") "; }
 
@@ -83,6 +86,9 @@ namespace tracked
 
     D::D () { prt(this) << "D() "; }
     D::D (D const & d): B(d) { prt(this) << "D(" << d << ") "; }
+    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+      D::D (D && d) { prt(this) << "mD(" << d << ") "; }
+    #endif
 
     D & D::operator= (D const & d)
     { B::operator=(d); std::cout << ' ' << *this << '=' << d << ' '; return *this; }

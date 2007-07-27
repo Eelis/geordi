@@ -8,6 +8,9 @@ namespace tracked
   {
     B ();
     explicit B (int);
+    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+      B (B &&);
+    #endif
     B (B const &);
     B & operator= (B const &);
     virtual ~B ();
@@ -28,6 +31,9 @@ namespace tracked
   {
     D ();
     D (D const &);
+    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+      D (D &&);
+    #endif
     D & operator= (D const &);
     void vf () const;
     virtual ~D ();
