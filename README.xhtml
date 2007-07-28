@@ -24,13 +24,13 @@
       <li><a href='http://www.haskell.org/ghc/'>GHC</a> &ge; 6.6</li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/utf8-string-0.1'>utf8-string</a> &ge; 0.1
         <p>For those of us not familiar with GHC packages, to install this do:</p>
-        <code>
+        <kbd>
           tar xf utf8-string-0.1.tar.gz<br/>
           cd utf8-string-0.1<br/>
           runhaskell Setup.lhs configure<br/>
           runhaskell Setup.lhs build<br/>
           su -c "runhaskell Setup.lhs install"
-        </code>
+        </kbd>
       </li>
     </ul>
 
@@ -49,27 +49,27 @@
       Assuming you extracted this package in some directory, cd into it and do:
     </p>
     <ol>
-      <li>scripts/compile</li>
+      <li><kbd>scripts/compile</kbd> # To produce the ./Bot executable.</li>
       <li>Edit `config' to your liking.</li>
-      <li>mkdir rt # This will be our chroot root.</li>
-      <li>scripts/compile-prelude</li>
-      <li>rtcp () { cp -L -r -v --parents $@ rt ; }</li>
-      <li>libs () { echo `ldd $@ | grep -o -P "(?&lt;=\\s)/\\S*" | sort | uniq` ; }</li>
-      <li>EXECS="/usr/bin/g++ /usr/bin/as /usr/bin/ld /usr/bin/strace /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus" # Have these match your system.</li>
-      <li>rtcp $EXECS `libs $EXECS`</li>
-      <li>scripts/perms</li>
-      <li>su # Because we're going to be chroot-ing.</li>
-      <li>scripts/trycompile # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/a.out is produced successfully.</li>
-      <li>rtcp `libs rt/a.out`</li>
-      <li>chroot rt /a.out # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
-      <li>scripts/trace-execs</li>
-      <li>find rt -perm -o+w # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
-      <li>find rt -user nobody # This should find no files at all.</li>
-      <li>./Bot "geordi &lt;&lt; 'x'" # If this does not print 'x', something is messed up. (Replace "geordi" with the configured nick, of course.)</li>
-      <li>If you want, you can now rm -f rt/usr/bin/strace rt/usr/bin/g++</li>
-      <li>To get an idea of what the result could look like, look at the tree and file listing below.</li>
-      <li>The bot can now be started with <code>./Bot</code></li>
-      <li>Geordi does not auto-reconnect. For that, just use <code>while true; do ./Bot; sleep 120; done</code></li>
+      <li><kbd>mkdir rt</kbd> # This will be our chroot root.</li>
+      <li>scripts/compile-prelude # To produce rt/prelude.h.gch and a few rt/foo.o's.</li>
+      <li><kbd>rtcp () { cp -L -r -v --parents $@ rt ; }</kbd></li>
+      <li><kbd>libs () { echo `ldd $@ | grep -o -P "(?&lt;=\\s)/\\S*" | sort | uniq` ; }</kbd></li>
+      <li><kbd>EXECS="`which g++ as ld strace` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> # Correct the latst one for your system.</li>
+      <li><kbd>rtcp $EXECS `libs $EXECS`</kbd></li>
+      <li><kbd>scripts/perms</kbd> # To set up proper permissions for rt and selected files in it.</li>
+      <!--<li><kbd>su</kbd> # Because we're going to be chroot-ing.</li>-->
+      <li><kbd>sudo scripts/trycompile</kbd> # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/a.out is produced successfully.</li>
+      <li><kbd>rtcp `libs rt/a.out`</kbd></li>
+      <li><kbd>sudo chroot rt /a.out &amp;&amp; echo</kbd> # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
+      <li><kbd>sudo scripts/trace-execs</kbd></li>
+      <li><kbd>find rt -perm -o+w</kbd> # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
+      <li><kbd>find rt -user nobody</kbd> # This should find no files at all.</li>
+      <li><kbd>sudo ./Bot "geordi-clone &lt;&lt; 'x'"</kbd> # If this does not print 'x', something is messed up. (Replace "geordi-clone" with the configured nick, of course.)</li>
+      <li>If you want, you can now <kbd>rm -f rt/usr/bin/strace rt/usr/bin/g++</kbd></li>
+      <li>To get an idea of what rt could look like, look at the tree and file listing below.</li>
+      <li>The bot can now be started with <kbd>sudo ./Bot</kbd></li>
+      <li>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./Bot; sleep 120; done</kbd></li>
     </ol>
 
     <h2>Example rt tree</h2>
