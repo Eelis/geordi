@@ -4,18 +4,16 @@
 
 <html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en'>
   <head>
-    <title>README - geordi source package</title>
+    <title>Geordi installation instructions</title>
   </head>
   <body>
-    <h1>README - geordi source package</h1>
-    <p>Version 2007-07-24</p>
+    <h1>Geordi installation instructions</h1>
 
-    <h2>License</h2>
-    <p>I hereby release everything in this package into the Public Domain.</p>
     <h2>Introduction</h2>
     <p>
-      This is an extremely rough source package. Geordi was primarily written for one specific use (namely as freenode/##c++ bot), and as such lacks things like proper configuration-, build-, and installation infrastructure. The installation procedure below is mostly just a reminder to myself.
+      Geordi is not "<kbd>./configure &amp;&amp; make &amp;&amp; make install</kbd>" software. Setting up geordi is a somewhat awkward manual task, mainly because there are some installation steps that would be very hard to automate.
     </p>
+
     <h2>Prerequisites</h2>
     <ul>
       <li>GNU/Linux on an i386 or x86_64 machine</li>
@@ -34,19 +32,20 @@
       </li>
     </ul>
 
-    <h2>Optional step for improved error messages:</h2>
+    <h2>Optional step for improved error messages</h2>
     <p>
-      Do <code>grep get_max_length /usr/include/c++/4.3.0/debug/formatter.h</code>. If you don't get output, it means that your gcc version does not yet have configurable debug mode error formatter line width, which means that you should do the following manually: in that file, find the value 78, and change it into 780.
+      Do <kbd>grep get_max_length /usr/include/c++/4.3.0/debug/formatter.h</kbd> (corrected for your system, of course). If you don't get output, it means that your gcc version does not yet have configurable libstdc++ debug mode error formatter line width, which means that you should do the following manually: in that file, find the value 78, and change it into 780.
     </p>
     <p>
       (See <a href='http://gcc.gnu.org/bugzilla/show_bug.cgi?id=31518'>GCC bug 31518</a> for more information.)
     </p>
-    <h2>Installation procedure:</h2>
+
+    <h2>Installation procedure</h2>
     <p>
       The following is a list of steps needed to set up the environment geordi runs in. Don't copy/paste this into your terminal, this is not a shell script! It is intended to be read and interpreted by a human.
     </p>
     <p>
-      Assuming you extracted this package in some directory, cd into it and do:
+      Assuming you have cd'd into the "geordi" directory obtained through darcs, do the following:
     </p>
     <ol>
       <li><kbd>scripts/compile</kbd> # To produce the ./Bot executable.</li>
@@ -58,7 +57,6 @@
       <li><kbd>EXECS="`which g++ as ld strace` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> # Correct the latst one for your system.</li>
       <li><kbd>rtcp $EXECS `libs $EXECS`</kbd></li>
       <li><kbd>scripts/perms</kbd> # To set up proper permissions for rt and selected files in it.</li>
-      <!--<li><kbd>su</kbd> # Because we're going to be chroot-ing.</li>-->
       <li><kbd>sudo scripts/trycompile</kbd> # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/a.out is produced successfully.</li>
       <li><kbd>rtcp `libs rt/a.out`</kbd></li>
       <li><kbd>sudo chroot rt /a.out &amp;&amp; echo</kbd> # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
