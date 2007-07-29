@@ -84,7 +84,7 @@ show_SuperviseResult sn sr = case sr of
 foreign import ccall "wait" c_wait :: Ptr CInt -> IO CPid
 
 supervise :: ProcessID -> IO SuperviseResult
-supervise pid = alloca $ \wstatp -> fix $ \sv -> do
+supervise pid = alloca $ \wstatp -> fix (\sv in_syscall -> do
   throwErrnoIfMinus1_ "wait" $ c_wait wstatp
   wstat <- peek wstatp
   case () of
@@ -92,15 +92,16 @@ supervise pid = alloca $ \wstatp -> fix $ \sv -> do
       return $ Exited $ if e == 0 then ExitSuccess else ExitFailure $ fromIntegral e
     _ | c_WIFSIGNALED wstat /= 0 -> return $ Signaled $ c_WTERMSIG wstat
     _ | c_WIFSTOPPED wstat /= 0 -> let stopsig = c_WSTOPSIG wstat in
-      if stopsig /= sigTRAP then Ptrace.kill pid >> sv >> return (Signaled stopsig) else do
+      if stopsig /= sigTRAP then Ptrace.kill pid >> sv False >> return (Signaled stopsig) else do
         syscall <- Ptrace.peekuser pid syscall_off
+        if in_syscall then Ptrace.syscall pid >> sv False else do
         if elem syscall allowed_syscalls
-          then Ptrace.syscall pid >> sv
+          then Ptrace.syscall pid >> sv True
           else do
             Ptrace.pokeuser pid syscall_off #const SYS_exit_group
-            Ptrace.cont pid Nothing; sv
+            Ptrace.cont pid Nothing; sv True
             return $ DisallowedSyscall syscall
-    _ -> fail "wait() returned unexpectedly"
+    _ -> fail "wait() returned unexpectedly") True -- supervise assumes that the first event monitored is due to the child process doing execve.
 
 simpleResourceLimits :: Integer -> ResourceLimits
 simpleResourceLimits l = ResourceLimits (ResourceLimit l) (ResourceLimit l)
@@ -173,8 +174,7 @@ evalCpp = do
 
 allowed_syscalls :: [CInt]
 allowed_syscalls =
-  [ (#const SYS_execve) -- Only needed for return of initial execve call.
-  , (#const SYS_open), (#const SYS_write), (#const SYS_uname), (#const SYS_brk), (#const SYS_read)
+  [ (#const SYS_open), (#const SYS_write), (#const SYS_uname), (#const SYS_brk), (#const SYS_read)
   , (#const SYS_mmap), (#const SYS_close), (#const SYS_mprotect), (#const SYS_munmap)
   , (#const SYS_exit_group), (#const SYS_getpid), (#const SYS_access), (#const SYS_getrusage)
   , (#const SYS_umask), (#const SYS_chmod), (#const SYS_fadvise64), (#const SYS_ioctl)
