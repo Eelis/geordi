@@ -105,7 +105,7 @@ supervise pid = alloca $ \wstatp -> fix $ \sv -> do
 simpleResourceLimits :: Integer -> ResourceLimits
 simpleResourceLimits l = ResourceLimits (ResourceLimit l) (ResourceLimit l)
 
-data Resources = Resources { walltime :: Integer, rlimits :: [(Resource, ResourceLimits)], bufsize :: CSize }
+data Resources = Resources { walltime :: Int, rlimits :: [(Resource, ResourceLimits)], bufsize :: CSize }
 
 -- capture_restricted assumes the program produces UTF-8 encoded text and returns it as a proper Unicode String.
 
@@ -118,7 +118,7 @@ capture_restricted a argv env (Resources timeout rlims bs) =
       dupTo pipe_w stdOutput
       closeFd stdInput
       Ptrace.traceme
-      scheduleAlarm $ fromIntegral timeout
+      scheduleAlarm timeout
       mapM (uncurry setResourceLimit) rlims
       myExecuteFile a argv env
       exitImmediately ExitSuccess
@@ -217,11 +217,11 @@ process_prog_errors output result =
 
 -- Resources:
 
-common_resources :: Integer -> Resources
+common_resources :: Int -> Resources
 common_resources t = Resources
   { walltime = t
   , rlimits =
-    [ (ResourceCPUTime, simpleResourceLimits t)
+    [ (ResourceCPUTime, simpleResourceLimits $ fromIntegral t)
     , (ResourceOpenFiles, simpleResourceLimits 25)
     , (ResourceTotalMemory, simpleResourceLimits $ 200 * mebi)
     , (ResourceFileSize, simpleResourceLimits $ 5 * mebi)
