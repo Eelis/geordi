@@ -109,9 +109,7 @@
 using namespace std;
 using namespace boost::assign;
 
-char const
-  help [] = "mini-manual:  http://www.eelis.net/geordi/",
-  version [] = "2007-07-24";
+char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
 
 std::string advice ();
 
