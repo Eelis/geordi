@@ -28,11 +28,13 @@ import Text.ParserCombinators.Parsec.Token
 #include <sys/ptrace.h>
 #include <sys/reg.h>
 
-syscall_off :: CInt
+syscall_off, syscall_ret :: CInt
 #ifdef __x86_64__
 syscall_off = (#const ORIG_RAX) * 8
+syscall_ret = (#const RAX) * 8
 #else
 syscall_off = (#const ORIG_EAX) * 4
+syscall_ret = (#const EAX) * 4
 #endif
 
 foreign import ccall unsafe "__hsunix_wifexited" c_WIFEXITED :: CInt -> CInt
@@ -83,25 +85,36 @@ show_SuperviseResult sn sr = case sr of
 
 foreign import ccall "wait" c_wait :: Ptr CInt -> IO CPid
 
+wait :: Ptr CInt -> IO ()
+wait = throwErrnoIfMinus1_ "wait" . c_wait
+
 supervise :: ProcessID -> IO SuperviseResult
-supervise pid = alloca $ \wstatp -> fix (\sv in_syscall -> do
-  throwErrnoIfMinus1_ "wait" $ c_wait wstatp
+  -- supervise assumes that the first event monitored is the sigTRAP caused by the child's execve.
+supervise pid = alloca $ \wstatp -> flip ($) (Just #const SYS_execve) $ fix $ \sv current_syscall -> do
+  wait wstatp -- This wait is called so often that sharing the allocated wstatp is required for acceptable performance.
   wstat <- peek wstatp
   case () of
     _ | c_WIFEXITED wstat /= 0 -> let e = c_WEXITSTATUS wstat in
       return $ Exited $ if e == 0 then ExitSuccess else ExitFailure $ fromIntegral e
     _ | c_WIFSIGNALED wstat /= 0 -> return $ Signaled $ c_WTERMSIG wstat
     _ | c_WIFSTOPPED wstat /= 0 -> let stopsig = c_WSTOPSIG wstat in
-      if stopsig /= sigTRAP then Ptrace.kill pid >> sv False >> return (Signaled stopsig) else do
-        syscall <- Ptrace.peekuser pid syscall_off
-        if in_syscall then Ptrace.syscall pid >> sv False else do
-        if elem syscall allowed_syscalls
-          then Ptrace.syscall pid >> sv True
-          else do
-            Ptrace.pokeuser pid syscall_off #const SYS_exit_group
-            Ptrace.cont pid Nothing; sv True
-            return $ DisallowedSyscall syscall
-    _ -> fail "wait() returned unexpectedly") True -- supervise assumes that the first event monitored is due to the child process doing execve.
+      if stopsig /= sigTRAP then Ptrace.kill pid >> sv Nothing >> return (Signaled stopsig) else
+        case current_syscall of
+          Just sc -> do
+            when (elem sc ignored_syscalls) $ Ptrace.pokeuser pid syscall_ret 0
+            Ptrace.syscall pid; sv Nothing
+          Nothing -> Ptrace.peekuser pid syscall_off >>= \syscall -> case () of
+            _ | elem syscall ignored_syscalls -> do
+              Ptrace.pokeuser pid syscall_off #const SYS_getpid
+              Ptrace.syscall pid; sv (Just syscall)
+            _ | elem syscall allowed_syscalls -> Ptrace.syscall pid >> sv (Just syscall)
+            _ -> do
+              Ptrace.pokeuser pid syscall_off #const SYS_exit_group
+              Ptrace.cont pid Nothing
+              wait wstatp
+              q <- peek wstatp
+              if c_WIFEXITED q == 0 then error "child's exit_group failed" else return $ DisallowedSyscall syscall
+    _ -> fail "wait() returned unexpectedly"
 
 simpleResourceLimits :: Integer -> ResourceLimits
 simpleResourceLimits l = ResourceLimits (ResourceLimit l) (ResourceLimit l)
@@ -172,22 +185,20 @@ evalCpp = do
 
 -- System calls
 
-allowed_syscalls :: [CInt]
+ignored_syscalls, allowed_syscalls :: [CInt]
+
+ignored_syscalls = [(#const SYS_chmod), (#const SYS_fadvise64), (#const SYS_unlink), (#const SYS_munmap), (#const SYS_madvise), (#const SYS_umask), (#const SYS_rt_sigaction), (#const SYS_rt_sigprocmask)]
+  -- These are replaced with "return 0".
+
 allowed_syscalls =
-  [ (#const SYS_open), (#const SYS_write), (#const SYS_uname), (#const SYS_brk), (#const SYS_read)
-  , (#const SYS_mmap), (#const SYS_close), (#const SYS_mprotect), (#const SYS_munmap)
-  , (#const SYS_exit_group), (#const SYS_getpid), (#const SYS_access), (#const SYS_getrusage)
-  , (#const SYS_umask), (#const SYS_chmod), (#const SYS_fadvise64), (#const SYS_ioctl)
-  , (#const SYS_gettimeofday), (#const SYS_writev)
+  [ (#const SYS_open), (#const SYS_write), (#const SYS_uname), (#const SYS_brk), (#const SYS_read), (#const SYS_mmap), (#const SYS_mprotect), (#const SYS_exit_group), (#const SYS_getpid), (#const SYS_access), (#const SYS_getrusage), (#const SYS_ioctl), (#const SYS_close), (#const SYS_gettimeofday), (#const SYS_writev)
 
-  , (#const SYS_unlink) -- as insists on attempting to unlink t.o just before it starts writing to it. We could choose to have it create a new file, but then we need to allow creation of new files, which is less desireable. unlink will fail because nobody does not have write access to rt, and as will ignore that failure.
-
-  , (#const SYS_rt_sigaction) -- This cannot be used to circumvent the alarm, because even if a signal handler (or SIG_IGN) is installed, ptrace still intercepts the signal.
+  , (#const SYS_gettid), (#const SYS_tgkill) -- These make abort() (and assertion failures) nicer.
 
   #ifdef __x86_64__
     , (#const SYS_stat), (#const SYS_fstat), (#const SYS_arch_prctl), (#const SYS_getrlimit), (#const SYS_fcntl), (#const SYS_lseek), (#const SYS_lstat), (#const SYS_dup)
   #else
-    , (#const SYS_fstat64), (#const SYS_lstat64), (#const SYS_stat64), (#const SYS_ugetrlimit), (#const SYS_fcntl64), (#const SYS__llseek), (#const SYS_mmap2), (#const SYS_madvise), (#const SYS_mremap), (#const SYS_set_thread_area), (#const SYS_times), (#const SYS_time), (#const SYS_readlink), (#const SYS_getcwd)
+    , (#const SYS_fstat64), (#const SYS_lstat64), (#const SYS_stat64), (#const SYS_ugetrlimit), (#const SYS_fcntl64), (#const SYS__llseek), (#const SYS_mmap2), (#const SYS_mremap), (#const SYS_set_thread_area), (#const SYS_times), (#const SYS_time), (#const SYS_readlink), (#const SYS_getcwd)
   #endif
   ]
 
