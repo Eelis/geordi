@@ -131,3 +131,6 @@ typedef unsigned long ulong;
 
 #define GEORDI_PRINT_PRE GEORDI_STATEMENTS_PRE std::cout << std::boolalpha <<
 #define GEORDI_PRINT_POST ; GEORDI_STATEMENTS_POST
+
+#undef assert
+#define assert(e) ((e) ? void(::std::cout << "Assertion `" #e "' holds.") : (::std::cout << "Assertion `" #e "' fails.", exit(0)));

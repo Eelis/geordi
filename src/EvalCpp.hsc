@@ -193,8 +193,6 @@ ignored_syscalls = [(#const SYS_chmod), (#const SYS_fadvise64), (#const SYS_unli
 allowed_syscalls =
   [ (#const SYS_open), (#const SYS_write), (#const SYS_uname), (#const SYS_brk), (#const SYS_read), (#const SYS_mmap), (#const SYS_mprotect), (#const SYS_exit_group), (#const SYS_getpid), (#const SYS_access), (#const SYS_getrusage), (#const SYS_ioctl), (#const SYS_close), (#const SYS_gettimeofday), (#const SYS_writev)
 
-  , (#const SYS_gettid), (#const SYS_tgkill) -- These make abort() (and assertion failures) nicer.
-
   #ifdef __x86_64__
     , (#const SYS_stat), (#const SYS_fstat), (#const SYS_arch_prctl), (#const SYS_getrlimit), (#const SYS_fcntl), (#const SYS_lseek), (#const SYS_lstat), (#const SYS_dup)
   #else
