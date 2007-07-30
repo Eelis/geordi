@@ -16,6 +16,7 @@ import System.Posix.Internals
 import Text.Regex
 import Util
 import qualified Ptrace
+import Data.List
 import Data.Word
 import Data.Char
 import qualified Codec.Binary.UTF8.String as UTF8
@@ -202,6 +203,32 @@ allowed_syscalls =
 
 -- Error string processing:
 
+(>>>) :: CharParser st String -> CharParser st String -> CharParser st String
+(>>>) = liftM2 (++)
+
+(<<) :: Monad m => m a -> m b -> m a
+(<<) x y = x >>= \r -> y >> return r
+
+strSepBy :: CharParser st String -> String -> CharParser st String
+strSepBy x y = fmap (concat . intersperse y) $ sepBy x (string y)
+
+cxxExpr :: CharParser st String
+cxxExpr =
+    try (fmap show (charLiteral haskell) >>> cxxExpr) <|>
+    (oneOf "(<[" >>= \o -> return [o] >>> strSepBy cxxExpr "," >>> string [mirror o] >>> cxxExpr) <|>
+    option [] (fmap (:[]) (noneOf ")>],'\"") >>> cxxExpr)
+  where mirror '(' = ')'; mirror '[' = ']'; mirror '<' = '>'
+
+repl_withs :: String -> String
+repl_withs s = either (const s) id $ parse (r "") "" s
+  where
+    r pre = ((string "[with " >> sepBy ass (string ", ") << char ']') >>=
+      r . foldr (\(k, v) u -> subRegex (mkRegex $ "\\b" ++ k ++ "\\b") u v) pre) <|>
+        (anyChar >>= \x -> r $ pre ++ [x]) <|> return pre
+    ass = try $ liftM2 (,) (manyTill anyChar $ string " = ") cxxExpr
+
+  -- The "[with X = ..., ...]" substitution is not perfect; it can get confused when faced with sneaky uses of things like >.
+
 process_as_errors, process_ld_errors, process_cc1plus_errors :: String -> String
 
 process_as_errors e = maybe e (!!1) $ matchRegex (mkRegex "\\b(Error|Warning): ([^\n]*)") e
@@ -210,11 +237,11 @@ process_ld_errors e = maybe e head $ matchRegex (mkRegex "\\b(undefined referenc
 
 process_cc1plus_errors e = maybe e' (!!1) $ matchRegex (mkRegex "\\b(error|warning): ([^\n]*)") e'
   where
-    e' = foldl (\u (regex, repl) -> subRegex (mkRegex regex) u repl) e $
+    e' = foldl (\u (regex, repl) -> subRegex (mkRegex regex) u repl) (repl_withs e) $
       [ ("\\bstd::", "")
-      , ("\\b(multimap|map)<([^,]+), ([^,]+), less<\\2>, allocator<pair<const \\2, \\3> > >", "\\1<\\2, \\3>")
-      , ("\\b(multiset|set)<([^,]+), less<\\2>, allocator<\\2> >", "\\1<\\2>")
-      , ("\\b(vector|list|deque)<([^,]+), allocator<\\2> >", "\\1<\\2>")
+      , ("\\b(multimap|map)<([^,]+), ([^,]+), less<\\2>, allocator<pair<const \\2, \\3> ?> ?>", "\\1<\\2, \\3>")
+      , ("\\b(multiset|set)<([^,]+), less<\\2>, allocator<\\2> ?>", "\\1<\\2>")
+      , ("\\b(vector|list|deque)<([^,]+), allocator<\\2> ?>", "\\1<\\2>")
       , ("\\bbasic_(string|[io]?(f|string)?stream)<(\\w+), char_traits<\\3>(, allocator<\\3>)? ?>", "basic_\\1<\\3>")
       , ("\\bbasic_(string|[io]?(f|string)?stream)<char>", "\\1")
       , ("\\b__gnu_(norm|cxx|debug(_def)?)::", "")
