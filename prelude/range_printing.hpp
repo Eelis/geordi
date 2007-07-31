@@ -3,6 +3,7 @@
 #define RANGE_PRINTING_HPP
 
 #include <ostream>
+#include <utility>
 #include <boost/range.hpp>
 #include <boost/type_traits/is_same.hpp>
 #include <boost/utility/enable_if.hpp>
@@ -10,6 +11,38 @@
 template <typename C, typename Tr, typename A, typename B>
 std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::pair<A, B> const & p)
 { return o << '(' << p.first << ", " << p.second << ')'; }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+
+  #include <tr1/tuple>
+
+  template <int O>
+  struct tuple_printer
+  {
+    template <typename C, typename Tr, typename... P>
+    static void print (std::basic_ostream<C, Tr> & o, std::tr1::tuple<P...> const & t)
+    {
+      if (O != 1) { tuple_printer<O-1>::print(o, t); o << ", "; }
+      o << std::tr1::get<O-1>(t);
+    }
+  };
+
+  template <>
+  struct tuple_printer<0>
+  {
+    template <typename C, typename Tr, typename... P>
+    static void print (std::basic_ostream<C, Tr> &, std::tr1::tuple<P...> const &) {}
+  };
+
+  template <typename C, typename Tr, typename... P>
+  std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::tr1::tuple<P...> const & t)
+  {
+    o << '(';
+    tuple_printer<sizeof...(P)>::print(o, t);
+    return o << ')';
+  }
+
+#endif
 
 template <typename C, typename Tr, typename Range>
 void print_range (std::basic_ostream<C, Tr> & o, Range const & r)
