@@ -14,6 +14,9 @@ import GHC.Read
 (.) :: Functor f => (a -> b) -> f a -> f b
 (.) = fmap
 
+(<<) :: Monad m => m a -> m b -> m a
+(<<) x y = x >>= \r -> y >> return r
+
 forever :: Monad m => m a -> m b
 forever x = x >> forever x
 

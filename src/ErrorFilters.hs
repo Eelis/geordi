@@ -7,6 +7,7 @@ module ErrorFilters
 
 import Prelude hiding (catch, (.))
 import Control.Monad
+import Control.Monad.Fix
 import Text.Regex
 import Util
 import Data.List
@@ -31,9 +32,6 @@ process_prog_errors output result =
 (>>>) :: CharParser st String -> CharParser st String -> CharParser st String
 (>>>) = liftM2 (++)
 
-(<<) :: Monad m => m a -> m b -> m a
-(<<) x y = x >>= \r -> y >> return r
-
 strSepBy :: CharParser st String -> String -> CharParser st String
 strSepBy x y = fmap (concat . intersperse y) $ sepBy x (string y)
 
@@ -45,28 +43,61 @@ cxxExpr =
   where mirror '(' = ')'; mirror '[' = ']'; mirror '<' = '>'
     -- Can get confused when faced with sneaky uses of characters like '>'. Consequently, neither repl_withs nor hide_default_arguments works flawlessly in every imaginable case.
 
-repl_withs :: String -> String
-repl_withs s = either (const s) id $ parse (r "") "" s
-  where
-    r pre = ((try (string "[with ") >> sepBy ass (string ", ") << char ']') >>=
-      r . foldr (\(k, v) u -> subRegex (mkRegex $ "\\b" ++ k ++ "\\b") u v) pre) <|>
-        (anyChar >>= \x -> r $ pre ++ [x]) <|> return pre
-    ass = try $ liftM2 (,) (manyTill anyChar $ string " = ") cxxExpr
+class Tok a where t :: a -> CharParser st String
 
-hide_default_template_args :: String -> String
-hide_default_template_args s = either (const s) id $ parse p "" s
-  where
-    p = foldr1 (<|>) (uncurry q . templates_with_default_arguments) >>> p <|> (:[]) . anyChar >>> p <|> return []
-    q name initials = try $ (string (name ++ "<") << spaces) >>> (concat . intersperse ", " . (hide_default_template_args .) . take initials . sepBy1 cxxExpr (spaces >> char ',' >> spaces)) >>> (spaces >> string ">" << spaces)
-    templates_with_default_arguments =
-      [ ("vector", 1), ("list", 1), ("deque", 1), ("multiset", 1), ("set", 1), ("multimap", 2), ("map", 2), ("basic_string", 1), ("basic_iostream", 1), ("basic_istream", 1), ("basic_ostream", 1), ("basic_fstream", 1), ("basic_ofstream", 1), ("basic_ifstream", 1), ("basic_ostringstream", 1), ("basic_istringstream", 1), ("basic_iostringstream", 1), ("basic_filebuf", 1), ("basic_ios", 1), ("basic_streambuf", 1), ("ostream_iterator", 1), ("istream_iterator", 1) ]
+instance Tok Char where t c = string [c] << spaces
+instance Tok String where t c = string c << spaces
+instance Tok [String] where t c = foldr1 (<|>) (try . t . c)
 
-pre_subst_regexps, post_subst_regexps :: [(String, String)]
-post_subst_regexps = [("\\bbasic_(string|[io]?(f|string)?stream)<char>", "\\1")]
-pre_subst_regexps = [("\\bstd::", ""), ("\\b__gnu_(norm|cxx|debug(_def)?)::", "")]
+anyStringTill :: CharParser st String -> CharParser st String
+anyStringTill end = fix $ \scan -> end <|> (((:[]) . anyChar) >>> scan)
 
-subst_regexps :: [(String, String)] -> String -> String
-subst_regexps = flip $ foldl (\u (r, repl) -> subRegex (mkRegex r) u repl)
+ioBasics, clutter_namespaces :: [String]
+ioBasics = ["streambuf", "ofstream", "ifstream", "fstream", "filebuf", "ostream", "istream", "ostringstream", "istringstream", "stringstream", "iostream", "ios", "string"]
+clutter_namespaces = ["std", "boost", "__gnu_norm", "__gnu_debug_def", "__gnu_cxx", "__gnu_debug"]
+
+localReplacer :: CharParser st String -> CharParser st String
+localReplacer x = anyStringTill $ try $ (:[]) . satisfy (not . isIdChar) >>> x
+  where isIdChar c = isAlphaNum c || c == '_'
+    -- Todo: Doesn't replace at start of input. (Situation does not occur in geordi's use, though.)
+
+defaulter :: [String] -> Int -> ([String] -> CharParser st a) -> CharParser st String
+defaulter names idx def = localReplacer $
+  t names >>> t '<' >>> (count idx (cxxExpr << t ',') >>= \prec -> def prec >> return (concat $ intersperse ", " prec)) >>> t '>'
+    -- Hides default template arguments.
+
+replacers :: [CharParser st String]
+replacers = (.) localReplacer
+  [ t clutter_namespaces >> t "::" >> return []
+  , string "basic_" >> t ioBasics << string "<char>"
+  , (\e -> "list<" ++ e ++ ">::iterator") . (t "_List_iterator<" >> cxxExpr << t '>')
+  , (\e -> "list<" ++ e ++ ">::const_iterator") . (t "_List_const_iterator<" >> cxxExpr << t '>')
+  , (++ "::const_iterator") . (t "__normal_iterator<const " >> cxxExpr >> t ',' >> cxxExpr << t '>')
+  , (++ "::iterator") . (t "__normal_iterator<" >> cxxExpr >> t ',' >> cxxExpr << t '>')
+      -- Last two are for vector/string.
+  , (++ "::const_iterator") . (t "_Safe_iterator<_Rb_tree_const_iterator<" >> cxxExpr >> t ">," >> cxxExpr << t '>')
+  , (++ "::iterator") . (t "_Safe_iterator<_Rb_tree_iterator<" >> cxxExpr >> t ">," >> cxxExpr << t '>')
+      -- Last two are for (multi)set/(multi)map.
+  , t "_Safe_iterator<" >> cxxExpr << t ',' << cxxExpr << t '>'
+  -- Regarding deque iterators:   deque<void(*)() >::const_iterator   is written in errors as   _Deque_iterator<void (*)(), void (* const&)(), void (* const*)()>   . Detecting the const in there is too hard (for now).
+  ] ++
+  [ defaulter ["list", "deque", "vector"] 1 (\[e] -> t "allocator<" >> t e >> t '>')
+  , defaulter ["set", "multiset", "basic_stringstream", "basic_string", "basic_ostringstream", "basic_istringstream"] 2 (\[e, _] -> t "allocator<" >> t e >> t '>')
+  , defaulter ["map", "multimap"] 3 (\[k, v, _] -> t "allocator<pair<const " >> t k >> t ',' >> t v >> t '>' >> t '>')
+  , defaulter ["map", "multimap"] 3 (\[k, v, _] -> t "allocator<pair<" >> t k >> t "const" >> t ',' >> t v >> t '>' >> t '>')
+  , defaulter ["set", "multiset"] 1 (\[e] -> t "less<" >> t e >> t '>')
+  , defaulter ["priority_queue"] 1 (\[e] -> t "vector<" >> t e >> t '>')
+  , defaulter ["map", "multimap", "priority_queue"] 2 (\[k, _] -> t "less<" >> t k >> t '>')
+  , defaulter ["queue", "stack"] 1 (\[e] -> t "deque<" >> t e >> t '>')
+  , defaulter ((("basic_" ++) . ioBasics) ++ ["ostreambuf_iterator", "istreambuf_iterator"]) 1 (\[e] -> t "char_traits<" >> t e >> t '>')
+  , defaulter ["istream_iterator"] 3 (const $ t "long int") -- "long int" is what is printed for ptrdiff_t, though probably not on all platforms.
+  , defaulter ["istream_iterator", "ostream_iterator"] 2 (\[_, c] -> t "char_traits<" >> t c >> t '>')
+  , defaulter ["istream_iterator", "ostream_iterator"] 1 (const $ t "char")
+
+  , liftM2 (foldr $ \(k, v) u -> subRegex (mkRegex $ "\\b" ++ k ++ "\\b") u v) (manyTill anyChar $ try $ string " [with ") (sepBy (try $ liftM2 (,) (manyTill anyChar $ t " =") cxxExpr) (t ',') << char ']')
+  ]
 
 process_cc1plus_errors e = maybe e' (!!1) $ matchRegex (mkRegex "\\b(error|warning): ([^\n]*)") e'
-  where e' = subst_regexps post_subst_regexps $ hide_default_template_args $ subst_regexps pre_subst_regexps $ repl_withs e
+  where
+    h s = either (const s) h $ parse (foldr1 (<|>) (try . replacers) >>> getInput) "" s
+    e' = h e
