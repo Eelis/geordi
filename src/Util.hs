@@ -25,14 +25,11 @@ class IOResource a where dealloc :: a -> IO ()
 withResource :: IOResource a => IO a -> (a -> IO b) -> IO b
 withResource x = bracket x $ noThrow . dealloc
 
-withResource' :: IOResource a => a -> IO b -> IO b
-withResource' x y = bracket (return x) (noThrow . dealloc) $ const y
-
 instance IOResource Handle where dealloc = hClose
 instance IOResource Fd where dealloc = closeFd
 
 instance (IOResource x, IOResource y) => IOResource (x, y) where
-  dealloc (x, y) = dealloc x >> dealloc y
+  dealloc (x, y) = noThrow (dealloc x) >> dealloc y
 
 splitOnce :: String -> String -> (String, String)
 splitOnce "" _ = ("", "")
