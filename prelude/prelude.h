@@ -138,8 +138,9 @@ typedef unsigned long ulong;
 #define GEORDI_STATEMENTS_POST \
   } catch (std::exception const & e) { std::cout << "exception: " << e.what(); } }
 
-#define GEORDI_PRINT_PRE GEORDI_STATEMENTS_PRE std::cout << std::boolalpha <<
+#define GEORDI_PRINT_PRE GEORDI_STATEMENTS_PRE std::boolalpha(std::cout); std::cout <<
 #define GEORDI_PRINT_POST ; GEORDI_STATEMENTS_POST
+  // Having the  std::boolalpha(std::cout);  statement separate gives cleaner error messages (for example for "obrien << sqrt(-1) == NAN").
 
 #undef assert
 #define assert(e) ((e) ? void(::std::cout << "Assertion `" #e "' holds.") : (::std::cout << "Assertion `" #e "' fails.", exit(0)));
