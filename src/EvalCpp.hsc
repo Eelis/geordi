@@ -138,8 +138,7 @@ capture_restricted a argv env (Resources timeout rlims bs) =
       mapM (uncurry setResourceLimit) rlims
       myExecuteFile a argv env
       exitImmediately ExitSuccess
-    output <- nonblocking_read pipe_r bs
-    return (res, UTF8.decode output)
+    (,) res . UTF8.decode . (nonblocking_read pipe_r bs)
 
 -- The actual output size is also limited by the pipe buffer.
 
@@ -165,7 +164,6 @@ evalCpp :: IO (String -> Bool -> IO String)
 
 evalCpp = do
   show_sr <- show_SuperviseResult . syscall_names
-  (cc1plus, as, ld) <- readTypedFile "gcc-execs"
   let
     cap :: FilePath -> [String] -> Resources -> (String -> String) -> IO String -> IO String
     cap a argv r err act = do
@@ -174,6 +172,7 @@ evalCpp = do
         Exited ExitSuccess -> act
         Exited (ExitFailure _) -> return $ err out
         _ -> ((takeFileName a ++ ": ") ++) . show_sr res
+  (cc1plus, as, ld) <- readTypedFile "gcc-execs"
   return $ \code also_run -> do
     writeFile "t.cpp" code
     cap (head cc1plus) (tail cc1plus) cc1plus_resources process_cc1plus_errors $ do
@@ -181,7 +180,8 @@ evalCpp = do
     cap (head as) (tail as) as_resources process_as_errors $ do
     cap (head ld) (tail ld) ld_resources process_ld_errors $ do
     (prog_result, prog_output) <- capture_restricted "/t" [] ["GLIBCXX_DEBUG_MESSAGE_LENGTH=0"] prog_resources
-    if prog_result == Exited ExitSuccess then return prog_output else return . process_prog_errors prog_output =<< show_sr prog_result
+    if prog_result == Exited ExitSuccess then return prog_output
+      else process_prog_errors prog_output . show_sr prog_result
 
 ------------- Config (or at least things that are likely more prone to per-site modification):
 
