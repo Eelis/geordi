@@ -1,4 +1,3 @@
 #!/bin/bash -v
-# scripts/clean
 cd src
-hsc2hs EvalCpp.hsc && hsc2hs Ptrace.hsc && ghc -fglasgow-exts -Wall -fno-warn-unused-binds -fno-warn-incomplete-patterns -cpp -ffi --make Bot.hs -o ../Bot
+hsc2hs EvalCpp.hsc && hsc2hs Ptrace.hsc && ghc -fglasgow-exts -fallow-undecidable-instances -Wall -fno-warn-unused-binds -fno-warn-orphans -fno-warn-incomplete-patterns -cpp -ffi --make Bot.hs -o ../Bot

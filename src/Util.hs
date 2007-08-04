@@ -6,6 +6,8 @@ import Prelude hiding (catch, (.))
 import Data.List
 import Control.Exception
 import System.Posix.IO
+import Control.Monad
+import Control.Applicative
 import Control.Monad.Instances
 import System.Posix.Types
 import System.IO
@@ -14,8 +16,9 @@ import GHC.Read
 (.) :: Functor f => (a -> b) -> f a -> f b
 (.) = fmap
 
-(<<) :: Monad m => m a -> m b -> m a
-(<<) x y = x >>= \r -> y >> return r
+instance (Monad m, Functor m) => Applicative m where
+  pure = return
+  (<*>) = ap
 
 forever :: Monad m => m a -> m b
 forever x = x >> forever x

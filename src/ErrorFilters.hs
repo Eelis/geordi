@@ -16,6 +16,7 @@ import Data.Maybe
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import Text.ParserCombinators.Parsec.Token
+import Control.Applicative hiding ((<|>))
 
 process_as_errors, process_ld_errors, process_cc1plus_errors :: String -> String
 
@@ -45,8 +46,8 @@ cxxExpr =
 
 class Tok a where t :: a -> CharParser st String
 
-instance Tok Char where t c = string [c] << spaces
-instance Tok String where t c = string c << spaces
+instance Tok Char where t c = string [c] <* spaces
+instance Tok String where t c = string c <* spaces
 instance Tok [String] where t c = foldr1 (<|>) (try . t . c)
 
 anyStringTill :: CharParser st String -> CharParser st String
@@ -63,22 +64,22 @@ localReplacer x = anyStringTill $ try $ (:[]) . satisfy (not . isIdChar) >>> x
 
 defaulter :: [String] -> Int -> ([String] -> CharParser st a) -> CharParser st String
 defaulter names idx def = localReplacer $
-  t names >>> t '<' >>> (count idx (cxxExpr << t ',') >>= \prec -> def prec >> return (concat $ intersperse ", " prec)) >>> t '>'
+  t names >>> t '<' >>> (count idx (cxxExpr <* t ',') >>= \prec -> def prec >> return (concat $ intersperse ", " prec)) >>> t '>'
     -- Hides default template arguments.
 
 replacers :: [CharParser st String]
 replacers = (.) localReplacer
   [ t clutter_namespaces >> t "::" >> return []
-  , string "basic_" >> t ioBasics << string "<char>"
-  , (\e -> "list<" ++ e ++ ">::iterator") . (t "_List_iterator<" >> cxxExpr << t '>')
-  , (\e -> "list<" ++ e ++ ">::const_iterator") . (t "_List_const_iterator<" >> cxxExpr << t '>')
-  , (++ "::const_iterator") . (t "__normal_iterator<const " >> cxxExpr >> t ',' >> cxxExpr << t '>')
-  , (++ "::iterator") . (t "__normal_iterator<" >> cxxExpr >> t ',' >> cxxExpr << t '>')
+  , string "basic_" >> t ioBasics <* string "<char>"
+  , (\e -> "list<" ++ e ++ ">::iterator") . (t "_List_iterator<" >> cxxExpr <* t '>')
+  , (\e -> "list<" ++ e ++ ">::const_iterator") . (t "_List_const_iterator<" >> cxxExpr <* t '>')
+  , (++ "::const_iterator") . (t "__normal_iterator<const " >> cxxExpr >> t ',' >> cxxExpr <* t '>')
+  , (++ "::iterator") . (t "__normal_iterator<" >> cxxExpr >> t ',' >> cxxExpr <* t '>')
       -- Last two are for vector/string.
-  , (++ "::const_iterator") . (t "_Safe_iterator<_Rb_tree_const_iterator<" >> cxxExpr >> t ">," >> cxxExpr << t '>')
-  , (++ "::iterator") . (t "_Safe_iterator<_Rb_tree_iterator<" >> cxxExpr >> t ">," >> cxxExpr << t '>')
+  , (++ "::const_iterator") . (t "_Safe_iterator<_Rb_tree_const_iterator<" >> cxxExpr >> t ">," >> cxxExpr <* t '>')
+  , (++ "::iterator") . (t "_Safe_iterator<_Rb_tree_iterator<" >> cxxExpr >> t ">," >> cxxExpr <* t '>')
       -- Last two are for (multi)set/(multi)map.
-  , t "_Safe_iterator<" >> cxxExpr << t ',' << cxxExpr << t '>'
+  , t "_Safe_iterator<" >> cxxExpr <* t ',' <* cxxExpr <* t '>'
   -- Regarding deque iterators:   deque<void(*)() >::const_iterator   is written in errors as   _Deque_iterator<void (*)(), void (* const&)(), void (* const*)()>   . Detecting the const in there is too hard (for now).
   ] ++
   [ defaulter ["list", "deque", "vector"] 1 (\[e] -> t "allocator<" >> t e >> t '>')
@@ -94,7 +95,7 @@ replacers = (.) localReplacer
   , defaulter ["istream_iterator", "ostream_iterator"] 2 (\[_, c] -> t "char_traits<" >> t c >> t '>')
   , defaulter ["istream_iterator", "ostream_iterator"] 1 (const $ t "char")
 
-  , liftM2 (foldr $ \(k, v) u -> subRegex (mkRegex $ "\\b" ++ k ++ "\\b") u v) (manyTill anyChar $ try $ string " [with ") (sepBy (try $ liftM2 (,) (manyTill anyChar $ t " =") cxxExpr) (t ',') << char ']')
+  , (foldr $ \(k, v) u -> subRegex (mkRegex $ "\\b" ++ k ++ "\\b") u v) . (manyTill anyChar $ try $ string " [with ") <*> (sepBy (try $ (,) . (manyTill anyChar $ t " =") <*> cxxExpr) (t ',') <* char ']')
   ]
 
 process_cc1plus_errors e = maybe e' (!!1) $ matchRegex (mkRegex "\\b(error|warning): ([^\n]*)") e'
