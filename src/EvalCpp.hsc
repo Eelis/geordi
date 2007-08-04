@@ -13,6 +13,7 @@ import System.Exit
 import System.Posix hiding (Stopped, Exited)
 import System.Posix.Error
 import System.Posix.Internals
+import System.FilePath
 import Util
 import ErrorFilters
 import qualified Ptrace
@@ -172,7 +173,7 @@ evalCpp = do
       case res of
         Exited ExitSuccess -> act
         Exited (ExitFailure _) -> return $ err out
-        _ -> ((leaf a ++ ": ") ++) . show_sr res
+        _ -> ((takeFileName a ++ ": ") ++) . show_sr res
   return $ \code also_run -> do
     writeFile "t.cpp" code
     cap (head cc1plus) (tail cc1plus) cc1plus_resources process_cc1plus_errors $ do

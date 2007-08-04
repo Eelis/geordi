@@ -52,8 +52,5 @@ foreign import ccall "unistd.h chroot" c_chroot :: CString -> IO CInt
 chroot :: FilePath -> IO ()
 chroot s = throwErrnoIfMinus1_ "chroot" (withCString s c_chroot)
 
-leaf :: FilePath -> String
-leaf = reverse . takeWhile (/= '/') . reverse
-
 readTypedFile :: Read a => FilePath -> IO a
 readTypedFile f = either (const $ fail $ "parsing \"" ++ f ++ "\"") return =<< readEither . readFile f
