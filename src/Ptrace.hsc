@@ -2,7 +2,9 @@
 module Ptrace (traceme, syscall, peekuser, pokeuser, cont, kill) where
 
 import Foreign.C
+import Foreign.C.Error
 import System.Posix
+import Control.Monad
 
 #include <sys/ptrace.h>
 #include <asm/ptrace.h>
@@ -36,4 +38,7 @@ cont :: ProcessID -> Maybe CInt -> IO ()
 cont p s = ptrace (#const PTRACE_CONT) p ignored_param (maybe 0 id s) >> return ()
 
 kill :: ProcessID -> IO ()
-kill pid = ptrace (#const PTRACE_KILL) pid ignored_param ignored_param >> return ()
+kill pid = do
+  r <- c_ptrace (#const PTRACE_KILL) pid ignored_param ignored_param
+  e <- getErrno
+  when (r == -1 && e /= eSRCH) $ throwErrno "ptrace KILL"

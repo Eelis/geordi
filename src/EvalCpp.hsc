@@ -77,46 +77,58 @@ nonblocking_read (Fd fd) bc = do
     n -> (fromIntegral . ord .) . peekCStringLen (buf, fromIntegral n)
   -- Wrapping c_read ourselves is easier and more to the point than using fdRead and catching&filtering (stringized) eWOULDBLOCK errors.
 
-data SuperviseResult = Exited ExitCode | DisallowedSyscall CInt | Signaled Signal deriving Eq
+foreign import ccall "wait" c_wait :: Ptr CInt -> IO CPid
+
+wait :: Ptr CInt -> IO WaitResult
+wait p = do
+  r <- c_wait p
+  if r /= -1 then d =<< peek p else do
+  e <- getErrno
+  if e == eCHILD then return WR_NoChild else throwErrno "wait"
+  where
+    d :: CInt -> IO WaitResult
+    d s | c_WIFEXITED s /= 0 = return $ WR_Exited $ c_WEXITSTATUS s
+    d s | c_WIFSIGNALED s /= 0 = return $ WR_Signaled $ c_WTERMSIG s
+    d s | c_WIFSTOPPED s /= 0 = return $ WR_Stopped $ c_WSTOPSIG s
+    d _ = fail "unexpected wait status"
+
+data WaitResult = WR_NoChild | WR_Exited CInt | WR_Signaled CInt | WR_CoreDump | WR_Stopped CInt
+  deriving Show
+
+data SuperviseResult = Exited ExitCode | DisallowedSyscall CInt | Signaled Signal | ChildVanished deriving Eq
 
 show_SuperviseResult :: Map CInt String -> SuperviseResult -> IO String
 show_SuperviseResult sn sr = case sr of
   Exited c -> return $ "Exited: " ++ show c
   DisallowedSyscall c -> return $ "Disallowed system call: " ++ maybe (show c) id (Map.lookup c sn)
   Signaled s -> if s == sigALRM then return "Timeout" else strsignal s
-
-foreign import ccall "wait" c_wait :: Ptr CInt -> IO CPid
-
-wait :: Ptr CInt -> IO ()
-wait = throwErrnoIfMinus1_ "wait" . c_wait
+  ChildVanished -> return "Child vanished"
 
 supervise :: ProcessID -> IO SuperviseResult
   -- supervise assumes that the first event monitored is the sigTRAP caused by the child's execve.
 supervise pid = alloca $ \wstatp -> flip ($) (Just #const SYS_execve) $ fix $ \sv current_syscall -> do
-  wait wstatp -- This wait is called so often that sharing the allocated wstatp is required for acceptable performance.
-  wstat <- peek wstatp
-  case () of
-    _ | c_WIFEXITED wstat /= 0 -> let e = c_WEXITSTATUS wstat in
-      return $ Exited $ if e == 0 then ExitSuccess else ExitFailure $ fromIntegral e
-    _ | c_WIFSIGNALED wstat /= 0 -> return $ Signaled $ c_WTERMSIG wstat
-    _ | c_WIFSTOPPED wstat /= 0 -> let stopsig = c_WSTOPSIG wstat in
-      if stopsig /= sigTRAP then Ptrace.kill pid >> sv Nothing >> return (Signaled stopsig) else
-        case current_syscall of
-          Just sc -> do
-            when (elem sc ignored_syscalls) $ Ptrace.pokeuser pid syscall_ret 0
-            Ptrace.syscall pid; sv Nothing
-          Nothing -> Ptrace.peekuser pid syscall_off >>= \syscall -> case () of
-            _ | elem syscall ignored_syscalls -> do
-              Ptrace.pokeuser pid syscall_off #const SYS_getpid
-              Ptrace.syscall pid; sv (Just syscall)
-            _ | elem syscall allowed_syscalls -> Ptrace.syscall pid >> sv (Just syscall)
-            _ -> do
-              Ptrace.pokeuser pid syscall_off #const SYS_exit_group
-              Ptrace.cont pid Nothing
-              wait wstatp
-              q <- peek wstatp
-              if c_WIFEXITED q == 0 then error "child's exit_group failed" else return $ DisallowedSyscall syscall
-    _ -> fail "wait() returned unexpectedly"
+  wstat <- wait wstatp -- This wait is called so often that sharing the allocated wstatp is required for acceptable performance.
+  case wstat of
+    WR_NoChild -> return ChildVanished
+    WR_Exited e -> return $ Exited $ if e == 0 then ExitSuccess else ExitFailure $ fromIntegral e
+    WR_Signaled s -> return $ Signaled s
+    WR_Stopped s | s == sigTRAP ->
+      case current_syscall of
+        Just sc -> do
+          when (elem sc ignored_syscalls) $ Ptrace.pokeuser pid syscall_ret 0
+          Ptrace.syscall pid; sv Nothing
+        Nothing -> Ptrace.peekuser pid syscall_off >>= \syscall -> case () of
+          _ | elem syscall ignored_syscalls -> do
+            Ptrace.pokeuser pid syscall_off #const SYS_getpid
+            Ptrace.syscall pid; sv (Just syscall)
+          _ | elem syscall allowed_syscalls -> Ptrace.syscall pid >> sv (Just syscall)
+          _ -> do
+            Ptrace.pokeuser pid syscall_off #const SYS_exit_group
+            Ptrace.kill pid
+              -- The documentation for PTRACE_KILL is extremely vague, but it seems that it in this scenario it actually restarts the process, after which one of two things happens: either exit_group succeeds and the next wait returns WR_Exited, or it fails and the process is half dead, twitching, and being delivered SIGKILL. Both cases are dealt with adequately by sv.
+            sv $ Just #const SYS_exit_group
+            return $ DisallowedSyscall syscall
+    WR_Stopped sig -> Ptrace.kill pid >> sv Nothing >> return (Signaled sig)
 
 simpleResourceLimits :: Integer -> ResourceLimits
 simpleResourceLimits l = ResourceLimits (ResourceLimit l) (ResourceLimit l)
