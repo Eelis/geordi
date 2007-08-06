@@ -54,7 +54,7 @@
       <li>scripts/compile-prelude # To produce rt/prelude.h.gch and a few rt/foo.o's.</li>
       <li><kbd>rtcp () { cp -L -r -v --parents $@ rt ; }</kbd></li>
       <li><kbd>libs () { echo `ldd $@ | grep -o -P "(?&lt;=\\s)/\\S*" | sort | uniq` ; }</kbd></li>
-      <li><kbd>EXECS="`which g++ as ld strace` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> # Correct the latst one for your system.</li>
+      <li><kbd>EXECS="`which g++ as ld strace` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> # Correct the last one for your system.</li>
       <li><kbd>rtcp $EXECS `libs $EXECS`</kbd></li>
       <li><kbd>scripts/perms</kbd> # To set up proper permissions for rt and selected files in it.</li>
       <li><kbd>sudo scripts/trycompile</kbd> # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/a.out is produced successfully.</li>
