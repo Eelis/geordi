@@ -1,0 +1,10 @@
+#!/bin/bash
+
+echo "module SyscallNames where"
+echo "import Foreign.C"
+echo "syscallName :: CInt -> String"
+echo "syscallName x = case x of"
+
+echo "#include <asm/unistd.h>" | g++ -E -dM - | sed -r 's/^#define __NR_(\w*) ([[:digit:]]+)$/  \2 -> "\1"/' | grep -v '#' | sort | uniq
+
+echo "  _ -> show x"

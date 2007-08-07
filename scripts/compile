@@ -1,3 +1,4 @@
 #!/bin/bash -v
+scripts/getsyscallnames > src/SyscallNames.hs
 cd src
 hsc2hs EvalCpp.hsc && hsc2hs Ptrace.hsc && ghc -fglasgow-exts -fallow-undecidable-instances -Wall -fno-warn-unused-binds -fno-warn-orphans -fno-warn-incomplete-patterns -cpp -ffi --make Bot.hs -o ../Bot

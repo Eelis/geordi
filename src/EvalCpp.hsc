@@ -1,8 +1,6 @@
 
 module EvalCpp (evalCpp) where
 
-import Data.Map (Map)
-import qualified Data.Map as Map
 import Prelude hiding (catch, (.))
 import Control.Monad
 import Control.Monad.Fix
@@ -22,9 +20,7 @@ import Data.Word
 import Data.Char
 import qualified Codec.Binary.UTF8.String as UTF8
 import Data.Maybe
-import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Language
-import Text.ParserCombinators.Parsec.Token
+import SyscallNames
 
 #include <syscall.h>
 #include <sys/ptrace.h>
@@ -50,8 +46,8 @@ foreign import ccall unsafe "__hsunix_wstopsig" c_WSTOPSIG :: CInt -> CInt
 
 foreign import ccall unsafe "string.h strsignal" c_strsignal :: CInt -> IO CString
 
-strsignal :: CInt -> IO String
-strsignal s = c_strsignal s >>= peekCString
+strsignal :: CInt -> String
+strsignal s = unsafePerformIO $ c_strsignal s >>= peekCString
 
 foreign import ccall unsafe "execve" c_execve :: CString -> Ptr CString -> Ptr CString -> IO CInt
 
@@ -95,14 +91,15 @@ wait p = do
 data WaitResult = WR_NoChild | WR_Exited CInt | WR_Signaled CInt | WR_CoreDump | WR_Stopped CInt
   deriving Show
 
-data SuperviseResult = Exited ExitCode | DisallowedSyscall CInt | Signaled Signal | ChildVanished deriving Eq
+data SuperviseResult = Exited ExitCode | DisallowedSyscall CInt | Signaled Signal | ChildVanished
+  deriving Eq
 
-show_SuperviseResult :: Map CInt String -> SuperviseResult -> IO String
-show_SuperviseResult sn sr = case sr of
-  Exited c -> return $ "Exited: " ++ show c
-  DisallowedSyscall c -> return $ "Disallowed system call: " ++ maybe (show c) id (Map.lookup c sn)
-  Signaled s -> if s == sigALRM then return "Timeout" else strsignal s
-  ChildVanished -> return "Child vanished"
+instance Show SuperviseResult where
+  show sr = case sr of
+    Exited c -> "Exited: " ++ show c
+    DisallowedSyscall c -> "Disallowed system call: " ++ syscallName c
+    Signaled s -> if s == sigALRM then "Timeout" else strsignal s
+    ChildVanished -> "Child vanished"
 
 supervise :: ProcessID -> IO SuperviseResult
   -- supervise assumes that the first event monitored is the sigTRAP caused by the child's execve.
@@ -154,28 +151,10 @@ capture_restricted a argv env (Resources timeout rlims bs) =
 
 -- The actual output size is also limited by the pipe buffer.
 
-unistd_file :: FilePath
-#ifdef __x86_64__
-unistd_file = "/usr/include/asm-x86_64/unistd.h"
-#else
-unistd_file = "/usr/include/asm/unistd.h"
-#endif
-
-syscall_names :: IO (Map CInt String)
-syscall_names = Map.fromList . mapMaybe (either (const Nothing) Just . parse par "") . lines . readFile unistd_file
-  where
-    par = do
-      spaces; char '#'; spaces; string "define"; spaces; string "__NR_"
-      name <- many $ satisfy $ \c -> isAlphaNum c || c == '_'
-      number <- fromIntegral . (spaces >> natural haskell)
-      spaces; eof
-      return (number, name)
-
 evalCpp :: IO (String -> Bool -> IO String)
   -- Two-stage IO: first must happen before jail time, because gcc-execs and the syscall names need to be read from file, second happens inside jail and does actual evaluation.
 
 evalCpp = do
-  show_sr <- show_SuperviseResult . syscall_names
   let
     cap :: FilePath -> [String] -> Resources -> (String -> String) -> IO String -> IO String
     cap a argv r err act = do
@@ -183,7 +162,7 @@ evalCpp = do
       case res of
         Exited ExitSuccess -> act
         Exited (ExitFailure _) -> return $ err out
-        _ -> ((takeFileName a ++ ": ") ++) . show_sr res
+        _ -> return $ takeFileName a ++ ": " ++ show res
   (cc1plus, as, ld) <- readTypedFile "gcc-execs"
   return $ \code also_run -> do
     writeFile "t.cpp" code
@@ -192,8 +171,9 @@ evalCpp = do
     cap (head as) (tail as) as_resources process_as_errors $ do
     cap (head ld) (tail ld) ld_resources process_ld_errors $ do
     (prog_result, prog_output) <- capture_restricted "/t" [] ["GLIBCXX_DEBUG_MESSAGE_LENGTH=0"] prog_resources
-    if prog_result == Exited ExitSuccess then return prog_output
-      else process_prog_errors prog_output . show_sr prog_result
+    return $ if prog_result == Exited ExitSuccess
+      then prog_output
+      else process_prog_errors prog_output (show prog_result)
 
 ------------- Config (or at least things that are likely more prone to per-site modification):
 
