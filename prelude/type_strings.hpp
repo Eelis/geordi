@@ -120,8 +120,20 @@
     template <typename T> struct type_desc_t<T *>
     { static std::string s (bool b) { return pl("pointer", b) + " to " + an<T>(b, "anything"); } enum { vowel = false }; };
 
+    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+    
+    template <typename T> struct type_desc_t<T &>
+    { static std::string s (bool b) { return pl("lvalue reference", b) + " to " + an<T>(b); } enum { vowel = false }; };
+    
+    template <typename T> struct type_desc_t<T &&>
+    { static std::string s (bool b) { return pl("rvalue reference", b) + " to " + an<T>(b); } enum { vowel = false }; };   
+        
+    #else
+    
     template <typename T> struct type_desc_t<T &>
     { static std::string s (bool b) { return pl("reference", b) + " to " + an<T>(b); } enum { vowel = false }; };
+
+    #endif
 
     template <typename T, size_t N> struct type_desc_t<T [N]>
     { static std::string s (bool b) { return pl("array", b) + " of " +  boost::lexical_cast<std::string>(N) + " " + type_desc<T>(N != 1); } enum { vowel = true }; };
