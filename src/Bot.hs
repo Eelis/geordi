@@ -84,6 +84,7 @@ main = do
       forever $ localEval =<< getLine
     [] -> bot cfg eval
     [c] -> jail cfg >> localEval c
+    _ -> fail "Invalid set of command line arguments."
 
 bot :: BotConfig -> (String -> Bool -> IO String) -> IO ()
 bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ port cfg))) $ \h -> do
