@@ -1,5 +1,5 @@
 
-module Ptrace (traceme, syscall, peekuser, pokeuser, cont, kill) where
+module Ptrace (traceme, syscall, peekuser, pokeuser, cont, kill, tracesysgood) where
 
 import Foreign.C
 import Foreign.C.Error
@@ -7,7 +7,7 @@ import System.Posix
 import Control.Monad
 
 #include <sys/ptrace.h>
-#include <asm/ptrace.h>
+#include <linux/ptrace.h>
 #include <syscall.h>
 
 foreign import ccall "sys/ptrace.h ptrace" c_ptrace :: CInt -> CPid -> CInt -> CInt -> IO CInt
@@ -36,6 +36,10 @@ pokeuser p a d = ptrace (#const PTRACE_POKEUSER) p a d >> return ()
 
 cont :: ProcessID -> Maybe CInt -> IO ()
 cont p s = ptrace (#const PTRACE_CONT) p ignored_param (maybe 0 id s) >> return ()
+
+tracesysgood :: ProcessID -> IO ()
+tracesysgood p = ptrace (#const PTRACE_SETOPTIONS) p
+  ignored_param (#const PTRACE_O_TRACESYSGOOD) >> return ()
 
 kill :: ProcessID -> IO ()
 kill pid = do
