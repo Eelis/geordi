@@ -22,7 +22,15 @@ namespace tracked
       typedef unsigned long ulong;
       BOOST_STATIC_ASSERT(sizeof(ulong) == sizeof(void const *));
       ulong const i = ulong(p);
-      o << (i < 0x10000000 ? 'H' : 'S') << std::hex << std::setfill('0') << std::setw(2) << (i & 0xfful);
+
+      ulong const bound =
+        #ifdef __x86_64__
+          0x1000000000;
+        #else
+          0x10000000;
+        #endif
+
+      o << (i < bound ? 'H' : 'S') << std::hex << std::setfill('0') << std::setw(2) << (i & 0xfful);
         // Stack/heap distinction based on pretty shameless assumption that just happens to hold on tested machines.
     }
   }
