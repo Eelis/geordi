@@ -22,7 +22,17 @@ namespace tracked
     void f () const;
     virtual void vf () const;
 
-    private: static struct Reg { std::set<B const *> s; ~Reg (); } reg;
+    void * operator new (size_t);
+    void * operator new[] (size_t);
+    void operator delete (void *);
+    void operator delete[] (void *);
+
+    private:
+
+      bool pillaged;
+      void nopillage (char const *) const;
+
+      static struct Reg { std::set<B const *> s; ~Reg (); } reg;
   };
 
   std::ostream & operator<< (std::ostream &, B const &);

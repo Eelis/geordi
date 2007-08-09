@@ -5,6 +5,8 @@
 
 #include <iostream>
 #include <iomanip>
+#include <cstdlib>
+#include <cstdio>
 
 #include <boost/static_assert.hpp>
 #include <boost/io/ios_state.hpp>
@@ -37,22 +39,56 @@ namespace tracked
 
   // B:
 
-    B::B () { reg.s.insert(this); prt(this) << "B() "; }
+    B::B (): pillaged(false) { reg.s.insert(this); prt(this) << "B() "; }
+
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      B::B (B && b) { reg.s.insert(this); prt(this) << "mB(" << b << ") "; } // 'm' for "move"
+      B::B (B && b): pillaged(false)
+      {
+        b.nopillage("move from");
+        b.pillaged = true;
+        reg.s.insert(this);
+        prt(this) << "mB(" << b << ") "; // 'm' for "move"
+      }
     #endif
-    B::B (int const i) { reg.s.insert(this); prt(this) << "B(" << i << ") "; }
-    B::B (B const & b) { reg.s.insert(this); prt(this) << "B(" << b << ") "; }
 
-    B & B::operator= (B const & b) { std::cout << ' ' << *this << '=' << b << ' '; return *this; }
+    B::B (int const i): pillaged(false) { reg.s.insert(this); prt(this) << "B(" << i << ") "; }
 
-    B & B::operator++ () { std::cout << " ++" << *this << ' '; return *this; }
-    B B::operator++ (int) { B const r (*this); operator++(); return r;  }
+    void B::nopillage (char const * const s) const
+    {
+      if (!pillaged) return;
+      std::cout << " Error: Tried to " << s << " pillaged " << *this << '.' << std::flush;
+      std::fclose(stdout); // Otherwise we get leak messages.
+      std::exit(0);
+    }
 
-    void B::f () const { prt(this) << "f() "; }
-    void B::vf () const { prt(this) << "vf() "; }
+    B::B (B const & b): pillaged(false)
+    {
+      b.nopillage("copy");
+      reg.s.insert(this); prt(this) << "B(" << b << ") ";
+    }
+
+    B & B::operator= (B const & b)
+    {
+      b.nopillage("assign from");
+      pillaged = false;
+      std::cout << ' ' << *this << '=' << b << ' '; return *this;
+    }
+
+    B & B::operator++ () { nopillage("pre-increment"); std::cout << " ++" << *this << ' '; return *this; }
+    B B::operator++ (int) { nopillage("post-increment"); B const r (*this); operator++(); return r;  }
+
+    void B::f () const { nopillage("call B::f() on"); prt(this) << "f() "; }
+    void B::vf () const { nopillage("call B::vf() on"); prt(this) << "vf() "; }
 
     B::~B () { reg.s.erase(this); prt(this) << "~B() "; }
+
+    void * B::operator new (size_t const s) { void * r = ::operator new(s); std::cout << " new"; return r; }
+    void B::operator delete (void * p) { std::cout << "deleted "; ::operator delete(p); }
+
+    void * B::operator new[] (size_t const s) { void * r = ::operator new[](s); std::cout << " new[]"; return r; }
+    void B::operator delete[] (void * p) { std::cout << "delete[]d "; ::operator delete[](p); }
+
+      // These new/delete operators are not called when B's are new'd as part of bigger objects, so B's ctors/dtor are still the appropriate place for reg insertion/erasure.
 
     B::Reg B::reg;
 
