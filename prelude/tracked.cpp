@@ -21,8 +21,9 @@ namespace tracked
       boost::io::ios_flags_saver const fs (o);
       typedef unsigned long ulong;
       BOOST_STATIC_ASSERT(sizeof(ulong) == sizeof(void const *));
-      o << std::hex << std::setfill('0') << std::setw(3)
-        << (((ulong(p) & 0xf0000000ul) >> 20) | (ulong(p) & 0xfful));
+      ulong const i = ulong(p);
+      o << (i < 0x10000000 ? 'H' : 'S') << std::hex << std::setfill('0') << std::setw(2) << (i & 0xfful);
+        // Stack/heap distinction based on pretty shameless assumption that just happens to hold on tested machines.
     }
   }
 
