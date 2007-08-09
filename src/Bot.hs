@@ -51,6 +51,7 @@ jail cfg = do
   setUserID uid
 
 cmd_parser :: String -> CharParser st (Bool, String)
+cmd_parser [] = error "cannot have empty bot name"
 cmd_parser (botnick_h:botnick_t) = do
   spaces
   oneOf [toLower botnick_h, toUpper botnick_h]

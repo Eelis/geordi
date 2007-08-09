@@ -41,7 +41,7 @@ cxxExpr =
     try (fmap show (charLiteral haskell) >>> cxxExpr) <|>
     (oneOf "(<[" >>= \o -> return [o] >>> strSepBy cxxExpr "," >>> string [mirror o] >>> cxxExpr) <|>
     option [] (fmap (:[]) (noneOf ")>],'\"") >>> cxxExpr)
-  where mirror '(' = ')'; mirror '[' = ']'; mirror '<' = '>'
+  where mirror '(' = ')'; mirror '[' = ']'; mirror '<' = '>'; mirror c = error $ "no mirror for " ++ [c]
     -- Can get confused when faced with sneaky uses of characters like '>'. Consequently, neither repl_withs nor hide_default_arguments works flawlessly in every imaginable case.
 
 class Tok a where t :: a -> CharParser st String

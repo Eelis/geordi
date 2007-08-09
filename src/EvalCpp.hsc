@@ -132,6 +132,7 @@ supervise pid = alloca $ \wstatp -> do
   ($ Nothing) $ fix $ \sv current_syscall -> do
     wstat <- wait wstatp
     case wstat of
+      WR_CoreDump -> fail "child dumped core"
       WR_NoChild -> return ChildVanished
       WR_Exited e -> return $ Exited $ if e == 0 then ExitSuccess else ExitFailure $ fromIntegral e
       WR_Signaled s -> return $ Signaled s
