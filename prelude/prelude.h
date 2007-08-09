@@ -10,6 +10,7 @@
 #include "range_printing.hpp"
 #include "foreach.hpp"
 #include "type_strings.hpp"
+#include "delimited_cout.hpp"
 
 #include <stdint.h>
 
