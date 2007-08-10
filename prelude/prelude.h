@@ -12,16 +12,7 @@
 #include "type_strings.hpp"
 #include "delimited_cout.hpp"
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-    #include "unique_ptr.hpp"
-    #include "print.hpp"
-    #include <cstdbool>
-    #include <cinttypes>
-    #include <cstdint>
-    #include <ctgmath>
-#else
-    #include <stdint.h>
-#endif
+#include <stdint.h>
 
 #include <algorithm>
 #include <bitset>
@@ -76,41 +67,10 @@
 #include <cwchar>
 #include <cwctype>
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-    #include <array>
-    #include <type_traits>
-    #include <tuple>
-    #include <unordered_map>
-    #include <unordered_set>
-    
-    #include <tr1/ctgmath>
-
-using std::tr1::assoc_laguerre;
-using std::tr1::assoc_legendre;
-using std::tr1::beta;
-using std::tr1::comp_ellint_1;
-using std::tr1::comp_ellint_3;
-using std::tr1::cyl_bessel_i;
-using std::tr1::cyl_bessel_j;
-using std::tr1::cyl_bessel_k;
-using std::tr1::cyl_neumann;
-using std::tr1::ellint_2;
-using std::tr1::expint;
-using std::tr1::hermite;
-using std::tr1::hyperg;
-using std::tr1::laguerre;
-using std::tr1::legendre;
-using std::tr1::riemann_zeta;
-using std::tr1::sph_bessel;
-using std::tr1::sph_legendre;
-using std::tr1::sph_neumann;
-
-#else
-    #include <tr1/array>
-    #include <tr1/memory>
-    #include <tr1/type_traits>
-    #include <tr1/utility>
-#endif 
+#include <tr1/array>
+#include <tr1/memory>
+#include <tr1/type_traits>
+#include <tr1/utility>
 
 /* these seem to increase the precompiled header size disproportionally:
 #include <tr1/tuple>
@@ -119,17 +79,12 @@ using std::tr1::sph_neumann;
 #include <tr1/unordered_set>
 */
 
-#ifndef __GXX_EXPERIMENTAL_CXX0X__
-    #include <boost/array.hpp>
-    #include <boost/bind.hpp>
-    #include <boost/function.hpp>
-#endif
-
 #include <boost/any.hpp>
+#include <boost/array.hpp>
 #include <boost/assert.hpp>
 #include <boost/assign.hpp>
+#include <boost/bind.hpp>
 #include <boost/checked_delete.hpp>
-#include <boost/compressed_pair.hpp>
 #include <boost/format.hpp>
 #include <boost/implicit_cast.hpp>
 #include <boost/integer.hpp>
