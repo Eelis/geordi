@@ -57,11 +57,9 @@ public:
     // move constructors
     unique_ptr(unique_ptr && u) : p_(u.release()), d_(std::forward<D>(u.get_deleter())) {}
     template <class U, class E> unique_ptr(unique_ptr<U, E> && u) : p_(u.release()), d_(std::forward<D>(u.get_deleter())) {}
-    //unique_ptr(unique_ptr && u) : p_(u.release()), d_(u.get_deleter()) {}
-    //template <class U, class E> unique_ptr(unique_ptr<U, E> && u) : p_(u.release()), d_(u.get_deleter()) {}
-    
+        
     // destructor
-    ~unique_ptr() { d_(p_); }
+    ~unique_ptr() { reset(); }
     
     // assignment
     unique_ptr& operator=(unique_ptr&& u) {
@@ -128,7 +126,7 @@ public:
     unique_ptr(unique_ptr&& u) : p_(u.release()), d_(std::forward<D>(u.d_)) {}
     
     // destructor
-    ~unique_ptr() { d_(p_); }
+    ~unique_ptr() { reset(); }
     
     // assignment
     unique_ptr& operator=(unique_ptr&& u) {reset(u.release()); d_ = std::move(u.d_); return *this;}
@@ -161,6 +159,16 @@ private:
     // disable copy from lvalue
     unique_ptr(const unique_ptr&);
     unique_ptr& operator=(const unique_ptr&);
+
+    template <class U> unique_ptr(U p,
+        typename std::conditional<std::is_reference<deleter_type>::value, deleter_type, const deleter_type&>::type d,
+        typename std::enable_if<std::is_convertible<U, pointer>::value>::type* = 0);
+    
+    template <class U> unique_ptr(U p, typename std::remove_reference<deleter_type>::type&& d,
+        typename std::enable_if<std::is_convertible<U, pointer>::value>::type* = 0);
+    
+    template <class U> explicit unique_ptr(U,
+        typename std::enable_if<std::is_convertible<U, pointer>::value>::type* = 0);
 };
 
 template <class T, class D, size_t N> class unique_ptr<T[N], D> {
@@ -186,7 +194,7 @@ public:
     unique_ptr(unique_ptr&& u) : p_(u.release()), d_(std::forward<D>(u.d_)) {}
     
     // destructor
-    ~unique_ptr() { d_(p_, N); }
+    ~unique_ptr() { reset(); }
     
     // assignment
     unique_ptr& operator=(unique_ptr&& u) {reset(u.release()); d_ = std::move(u.d_); return *this;}
@@ -201,7 +209,7 @@ public:
     
     // modifiers
     T* release() { T* t = p_; p_ = 0; return t; }
-    void reset(T* p = 0) { assert(p == 0 || p != p_); d_(p_); p_ = p; }
+    void reset(T* p = 0) { assert(p == 0 || p != p_); d_(p_, N); p_ = p; }
     
     void swap(unique_ptr && u) {
         T * t(std::move(u.p_));
@@ -219,6 +227,17 @@ private:
     // disable copy from lvalue
     unique_ptr(const unique_ptr&);
     unique_ptr& operator=(const unique_ptr&);
+    
+    //disallow construction from convertible pointer types (i.e. base*/dervied*) 
+    template <class U> unique_ptr(U p,
+        typename std::conditional<std::is_reference<D>::value, D, const D&>::type d,
+        typename std::enable_if<std::is_convertible<U, pointer>::value>::type* = 0);
+    
+    template <class U> unique_ptr(U p, typename std::remove_reference<D>::type&& d,
+        typename std::enable_if<std::is_convertible<U, pointer>::value>::type* = 0);
+    
+    template <class U> explicit unique_ptr(U,
+        typename std::enable_if<std::is_convertible<U, pointer>::value>::type* = 0);
 };
 
 template<class T, class D> 
