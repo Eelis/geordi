@@ -14,6 +14,7 @@
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
   #include "lvalue_rvalue.hpp"
+  #include "unique_ptr.hpp"
 #endif
 
 #include <stdint.h>
