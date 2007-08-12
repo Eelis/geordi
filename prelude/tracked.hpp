@@ -10,6 +10,7 @@ namespace tracked
     explicit B (int);
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       B (B &&);
+      B & operator= (B &&);
     #endif
     B (B const &);
     B & operator= (B const &);
@@ -43,6 +44,7 @@ namespace tracked
     D (D const &);
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       D (D &&);
+      D & operator= (D &&);
     #endif
     D & operator= (D const &);
     void vf () const;
@@ -50,4 +52,14 @@ namespace tracked
   };
 
   std::ostream & operator<< (std::ostream &, D const &);
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+  void swap(B & a, B & b);
+  void swap(B && a, B & b);
+  void swap(B & a, B && b);
+
+  void swap(D & a, D & b);
+  void swap(D && a, D & b);
+  void swap(D & a, D && b);
+#endif
 }

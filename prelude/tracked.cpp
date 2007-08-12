@@ -11,6 +11,10 @@
 #include <boost/static_assert.hpp>
 #include <boost/io/ios_state.hpp>
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#include <utility> //move
+#endif
+
 namespace tracked
 {
   namespace
@@ -42,12 +46,19 @@ namespace tracked
     B::B (): pillaged(false) { reg.s.insert(this); prt(this) << "B() "; }
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
+      B & B::operator= (B && b) { 
+        b.nopillage("move-assign from");
+        b.pillaged = true;
+        pillaged = false;
+        std::cout << ' ' << *this << "<=" << b << ' '; return *this; 
+      }
+
       B::B (B && b): pillaged(false)
       {
         b.nopillage("move from");
         b.pillaged = true;
         reg.s.insert(this);
-        prt(this) << "mB(" << b << ") "; // 'm' for "move"
+        std::cout << ' ' << b << "=>" << *this << ' '; // '=>' for "move"
       }
     #endif
 
@@ -106,7 +117,8 @@ namespace tracked
     D::D () { prt(this) << "D() "; }
     D::D (D const & d): B(d) { prt(this) << "D(" << d << ") "; }
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      D::D (D && d) { prt(this) << "mD(" << d << ") "; }
+      D::D (D && d) { std::cout << ' ' << d << "=>" << *this << ' '; }      
+      D & D::operator= (D && d) { B::operator=(std::move(d)); std::cout << ' ' << *this << "<=" << d << ' '; return *this; }
     #endif
 
     D & D::operator= (D const & d)
@@ -117,4 +129,21 @@ namespace tracked
     D::~D () { prt(this) << "~D() "; }
 
     std::ostream & operator<< (std::ostream & o, D const & d) { o << "D@"; print_addr(o, &d); return o; }
+
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+    void swap(B & a, B & b) {
+        B tmp(std::move(b));
+        b = std::move(a);
+        a = std::move(tmp);
+    }
+    void swap(B && a, B & b) { b = std::move(a); }
+    void swap(B & a, B && b) { a = std::move(b); }
+    void swap(D & a, D & b) {
+        D tmp(std::move(b));
+        b = std::move(a);
+        a = std::move(tmp);
+    }
+    void swap(D && a, D & b) { b = std::move(a); }
+    void swap(D & a, D && b) { a = std::move(b); }
+#endif
 }
