@@ -25,6 +25,10 @@
 #include <set>
 #include <utility>
 #include <deque>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <ios>
 #include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
 #include <boost/array.hpp>
@@ -41,8 +45,23 @@
 
   // Note: Since type relies on passing the type as a template argument, it will not work for locally defined types.
 
-  template <> std::string type<std::string> () { return "string"; }
-  template <> std::string type<std::wstring> () { return "wstring"; }
+  #define TYPEDEF_TYPE(n) template <> std::string type<std::n> () { return #n; }
+
+  TYPEDEF_TYPE(ios)
+  TYPEDEF_TYPE(fstream)
+  TYPEDEF_TYPE(ifstream)
+  TYPEDEF_TYPE(ofstream)
+  TYPEDEF_TYPE(ostringstream)
+  TYPEDEF_TYPE(istringstream)
+  TYPEDEF_TYPE(stringstream)
+  TYPEDEF_TYPE(streambuf)
+  TYPEDEF_TYPE(iostream)
+  TYPEDEF_TYPE(ostream)
+  TYPEDEF_TYPE(istream)
+  TYPEDEF_TYPE(string)
+  TYPEDEF_TYPE(wstring)
+
+  #undef TYPEDEF_TYPE
 
 // Demangling toys
 
@@ -102,6 +121,28 @@
     DEF_BUILTIN_SPEC(long unsigned int, "long unsigned integer", false)
 
     #undef DEF_BUILTIN_SPEC
+
+    // stdlib typedefs
+
+    #define TYPEDEF_TYPE_DESC(n, pl, vow) \
+      template <> struct type_desc_t<std::n> \
+      { static std::string s (bool b) { return b ? #n pl : #n; } enum { vowel = vow }; };
+
+    TYPEDEF_TYPE_DESC(ios, "es", true)
+    TYPEDEF_TYPE_DESC(fstream, "s", false)
+    TYPEDEF_TYPE_DESC(ifstream, "s", true)
+    TYPEDEF_TYPE_DESC(ofstream, "s", true)
+    TYPEDEF_TYPE_DESC(ostringstream, "s", true)
+    TYPEDEF_TYPE_DESC(istringstream, "s", true)
+    TYPEDEF_TYPE_DESC(stringstream, "s", false)
+    TYPEDEF_TYPE_DESC(streambuf, "s", false)
+    TYPEDEF_TYPE_DESC(iostream, "s", true)
+    TYPEDEF_TYPE_DESC(ostream, "s", true)
+    TYPEDEF_TYPE_DESC(istream, "s", true)
+    TYPEDEF_TYPE_DESC(string, "s", false)
+    TYPEDEF_TYPE_DESC(wstring, "s", false)
+
+    #undef TYPEDEF_TYPE_DESC
 
     // primitive constructs
 
