@@ -12,6 +12,7 @@ import Control.Monad.Instances
 import System.Posix.Types
 import System.IO
 import GHC.Read
+import System.Posix.Resource
 
 (.) :: Functor f => (a -> b) -> f a -> f b
 (.) = fmap
@@ -57,3 +58,6 @@ chroot s = throwErrnoIfMinus1_ "chroot" (withCString s c_chroot)
 
 readTypedFile :: Read a => FilePath -> IO a
 readTypedFile f = either (const $ fail $ "parsing \"" ++ f ++ "\"") return =<< readEither . readFile f
+
+simpleResourceLimits :: Integer -> ResourceLimits
+simpleResourceLimits l = ResourceLimits (ResourceLimit l) (ResourceLimit l)

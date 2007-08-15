@@ -2,16 +2,20 @@
 import Network (PortID(..), connectTo)
 import System.IO (hSetBuffering, BufferMode(..), hGetLine)
 import System.Environment (getArgs)
-import System.Directory (setCurrentDirectory)
+import System.Directory (setCurrentDirectory, getDirectoryContents)
+import System.Posix.Process (getProcessID)
 import System.Posix.Env (setEnv)
 import System.Posix.User
+import System.Posix.Resource
 import Control.Monad.Reader
 import Control.Monad
 import Text.ParserCombinators.Parsec
 import Prelude hiding (catch, (.), readFile, putStrLn, print)
 import Data.Char
+import Data.List ((\\))
 import Data.Maybe
 import EvalCpp (evalCpp)
+import qualified EvalCpp
 import Util
 import System.IO.UTF8 hiding (hGetLine, getLine)
 
@@ -71,6 +75,14 @@ cmd_parser (botnick_h:botnick_t) = do
 
 main :: IO ()
 main = do
+
+  do -- See section "Inherited file descriptors." in EvalCpp.hsc.
+    setResourceLimit ResourceOpenFiles $ simpleResourceLimits $ fromIntegral EvalCpp.close_range_end
+    pid <- getProcessID
+    open_fds <- (read .) . (\\ [".", ".."]) . getDirectoryContents ("/proc/" ++ show pid ++ "/fd")
+    when (maximum open_fds >= EvalCpp.close_range_end) $ do
+      fail $ "fd(s) open >= " ++ show EvalCpp.close_range_end ++ ": " ++ show (filter (>= EvalCpp.close_range_end) open_fds)
+
   cfg <- readTypedFile "config"
   eval <- evalCpp
   args <- getArgs

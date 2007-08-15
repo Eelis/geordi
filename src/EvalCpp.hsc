@@ -22,7 +22,17 @@ The second important aspect relates to the initialization of the in_syscall flag
 
 -}
 
-module EvalCpp (evalCpp) where
+{-- Inherited file descriptors.
+
+A newly fork()ed child inherits its parent's file descriptors. In our case, that means that among other things, the network socket is exposed unless we ensure that it's closed before the child execve()s. To be on the safe side, the child should close all FDs except for stdout and stderr, before it execve()s.
+
+There are basically two approaches: either we somehow get a list of open FDs and then close them (except for stdout/stderr), or we walk through a range of possibly opened FDs and close them regardless of whether they're open. Since getting a list of open FDs turns out to be hard/fragile, we use the latter approach.
+
+This approach is only sensible for a small range. Fortunately, FDs are allocated incrementally, so we can just start at 0 and close everything (except for stdout/stderr) up to some number that we are convinced is greater than the number of files the bot will ever want to have open. That number is defined as close_range_end. We employ one final measure to reduce the damage should the bot try to allocate an FD beyond that number: the first thing we have the bot do at startup is set up a resource limit restricting the range of open FDs, after which we have it checks that it did not somehow already have FDs open outside that range. This way, transgressions of the limit will just crash the bot with some file open error, rather than expose open FDs to client code.
+
+-}
+
+module EvalCpp (evalCpp, close_range_end) where
 
 import Prelude hiding (catch, (.))
 import Control.Monad
@@ -155,10 +165,14 @@ supervise pid = alloca $ \wstatp -> do
               return $ DisallowedSyscall syscall
       WR_Stopped sig -> Ptrace.kill pid >> sv Nothing >> return (Signaled sig)
 
-simpleResourceLimits :: Integer -> ResourceLimits
-simpleResourceLimits l = ResourceLimits (ResourceLimit l) (ResourceLimit l)
-
 data Resources = Resources { walltime :: Int, rlimits :: [(Resource, ResourceLimits)], bufsize :: CSize }
+
+close_range_end :: CInt
+close_range_end = 30
+  -- Must be higher than any ResourceOpenFiles limit specified for cc1plus/as/ld/prog, because the limit is inherited by child processes and can only be decreased.
+
+fdOfFd :: Fd -> CInt
+fdOfFd (Fd fd) = fd
 
 -- capture_restricted assumes the program produces UTF-8 encoded text and returns it as a proper Unicode String.
 
@@ -169,7 +183,7 @@ capture_restricted a argv env (Resources timeout rlims bs) =
     res <- (=<<) supervise $ forkProcess $ do
       dupTo pipe_w stdError
       dupTo pipe_w stdOutput
-      closeFd stdInput
+      forM_ ([0..close_range_end] \\ [fdOfFd stdOutput, fdOfFd stdError]) c_close
       scheduleAlarm timeout
       mapM (uncurry setResourceLimit) rlims
       Ptrace.traceme
