@@ -36,6 +36,13 @@
 #include <cxxabi.h>
 #include "ScopeGuard.hpp"
 
+#ifdef __GXX_EXPERIMENTAL_CXX0X__
+#include <array>
+#include <tuple>
+#include <unordered_set>
+#include <unordered_map>
+#include "unique_ptr.hpp"
+#endif
 // Type strings in ordinary C++ syntax
 
   template <typename>
@@ -164,10 +171,10 @@
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
     
     template <typename T> struct type_desc_t<T &>
-    { static std::string s (bool b) { return pl("lvalue reference", b) + " to " + an<T>(b); } enum { vowel = false }; };
+    { static std::string s (bool b) { return pl("lvalue reference", b) + " to " + an<T>(b); } enum { vowel = true }; };
     
     template <typename T> struct type_desc_t<T &&>
-    { static std::string s (bool b) { return pl("rvalue reference", b) + " to " + an<T>(b); } enum { vowel = false }; };   
+    { static std::string s (bool b) { return pl("rvalue reference", b) + " to " + an<T>(b); } enum { vowel = true }; };   
         
     #else
     
@@ -196,6 +203,27 @@
       cv_v [] = " volatile ",
       cv_cv [] = " constant volatile ";
 
+    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+    
+    template <typename... U> struct param_type;
+
+    template<typename T, typename... U> struct param_type<T, U...> 
+    { static std::string s (bool b) { return an<T>(false) + ", " + param_type<U...>::s(b);} enum { vowel = false }; };
+
+    template <typename T> struct param_type<T>
+    { static std::string s (bool b) { return "and " + an<T>(false);} enum { vowel = false }; };
+    
+    template <typename T, typename... U> struct type_desc_t<T (U...)>
+    { static std::string s (bool b) { return pl("function", b) + " taking " + param_type<U...>::s(b) + ", and returning " + an<T>(b, "nothing"); } enum { vowel = false }; };
+ 
+    template <typename T> struct type_desc_t<T ()>
+    { static std::string s (bool b) { return pl("function", b) + " taking no arguments and returning " + an<T>(b, "nothing"); } enum { vowel = false }; };
+    
+    template <typename T, typename U> struct type_desc_t<T (U)>
+    { static std::string s (bool b) { return pl("function", b) + " taking " + an<U>(false) + " and returning " + an<T>(b, "nothing"); } enum { vowel = false }; };
+
+    #else
+    
     template <typename T> struct type_desc_t<T ()>
     { static std::string s (bool b) { return pl("function", b) + " taking no arguments and returning " + an<T>(b, "nothing"); } enum { vowel = false }; };
 
@@ -207,7 +235,8 @@
 
     template <typename T, typename U, typename V, typename W> struct type_desc_t<T (U, V, W)>
     { static std::string s (bool b) { return pl("function", b) + " taking " + an<U>(false) + " and " + an<V>(false) + " and " + an<W>(false) + " and returning " + an<T>(b, "nothing"); } enum { vowel = false }; };
-
+    
+    #endif
     // data member
 
     template <typename T, typename U> struct type_desc_t<T (U:: *)>
@@ -314,17 +343,60 @@
 
     template <typename T, size_t N> struct type_desc_t<std::tr1::array<T, N> >
     { static std::string s (bool b) { return pl("array", b) + " of " +  boost::lexical_cast<std::string>(N) + " " + type_desc<T>(N != 1); } enum { vowel = true }; };
+
+    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+    
+    template <typename T, size_t N> struct type_desc_t<std::array<T, N> >
+    { static std::string s (bool b) { return pl("array", b) + " of " +  boost::lexical_cast<std::string>(N) + " " + type_desc<T>(N != 1); } enum { vowel = true }; };
+    
+    template<size_t N> struct num_vowel { static const bool vowel = false; };
+    template<> struct num_vowel<8> { static const bool vowel = true; };
+    template<> struct num_vowel<18> { static const bool vowel = true; };
+    
+    template <typename... T> struct type_desc_t<std::tuple<T...>> 
+    { static std::string s (bool b) { return boost::lexical_cast<std::string>(sizeof...(T)) + "-" + pl("tuple", b) + " of " +  param_type<T...>::s(b); } enum { vowel = num_vowel<sizeof...(T)>::vowel }; };
+    
+    template <typename T> struct type_desc_t<unique_ptr<T>>
+    { static std::string s (bool b) { return pl("unique pointer", b) + " to " + an<T>(b, "anything"); } enum { vowel = false }; };
+
+    template <typename T> struct type_desc_t<std::reference_wrapper<T>>
+    { static std::string s (bool b) { return "reference wrapped " + type_desc_t<T>::s(b); } enum { vowel = false }; };
+    
+    template <typename T, typename U, typename H, typename P, typename A> struct type_desc_t<std::unordered_map<T, U, H, P, A>>
+    { static std::string s (bool b) { return pl("unordered map", b) + " from " + type_desc<T>(true) + " to " + type_desc<U>(true); } enum { vowel = false }; };
+    
+    template <typename T, typename U, typename H, typename P, typename A> struct type_desc_t<std::unordered_multimap<T, U, H, P, A>>
+    { static std::string s (bool b) { return pl("unordered multi-map", b) + " from " + type_desc<T>(true) + " to " + type_desc<U>(true); } enum { vowel = false }; };
+  
+    template <typename T, typename H, typename P, typename A> struct type_desc_t<std::unordered_set<T, H, P, A>>
+    { static std::string s (bool b) { return pl("unordered set", b) + " of " + type_desc<T>(true); } enum { vowel = false }; };
+
+    template <typename T, typename H, typename P, typename A> struct type_desc_t<std::unordered_multiset<T, H, P, A>>
+    { static std::string s (bool b) { return pl("unordered multi-set", b) + " of " + type_desc<T>(true); } enum { vowel = false }; };
+
+    #endif
+    
   }
 
   template <typename T> std::string type_desc (bool const plural)
   { return textual_type_descriptions::type_desc_t<T>::s(plural); }
 
 // Macros (variadic so that things like TYPE(pair<int, bool>) work (note the comma)).
-
-  #define TYPE(...) (type<__typeof__( __VA_ARGS__ )>())
+  
   #define TYPEID_NAME(...) (cxa_demangle(typeid( __VA_ARGS__ ).name()))
+    
+  #ifdef __GXX_EXPERIMENTAL_CXX0X__
+  
+  #define TYPE(...) (type<decltype( __VA_ARGS__ )>())
+  #define TYPE_DESC(...) (type_desc<decltype( __VA_ARGS__ )>())
+  
+  #else
+  
+  #define TYPE(...) (type<__typeof__( __VA_ARGS__ )>())
   #define TYPE_DESC(...) (type_desc<__typeof__( __VA_ARGS__ )>())
-
+  
+  #endif
+  
 #endif // header guard
 
 #ifdef TYPE_STRINGS_TEST
