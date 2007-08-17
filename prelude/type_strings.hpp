@@ -278,11 +278,14 @@ namespace textual_type_descriptions
 
   // member function pointers
 
-  extern char const // Todo: Will cause linker errors when included in different TUs.
-    cv_ [] = " ",
-    cv_c [] = " constant ",
-    cv_v [] = " volatile ",
-    cv_cv [] = " constant volatile ";
+  namespace // Prevents linker errors when included in different TUs.
+  {
+    extern char const
+      cv_ [] = " ",
+      cv_c [] = " constant ",
+      cv_v [] = " volatile ",
+      cv_cv [] = " constant volatile ";
+  }
 
   template <typename T, typename U, char const * e> struct type_desc_t_mem0: consonant
   { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "nullary member " + pl("function", b) + " of class " + type<U>() + " " + returning<T>(b); } };
