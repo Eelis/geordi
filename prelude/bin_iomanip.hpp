@@ -72,9 +72,11 @@ class bin_num_put: public std::num_put<char>
 
 inline std::ios_base & bin (std::ios_base & io)
 {
+  #if __GNUC_MINOR__ < 3 // 4.3's typeof is bugged.
   if (typeid(std::use_facet<std::num_put<char> >(io.getloc())) != typeid(bin_num_put))
     throw std::runtime_error("bin manipulator used on ios_base lacking bin_num_put facet");
       // Can't use std::has_facet because our facet has no id of its own.
+  #endif
   io.setf(std::ios_base::fmtflags(0), std::ios_base::basefield);
   return io;
 }
