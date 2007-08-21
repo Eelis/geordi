@@ -11,6 +11,7 @@
 #include "foreach.hpp"
 #include "type_strings.hpp"
 #include "delimited_cout.hpp"
+#include "bin_iomanip.hpp"
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
   #include "lvalue_rvalue.hpp"
@@ -140,7 +141,8 @@ typedef unsigned char uchar;
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
-#define GEORDI_STATEMENTS_PRE int main () { try {
+#define GEORDI_STATEMENTS_PRE \
+  int main () { std::cout.imbue(std::locale(std::cout.getloc(), new bin_num_put)); try {
 #define GEORDI_STATEMENTS_POST \
   } catch (std::exception const & e) { std::cout << "exception: " << e.what(); } }
 
