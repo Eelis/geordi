@@ -54,6 +54,7 @@
       <li>Edit `config' to your liking.</li>
       <li><kbd>mkdir rt</kbd> # This will be our chroot root.</li>
       <li>scripts/compile-prelude # To produce rt/prelude.h.gch and a few rt/foo.o's.</li>
+      <li><kbd>cp res/terse.hpp rt/</kbd></li>
       <li><kbd>rtcp () { cp -L -r -v --parents $@ rt ; }</kbd></li>
       <li><kbd>libs () { echo `ldd $@ | grep -o -P "(?&lt;=\\s)/\\S*" | sort | uniq` ; }</kbd></li>
       <li><kbd>EXECS="`which g++ as ld strace` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> # Correct the last one for your system.</li>
@@ -64,7 +65,7 @@
       <li><kbd>sudo chroot rt /a.out &amp;&amp; echo</kbd> # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
       <li><kbd>sudo scripts/trace-execs</kbd></li>
       <li><kbd>find rt -perm -o+w</kbd> # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
-      <li><kbd>find rt -user nobody</kbd> # This should find no files at all.</li>
+      <li><kbd>find rt -user nobody</kbd> # This should find nothing.</li>
       <li><kbd>sudo ./Bot "geordi-clone &lt;&lt; 'x'"</kbd> # If this does not print 'x', something is messed up. (Replace "geordi-clone" with the configured nick, of course.)</li>
       <li>If you want, you can now <kbd>rm -f rt/usr/bin/strace rt/usr/bin/g++</kbd></li>
       <li>To get an idea of what rt could look like, look at the tree and file listing below.</li>

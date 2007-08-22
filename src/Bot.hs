@@ -1,16 +1,16 @@
 
 import Network (PortID(..), connectTo)
-import System.IO (hSetBuffering, BufferMode(..), hGetLine)
+import System.IO (hSetBuffering, BufferMode(..), hGetLine, hFlush, stdout)
 import System.Environment (getArgs)
 import System.Directory (setCurrentDirectory, getDirectoryContents)
 import System.Posix.Process (getProcessID)
 import System.Posix.Env (setEnv)
 import System.Posix.User
 import System.Posix.Resource
-import Control.Monad.Reader
+import Control.Monad.Error
 import Control.Monad
 import Text.ParserCombinators.Parsec
-import Prelude hiding (catch, (.), readFile, putStrLn, print)
+import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Data.Char
 import Data.List ((\\))
 import Data.Maybe
@@ -18,6 +18,7 @@ import EvalCpp (evalCpp)
 import qualified EvalCpp
 import Util
 import System.IO.UTF8 hiding (hGetLine, getLine)
+import System.Console.GetOpt
 
 data BotConfig = BotConfig
   { server :: String, port :: Integer, max_msg_length :: Int
@@ -54,24 +55,40 @@ jail cfg = do
   setGroupID gid
   setUserID uid
 
-cmd_parser :: String -> CharParser st (Bool, String)
-cmd_parser [] = error "cannot have empty bot name"
-cmd_parser (botnick_h:botnick_t) = do
-  spaces
-  oneOf [toLower botnick_h, toUpper botnick_h]
-    -- There is currently no proper case-insensitive char/string comparison function in Data.Char (see GHC ticket #1506).
-  string botnick_t
-  spaces
-  also_run <- (string "-c" >> spaces >> return False) <|> return True
-  delimited <- (oneOf ":," >> spaces >> return True) <|> return False
-  let
-    wrapProgram c = "#include \"prelude.h\"\n" ++ c ++ "\n"
-    wrapPrePost t c = wrapProgram $ "GEORDI_" ++ t ++ "_PRE " ++ c ++ "\nGEORDI_" ++ t ++ "_POST"
-  code <- foldr1 (<|>) $
-    [ wrapPrePost "PRINT" . (string "<<" >> getInput),
-      wrapPrePost "STATEMENTS" . ('{':) . (char '{' >> getInput) ] ++
-    if delimited then [wrapProgram . getInput] else []
-  return (also_run, code)
+data Flag = CompileOnly | Terse | Help deriving (Eq, Enum, Bounded, Show)
+
+options :: [OptDescr Flag]
+options = (\e -> let s = toLower . show e in Option [head s] [s] (NoArg e) undefined) . [minBound ..]
+
+wrapPrePost :: String -> String -> String
+wrapPrePost t c = "GEORDI_" ++ t ++ "_PRE " ++ c ++ "\nGEORDI_" ++ t ++ "_POST"
+
+wrapPrint, wrapStmts :: String -> String
+wrapPrint = wrapPrePost "PRINT"
+wrapStmts = wrapPrePost "STATEMENTS"
+
+is_request :: String -> String -> Maybe String
+is_request botnick txt = either (const Nothing) Just (parse p "" txt)
+  where
+   p = do
+    string botnick <|> string (capitalize botnick)
+    (oneOf ":," >> getInput) <|> (spaces >> satisfy (not . isLetter) >>= \c -> (c:) . getInput)
+
+parse_request :: Monad m => String -> m (Bool {- also run -}, String {- code -})
+parse_request s = do
+  (opts, nonopcount) <- case getOpt RequireOrder options (words s) of
+    (_, _, (e:_)) -> fail e
+    (f, o, []) -> return (f, length o)
+  code <- if Help `elem` opts then return $ wrapPrint "help" else do
+    let u = concat $ takeBack nonopcount $ wordsWithWhite s
+    case stripPrefix "<<" u of
+      Just r -> return $ wrapPrint r
+      Nothing -> maybe (return u) (return . wrapStmts . ('{':)) (stripPrefix "{" u)
+  return (Help `elem` opts || not (CompileOnly `elem` opts),
+    unlines $ ["#include \"prelude.h\""] ++ (if Terse `elem` opts then ["#include \"terse.hpp\""] else []) ++ [code])
+
+prompt :: String
+prompt = "\n> "
 
 main :: IO ()
 main = do
@@ -87,19 +104,18 @@ main = do
   eval <- evalCpp
   args <- getArgs
   let
-    localEval l =
-      case parse (cmd_parser $ nick cfg) "" l of
-        Left e -> putStrLn $ "parse error: " ++ show e
-        Right (also_run, code) -> putStrLn =<< filter isPrint . eval code also_run
+    evalRequest :: String -> IO String
+    evalRequest = either return (\(also_run, code) -> filter isPrint . eval code also_run) . parse_request
+
   case args of
     ["-i"] -> do
       jail cfg
-      forever $ localEval =<< getLine
-    [] -> bot cfg eval
-    [c] -> jail cfg >> localEval c
+      forever $ putStr prompt >> hFlush stdout >> getLine >>= evalRequest >>= putStrLn
+    [] -> bot cfg evalRequest
+    [c] -> jail cfg >> evalRequest c >>= putStrLn
     _ -> fail "Invalid set of command line arguments."
 
-bot :: BotConfig -> (String -> Bool -> IO String) -> IO ()
+bot :: BotConfig -> (String -> IO String) -> IO ()
 bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ port cfg))) $ \h -> do
   setEnv "LC_ALL" "C" True -- Otherwise compiler warnings may use non-ASCII characters (e.g. for quotes).
   jail cfg
@@ -110,16 +126,14 @@ bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ 
   forever $ parse_irc_msg . init . liftIO (hGetLine h) >>= \m -> case m of
     IRCmsg _ "PING" a -> cmd "PONG" a
     IRCmsg (Just (IRCid fromnick _ _)) "PRIVMSG" [c, txt] ->
-      when (elem c (chans cfg) && not (elem fromnick $ blacklist cfg)) $ do
-        case parse (cmd_parser $ nick cfg) "" txt of
-          Left _ -> return () -- Parse error
-          Right (also_run, code) -> do
-            o <- take (max_msg_length cfg) . filter isPrint . takeWhile (/= '\n') . eval code also_run
-            cmd "PRIVMSG" [c, if null o then no_output_msg cfg else o]
+      when (elem c (chans cfg) && not (elem fromnick $ blacklist cfg)) $
+        maybeM (is_request (nick cfg) txt) $ \r -> do
+          o <- take (max_msg_length cfg) . filter isPrint . takeWhile (/= '\n') . eval r
+          cmd "PRIVMSG" [c, if null o then no_output_msg cfg else o]
     IRCmsg _ "376" {- End of motd. -} _ -> do
       forM_ (chans cfg) $ cmd "JOIN" . (:[])
       maybeM (nick_pass cfg) $ \np -> cmd "PRIVMSG" ["NickServ",  "identify " ++ np]
     _ -> return ()
 
--- (filter isPrint) works properly because (1) evalCpp returns a proper Unicode String, not a load of bytes; and (2) we use System.IO.UTF8's hPutStrLn which properly UTF-8 encodes the filtered String.
+-- (filter isPrint) works properly because (1) eval returns a proper Unicode String, not a load of bytes; and (2) we use System.IO.UTF8's hPutStrLn which properly UTF-8 encodes the filtered String.
 -- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.

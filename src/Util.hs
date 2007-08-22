@@ -4,15 +4,16 @@ module Util where
 import Foreign.C
 import Prelude hiding (catch, (.))
 import Data.List
+import Data.Char
 import Control.Exception
-import System.Posix.IO
 import Control.Monad
 import Control.Applicative
 import Control.Monad.Instances
 import System.Posix.Types
+import System.Posix.Resource
+import System.Posix.IO
 import System.IO
 import GHC.Read
-import System.Posix.Resource
 
 (.) :: Functor f => (a -> b) -> f a -> f b
 (.) = fmap
@@ -61,3 +62,20 @@ readTypedFile f = either (const $ fail $ "parsing \"" ++ f ++ "\"") return =<< r
 
 simpleResourceLimits :: Integer -> ResourceLimits
 simpleResourceLimits l = ResourceLimits (ResourceLimit l) (ResourceLimit l)
+
+stripPrefix :: String -> String -> Maybe String
+stripPrefix [] ys = Just ys
+stripPrefix (x:xs) (y:ys) | x == y = stripPrefix xs ys
+stripPrefix _ _ = Nothing
+
+capitalize :: String -> String
+capitalize "" = ""
+capitalize (x:xs) = toUpper x : xs
+
+takeBack :: Int -> [a] -> [a]
+takeBack n = reverse . take n . reverse
+
+wordsWithWhite :: String -> [String]
+wordsWithWhite "" = []
+wordsWithWhite s = (a ++ w) : wordsWithWhite s''
+  where (a,s') = break isSpace s; (w,s'') = span isSpace s'
