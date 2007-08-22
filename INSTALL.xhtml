@@ -66,7 +66,7 @@
       <li><kbd>sudo scripts/trace-execs</kbd></li>
       <li><kbd>find rt -perm -o+w</kbd> # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
       <li><kbd>find rt -user nobody</kbd> # This should find nothing.</li>
-      <li><kbd>sudo ./Bot "geordi-clone &lt;&lt; 'x'"</kbd> # If this does not print 'x', something is messed up. (Replace "geordi-clone" with the configured nick, of course.)</li>
+      <li><kbd>sudo ./Bot "&lt;&lt; 'x'"</kbd> # If this does not print 'x', something's wrong.</li>
       <li>If you want, you can now <kbd>rm -f rt/usr/bin/strace rt/usr/bin/g++</kbd></li>
       <li>To get an idea of what rt could look like, look at the tree and file listing below.</li>
       <li>The bot can now be started with <kbd>sudo ./Bot</kbd></li>
