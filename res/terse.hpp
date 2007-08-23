@@ -55,3 +55,6 @@ typedef ::std::string str;
 #define foreach BOOST_FOREACH
 using boost::next;
 using boost::prior;
+
+// Misc:
+#define M int main ()
