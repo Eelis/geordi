@@ -105,7 +105,7 @@ main = do
   args <- getArgs
   let
     evalRequest :: String -> IO String
-    evalRequest = either return (\(also_run, code) -> filter isPrint . eval code also_run) . parse_request
+    evalRequest = either return (\(also_run, code) -> filter (\c -> isPrint c || c == '\n') . eval code also_run) . parse_request
 
   case args of
     ["-i"] -> do
@@ -128,7 +128,7 @@ bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ 
     IRCmsg (Just (IRCid fromnick _ _)) "PRIVMSG" [c, txt] ->
       when (elem c (chans cfg) && not (elem fromnick $ blacklist cfg)) $
         maybeM (is_request (nick cfg) txt) $ \r -> do
-          o <- take (max_msg_length cfg) . filter isPrint . takeWhile (/= '\n') . eval r
+          o <- take (max_msg_length cfg) . takeWhile (/= '\n') . eval r
           cmd "PRIVMSG" [c, if null o then no_output_msg cfg else o]
     IRCmsg _ "376" {- End of motd. -} _ -> do
       forM_ (chans cfg) $ cmd "JOIN" . (:[])
