@@ -1,1 +1,0 @@
-GXXFLAGS="-O -std=c++98 -pedantic-errors -Wall -Werror -Wfatal-errors -Wwrite-strings -Wno-deprecated -Wno-unused -Wno-non-virtual-dtor -Wno-variadic-macros -fmessage-length=0 -ftemplate-depth-128 -fno-merge-constants -fno-nonansi-builtins -fno-gnu-keywords -fno-elide-constructors -fstrict-aliasing"
