@@ -141,6 +141,8 @@ typedef unsigned char uchar;
 typedef unsigned int uint;
 typedef unsigned long ulong;
 
+#define RANGE(x) (boost::begin(x)), (boost::end(x))
+
 #define GEORDI_STATEMENTS_PRE \
   int main () { imbue_bin_num_put(std::cout); try {
 #define GEORDI_STATEMENTS_POST \
