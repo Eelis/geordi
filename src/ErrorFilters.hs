@@ -55,7 +55,7 @@ anyStringTill end = fix $ \scan -> end <|> (((:[]) . anyChar) >>> scan)
 
 ioBasics, clutter_namespaces :: [String]
 ioBasics = ["streambuf", "ofstream", "ifstream", "fstream", "filebuf", "ostream", "istream", "ostringstream", "istringstream", "stringstream", "iostream", "ios", "string"]
-clutter_namespaces = ["std", "boost", "__debug", "__gnu_norm", "__gnu_debug_def", "__gnu_cxx", "__gnu_debug"]
+clutter_namespaces = ["std", "boost", "__debug", "__gnu_norm", "__gnu_debug_def", "__gnu_cxx", "__gnu_debug", "__norm"]
 
 localReplacer :: CharParser st String -> CharParser st String
 localReplacer x = anyStringTill $ try $ (:[]) . satisfy (not . isIdChar) >>> x
