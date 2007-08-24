@@ -142,7 +142,7 @@ typedef unsigned int uint;
 typedef unsigned long ulong;
 
 #define GEORDI_STATEMENTS_PRE \
-  int main () { std::cout.imbue(std::locale(std::cout.getloc(), new bin_num_put)); try {
+  int main () { imbue_bin_num_put(std::cout); try {
 #define GEORDI_STATEMENTS_POST \
   } catch (std::exception const & e) { std::cout << "exception: " << e.what(); } }
 

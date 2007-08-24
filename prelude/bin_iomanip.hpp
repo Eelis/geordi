@@ -81,4 +81,6 @@ inline std::ios_base & bin (std::ios_base & io)
   return io;
 }
 
+void imbue_bin_num_put (std::ostream &);
+
 #endif // Header guard.
