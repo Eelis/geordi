@@ -95,10 +95,34 @@ replacers = (.) localReplacer
   , defaulter ["istream_iterator", "ostream_iterator"] 2 (\[_, c] -> t "char_traits<" >> t c >> t '>')
   , defaulter ["istream_iterator", "ostream_iterator"] 1 (const $ t "char")
 
-  , (foldr $ \(k, v) u -> subRegex (mkRegex $ "\\b" ++ k ++ "\\b") u v) . (manyTill anyChar $ try $ string " [with ") <*> (sepBy (try $ (,) . (manyTill anyChar $ t " =") <*> cxxExpr) (t ',') <* char ']')
-    -- This last rule can produce things like "int&&&" (e.g. when substituting "U&& [with U = int&]"), so we add:
-  , manyTill anyChar (try $ string "&&&") >>> return "&"
+  , foldr with_subst . (manyTill anyChar $ try $ string " [with ") <*> (sepBy (try $ (,) . (manyTill anyChar $ t " =") <*> cxxExpr) (t ',') <* char ']')
   ]
+
+data RefKind = NoRef | LRef | RRef
+
+instance Show RefKind where
+  show NoRef = ""
+  show LRef = "&"
+  show RRef = "&&"
+
+rrefTo :: RefKind -> RefKind
+rrefTo NoRef = RRef
+rrefTo LRef = LRef
+rrefTo RRef = RRef
+
+stripRef :: String -> (String, RefKind)
+stripRef s | Just s' <- stripSuffix "&&" s = (s', RRef)
+stripRef s | Just s' <- stripSuffix "&" s = (s', LRef)
+stripRef s = (s, NoRef)
+
+subRegex' :: Regex -> String -> String -> String
+subRegex' s = flip $ subRegex s
+
+with_subst :: (String, String) -> String -> String
+with_subst (k, v) = let (v', vrk) = stripRef v in
+    subRegex' (mkRegex $ "\\b" ++ k ++ "\\b") v .
+    subRegex' (mkRegex $ "\\b" ++ k ++ "\\s*&") (v' ++ "&") .
+    subRegex' (mkRegex $ "\\b" ++ k ++ "\\s*&&") (v' ++ show (rrefTo vrk))
 
 process_cc1plus_errors e = maybe e' (!!1) $ matchRegex (mkRegex "\\b(error|warning): ([^\n]*)") e'
   where

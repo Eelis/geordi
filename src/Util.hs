@@ -68,6 +68,9 @@ stripPrefix [] ys = Just ys
 stripPrefix (x:xs) (y:ys) | x == y = stripPrefix xs ys
 stripPrefix _ _ = Nothing
 
+stripSuffix :: String -> String -> Maybe String
+stripSuffix x y = reverse . stripPrefix (reverse x) (reverse y)
+
 capitalize :: String -> String
 capitalize "" = ""
 capitalize (x:xs) = toUpper x : xs
