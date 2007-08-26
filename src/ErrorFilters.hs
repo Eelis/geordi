@@ -96,6 +96,8 @@ replacers = (.) localReplacer
   , defaulter ["istream_iterator", "ostream_iterator"] 1 (const $ t "char")
 
   , (foldr $ \(k, v) u -> subRegex (mkRegex $ "\\b" ++ k ++ "\\b") u v) . (manyTill anyChar $ try $ string " [with ") <*> (sepBy (try $ (,) . (manyTill anyChar $ t " =") <*> cxxExpr) (t ',') <* char ']')
+    -- This last rule can produce things like "int&&&" (e.g. when substituting "U&& [with U = int&]"), so we add:
+  , manyTill anyChar (try $ string "&&&") >>> return "&"
   ]
 
 process_cc1plus_errors e = maybe e' (!!1) $ matchRegex (mkRegex "\\b(error|warning): ([^\n]*)") e'
