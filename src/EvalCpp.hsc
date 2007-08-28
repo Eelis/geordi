@@ -225,11 +225,11 @@ evalCpp = do
 ignored_syscalls, allowed_syscalls :: [CInt]
 
 ignored_syscalls =
-  [(#const SYS_chmod), (#const SYS_fadvise64), (#const SYS_unlink), (#const SYS_munmap), (#const SYS_madvise), (#const SYS_umask), (#const SYS_rt_sigaction), (#const SYS_rt_sigprocmask), (#const SYS_mprotect), (#const SYS_ioctl)]
+  [(#const SYS_chmod), (#const SYS_fadvise64), (#const SYS_unlink), (#const SYS_munmap), (#const SYS_madvise), (#const SYS_umask), (#const SYS_rt_sigaction), (#const SYS_rt_sigprocmask), (#const SYS_ioctl)]
     -- These are replaced with "return 0".
 
 allowed_syscalls =
-  [ (#const SYS_open), (#const SYS_write), (#const SYS_uname), (#const SYS_brk), (#const SYS_read), (#const SYS_mmap), (#const SYS_exit_group), (#const SYS_getpid), (#const SYS_access), (#const SYS_getrusage), (#const SYS_close), (#const SYS_gettimeofday), (#const SYS_writev), (#const SYS_execve)
+  [ (#const SYS_open), (#const SYS_write), (#const SYS_uname), (#const SYS_brk), (#const SYS_read), (#const SYS_mmap), (#const SYS_exit_group), (#const SYS_getpid), (#const SYS_access), (#const SYS_getrusage), (#const SYS_close), (#const SYS_gettimeofday), (#const SYS_writev), (#const SYS_execve), (#const SYS_mprotect)
 
   #ifdef __x86_64__
     , (#const SYS_stat), (#const SYS_fstat), (#const SYS_arch_prctl), (#const SYS_getrlimit), (#const SYS_fcntl), (#const SYS_lseek), (#const SYS_lstat), (#const SYS_dup)
