@@ -25,7 +25,7 @@ namespace tracked
         Idd & operator= (Idd &&);
       #endif
 
-      ~Idd ();
+      virtual ~Idd ();
       unsigned int const id;
 
       protected:
@@ -41,6 +41,8 @@ namespace tracked
         static unsigned int new_id;
         static struct Reg { std::set<Idd const *> s; ~Reg (); } reg;
     };
+
+    void silent_exit ();
 
     typedef std::map<std::pair<void const *, void const *>, std::set<unsigned int> > Allocations;
     extern Allocations allocations;
@@ -76,16 +78,28 @@ namespace tracked
 
       virtual ~T () { std::cout << ' ' << *this << "~ "; }
 
-      void * operator new (size_t const s) { return op_new(s, false); }
-      void * operator new[] (size_t const s) { return op_new(s, true); }
-      void operator delete (void * const p) { op_delete(p, false); }
-      void operator delete[] (void * const p) { op_delete(p, true); }
+      // normal new:
+      void * operator new (std::size_t const s) { return op_new(s, false, ::operator new(s)); }
+      void * operator new[] (std::size_t const s) { return op_new(s, true, ::operator new(s)); }
+
+      // placement new:
+      void * operator new (std::size_t const, void * const p) throw () { return p; }
+      void * operator new[] (std::size_t const, void * const p) throw () { return p; }
+
+      // nothrow new:
+      void * operator new (std::size_t const s, std::nothrow_t const & t) throw ()
+      { return op_new(s, false, ::operator new (s, t)); }
+      void * operator new[] (std::size_t const s, std::nothrow_t const & t) throw ()
+      { return op_new(s, true, ::operator new (s, t)); }
+
+      void operator delete (void * const p) throw () { op_delete(p, false); }
+      void operator delete[] (void * const p) throw () { op_delete(p, true); }
 
       private:
 
-        static void * op_new (size_t const s, bool const array)
+        static void * op_new (std::size_t const s, bool const array, void * const r)
         {
-          void * const r = ::operator new(s);
+          if (!r) return 0;
           allocations.insert(std::make_pair(std::make_pair(r, static_cast<char *>(r) + s), std::set<unsigned int>()));
           std::cout << " new(" << Name << (array ? "[]" : "") << ") ";
           return r;
@@ -93,9 +107,13 @@ namespace tracked
 
         static void op_delete (void * const p, bool const array)
         {
-          Allocations::const_iterator i = allocations.begin();
+          Allocations::iterator i = allocations.begin();
           for (; i != allocations.end(); ++i) if (i->first.first == p) break;
-          assert(i != allocations.end());
+          if (i == allocations.end()) {
+            std::cout << " Error: Tried to delete" << (array ? "[]" : "") << " pointer not pointing to valid allocation.";
+            silent_exit();
+          }
+
           std::set<unsigned int> const & ids (i->second);
           std::cout << " delete";
           if (array) {
@@ -108,6 +126,7 @@ namespace tracked
             std::cout << '(' << Name << *(ids.begin()) << ')';
           }
           std::cout << ' ';
+          allocations.erase(i);
           ::operator delete(p);
         }
 

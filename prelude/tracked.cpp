@@ -22,12 +22,18 @@ namespace tracked
     Idd & Idd::operator= (Idd const & i)
     { i.nopillage("assign from"); pillaged = false; return *this; }
 
+    void silent_exit ()
+    {
+      std::flush(std::cout);
+      std::fclose(stdout); // Otherwise we get leak messages.
+      std::exit(0);
+    }
+
     void Idd::nopillage (char const * const s) const
     {
       if (!pillaged) return;
-      std::cout << " Error: Tried to " << s << " pillaged " << name() << id << '.' << std::flush;
-      std::fclose(stdout); // Otherwise we get leak messages.
-      std::exit(0);
+      std::cout << " Error: Tried to " << s << " pillaged " << name() << id << '.';
+      silent_exit();
     }
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
