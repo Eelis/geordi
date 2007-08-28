@@ -14,21 +14,28 @@ namespace tracked
 {
   namespace detail
   {
+    typedef char name_t;
+
     struct Idd
     {
-      Idd ();
-      Idd (Idd const &);
-      Idd & operator= (Idd const &);
+      typedef unsigned int id_t;
 
-      #ifdef __GXX_EXPERIMENTAL_CXX0X__
-        Idd (Idd &&);
-        Idd & operator= (Idd &&);
-      #endif
-
-      virtual ~Idd ();
-      unsigned int const id;
+      id_t const id;
+      name_t const name;
 
       protected:
+
+        Idd (name_t);
+        Idd (Idd const &, name_t);
+
+        Idd & operator= (Idd const &);
+
+        #ifdef __GXX_EXPERIMENTAL_CXX0X__
+          Idd (Idd &&, name_t);
+          Idd & operator= (Idd &&);
+        #endif
+
+        virtual ~Idd ();
 
         void nopillage (char const *) const;
 
@@ -36,10 +43,17 @@ namespace tracked
 
         bool pillaged;
 
-        virtual char name () const = 0;
+        static id_t new_id;
 
-        static unsigned int new_id;
-        static struct Reg { std::set<Idd const *> s; ~Reg (); } reg;
+        struct Reg
+        {
+          typedef std::map<id_t, name_t> map;
+            // This used to be a std::set<Idd const *>, but that broke when ~Reg tried to print the name and id of an Idd that was leaked and yet no longer around (for instance because it was placement-new'd into a stack-allocated buffer).
+          map s;
+          ~Reg ();
+        };
+
+        static Reg reg;
     };
 
     void silent_exit ();
@@ -47,14 +61,16 @@ namespace tracked
     typedef std::map<std::pair<void const *, void const *>, std::set<unsigned int> > Allocations;
     extern Allocations allocations;
 
-    template <typename Base, char Name>
+    template <typename Base, name_t Name>
     struct T: Base
     {
-      T () { std::cout << ' ' << *this << "* "; }
+      explicit T (name_t const name = Name): Base(name) { std::cout << ' ' << *this << "* "; }
 
-      explicit T (int const i) { std::cout << ' ' << *this << "*(" << i << ") "; }
+      explicit T (int const i, name_t const name = Name):
+        Base(name) { std::cout << ' ' << *this << "*(" << i << ") "; }
 
-      T (T const & t): Base(t) { std::cout << ' ' << *this << "*(" << t << ") "; }
+      T (T const & t, name_t const name = Name):
+        Base(t, name) { std::cout << ' ' << *this << "*(" << t << ") "; }
 
       T & operator= (T const & t)
       { Base::operator=(t); std::cout << ' ' << *this << '=' << t << ' '; return *this; }
@@ -63,7 +79,8 @@ namespace tracked
 
         // Moves are displayed as =>, because -> and <= are operators.
 
-        T (T && t): Base(std::move(t)) { std::cout << ' ' << t << "=>" << *this << "* "; }
+        T (T && t, name_t const name = Name):
+          Base(std::move(t), name) { std::cout << ' ' << t << "=>" << *this << "* "; }
 
         T & operator= (T && t)
         { Base::operator=(std::move(t)); std::cout << ' ' << t << "=>" << *this << ' '; return *this; }
@@ -129,8 +146,6 @@ namespace tracked
           allocations.erase(i);
           ::operator delete(p);
         }
-
-        char name () const { return Name; }
     };
 
     template <typename B, char N>
