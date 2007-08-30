@@ -1,3 +1,4 @@
 #!/bin/bash -v
+echo -e "#include \"prelude.h\"\nGEORDI_PRINT_PRE 9 GEORDI_PRINT_POST" > rt/t.cpp
 source compile-config
-chroot rt $GXX t.cpp -Winvalid-pch prelude.o bin_iomanip.o tracked.o $COMPILE_FLAGS $LINK_FLAGS
+chroot rt $GXX t.cpp -Winvalid-pch prelude.a $COMPILE_FLAGS $LINK_FLAGS -o t

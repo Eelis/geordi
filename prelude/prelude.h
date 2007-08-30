@@ -145,8 +145,10 @@ typedef long double ldouble;
 
 #define RANGE(x) (boost::begin(x)), (boost::end(x))
 
+void geordi_init ();
+
 #define GEORDI_STATEMENTS_PRE \
-  int main () { imbue_bin_num_put(std::cout); try {
+  int main () { geordi_init(); try {
 #define GEORDI_STATEMENTS_POST \
   } catch (std::exception const & e) { std::cout << "exception: " << e.what(); } }
 

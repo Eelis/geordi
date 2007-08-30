@@ -1,2 +1,2 @@
 #!/bin/bash
-rm -f Bot src/*.o src/*.hi src/*_hsc.* src/EvalCpp.hs src/Ptrace.hs src/SyscallNames.hs
+rm -f Bot prelude/*.o rt/prelude.a rt/prelude.h.gch src/*.o src/*.hi src/*_hsc.* src/EvalCpp.hs src/Ptrace.hs src/SyscallNames.hs

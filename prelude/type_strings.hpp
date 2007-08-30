@@ -58,7 +58,7 @@ std::string type ()
 
 // Note: Since type relies on passing the type as a template argument, it will not work for locally defined types.
 
-#define TYPEDEF_TYPE(n) template <> std::string type<std::n> () { return #n; }
+#define TYPEDEF_TYPE(n) template <> inline std::string type<std::n> () { return #n; }
 
 TYPEDEF_TYPE(ios)
 TYPEDEF_TYPE(fstream)
@@ -102,7 +102,7 @@ template <typename> std::string type_desc (bool plural = false);
 
 namespace textual_type_descriptions
 {
-  std::string pl (std::string const & s, bool const b) { return s + (b ? "s" : ""); }
+  inline std::string pl (std::string const & s, bool const b) { return s + (b ? "s" : ""); }
 
   template <typename T> std::string many () { return type_desc<T>(true); }
 

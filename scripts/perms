@@ -1,7 +1,8 @@
 #!/bin/bash -v
-chmod 700 rt
-chmod o+x rt
-touch rt/t.s rt/t.o rt/t
-echo -e "#include \"prelude.h\"\nGEORDI_PRINT_PRE 9 GEORDI_PRINT_POST" > rt/t.cpp
-chmod 666 rt/t.cpp rt/t.s rt/t.o
-chmod 777 rt/t
+chmod 701 rt
+cd rt
+rm -f t.cpp t.s t.o t
+touch t.s t.o t
+echo -e "#include \"prelude.h\"\nGEORDI_PRINT_PRE 9 GEORDI_PRINT_POST" > t.cpp
+chmod 666 t.cpp t.s t.o
+chmod 777 t

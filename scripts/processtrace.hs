@@ -19,6 +19,6 @@ main = interact $ \i ->
     f s = let t = fromJust $ find (isInfixOf s . fst) u in fst t : tail (snd t)
     (s_file, cc1plus) = repl_o "t.s" (f "cc1plus")
     (o_file, as) = repl_o "t.o" (replace (f "as") s_file "t.s")
-    ld = replace (f "ld") o_file "t.o" ++ ["-o", "t"]
+    ld = replace (f "ld") o_file "t.o"
   in
     show (cc1plus, as, ld)

@@ -11,6 +11,8 @@
 #include <cstdlib>
 #include <ctime>
 
+#include "bin_iomanip.hpp"
+
 std::string advice ()
 {
   std::srand(std::time(0));
@@ -28,3 +30,8 @@ std::string advice ()
   return lines.at(rand() % lines.size());
 }
 
+void geordi_init ()
+{
+  std::cout.imbue(std::locale(std::cout.getloc(), new bin_num_put));
+    // Having this compiled separately saves more than a full second per request.
+}

@@ -59,15 +59,15 @@
       <li><kbd>libs () { echo `ldd $@ | grep -o "/\\S+" | sort | uniq` ; }</kbd></li>
       <li><kbd>EXECS="`which g++ as ld strace` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> # Correct the last one for your system.</li>
       <li><kbd>rtcp $EXECS `libs $EXECS`</kbd></li>
-      <li><kbd>scripts/perms</kbd> # To set up proper permissions for rt and selected files in it.</li>
-      <li><kbd>sudo scripts/trycompile</kbd> # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/a.out is produced successfully.</li>
-      <li><kbd>rtcp `libs rt/a.out`</kbd></li>
-      <li><kbd>sudo chroot rt /a.out &amp;&amp; echo</kbd> # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
+      <li><kbd>sudo scripts/trycompile</kbd> # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/t is produced successfully.</li>
+      <li><kbd>rtcp `libs rt/t`</kbd></li>
+      <li><kbd>sudo chroot rt /t &amp;&amp; echo</kbd> # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
       <li><kbd>sudo scripts/trace-execs</kbd></li>
+      <li><kbd>scripts/perms</kbd> # To set up proper permissions for rt and selected files in it.</li>
       <li><kbd>find rt -perm -o+w</kbd> # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
       <li><kbd>find rt -user nobody</kbd> # This should find nothing.</li>
       <li><kbd>sudo ./Bot "&lt;&lt; 'x'"</kbd> # If this does not print 'x', something's wrong.</li>
-      <li>If you want, you can now <kbd>rm -f rt/usr/bin/strace rt/usr/bin/g++</kbd></li>
+      <li>If you want, you can now <kbd>rm rt/usr/bin/strace rt/usr/bin/g++</kbd></li>
       <li>To get an idea of what rt could look like, look at the tree and file listing below.</li>
       <li>The bot can now be started with <kbd>sudo ./Bot</kbd></li>
       <li>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./Bot; sleep 120; done</kbd></li>
@@ -124,12 +124,11 @@
       total 40463
       drwxr-xr-x 2 eelis users      176 2007-08-22 23:30 lib
       -rw-r--r-- 1 eelis users 40924600 2007-08-22 23:07 prelude.h.gch
-      -rw-r--r-- 1 eelis users     9540 2007-08-22 23:07 prelude.o
+      -rw-r--r-- 1 eelis users    41634 2007-08-22 23:07 prelude.a
       -rwxrwxrwx 1 eelis users    83118 2007-08-22 23:32 t
       -rw-rw-rw- 1 eelis users      153 2007-08-22 23:32 t.cpp
       -rw-r--r-- 1 eelis users     1265 2007-08-22 23:07 terse.hpp
       -rw-rw-rw- 1 eelis users    82284 2007-08-22 23:32 t.o
-      -rw-r--r-- 1 eelis users    13608 2007-08-22 23:07 tracked.o
       -rw-rw-rw- 1 eelis users   322219 2007-08-22 23:32 t.s
       drwxr-xr-x 4 eelis users       96 2007-08-07 01:32 usr
 

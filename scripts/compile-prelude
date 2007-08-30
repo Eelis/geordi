@@ -1,5 +1,8 @@
-#/bin/bash -v
+#!/bin/bash -v
 source compile-config
-cd rt
-$GXX -c ../prelude/*.cpp $COMPILE_FLAGS
-$GXX -c ../prelude/prelude.h -o prelude.h.gch $COMPILE_FLAGS
+cd prelude
+$GXX -c *.cpp $COMPILE_FLAGS
+cd ..
+rm -f rt/prelude.a
+ar -rs rt/prelude.a prelude/*.o
+$GXX -c prelude/prelude.h -o rt/prelude.h.gch $COMPILE_FLAGS
