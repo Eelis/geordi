@@ -140,6 +140,8 @@ template <typename T, size_t N> size_t array_size (T (&)[N]) { return N; }
 typedef unsigned char uchar;
 typedef unsigned int uint;
 typedef unsigned long ulong;
+typedef unsigned short ushort;
+typedef long double ldouble;
 
 #define RANGE(x) (boost::begin(x)), (boost::end(x))
 
