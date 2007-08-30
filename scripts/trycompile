@@ -1,3 +1,3 @@
 #!/bin/bash -v
 source compile-config
-chroot rt $GXX t.cpp -Winvalid-pch prelude.o $COMPILE_FLAGS $LINK_FLAGS
+chroot rt $GXX t.cpp -Winvalid-pch prelude.o bin_iomanip.o tracked.o $COMPILE_FLAGS $LINK_FLAGS
