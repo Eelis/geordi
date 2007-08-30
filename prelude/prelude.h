@@ -10,7 +10,7 @@
 #include "range_printing.hpp"
 #include "foreach.hpp"
 #include "type_strings.hpp"
-#include "delimited_cout.hpp"
+#include "delimited_ostream.hpp"
 #include "bin_iomanip.hpp"
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
