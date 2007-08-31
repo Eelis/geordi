@@ -32,6 +32,7 @@ std::string advice ()
 
 void geordi_init ()
 {
-  std::cout.imbue(std::locale(std::cout.getloc(), new bin_num_put));
+  std::cout.imbue(std::locale(std::cout.getloc(), new bin_num_put<>));
+  std::wcout.imbue(std::locale(std::wcout.getloc(), new bin_num_put<wchar_t>));
     // Having this compiled separately saves more than a full second per request.
 }
