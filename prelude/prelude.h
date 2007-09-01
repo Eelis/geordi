@@ -157,4 +157,4 @@ void geordi_init ();
   // Having the  std::boolalpha(std::cout);  statement separate gives cleaner error messages (for example for "obrien << sqrt(-1) == NAN").
 
 #undef assert
-#define assert(e) ((e) ? void() : (::std::cout << "Assertion `" #e "' fails.", ::fclose(stdout), exit(0)));
+#define assert(e) ((e) ? void() : (void(::std::cout << "Assertion `" #e "' fails."), ::fclose(stdout), exit(0)));
