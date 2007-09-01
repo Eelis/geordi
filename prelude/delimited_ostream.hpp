@@ -94,6 +94,20 @@ typedef basic_del_ostream<wchar_t> del_wostream;
 
 del_ostream const del;
 
+// Lighter-weight alternative:
+
+template <typename Ch, typename Tr, typename T>
+std::basic_ostream<Ch, Tr> & operator, (std::basic_ostream<Ch, Tr> & o, T const & t)
+{ return o << ", " << t; }
+
+template <typename Ch, typename Tr>
+std::basic_ostream<Ch, Tr> & operator, (std::basic_ostream<Ch, Tr> & o, std::ios_base & (* const f) (std::ios_base &))
+{ return o << f; }
+
+template <typename Ch, typename Tr>
+std::basic_ostream<Ch, Tr> & operator, (std::basic_ostream<Ch, Tr> & o, std::basic_ostream<Ch, Tr> & (* const f) (std::basic_ostream<Ch, Tr> &))
+{ return o << f; }
+
 #endif // header guard
 
 #ifdef DELIMITED_OSTREAM_TEST
@@ -120,6 +134,8 @@ int main ()
 
   del_ostream const md = del(" - ");
   std::cout << '\n' << std::dec << md << 1 << 2 << 3 << std::endl;
+
+  std::cout << 3, "foo", std::oct, std::showbase, 50, std::endl;
 }
 
 #endif // test
