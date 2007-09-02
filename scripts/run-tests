@@ -1,0 +1,2 @@
+#!/bin/sh
+./Bot -i < res/tests.txt

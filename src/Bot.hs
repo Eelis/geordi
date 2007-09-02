@@ -7,6 +7,8 @@ import System.Posix.Process (getProcessID)
 import System.Posix.Env (setEnv)
 import System.Posix.User
 import System.Posix.Resource
+import System.Posix.Terminal (queryTerminal)
+import System.Posix.IO (stdInput)
 import Control.Monad.Error
 import Control.Monad
 import Text.ParserCombinators.Parsec
@@ -109,8 +111,14 @@ main = do
 
   case args of
     ["-i"] -> do
+      echo <- not . queryTerminal stdInput
       jail cfg
-      forever $ putStr prompt >> hFlush stdout >> getLine >>= evalRequest >>= putStrLn
+      forever $ do
+        putStr prompt
+        hFlush stdout
+        l <- getLine
+        when echo $ putStrLn l
+        evalRequest l >>= putStrLn
     [] -> bot cfg evalRequest
     [c] -> jail cfg >> evalRequest c >>= putStrLn
     _ -> fail "Invalid set of command line arguments."

@@ -19,7 +19,7 @@
       <li>i386 or x86_64 box</li>
       <li>Linux &ge; 2.6.10</li>
       <li>GCC/G++ &ge; 4</li>
-      <li><a href='http://www.boost.org/'>Boost</a> &ge; 1.33 (not strictly needed for the operation of geordi itself, but many prelude parts use Boost.)</li>
+      <li><a href='http://www.boost.org/'>Boost</a> &ge; 1.33 (Not strictly needed for the operation of geordi itself, but many prelude parts use Boost headers. Link libraries are not needed.)</li>
       <li><a href='http://www.haskell.org/ghc/'>GHC</a> &ge; 6.6.1</li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/utf8-string-0.1'>utf8-string</a> &ge; 0.1
         <p>For those of us not familiar with GHC packages, to install this do:</p>
@@ -69,9 +69,33 @@
       <li><kbd>sudo ./Bot "&lt;&lt; 'x'"</kbd> # If this does not print 'x', something's wrong.</li>
       <li>If you want, you can now <kbd>rm rt/usr/bin/strace rt/usr/bin/g++</kbd></li>
       <li>To get an idea of what rt could look like, look at the tree and file listing below.</li>
-      <li>The bot can now be started with <kbd>sudo ./Bot</kbd></li>
-      <li>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./Bot; sleep 120; done</kbd></li>
+      <li>A modest testsuite can now be run with <kbd>sudo scripts/run-tests</kbd></li>
     </ol>
+
+    <h2>Running the bot</h2>
+
+    <h3>Online</h3>
+    <p>To start the bot and have it connect to the IRC server specified in config, say <kbd>sudo ./Bot</kbd></p>
+    <p>If you registered the bot's nickname, you can have it identify itself to nickserv by changing the following line in config:</p>
+    <p><code>, nick_pass = Nothing</code></p>
+    <p>into:</p>
+    <p><code>, nick_pass = Just "mypassword"</code></p>
+    <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./Bot; sleep 120; done</kbd></p>
+
+    <h3>Offline</h3>
+    <p>There are two ways to use geordi locally.</p>
+    <ul>
+      <li>
+        <p>First, you can make a single request by passing that request on the command line like so:</p>
+        <kbd>sudo ./Bot "&lt;&lt; 'x'"</kbd>
+        <p>The nickname part must be omitted in requests.</p>
+      </li>
+      <li>
+        <p>Second, the bot can be started in a simple <a href='http://en.wikipedia.org/wiki/REPL'>REPL</a> by saying <kbd>sudo ./Bot -i</kbd>.</p>
+        <p>To get nice command line editing and history, use something like <a href='http://utopia.knoware.nl/~hlub/rlwrap/'>rlwrap</a> (with it, the command becomes <kbd>sudo rlwrap ./Bot -i</kbd>).</p>
+        <p>In this mode, too, the nickname part must be omitted in requests.</p>
+      </li>
+    </ul>
 
     <h2>Example rt tree</h2>
     <pre>
