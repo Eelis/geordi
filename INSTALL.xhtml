@@ -74,28 +74,32 @@
 
     <h2>Running the bot</h2>
 
-    <h3>Online</h3>
-    <p>To start the bot and have it connect to the IRC server specified in config, say <kbd>sudo ./Bot</kbd></p>
-    <p>If you registered the bot's nickname, you can have it identify itself to nickserv by changing the following line in config:</p>
+    <p>Usage:&emsp;<kbd>sudo ./Bot [option]... [request]...</kbd></p>
+
+    <p>Request syntax is described in the <a href='http://www.eelis.net/geordi/#usage'>manual</a>, except that here the nickname must be omitted.</p>
+
+    <p>Options:</p>
+
+    <dl>
+      <dt><kbd>-c &lt;file></kbd> / <kbd>--config &lt;file></kbd></dt>
+      <dd><p>Load configuration from &lt;file> instead of "config".</p></dd>
+      <dt><kbd>-i</kbd> / <kbd>--interactive</kbd></dt>
+      <dd>
+        <p>Go into Read-Eval-Print-Loop.</p>
+        <p>To get nice command line editing and history in this mode, use something like <a href='http://utopia.knoware.nl/~hlub/rlwrap/'>rlwrap</a> (with it, the command becomes <kbd>sudo rlwrap ./Bot -i</kbd>).</p>
+      </dd>
+      <dt><kbd>-h</kbd> / <kbd>--help</kbd></dt>
+      <dd><p>Display help and exit.</p></dd>
+    </dl>
+
+    <p>If <kbd>-i</kbd> is not specified and no requests are passed, the bot connects to the specified IRC server, optionally identifies with NickServ, and joins the specified channels. Otherwise, any requests are evaluated and the program exits (unless <kbd>-i</kbd> was specified).</p>
+
+    <p>To have the bot identify to NickServ, change the following line in config:</p>
     <p><code>, nick_pass = Nothing</code></p>
     <p>into:</p>
     <p><code>, nick_pass = Just "mypassword"</code></p>
-    <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./Bot; sleep 120; done</kbd></p>
 
-    <h3>Offline</h3>
-    <p>There are two ways to use geordi locally.</p>
-    <ul>
-      <li>
-        <p>First, you can make a single request by passing that request on the command line like so:</p>
-        <kbd>sudo ./Bot "&lt;&lt; 'x'"</kbd>
-        <p>The nickname part must be omitted in requests.</p>
-      </li>
-      <li>
-        <p>Second, the bot can be started in a simple <a href='http://en.wikipedia.org/wiki/REPL'>REPL</a> by saying <kbd>sudo ./Bot -i</kbd>.</p>
-        <p>To get nice command line editing and history, use something like <a href='http://utopia.knoware.nl/~hlub/rlwrap/'>rlwrap</a> (with it, the command becomes <kbd>sudo rlwrap ./Bot -i</kbd>).</p>
-        <p>In this mode, too, the nickname part must be omitted in requests.</p>
-      </li>
-    </ul>
+    <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./Bot; sleep 120; done</kbd></p>
 
     <h2>Example rt tree</h2>
     <pre>

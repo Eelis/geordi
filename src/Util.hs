@@ -45,8 +45,7 @@ splitOnce s@(sh:st) d =
   if d `isPrefixOf` s then ("", drop (length d) s) else let (a, b) = splitOnce st d in (sh : a, b)
 
 maybeM :: Monad m => Maybe a -> (a -> m ()) -> m ()
-maybeM Nothing _ = return ()
-maybeM (Just x) a = a x
+maybeM m a = maybe (return ()) a m
 
 kibi, mebi :: Integral a => a
 kibi = 1024
@@ -82,3 +81,8 @@ wordsWithWhite :: String -> [String]
 wordsWithWhite "" = []
 wordsWithWhite s = (a ++ w) : wordsWithWhite s''
   where (a,s') = break isSpace s; (w,s'') = span isSpace s'
+
+findMaybe :: (a -> Maybe b) -> [a] -> Maybe b
+findMaybe _ [] = Nothing
+findMaybe f (h:_) | Just x <- f h = Just x
+findMaybe f (_:t) = findMaybe f t

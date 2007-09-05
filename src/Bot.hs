@@ -57,10 +57,14 @@ jail cfg = do
   setGroupID gid
   setUserID uid
 
-data Flag = CompileOnly | Terse | Help deriving (Eq, Enum, Bounded, Show)
+data RequestOpt = RO_compileOnly | RO_terse | RO_help deriving Eq
 
-options :: [OptDescr Flag]
-options = (\e -> let s = toLower . show e in Option [head s] [s] (NoArg e) undefined) . [minBound ..]
+requestOptsDesc :: [OptDescr RequestOpt]
+requestOptsDesc =
+  [ Option "c" ["compile-only"] (NoArg RO_compileOnly) undefined
+  , Option "t" ["terse"] (NoArg RO_terse) undefined
+  , Option "h" ["help"] (NoArg RO_help) undefined
+  ]
 
 wrapPrePost :: String -> String -> String
 wrapPrePost t c = "GEORDI_" ++ t ++ "_PRE " ++ c ++ "\nGEORDI_" ++ t ++ "_POST"
@@ -78,19 +82,31 @@ is_request botnick txt = either (const Nothing) Just (parse p "" txt)
 
 parse_request :: Monad m => String -> m (Bool {- also run -}, String {- code -})
 parse_request s = do
-  (opts, nonopcount) <- case getOpt RequireOrder options (words s) of
+  (opts, nonopcount) <- case getOpt RequireOrder requestOptsDesc (words s) of
     (_, _, (e:_)) -> fail e
     (f, o, []) -> return (f, length o)
-  code <- if Help `elem` opts then return $ wrapPrint "help" else do
+  code <- if RO_help `elem` opts then return $ wrapPrint "help" else do
     let u = concat $ takeBack nonopcount $ wordsWithWhite s
     case stripPrefix "<<" u of
       Just r -> return $ wrapPrint r
       Nothing -> maybe (return u) (return . wrapStmts . ('{':)) (stripPrefix "{" u)
-  return (Help `elem` opts || not (CompileOnly `elem` opts),
-    unlines $ ["#include \"prelude.h\""] ++ (if Terse `elem` opts then ["#include \"terse.hpp\""] else []) ++ [code])
+  return (RO_help `elem` opts || not (RO_compileOnly `elem` opts),
+    unlines $ ["#include \"prelude.h\""] ++ (if RO_terse `elem` opts then ["#include \"terse.hpp\""] else []) ++ [code])
 
 prompt :: String
 prompt = "\n> "
+
+data LocalOpt = LO_interactive | LO_config String | LO_help deriving Eq
+
+localOptsDesc :: [OptDescr LocalOpt]
+localOptsDesc =
+  [ Option "c" ["config"] (ReqArg LO_config "<file>") "Load configuration from <file> instead of \"config\"."
+  , Option "i" ["interactive"] (NoArg LO_interactive) "Go into Read-Eval-Print-Loop."
+  , Option "h" ["help"] (NoArg LO_help) "Display this help and exit."
+  ]
+
+help :: IO ()
+help = putStrLn $ usageInfo "Usage: sudo ./Bot [option]... [request]...\nOptions:" localOptsDesc ++ "\nSee INSTALL.xhtml for more information."
 
 main :: IO ()
 main = do
@@ -102,26 +118,29 @@ main = do
     when (maximum open_fds >= EvalCpp.close_range_end) $ do
       fail $ "fd(s) open >= " ++ show EvalCpp.close_range_end ++ ": " ++ show (filter (>= EvalCpp.close_range_end) open_fds)
 
-  cfg <- readTypedFile "config"
   eval <- evalCpp
-  args <- getArgs
   let
     evalRequest :: String -> IO String
     evalRequest = either return (\(also_run, code) -> filter (\c -> isPrint c || c == '\n') . eval code also_run) . parse_request
 
-  case args of
-    ["-i"] -> do
+  args <- getArgs
+  case getOpt RequireOrder localOptsDesc args of
+    (opts, rest, []) ->
+      if LO_help `elem` opts then help else do
+      let cfgFile = maybe "config" id $ findMaybe (\o -> case o of LO_config cf -> Just cf; _ -> Nothing) opts
+      cfg <- readTypedFile cfgFile
+      let interactive = LO_interactive `elem` opts
+      if rest == [] && not interactive then bot cfg evalRequest else do
       echo <- not . queryTerminal stdInput
       jail cfg
-      forever $ do
-        putStr prompt
-        hFlush stdout
-        l <- getLine
-        when echo $ putStrLn l
-        evalRequest l >>= putStrLn
-    [] -> bot cfg evalRequest
-    [c] -> jail cfg >> evalRequest c >>= putStrLn
-    _ -> fail "Invalid set of command line arguments."
+      forM_ rest $ \c -> evalRequest c >>= putStrLn
+      when interactive $ forever $ do
+      putStr prompt
+      hFlush stdout
+      l <- getLine
+      when echo $ putStrLn l
+      evalRequest l >>= putStrLn
+    (_, _, e) -> putStr $ concat e
 
 bot :: BotConfig -> (String -> IO String) -> IO ()
 bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ port cfg))) $ \h -> do
