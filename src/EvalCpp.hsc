@@ -119,7 +119,7 @@ wait p = do
     d s | c_WIFSTOPPED s /= 0 = return $ WR_Stopped $ c_WSTOPSIG s
     d _ = fail "unexpected wait status"
 
-data WaitResult = WR_NoChild | WR_Exited CInt | WR_Signaled CInt | WR_CoreDump | WR_Stopped CInt
+data WaitResult = WR_NoChild | WR_Exited CInt | WR_Signaled CInt | WR_Stopped CInt
   deriving Eq
 
 data SuperviseResult = Exited ExitCode | DisallowedSyscall CInt | Signaled Signal | ChildVanished
@@ -142,7 +142,6 @@ supervise pid = alloca $ \wstatp -> do
   ($ Nothing) $ fix $ \sv current_syscall -> do
     wstat <- wait wstatp
     case wstat of
-      WR_CoreDump -> fail "child dumped core"
       WR_NoChild -> return ChildVanished
       WR_Exited e -> return $ Exited $ if e == 0 then ExitSuccess else ExitFailure $ fromIntegral e
       WR_Signaled s -> return $ Signaled s
