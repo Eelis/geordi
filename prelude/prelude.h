@@ -158,3 +158,6 @@ void geordi_init ();
 
 #undef assert
 #define assert(e) ((e) ? void() : (void(::std::cout << "Assertion `" #e "' fails."), ::fclose(stdout), exit(0)));
+
+#define SHOW(x) (#x " = " + boost::lexical_cast<string>(x))
+  // The more obvious   #define SHOW(x) #x " = " << (x)   does not work in   cout << SHOW(x), SHOW(y);.
