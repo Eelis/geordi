@@ -21,6 +21,7 @@ import qualified EvalCpp
 import Util
 import System.IO.UTF8 hiding (hGetLine, getLine)
 import System.Console.GetOpt
+import Control.Applicative hiding ((<|>))
 
 data BotConfig = BotConfig
   { server :: String, port :: Integer, max_msg_length :: Int
@@ -78,7 +79,8 @@ is_request botnick txt = either (const Nothing) Just (parse p "" txt)
   where
    p = do
     string botnick <|> string (capitalize botnick)
-    (oneOf ":," >> getInput) <|> (spaces >> satisfy (not . isLetter) >>= \c -> (c:) . getInput)
+    notFollowedBy $ char '\''
+    (oneOf ":," >> getInput) <|> ((:) . (spaces >> satisfy (not . isLetter)) <*> getInput)
 
 parse_request :: Monad m => String -> m (Bool {- also run -}, String {- code -})
 parse_request s = do
