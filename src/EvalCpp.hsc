@@ -28,7 +28,7 @@ A newly fork()ed child inherits its parent's file descriptors. In our case, that
 
 There are basically two approaches: either we somehow get a list of open FDs and then close them (except for stdout/stderr), or we walk through a range of possibly opened FDs and close them regardless of whether they're open. Since getting a list of open FDs turns out to be hard/fragile, we use the latter approach.
 
-This approach is only sensible for a small range. Fortunately, FDs are allocated incrementally, so we can just start at 0 and close everything (except for stdout/stderr) up to some number that we are convinced is greater than the number of files the bot will ever want to have open. That number is defined as close_range_end. We employ one final measure to reduce the damage should the bot try to allocate an FD beyond that number: the first thing we have the bot do at startup is set up a resource limit restricting the range of open FDs, after which we have it checks that it did not somehow already have FDs open outside that range. This way, transgressions of the limit will just crash the bot with some file open error, rather than expose open FDs to client code.
+This approach is only sensible for a small range. Fortunately, FDs are allocated incrementally, so we can just start at 0 and close everything (except for stdout/stderr) up to some number that we are convinced is greater than the number of files the bot will ever want to have open. That number is defined as close_range_end. We employ one final measure to reduce the damage should the bot try to allocate an FD beyond that number: the first thing we have the bot do at startup is set up a resource limit restricting the range of open FDs, after which we have it check that it did not somehow already have FDs open outside that range. This way, transgressions of the limit will just crash the bot with some file open error, rather than expose open FDs to client code.
 
 -}
 
@@ -109,15 +109,15 @@ foreign import ccall "wait" c_wait :: Ptr CInt -> IO CPid
 wait :: Ptr CInt -> IO WaitResult
 wait p = do
   r <- c_wait p
-  if r /= -1 then d =<< peek p else do
+  if r /= -1 then d . peek p else do
   e <- getErrno
   if e == eCHILD then return WR_NoChild else throwErrno "wait"
   where
-    d :: CInt -> IO WaitResult
-    d s | c_WIFEXITED s /= 0 = return $ WR_Exited $ c_WEXITSTATUS s
-    d s | c_WIFSIGNALED s /= 0 = return $ WR_Signaled $ c_WTERMSIG s
-    d s | c_WIFSTOPPED s /= 0 = return $ WR_Stopped $ c_WSTOPSIG s
-    d _ = fail "unexpected wait status"
+    d :: CInt -> WaitResult
+    d s | c_WIFEXITED s /= 0 = WR_Exited $ c_WEXITSTATUS s
+    d s | c_WIFSIGNALED s /= 0 = WR_Signaled $ c_WTERMSIG s
+    d s | c_WIFSTOPPED s /= 0 = WR_Stopped $ c_WSTOPSIG s
+    d _ = error "unexpected wait status"
 
 data WaitResult = WR_NoChild | WR_Exited CInt | WR_Signaled CInt | WR_Stopped CInt
   deriving Eq
@@ -170,9 +170,6 @@ close_range_end :: CInt
 close_range_end = 30
   -- Must be higher than any ResourceOpenFiles limit specified for cc1plus/as/ld/prog, because the limit is inherited by child processes and can only be decreased.
 
-fdOfFd :: Fd -> CInt
-fdOfFd (Fd fd) = fd
-
 -- capture_restricted assumes the program produces UTF-8 encoded text and returns it as a proper Unicode String.
 
 capture_restricted :: FilePath -> [String] -> [String] -> Resources -> IO (SuperviseResult, String)
@@ -189,12 +186,12 @@ capture_restricted a argv env (Resources timeout rlims bs) =
       raiseSignal sigSTOP
       executeFile a argv env
       exitImmediately ExitSuccess
-    (,) res . UTF8.decode . (nonblocking_read pipe_r bs)
+    (,) res . UTF8.decode . nonblocking_read pipe_r bs
 
 -- The actual output size is also limited by the pipe buffer.
 
-evalCpp :: IO (String -> Bool -> IO String)
-  -- Two-stage IO: first must happen before jail time, because gcc-execs and the syscall names need to be read from file, second happens inside jail and does actual evaluation.
+evalCpp :: IO (String -> Bool {- also run? -} -> IO String)
+  -- Two-stage IO: first must happen before jail time because gcc-execs needs to be read from file, second happens inside jail and does actual evaluation.
 
 evalCpp = do
   let
@@ -219,7 +216,7 @@ evalCpp = do
 
 ------------- Config (or at least things that are likely more prone to per-site modification):
 
--- System calls
+-- System calls:
 
 ignored_syscalls, allowed_syscalls :: [CInt]
 

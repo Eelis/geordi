@@ -86,3 +86,6 @@ findMaybe :: (a -> Maybe b) -> [a] -> Maybe b
 findMaybe _ [] = Nothing
 findMaybe f (h:_) | Just x <- f h = Just x
 findMaybe f (_:t) = findMaybe f t
+
+fdOfFd :: Fd -> CInt
+fdOfFd (Fd fd) = fd
