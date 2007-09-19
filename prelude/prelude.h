@@ -85,6 +85,7 @@
 #include <tr1/unordered_set>
 */
 
+#include <boost/version.hpp>
 #include <boost/any.hpp>
 #include <boost/array.hpp>
 #include <boost/assert.hpp>
