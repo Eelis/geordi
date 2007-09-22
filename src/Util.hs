@@ -89,3 +89,6 @@ findMaybe f (_:t) = findMaybe f t
 
 fdOfFd :: Fd -> CInt
 fdOfFd (Fd fd) = fd
+
+dropTailWhile :: (a -> Bool) -> [a] -> [a]
+dropTailWhile p = reverse . dropWhile p . reverse

@@ -152,7 +152,7 @@ bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ 
   hSetBuffering h NoBuffering
   cmd "NICK" [nick cfg]
   cmd "USER" [nick cfg, "0", "*", nick cfg]
-  forever $ parse_irc_msg . init . liftIO (hGetLine h) >>= \m -> case m of
+  forever $ parse_irc_msg . (dropTailWhile (== '\r')) . liftIO (hGetLine h) >>= \m -> case m of
     IRCmsg _ "PING" a -> cmd "PONG" a
     IRCmsg (Just (IRCid fromnick _ _)) "PRIVMSG" [c, txt] ->
       when (elem c (chans cfg) && not (elem fromnick $ blacklist cfg)) $
