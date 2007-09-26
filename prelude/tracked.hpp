@@ -25,7 +25,7 @@ namespace tracked
 
       protected:
 
-        Idd (name_t);
+        explicit Idd (name_t);
         Idd (Idd const &, name_t);
 
         Idd & operator= (Idd const &);

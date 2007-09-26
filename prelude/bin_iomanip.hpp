@@ -92,7 +92,7 @@ class bin_num_put: public std::num_put<Ch, Out>
     }
 
     std::streamsize const w = io.width(); io.width(0);
-    unsigned int d = core.size(); if (f & IB::showbase) d += 2;
+    std::streamsize d = core.size(); if (f & IB::showbase) d += 2;
     IB::fmtflags const adj = f & IB::adjustfield;
     if (adj != IB::left && adj != IB::internal) while (w > d) { *i++ = fill; ++d; }
     if (f & IB::showbase) { *i++ = '0'; *i++ = f & IB::uppercase ? 'B' : 'b'; }
