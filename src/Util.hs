@@ -44,9 +44,6 @@ splitOnce "" _ = ("", "")
 splitOnce s@(sh:st) d =
   if d `isPrefixOf` s then ("", drop (length d) s) else let (a, b) = splitOnce st d in (sh : a, b)
 
-maybeM :: Monad m => Maybe a -> (a -> m ()) -> m ()
-maybeM m a = maybe (return ()) a m
-
 kibi, mebi :: Integral a => a
 kibi = 1024
 mebi = kibi * kibi
