@@ -3,10 +3,11 @@ BotConfig
 , port = 6667
 , max_msg_length = 300
 , chans = ["#geordi"]
-, nick = "geordi-clone"
+, nick = "geordiclone"
 , nick_pass = Nothing
 , blacklist = ["nolyc", "Oort", "geordi"]
 , user = "nobody"
 , group = "nobody"
 , no_output_msg = " "
+, join_trigger = Nothing
 }

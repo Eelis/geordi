@@ -5,8 +5,10 @@ import Foreign.C
 import Prelude hiding (catch, (.))
 import Data.List
 import Data.Char
+import Data.Monoid
 import Control.Exception
 import Control.Monad
+import Control.Monad.State
 import Control.Applicative
 import Control.Monad.Instances
 import System.Posix.Types
@@ -89,3 +91,9 @@ fdOfFd (Fd fd) = fd
 
 dropTailWhile :: (a -> Bool) -> [a] -> [a]
 dropTailWhile p = reverse . dropWhile p . reverse
+
+maybeM :: Monad m => Maybe a -> (a -> m ()) -> m ()
+maybeM m a = maybe (return ()) a m
+
+msapp :: (Monoid a, MonadState a m) => a -> m ()
+msapp = modify . flip mappend

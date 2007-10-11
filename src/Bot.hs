@@ -10,6 +10,7 @@ import System.Posix.Resource
 import System.Posix.Terminal (queryTerminal)
 import System.Posix.IO (stdInput)
 import Control.Monad.Error ()
+import Control.Monad.State
 import Control.Monad
 import Text.ParserCombinators.Parsec
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
@@ -30,6 +31,8 @@ data BotConfig = BotConfig
   , blacklist :: [String]
   , user, group :: String
   , no_output_msg :: String
+  , join_trigger :: Maybe IRC.Message
+      -- Defaults to ENDOFMOTD. Can be set to NickServ/cloak confirmations and such.
   } deriving Read
 
 jail :: BotConfig -> IO ()
@@ -78,8 +81,8 @@ parse_request s = do
   return (RO_help `elem` opts || not (RO_compileOnly `elem` opts),
     unlines $ ["#include \"prelude.h\""] ++ (if RO_terse `elem` opts then ["#include \"terse.hpp\""] else []) ++ [code])
 
-prompt :: String
-prompt = "\n> "
+local_prompt :: String
+local_prompt = "\n> "
 
 data LocalOpt = LO_interactive | LO_config String | LO_help deriving Eq
 
@@ -112,15 +115,14 @@ main = do
   case getOpt RequireOrder localOptsDesc args of
     (opts, rest, []) ->
       if LO_help `elem` opts then help else do
-      let cfgFile = maybe "config" id $ findMaybe (\o -> case o of LO_config cf -> Just cf; _ -> Nothing) opts
-      cfg <- readTypedFile cfgFile
+      cfg <- readTypedFile $ maybe "config" id $ findMaybe (\o -> case o of LO_config cf -> Just cf; _ -> Nothing) opts
       let interactive = LO_interactive `elem` opts
       if rest == [] && not interactive then bot cfg evalRequest else do
       echo <- not . queryTerminal stdInput
       jail cfg
-      forM_ rest $ \c -> evalRequest c >>= putStrLn
+      forM_ rest $ (>>= putStrLn) . evalRequest
       when interactive $ forever $ do
-      putStr prompt
+      putStr local_prompt
       hFlush stdout
       l <- getLine
       when echo $ putStrLn l
@@ -131,21 +133,26 @@ bot :: BotConfig -> (String -> IO String) -> IO ()
 bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ port cfg))) $ \h -> do
   setEnv "LC_ALL" "C" True -- Otherwise compiler warnings may use non-ASCII characters (e.g. for quotes).
   jail cfg
-  let send l = mapM_ (hPutStrLn h . IRC.render) l >> hFlush h
-  send [IRC.Message Nothing "NICK" [nick cfg], IRC.Message Nothing "USER" [nick cfg, "0", "*", nick cfg]]
+  let send = (>> hFlush h) . mapM_ (hPutStrLn h . IRC.render)
+  send [msg "NICK" [nick cfg], msg "USER" [nick cfg, "0", "*", nick cfg]]
   forever $ (send =<<) . maybe (return []) on_msg =<< IRC.parseMessage . (++ "\n") . hGetLine h
  where
+  join_chans = msapp $ msg "JOIN" . (:[]) . chans cfg
+  msg = IRC.Message Nothing
   on_msg :: IRC.Message -> IO [IRC.Message]
-  on_msg (IRC.Message _ "PING" a) = return [IRC.Message Nothing "PONG" a]
-  on_msg (IRC.Message (Just (IRC.NickName fromnick _ _)) "PRIVMSG" [c, txt]) =
-    if not (elem c (chans cfg)) || elem fromnick (blacklist cfg) then return [] else
-    case is_request (nick cfg) txt of
-      Nothing -> return []
-      Just r -> take (max_msg_length cfg) . takeWhile (/= '\n') . eval r >>= \o ->
-        return $ [IRC.Message Nothing "PRIVMSG" [c, if null o then no_output_msg cfg else o]]
-  on_msg (IRC.Message _ "376" {- End of motd. -} _) = return $
-    maybe [] (\np -> [IRC.Message Nothing "PRIVMSG" ["NickServ",  "identify " ++ np]]) (nick_pass cfg) ++ (IRC.Message Nothing "JOIN" . (:[]) . chans cfg)
-  on_msg _ = return []
+  on_msg m = flip execStateT [] $ do
+    when (join_trigger cfg == Just m) $ join_chans
+    case m of
+      IRC.Message _ "PING" a -> msapp [msg "PONG" a]
+      IRC.Message (Just (IRC.NickName fromnick _ _)) "PRIVMSG" [c, txt] ->
+        when (c `elem` chans cfg && not (fromnick `elem` blacklist cfg)) $ do
+        maybeM (is_request (nick cfg) txt) $ \r -> do
+        o <- lift $ take (max_msg_length cfg) . takeWhile (/= '\n') . eval r
+        msapp [msg "PRIVMSG" [c, if null o then no_output_msg cfg else o]]
+      IRC.Message _ "376" {- End of motd. -} _ -> do
+        maybeM (nick_pass cfg) $ \np -> msapp [msg "PRIVMSG" ["NickServ", "identify " ++ np]]
+        when (join_trigger cfg == Nothing) join_chans
+      _ -> return ()
 
 -- (filter isPrint) works properly because (1) eval returns a proper Unicode String, not a load of bytes; and (2) we use System.IO.UTF8's hPutStrLn which properly UTF-8 encodes the filtered String.
 -- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.
