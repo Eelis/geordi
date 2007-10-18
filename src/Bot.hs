@@ -44,13 +44,14 @@ jail cfg = do
   setGroupID gid
   setUserID uid
 
-data RequestOpt = RO_compileOnly | RO_terse | RO_help deriving Eq
+data RequestOpt = RO_compileOnly | RO_terse | RO_help | RO_version deriving Eq
 
 requestOptsDesc :: [OptDescr RequestOpt]
 requestOptsDesc =
   [ Option "c" ["compile-only"] (NoArg RO_compileOnly) undefined
   , Option "t" ["terse"] (NoArg RO_terse) undefined
   , Option "h" ["help"] (NoArg RO_help) undefined
+  , Option "v" ["version"] (NoArg RO_version) undefined
   ]
 
 wrapPrePost :: String -> String -> String
@@ -73,13 +74,15 @@ parse_request s = do
   (opts, nonopcount) <- case getOpt RequireOrder requestOptsDesc (words s) of
     (_, _, (e:_)) -> fail e
     (f, o, []) -> return (f, length o)
-  code <- if RO_help `elem` opts then return $ wrapPrint "help" else do
-    let u = concat $ takeBack nonopcount $ wordsWithWhite s
-    case stripPrefix "<<" u of
-      Just r -> return $ wrapPrint r
-      Nothing -> maybe (return u) (return . wrapStmts . ('{':)) (stripPrefix "{" u)
-  return (RO_help `elem` opts || not (RO_compileOnly `elem` opts),
-    unlines $ ["#include \"prelude.h\""] ++ (if RO_terse `elem` opts then ["#include \"terse.hpp\""] else []) ++ [code])
+
+  let
+    u = concat $ takeBack nonopcount $ wordsWithWhite s
+    also_run = RO_help `elem` opts || RO_version `elem` opts || not (RO_compileOnly `elem` opts)
+    code = case () of
+      _ | RO_help `elem` opts -> wrapPrint "help"
+      _ | RO_version `elem` opts -> wrapPrint $ "\"g++ (GCC) \" << __VERSION__"
+      _ -> maybe (maybe u (wrapStmts . ('{':)) (stripPrefix "{" u)) wrapPrint (stripPrefix "<<" u)
+  return (also_run, unlines $ ["#include \"prelude.h\""] ++ (if RO_terse `elem` opts then ["#include \"terse.hpp\""] else []) ++ [code])
 
 local_prompt :: String
 local_prompt = "\n> "
