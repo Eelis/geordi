@@ -60,17 +60,15 @@
       <li><kbd>cp res/terse.hpp rt/</kbd></li>
       <li><kbd>rtcp () { cp -L -r -v --parents $@ rt ; }</kbd></li>
       <li><kbd>libs () { ldd $@ | runhaskell scripts/parse-ldd-output.hs ; }</kbd></li>
-      <li><kbd>EXECS="`which g++ as ld strace` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> # Correct the last one for your system.</li>
+      <li><kbd>EXECS="`which g++ as ld` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> # Correct the last one for your system.</li>
       <li><kbd>rtcp $EXECS `libs $EXECS`</kbd></li>
       <li><kbd>sudo scripts/trycompile</kbd> # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/t is produced successfully.</li>
       <li><kbd>rtcp `libs rt/t`</kbd></li>
       <li><kbd>sudo chroot rt /t &amp;&amp; echo</kbd> # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
-      <li><kbd>sudo scripts/trace-execs</kbd></li>
       <li><kbd>scripts/perms</kbd> # To set up proper permissions for rt and selected files in it.</li>
       <li><kbd>find rt -perm -o+w</kbd> # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
       <li><kbd>find rt -user nobody</kbd> # This should find nothing.</li>
       <li><kbd>sudo ./Bot "&lt;&lt; 'x'"</kbd> # If this does not print 'x', something's wrong.</li>
-      <li>If you want, you can now <kbd>rm rt/usr/bin/strace rt/usr/bin/g++</kbd></li>
       <li>To get an idea of what rt could look like, look at the tree and file listing below.</li>
       <li>A modest testsuite can now be run with <kbd>sudo scripts/run-tests</kbd></li>
     </ol>
@@ -107,112 +105,174 @@
     <h2>Example rt tree</h2>
     <pre>
       rt
-      |-- lib
-      |   |-- ld-linux.so.2
+      |-- advice.txt
+      |-- lib64
+      |   |-- ld-linux-x86-64.so.2
       |   |-- libc.so.6
       |   |-- libgcc_s.so.1
       |   `-- libm.so.6
+      |-- prelude.a
       |-- prelude.h.gch
-      |-- prelude.o
       |-- t
       |-- t.cpp
       |-- t.o
       |-- t.s
       |-- terse.hpp
-      |-- tracked.o
       `-- usr
           |-- bin
           |   |-- as
+          |   |-- g++
           |   `-- ld
-          `-- lib
+          |-- lib
+          |   `-- locale
+          |       `-- en_US.utf8
+          |           |-- LC_ADDRESS
+          |           |-- LC_COLLATE
+          |           |-- LC_CTYPE
+          |           |-- LC_IDENTIFICATION
+          |           |-- LC_MEASUREMENT
+          |           |-- LC_MESSAGES
+          |           |   `-- SYS_LC_MESSAGES
+          |           |-- LC_MONETARY
+          |           |-- LC_NAME
+          |           |-- LC_NUMERIC
+          |           |-- LC_PAPER
+          |           |-- LC_TELEPHONE
+          |           `-- LC_TIME
+          `-- lib64
+              |-- Mcrt1.o
+              |-- Scrt1.o
               |-- crt1.o
               |-- crti.o
               |-- crtn.o
               |-- gcc
-              |   `-- i586-suse-linux
+              |   `-- x86_64-suse-linux
               |       `-- 4.1.2
               |           |-- cc1plus
               |           |-- crtbegin.o
+              |           |-- crtbeginS.o
+              |           |-- crtbeginT.o
               |           |-- crtend.o
+              |           |-- crtendS.o
               |           |-- crtfastmath.o
               |           |-- libgcc.a
               |           |-- libgcc_eh.a
               |           |-- libgcc_s.so
               |           |-- libstdc++.a
               |           `-- libstdc++.so
+              |-- gcrt1.o
               |-- libbfd-2.17.50.0.5.so
               |-- libc.a
               |-- libc.so
               |-- libc_nonshared.a
               |-- libm.a
               |-- libm.so
+              |-- libmcheck.a
               `-- libstdc++.so.6
     </pre>
 
     <h2>Example rt file listing</h2>
     <pre>
       rt:
-      total 40463
-      drwxr-xr-x 2 eelis users      176 2007-08-22 23:30 lib
-      -rw-r--r-- 1 eelis users 40924600 2007-08-22 23:07 prelude.h.gch
-      -rw-r--r-- 1 eelis users    41634 2007-08-22 23:07 prelude.a
-      -rwxrwxrwx 1 eelis users    83118 2007-08-22 23:32 t
-      -rw-rw-rw- 1 eelis users      153 2007-08-22 23:32 t.cpp
-      -rw-r--r-- 1 eelis users     1265 2007-08-22 23:07 terse.hpp
-      -rw-rw-rw- 1 eelis users    82284 2007-08-22 23:32 t.o
-      -rw-rw-rw- 1 eelis users   322219 2007-08-22 23:32 t.s
-      drwxr-xr-x 4 eelis users       96 2007-08-07 01:32 usr
+      total 73M
+      -rwxr-xr-x 1 eelis users  62K 2007-08-22 23:27 advice.txt
+      drwxr-xr-x 2 eelis users  184 2007-07-28 03:33 lib64
+      -rw-r--r-- 1 eelis users  59K 2007-10-26 00:55 prelude.a
+      -rw-r--r-- 1 eelis users  73M 2007-10-26 00:55 prelude.h.gch
+      -rwxrwxrwx 1 eelis users  35K 2007-10-26 00:58 t
+      -rw-rw-rw- 1 eelis users  203 2007-10-26 00:58 t.cpp
+      -rwxr-xr-x 1 eelis users 1.3K 2007-10-20 08:34 terse.hpp
+      -rw-rw-rw- 1 eelis users  40K 2007-10-26 00:58 t.o
+      -rw-rw-rw- 1 eelis users  90K 2007-10-26 00:58 t.s
+      drwxr-xr-x 5 eelis users  120 2007-10-25 16:17 usr
 
-      rt/lib:
-      total 1825
-      -rwxr-xr-x 1 eelis users  129767 2007-08-07 01:34 ld-linux.so.2
-      -rwxr-xr-x 1 eelis users 1491141 2007-08-07 01:34 libc.so.6
-      -rwxr-xr-x 1 eelis users   46460 2007-08-07 01:34 libgcc_s.so.1
-      -rwxr-xr-x 1 eelis users  190963 2007-08-07 01:34 libm.so.6
+      rt/lib64:
+      total 2.2M
+      -rwxr-xr-x 1 eelis users 139K 2007-07-28 03:33 ld-linux-x86-64.so.2
+      -rwxr-xr-x 1 eelis users 1.6M 2007-07-28 03:33 libc.so.6
+      -rwxr-xr-x 1 eelis users  59K 2007-07-28 03:33 libgcc_s.so.1
+      -rwxr-xr-x 1 eelis users 400K 2007-07-28 03:33 libm.so.6
 
       rt/usr:
       total 0
-      drwxr-xr-x 2 eelis users  96 2007-08-22 23:30 bin
-      drwxr-xr-x 3 eelis users 344 2007-08-22 23:30 lib
+      drwxr-xr-x 2 eelis users 120 2007-10-26 00:32 bin
+      drwxr-xr-x 3 eelis users  72 2007-10-25 16:17 lib
+      drwxr-xr-x 3 eelis users 448 2007-08-23 21:31 lib64
 
       rt/usr/bin:
-      total 2118
-      -rwxr-xr-x 1 eelis users  316820 2007-08-07 01:32 as
-      -rwxr-xr-x 1 eelis users 1843756 2007-08-07 01:32 ld
+      total 2.3M
+      -rwxr-xr-x 1 eelis users 343K 2007-07-28 03:30 as
+      -rwxr-xr-x 1 eelis users 139K 2007-07-28 03:30 g++
+      -rwxr-xr-x 1 eelis users 1.9M 2007-07-28 03:30 ld
 
       rt/usr/lib:
-      total 5953
-      -rw-r--r-- 1 eelis users    2587 2007-08-07 01:33 crt1.o
-      -rw-r--r-- 1 eelis users    2284 2007-08-07 01:33 crti.o
-      -rw-r--r-- 1 eelis users    1824 2007-08-07 01:33 crtn.o
-      drwxr-xr-x 3 eelis users      80 2007-08-07 01:32 gcc
-      -rwxr-xr-x 1 eelis users 1587724 2007-08-07 01:32 libbfd-2.17.50.0.5.so
-      -rw-r--r-- 1 eelis users 2847282 2007-08-07 01:33 libc.a
-      -rw-r--r-- 1 eelis users   16458 2007-08-07 01:33 libc_nonshared.a
-      -rw-r--r-- 1 eelis users     238 2007-08-07 01:33 libc.so
-      -rw-r--r-- 1 eelis users  502694 2007-08-07 01:33 libm.a
-      -rwxr-xr-x 1 eelis users  190963 2007-08-07 01:33 libm.so
-      -rwxr-xr-x 1 eelis users  913844 2007-08-07 01:34 libstdc++.so.6
-
-      rt/usr/lib/gcc:
       total 0
-      drwxr-xr-x 3 eelis users 72 2007-08-07 01:32 i586-suse-linux
+      drwxr-xr-x 3 eelis users 80 2007-10-25 16:17 locale
 
-      rt/usr/lib/gcc/i586-suse-linux:
+      rt/usr/lib/locale:
       total 0
-      drwxr-xr-x 2 eelis users 312 2007-08-22 23:31 4.1.2
+      drwxr-xr-x 3 eelis users 408 2007-10-25 16:17 en_US.utf8
 
-      rt/usr/lib/gcc/i586-suse-linux/4.1.2:
-      total 8091
-      -rwxr-xr-x 1 eelis users 5189960 2007-08-07 01:32 cc1plus
-      -rw-r--r-- 1 eelis users    1624 2007-08-07 01:33 crtbegin.o
-      -rw-r--r-- 1 eelis users    1320 2007-08-07 01:33 crtend.o
-      -rw-r--r-- 1 eelis users    3664 2007-08-07 01:33 crtfastmath.o
-      -rw-r--r-- 1 eelis users   78420 2007-08-07 01:33 libgcc.a
-      -rw-r--r-- 1 eelis users   35564 2007-08-07 01:33 libgcc_eh.a
-      -rwxr-xr-x 1 eelis users   46460 2007-08-07 01:33 libgcc_s.so
-      -rw-r--r-- 1 eelis users 1984760 2007-08-07 01:33 libstdc++.a
-      -rwxr-xr-x 1 eelis users  913844 2007-08-07 01:33 libstdc++.so
+      rt/usr/lib/locale/en_US.utf8:
+      total 1.2M
+      -rw-r--r-- 1 eelis users  155 2007-10-25 16:17 LC_ADDRESS
+      -rw-r--r-- 1 eelis users 860K 2007-10-25 16:17 LC_COLLATE
+      -rw-r--r-- 1 eelis users 233K 2007-10-25 16:17 LC_CTYPE
+      -rw-r--r-- 1 eelis users  373 2007-10-25 16:17 LC_IDENTIFICATION
+      -rw-r--r-- 1 eelis users   23 2007-10-25 16:17 LC_MEASUREMENT
+      drwxr-xr-x 2 eelis users   80 2007-10-25 16:17 LC_MESSAGES
+      -rw-r--r-- 1 eelis users  286 2007-10-25 16:17 LC_MONETARY
+      -rw-r--r-- 1 eelis users   77 2007-10-25 16:17 LC_NAME
+      -rw-r--r-- 1 eelis users   54 2007-10-25 16:17 LC_NUMERIC
+      -rw-r--r-- 1 eelis users   34 2007-10-25 16:17 LC_PAPER
+      -rw-r--r-- 1 eelis users   59 2007-10-25 16:17 LC_TELEPHONE
+      -rw-r--r-- 1 eelis users 2.4K 2007-10-25 16:17 LC_TIME
+
+      rt/usr/lib/locale/en_US.utf8/LC_MESSAGES:
+      total 4.0K
+      -rw-r--r-- 1 eelis users 52 2007-10-25 16:17 SYS_LC_MESSAGES
+
+      rt/usr/lib64:
+      total 8.1M
+      -rw-r--r-- 1 eelis users 3.5K 2007-07-28 03:32 crt1.o
+      -rw-r--r-- 1 eelis users 3.2K 2007-07-28 03:32 crti.o
+      -rw-r--r-- 1 eelis users 2.7K 2007-07-28 03:32 crtn.o
+      drwxr-xr-x 3 eelis users   88 2007-07-28 03:30 gcc
+      -rw-r--r-- 1 eelis users 6.3K 2007-07-28 03:32 gcrt1.o
+      -rwxr-xr-x 1 eelis users 1.7M 2007-07-28 03:30 libbfd-2.17.50.0.5.so
+      -rw-r--r-- 1 eelis users 4.0M 2007-07-28 03:32 libc.a
+      -rw-r--r-- 1 eelis users  21K 2007-07-28 03:32 libc_nonshared.a
+      -rw-r--r-- 1 eelis users  253 2007-07-28 03:32 libc.so
+      -rw-r--r-- 1 eelis users 1.1M 2007-07-28 03:32 libm.a
+      -rw-r--r-- 1 eelis users 1.6K 2007-08-23 21:31 libmcheck.a
+      -rwxr-xr-x 1 eelis users 400K 2007-07-28 03:32 libm.so
+      -rwxr-xr-x 1 eelis users 948K 2007-07-28 03:33 libstdc++.so.6
+      -rw-r--r-- 1 eelis users 1.3K 2007-07-28 03:32 Mcrt1.o
+      -rw-r--r-- 1 eelis users 3.5K 2007-07-28 03:32 Scrt1.o
+
+      rt/usr/lib64/gcc:
+      total 0
+      drwxr-xr-x 3 eelis users 72 2007-07-28 03:30 x86_64-suse-linux
+
+      rt/usr/lib64/gcc/x86_64-suse-linux:
+      total 0
+      drwxr-xr-x 2 eelis users 408 2007-07-28 03:32 4.1.2
+
+      rt/usr/lib64/gcc/x86_64-suse-linux/4.1.2:
+      total 9.6M
+      -rwxr-xr-x 1 eelis users 5.9M 2007-07-28 03:30 cc1plus
+      -rw-r--r-- 1 eelis users 2.4K 2007-07-28 03:32 crtbegin.o
+      -rw-r--r-- 1 eelis users 2.9K 2007-07-28 03:32 crtbeginS.o
+      -rw-r--r-- 1 eelis users 2.9K 2007-07-28 03:32 crtbeginT.o
+      -rw-r--r-- 1 eelis users 1.9K 2007-07-28 03:32 crtend.o
+      -rw-r--r-- 1 eelis users 1.9K 2007-07-28 03:32 crtendS.o
+      -rw-r--r-- 1 eelis users 3.2K 2007-07-28 03:32 crtfastmath.o
+      -rw-r--r-- 1 eelis users 113K 2007-07-28 03:32 libgcc.a
+      -rw-r--r-- 1 eelis users  44K 2007-07-28 03:32 libgcc_eh.a
+      -rwxr-xr-x 1 eelis users  59K 2007-07-28 03:32 libgcc_s.so
+      -rw-r--r-- 1 eelis users 2.6M 2007-07-28 03:32 libstdc++.a
+      -rwxr-xr-x 1 eelis users 948K 2007-07-28 03:32 libstdc++.so
+
     </pre>
   </body>
 </html>

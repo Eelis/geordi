@@ -7,7 +7,6 @@ import Data.List
 import Data.Char
 import Data.Monoid
 import Control.Exception
-import Control.Monad
 import Control.Monad.State
 import Control.Applicative
 import Control.Monad.Instances
@@ -16,6 +15,11 @@ import System.Posix.Resource
 import System.Posix.IO
 import System.IO
 import GHC.Read
+import Control.Parallel.Strategies
+
+full_evaluate :: NFData a => a -> IO a
+full_evaluate x = do () <- evaluate (rnf x); return x
+  -- evaluate only evaluates up to WHNF.
 
 (.) :: Functor f => (a -> b) -> f a -> f b
 (.) = fmap
@@ -97,3 +101,10 @@ maybeM m a = maybe (return ()) a m
 
 msapp :: (Monoid a, MonadState a m) => a -> m ()
 msapp = modify . flip mappend
+
+maybe_if :: Maybe a -> (a -> b) -> b -> b
+maybe_if x f y = maybe y f x
+  -- Like ordinary if, but with a Maybe condition instead of a Bool condition.
+
+(.||.) :: (a -> Bool) -> (a -> Bool) -> (a -> Bool)
+f .||. g = \x -> f x || g x

@@ -22,13 +22,37 @@ The second important aspect relates to the initialization of the in_syscall flag
 
 -}
 
-{-- Inherited file descriptors.
+{-- Secure compilation
 
-A newly fork()ed child inherits its parent's file descriptors. In our case, that means that among other things, the network socket is exposed unless we ensure that it's closed before the child execve()s. To be on the safe side, the child should close all FDs except for stdout and stderr, before it execve()s.
+Requirements:
+  First, since we expose cc1plus/as/ld to malicious data (the code), their execution needs to be ptraced.
+  Second, we want to specify the names of the intermediary .s and .o files.
 
-There are basically two approaches: either we somehow get a list of open FDs and then close them (except for stdout/stderr), or we walk through a range of possibly opened FDs and close them regardless of whether they're open. Since getting a list of open FDs turns out to be hard/fragile, we use the latter approach.
+If we try to use a single g++ invocation to compile, assemble, and link, we do not get sufficient control over the names of the intermediary files. We /could/ in theory intercept the exec() calls with ptrace and change the file names, but that's too much trouble.
 
-This approach is only sensible for a small range. Fortunately, FDs are allocated incrementally, so we can just start at 0 and close everything (except for stdout/stderr) up to some number that we are convinced is greater than the number of files the bot will ever want to have open. That number is defined as close_range_end. We employ one final measure to reduce the damage should the bot try to allocate an FD beyond that number: the first thing we have the bot do at startup is set up a resource limit restricting the range of open FDs, after which we have it check that it did not somehow already have FDs open outside that range. This way, transgressions of the limit will just crash the bot with some file open error, rather than expose open FDs to client code.
+We could invoke cc1plus/as/ld directly (and in fact previous geordi versions did this), but then we need to pass obscure flags that would otherwise be passed by g++. Previous geordi versions had a separate step in the installation procedure where a script was used to strace g++ to find out these flags and write them to a file which was then read by geordi on startup. It was a kludge.
+
+We currently invoke g++ three times. Once with -S to compile, once with -c to assemble, and once to link. This allows us to specify the intermediary files, and lets g++ add whatever obscure flags it wants. Previous versions of geordi did not use this approach because it seems to require letting g++ vfork and then ptracing the child, which makes things complicated (and we don't want complication in this security-critical code). However, by intercepting g++'s vfork and replacing it with "return 0;", we trick it into thinking it is the newly spawned child process, which causes it to exec() cc1plus/as/ld, replacing itself. This scheme works because g++ (when invoked to do only one thing (e.g. compile/assemble/link)) doesn't have anything useful to do after the exec() anyway.
+
+-}
+
+{-- Inherited file descriptors
+
+A newly fork()ed child inherits its parent's file descriptors. In our case, that means that things like the network socket are exposed unless we either close them or set FD_CLOEXEC on them before calling execve().
+
+The most obvious approach is to try and vigilantly set FD_CLOEXEC every time the bot opens an FD. However, that means we immediately have a potential security problem if we forget to do so once, or if Haskell is harboring some FDs we don't know about. We want something more rigorous and fool-proof.
+
+The next most obvious approach is to get a list of open FDs and then close them (except for stdout/stderr) just before calling execve(). (At this point, setting FD_CLOEXEC on them would be equivalent.) Some of the BSD's apparently have closefrom() and/or F_CLOSEM commands for fcnl(), which offers this functionality out of the box. Unfortunately, Linux does not have these, so we'd have to do it manually. Unfortunately, getting a list of open FDs while in our chroot (which has no /proc filesystem) turns out to be hard if not impossible.
+
+The next most obvious approach is to get the highest currently open FD, and then close all FDs (except for stdout/stderr) below it, regardless of whether they're open. FreeBSD apparently has a F_MAXFD fcntl() command that returns the greatest FD currently open by the process, which would be exactly what we need, but unfortunately Linux does not have anything equivalent to it.
+
+The approach we resort to is the following:
+- make an estimate N how many files the bot will ever want to have open;
+- pick an M well above N;
+- setrlimit RLIMIT_NOFILE to M immediately upon program startup to make sure that if our M guess was too low, it will cause the bot to shut down with a file open error rather than expose FDs to the child process;
+- close FDs in the range [0, M) just before execve().
+
+In our code, M is close_range_end.
 
 -}
 
@@ -120,7 +144,7 @@ wait p = do
     d _ = error "unexpected wait status"
 
 data WaitResult = WR_NoChild | WR_Exited CInt | WR_Signaled CInt | WR_Stopped CInt
-  deriving Eq
+  deriving (Show, Eq)
 
 data SuperviseResult = Exited ExitCode | DisallowedSyscall CInt | Signaled Signal | ChildVanished
   deriving Eq
@@ -136,7 +160,7 @@ supervise :: ProcessID -> IO SuperviseResult
   -- supervise assumes that the first event observed is the child raising sigSTOP.
   -- wait is called so often that sharing the allocated wstatp is required for acceptable performance.
 supervise pid = alloca $ \wstatp -> do
-  wait wstatp >>= \s -> when (s /= WR_Stopped sigSTOP) $ fail "first ptraced event not sigSTOP"
+  wait wstatp >>= \s -> when (s /= WR_Stopped sigSTOP) $ fail $ "first ptraced event not sigSTOP, but " ++ show s
   Ptrace.tracesysgood pid
   Ptrace.syscall pid
   ($ Nothing) $ fix $ \sv current_syscall -> do
@@ -149,13 +173,13 @@ supervise pid = alloca $ \wstatp -> do
       WR_Stopped s | s == (sigTRAP .|. 0x80) -> do
         case current_syscall of
           Just sc -> do
-            when (elem sc ignored_syscalls) $ Ptrace.pokeuser pid syscall_ret 0
+            when (sc `elem` ignored_syscalls) $ Ptrace.pokeuser pid syscall_ret 0
             Ptrace.syscall pid; sv Nothing
           Nothing -> Ptrace.peekuser pid syscall_off >>= \syscall -> case () of
-            _ | elem syscall ignored_syscalls -> do
+            _ | syscall `elem` ignored_syscalls -> do
               Ptrace.pokeuser pid syscall_off #const SYS_getpid
               Ptrace.syscall pid; sv (Just syscall)
-            _ | elem syscall allowed_syscalls -> Ptrace.syscall pid >> sv (Just syscall)
+            _ | syscall `elem` allowed_syscalls -> Ptrace.syscall pid >> sv (Just syscall)
             _ -> do
               Ptrace.pokeuser pid syscall_off #const SYS_exit_group
               Ptrace.kill pid
@@ -167,8 +191,7 @@ supervise pid = alloca $ \wstatp -> do
 data Resources = Resources { walltime :: Int, rlimits :: [(Resource, ResourceLimits)], bufsize :: CSize }
 
 close_range_end :: CInt
-close_range_end = 30
-  -- Must be higher than any ResourceOpenFiles limit specified for cc1plus/as/ld/prog, because the limit is inherited by child processes and can only be decreased.
+close_range_end = 25
 
 -- capture_restricted assumes the program produces UTF-8 encoded text and returns it as a proper Unicode String.
 
@@ -190,29 +213,25 @@ capture_restricted a argv env (Resources timeout rlims bs) =
 
 -- The actual output size is also limited by the pipe buffer.
 
-evalCpp :: IO (String -> Bool {- also run? -} -> IO String)
-  -- Two-stage IO: first must happen before jail time because gcc-execs needs to be read from file, second happens inside jail and does actual evaluation.
-
-evalCpp = do
+evalCpp :: FilePath -> [String] -> String -> Bool {- also run? -} -> IO String
+evalCpp gxx flags code also_run = do
   let
-    cap :: FilePath -> [String] -> Resources -> (String -> String) -> IO String -> IO String
-    cap a argv r err act = do
-      (res, out) <- capture_restricted a argv [] r
+    cap :: [String] -> Resources -> (String -> String) -> IO String -> IO String
+    cap argv r err act = do
+      (res, out) <- capture_restricted gxx argv [] r
       case res of
         Exited ExitSuccess -> act
         Exited (ExitFailure _) -> return $ err out
-        _ -> return $ takeFileName a ++ ": " ++ show res
-  (cc1plus, as, ld) <- readTypedFile "gcc-execs"
-  return $ \code also_run -> do
-    writeFile "t.cpp" code
-    cap (head cc1plus) (tail cc1plus) cc1plus_resources process_cc1plus_errors $ do
-    if not also_run then return "Compilation successful" else do
-    cap (head as) (tail as) as_resources process_as_errors $ do
-    cap (head ld) (tail ld) ld_resources process_ld_errors $ do
-    (prog_result, prog_output) <- capture_restricted "/t" [] ["GLIBCXX_DEBUG_MESSAGE_LENGTH=0"] prog_resources
-    return $ if prog_result == Exited ExitSuccess
-      then prog_output
-      else process_prog_errors prog_output (show prog_result)
+        _ -> return $ "g++: " ++ show res
+  writeFile "t.cpp" code
+  cap (words "-S t.cpp" ++ flags) cc1plus_resources process_cc1plus_errors $ do
+  if not also_run then return "Compilation successful" else do
+  cap (words "-c t.s" ++ flags) as_resources process_as_errors $ do
+  cap (words "t.o -o t" ++ flags) ld_resources process_ld_errors $ do
+  (prog_result, prog_output) <- capture_restricted "/t" [] ["GLIBCXX_DEBUG_MESSAGE_LENGTH=0"] prog_resources
+  return $ if prog_result == Exited ExitSuccess
+    then prog_output
+    else process_prog_errors prog_output (show prog_result)
 
 ------------- Config (or at least things that are likely more prone to per-site modification):
 
@@ -221,16 +240,16 @@ evalCpp = do
 ignored_syscalls, allowed_syscalls :: [CInt]
 
 ignored_syscalls =
-  [(#const SYS_chmod), (#const SYS_fadvise64), (#const SYS_unlink), (#const SYS_munmap), (#const SYS_madvise), (#const SYS_umask), (#const SYS_rt_sigaction), (#const SYS_rt_sigprocmask), (#const SYS_ioctl)]
-    -- These are replaced with "return 0".
+  [(#const SYS_chmod), (#const SYS_fadvise64), (#const SYS_unlink), (#const SYS_munmap), (#const SYS_madvise), (#const SYS_umask), (#const SYS_rt_sigaction), (#const SYS_rt_sigprocmask), (#const SYS_ioctl), (#const SYS_vfork)]
+    -- These are effectively replaced with "return 0;".
 
 allowed_syscalls =
-  [ (#const SYS_open), (#const SYS_write), (#const SYS_uname), (#const SYS_brk), (#const SYS_read), (#const SYS_mmap), (#const SYS_exit_group), (#const SYS_getpid), (#const SYS_access), (#const SYS_getrusage), (#const SYS_close), (#const SYS_gettimeofday), (#const SYS_writev), (#const SYS_execve), (#const SYS_mprotect)
+  [ (#const SYS_open), (#const SYS_write), (#const SYS_uname), (#const SYS_brk), (#const SYS_read), (#const SYS_mmap), (#const SYS_exit_group), (#const SYS_getpid), (#const SYS_access), (#const SYS_getrusage), (#const SYS_close), (#const SYS_gettimeofday), (#const SYS_writev), (#const SYS_execve), (#const SYS_mprotect), (#const SYS_getcwd)
 
   #ifdef __x86_64__
     , (#const SYS_stat), (#const SYS_fstat), (#const SYS_arch_prctl), (#const SYS_getrlimit), (#const SYS_fcntl), (#const SYS_lseek), (#const SYS_lstat), (#const SYS_dup)
   #else
-    , (#const SYS_fstat64), (#const SYS_lstat64), (#const SYS_stat64), (#const SYS_ugetrlimit), (#const SYS_fcntl64), (#const SYS__llseek), (#const SYS_mmap2), (#const SYS_mremap), (#const SYS_set_thread_area), (#const SYS_times), (#const SYS_time), (#const SYS_readlink), (#const SYS_getcwd)
+    , (#const SYS_fstat64), (#const SYS_lstat64), (#const SYS_stat64), (#const SYS_ugetrlimit), (#const SYS_fcntl64), (#const SYS__llseek), (#const SYS_mmap2), (#const SYS_mremap), (#const SYS_set_thread_area), (#const SYS_times), (#const SYS_time), (#const SYS_readlink)
   #endif
   ]
 
@@ -241,7 +260,6 @@ common_resources t = Resources
   { walltime = t
   , rlimits =
     [ (ResourceCPUTime, simpleResourceLimits $ fromIntegral t)
-    , (ResourceOpenFiles, simpleResourceLimits 25)
     , (ResourceTotalMemory, simpleResourceLimits $ 200 * mebi)
     , (ResourceFileSize, simpleResourceLimits $ 5 * mebi)
     ]
@@ -254,3 +272,5 @@ cc1plus_resources = common_resources 10
 as_resources = common_resources 5
 ld_resources = common_resources 10
 prog_resources = common_resources 4
+
+-- Note: We don't add ResourceOpenFiles here, because it is already set as part of the fd closing scheme described in the "Inherited file descriptors" section at the top of this file, and that "global" limit is sufficient.

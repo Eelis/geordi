@@ -69,20 +69,19 @@ is_request botnick txt = either (const Nothing) Just (parse p "" txt)
     notFollowedBy $ char '\''
     (oneOf ":," >> getInput) <|> ((:) . (spaces >> satisfy (not . isLetter)) <*> getInput)
 
-parse_request :: Monad m => String -> m (Bool {- also run -}, String {- code -})
+parse_request :: Monad m => String -> m (String {- code -}, Bool {- also run -})
 parse_request s = do
   (opts, nonopcount) <- case getOpt RequireOrder requestOptsDesc (words s) of
     (_, _, (e:_)) -> fail e
     (f, o, []) -> return (f, length o)
-
   let
     u = concat $ takeBack nonopcount $ wordsWithWhite s
     also_run = RO_help `elem` opts || RO_version `elem` opts || not (RO_compileOnly `elem` opts)
-    code = case () of
-      _ | RO_help `elem` opts -> wrapPrint "help"
-      _ | RO_version `elem` opts -> wrapPrint $ "\"g++ (GCC) \" << __VERSION__"
-      _ -> maybe (maybe u (wrapStmts . ('{':)) (stripPrefix "{" u)) wrapPrint (stripPrefix "<<" u)
-  return (also_run, unlines $ ["#include \"prelude.h\""] ++ (if RO_terse `elem` opts then ["#include \"terse.hpp\""] else []) ++ [code])
+    code
+      | RO_help `elem` opts = wrapPrint "help"
+      | RO_version `elem` opts = wrapPrint $ "\"g++ (GCC) \" << __VERSION__"
+      | otherwise = maybe_if (stripPrefix "<<" u) wrapPrint $ maybe_if (stripPrefix "{" u) (wrapStmts . ('{':)) u
+  return (unlines $ ["#include \"prelude.h\""] ++ (if RO_terse `elem` opts then ["#include \"terse.hpp\""] else []) ++ [code], also_run)
 
 local_prompt :: String
 local_prompt = "\n> "
@@ -103,22 +102,20 @@ main :: IO ()
 main = do
 
   do -- See section "Inherited file descriptors." in EvalCpp.hsc.
-    setResourceLimit ResourceOpenFiles $ simpleResourceLimits $ fromIntegral EvalCpp.close_range_end
-    pid <- getProcessID
-    open_fds <- (read .) . (\\ [".", ".."]) . getDirectoryContents ("/proc/" ++ show pid ++ "/fd")
-    when (maximum open_fds >= EvalCpp.close_range_end) $ do
-      fail $ "fd(s) open >= " ++ show EvalCpp.close_range_end ++ ": " ++ show (filter (>= EvalCpp.close_range_end) open_fds)
-
-  eval <- evalCpp
-  let
-    evalRequest :: String -> IO String
-    evalRequest = either return (\(also_run, code) -> filter (\c -> isPrint c || c == '\n') . eval code also_run) . parse_request
+    let cre = EvalCpp.close_range_end
+    setResourceLimit ResourceOpenFiles $ simpleResourceLimits $ fromIntegral cre
+    high_fds <- filter (>= cre) . (read .) . (\\ [".", ".."]) . (getDirectoryContents =<< (\s -> "/proc/" ++ s ++ "/fd") . show . getProcessID)
+    when (high_fds /= []) $ fail $ "fd(s) open >= " ++ show cre ++ ": " ++ show high_fds
 
   args <- getArgs
   case getOpt RequireOrder localOptsDesc args of
     (opts, rest, []) ->
       if LO_help `elem` opts then help else do
       cfg <- readTypedFile $ maybe "config" id $ findMaybe (\o -> case o of LO_config cf -> Just cf; _ -> Nothing) opts
+      gxx : flags <- words . (full_evaluate =<< readFile "compile-config")
+      let
+        evalRequest :: String -> IO String
+        evalRequest = either return ((filter (isPrint .||. (== '\n')) .) . uncurry (evalCpp gxx (["prelude.a"] ++ flags))) . parse_request
       let interactive = LO_interactive `elem` opts
       if rest == [] && not interactive then bot cfg evalRequest else do
       echo <- not . queryTerminal stdInput
@@ -144,7 +141,7 @@ bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ 
   msg = IRC.Message Nothing
   on_msg :: IRC.Message -> IO [IRC.Message]
   on_msg m = flip execStateT [] $ do
-    when (join_trigger cfg == Just m) $ join_chans
+    when (join_trigger cfg == Just m) join_chans
     case m of
       IRC.Message _ "PING" a -> msapp [msg "PONG" a]
       IRC.Message (Just (IRC.NickName fromnick _ _)) "PRIVMSG" [c, txt] ->

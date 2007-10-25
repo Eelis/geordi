@@ -1,8 +1,8 @@
 #!/bin/bash -v
-source compile-config
+GXX=`cat compile-config`
 cd prelude
-$GXX -c *.cpp $COMPILE_FLAGS
+$GXX -c *.cpp
 cd ..
 rm -f rt/prelude.a
 ar -rs rt/prelude.a prelude/*.o
-$GXX -c prelude/prelude.h -o rt/prelude.h.gch $COMPILE_FLAGS
+$GXX -c prelude/prelude.h -o rt/prelude.h.gch
