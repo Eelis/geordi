@@ -20,9 +20,7 @@ We therefore abandon execve as ptrace initiator, and instead have the child rais
 
 The second important aspect relates to the initialization of the in_syscall flag. We need to know conclusively whether the kill() system call that raise() makes has exited by the time the parent observes the SIGSTOP signal. If it has, the in_syscall flag needs to be initialized to false. If it hasn't, it needs to be initialized to true. So far, on all machines tested it has been the case that the signal is not delivered until after the kill() call has exited, though I can't find documentation that guarantees this. This is currently /the/ big assumption that geordi makes in its ptrace usage. If this behavior turns out to differ between machines, then we may have to resort to something like delaying the initialization of the in_syscall flag until the first execve syscall trap is observed (although that could be tricky, because it would rely on ORIG_EAX still being set to the syscall number on syscall exit traps - behavior that I'm not sure is guaranteed).
 
--}
-
-{-- Secure compilation
+-- Secure compilation
 
 Requirements:
   First, since we expose cc1plus/as/ld to malicious data (the code), their execution needs to be ptraced.
@@ -34,9 +32,7 @@ We could invoke cc1plus/as/ld directly (and in fact previous geordi versions did
 
 We currently invoke g++ three times. Once with -S to compile, once with -c to assemble, and once to link. This allows us to specify the intermediary files, and lets g++ add whatever obscure flags it wants. Previous versions of geordi did not use this approach because it seems to require letting g++ vfork and then ptracing the child, which makes things complicated (and we don't want complication in this security-critical code). However, by intercepting g++'s vfork and replacing it with "return 0;", we trick it into thinking it is the newly spawned child process, which causes it to exec() cc1plus/as/ld, replacing itself. This scheme works because g++ (when invoked to do only one thing (e.g. compile/assemble/link)) doesn't have anything useful to do after the exec() anyway.
 
--}
-
-{-- Inherited file descriptors
+-- Inherited file descriptors
 
 A newly fork()ed child inherits its parent's file descriptors. In our case, that means that things like the network socket are exposed unless we either close them or set FD_CLOEXEC on them before calling execve().
 
@@ -65,8 +61,7 @@ import Foreign
 import Foreign.C
 import System.IO
 import System.Exit
-import System.Posix hiding (Stopped, Exited, executeFile)
-import System.Posix.Error
+import System.Posix hiding (Stopped, Exited)
 import System.Posix.Internals
 import System.FilePath
 import Util
@@ -102,22 +97,7 @@ foreign import ccall unsafe "__hsunix_wstopsig" c_WSTOPSIG :: CInt -> CInt
 foreign import ccall unsafe "string.h strsignal" c_strsignal :: CInt -> IO CString
 
 strsignal :: CInt -> String
-strsignal s = unsafePerformIO $ c_strsignal s >>= peekCString
-
-foreign import ccall unsafe "execve" c_execve :: CString -> Ptr CString -> Ptr CString -> IO CInt
-
-executeFile :: FilePath -> [String] -> [String] -> IO ()
-executeFile path args env = {- path is also used as first arg -}
-  withCString path $ \s ->
-  withMany withCString (path:args) $ \cstrs -> withArray0 nullPtr cstrs $ \arg_arr ->
-  withMany withCString env $ \cenv -> withArray0 nullPtr cenv $ \env_arr ->
-  throwErrnoPathIfMinus1_ "executeFile" path (c_execve s arg_arr env_arr)
-
-{- This executeFile is heavily based on unix/System/Posix/Process.hsc' executeFile. Differences:
-- no pPrPr_disableITimers (because we need our kill timer) (raison d'être);
-- no search;
-- environment not optional and not as key-value pairs.
--}
+strsignal = unsafePerformIO . (peekCString =<<) . c_strsignal
 
 nonblocking_read :: Fd -> ByteCount -> IO [Word8]
 nonblocking_read (Fd fd) bc = do
@@ -195,7 +175,7 @@ close_range_end = 25
 
 -- capture_restricted assumes the program produces UTF-8 encoded text and returns it as a proper Unicode String.
 
-capture_restricted :: FilePath -> [String] -> [String] -> Resources -> IO (SuperviseResult, String)
+capture_restricted :: FilePath -> [String] -> [(String,String)] -> Resources -> IO (SuperviseResult, String)
 capture_restricted a argv env (Resources timeout rlims bs) =
   withResource createPipe $ \(pipe_r, pipe_w) -> do
     setFdOption pipe_r NonBlockingRead True
@@ -207,7 +187,8 @@ capture_restricted a argv env (Resources timeout rlims bs) =
       mapM (uncurry setResourceLimit) rlims
       Ptrace.traceme
       raiseSignal sigSTOP
-      executeFile a argv env
+      executeFile a False argv (Just env)
+        -- The Haskell implementation of executeFile calls pPrPr_disableITimers, which calls setitimer to disable all interval timers, including ours set a few lines above. However, since by this time we're being ptraced, the setitimer calls are ignored.
       exitImmediately ExitSuccess
     (,) res . UTF8.decode . nonblocking_read pipe_r bs
 
@@ -228,7 +209,7 @@ evalCpp gxx flags code also_run = do
   if not also_run then return "Compilation successful" else do
   cap (words "-c t.s" ++ flags) as_resources process_as_errors $ do
   cap (words "t.o -o t" ++ flags) ld_resources process_ld_errors $ do
-  (prog_result, prog_output) <- capture_restricted "/t" [] ["GLIBCXX_DEBUG_MESSAGE_LENGTH=0"] prog_resources
+  (prog_result, prog_output) <- capture_restricted "/t" [] [("GLIBCXX_DEBUG_MESSAGE_LENGTH","0")] prog_resources
   return $ if prog_result == Exited ExitSuccess
     then prog_output
     else process_prog_errors prog_output (show prog_result)
@@ -239,9 +220,8 @@ evalCpp gxx flags code also_run = do
 
 ignored_syscalls, allowed_syscalls :: [CInt]
 
-ignored_syscalls =
-  [(#const SYS_chmod), (#const SYS_fadvise64), (#const SYS_unlink), (#const SYS_munmap), (#const SYS_madvise), (#const SYS_umask), (#const SYS_rt_sigaction), (#const SYS_rt_sigprocmask), (#const SYS_ioctl), (#const SYS_vfork)]
-    -- These are effectively replaced with "return 0;".
+ignored_syscalls = -- These are effectively replaced with "return 0;".
+  [(#const SYS_chmod), (#const SYS_fadvise64), (#const SYS_unlink), (#const SYS_munmap), (#const SYS_madvise), (#const SYS_umask), (#const SYS_rt_sigaction), (#const SYS_rt_sigprocmask), (#const SYS_ioctl), (#const SYS_setitimer), (#const SYS_vfork) {- see "Secure compilation" -}]
 
 allowed_syscalls =
   [ (#const SYS_open), (#const SYS_write), (#const SYS_uname), (#const SYS_brk), (#const SYS_read), (#const SYS_mmap), (#const SYS_exit_group), (#const SYS_getpid), (#const SYS_access), (#const SYS_getrusage), (#const SYS_close), (#const SYS_gettimeofday), (#const SYS_writev), (#const SYS_execve), (#const SYS_mprotect), (#const SYS_getcwd)
