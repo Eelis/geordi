@@ -37,11 +37,11 @@ namespace tracked
 
         virtual ~Idd ();
 
-        void nopillage (char const *) const;
+        void live (char const *) const;
 
       private:
 
-        bool pillaged;
+        bool dead;
 
         static id_t new_id;
 
@@ -87,11 +87,11 @@ namespace tracked
 
       #endif
 
-      T & operator++ () { Base::nopillage("pre-increment"); std::cout << " ++" << *this << ' '; return *this; }
-      T operator++ (int) { Base::nopillage("post-increment"); T const r (*this); operator++(); return r;  }
+      T & operator++ () { Base::live("pre-increment"); std::cout << " ++" << *this << ' '; return *this; }
+      T operator++ (int) { Base::live("post-increment"); T const r (*this); operator++(); return r;  }
 
-      void f () const { Base::nopillage("call T::f() on"); std::cout << ' ' << *this << ".f() "; }
-      virtual void vf () const { Base::nopillage("call T::vf() on"); std::cout << ' ' << *this << ".vf() "; }
+      void f () const { Base::live("call T::f() on"); std::cout << ' ' << *this << ".f() "; }
+      virtual void vf () const { Base::live("call T::vf() on"); std::cout << ' ' << *this << ".vf() "; }
 
       virtual ~T () { std::cout << ' ' << *this << "~ "; }
 
