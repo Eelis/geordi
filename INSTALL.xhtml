@@ -65,6 +65,7 @@
       <li><kbd>sudo scripts/trycompile</kbd> # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/t is produced successfully.</li>
       <li><kbd>rtcp `libs rt/t`</kbd></li>
       <li><kbd>sudo chroot rt /t &amp;&amp; echo</kbd> # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
+      <li>If, while doing the above, you decided at some point to just copy entire gcc directories into rt (which in itself is not at all unreasonable), make sure that there is no collect2 binary in rt (it confuses geordi).</li>
       <li><kbd>scripts/perms</kbd> # To set up proper permissions for rt and selected files in it.</li>
       <li><kbd>find rt -perm -o+w</kbd> # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
       <li><kbd>find rt -user nobody</kbd> # This should find nothing.</li>
