@@ -10,6 +10,7 @@
 #include <string.h>
 #include <cstdlib>
 #include <ctime>
+#include <ios>
 
 #include "bin_iomanip.hpp"
 
@@ -30,8 +31,11 @@ std::string advice ()
   return lines.at(rand() % lines.size());
 }
 
-void geordi_init ()
+struct geordi_initializer_t { geordi_initializer_t (); };
+
+geordi_initializer_t::geordi_initializer_t ()
 {
+  std::ios_base::Init const i;
   std::cout.imbue(std::locale(std::cout.getloc(), new bin_num_put<>));
   std::wcout.imbue(std::locale(std::wcout.getloc(), new bin_num_put<wchar_t>));
     // Having this compiled separately saves more than a full second per request.

@@ -144,12 +144,15 @@ typedef unsigned long ulong;
 typedef unsigned short ushort;
 typedef long double ldouble;
 
+struct geordi_initializer_t { geordi_initializer_t (); };
+
+geordi_initializer_t const geordi_initializer;
+  // Could theoretically be located in other TU, but our using of an .a for our .o's makes that painful.
+
 #define RANGE(x) (boost::begin(x)), (boost::end(x))
 
-void geordi_init ();
-
 #define GEORDI_STATEMENTS_PRE \
-  int main () { geordi_init(); try {
+  int main () { try {
 #define GEORDI_STATEMENTS_POST \
   } catch (std::exception const & e) { std::cout << "exception: " << e.what(); } }
 
