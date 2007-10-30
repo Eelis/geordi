@@ -67,7 +67,7 @@ is_request :: String -> String -> String -> Maybe String
 is_request botnick botaltnick txt = either (const Nothing) Just (parse p "" txt)
   where
    p = do
-    string botnick <|> string (capitalize botnick) <|> string botaltnick <|> string (capitalize botaltnick)
+    foldr1 (<|>) $ try . string . [botnick, capitalize botnick, botaltnick, capitalize botaltnick]
     notFollowedBy $ char '\''
     (oneOf ":," >> getInput) <|> ((:) . (spaces >> satisfy (not . isLetter)) <*> getInput)
 
