@@ -29,7 +29,7 @@ import qualified Network.IRC as IRC
 
 data BotConfig = BotConfig
   { server :: String, port :: Integer, max_msg_length :: Int
-  , chans :: [String], nick :: String, nick_pass :: Maybe String
+  , chans :: [String], nick :: String, nick_pass :: Maybe String, alternate_nick :: String
   , blacklist :: [String]
   , user, group :: String
   , no_output_msg :: String
@@ -63,11 +63,11 @@ wrapPrint, wrapStmts :: String -> String
 wrapPrint = wrapPrePost "PRINT"
 wrapStmts = wrapPrePost "STATEMENTS"
 
-is_request :: String -> String -> Maybe String
-is_request botnick txt = either (const Nothing) Just (parse p "" txt)
+is_request :: String -> String -> String -> Maybe String
+is_request botnick botaltnick txt = either (const Nothing) Just (parse p "" txt)
   where
    p = do
-    string botnick <|> string (capitalize botnick)
+    string botnick <|> string (capitalize botnick) <|> string botaltnick <|> string (capitalize botaltnick)
     notFollowedBy $ char '\''
     (oneOf ":," >> getInput) <|> ((:) . (spaces >> satisfy (not . isLetter)) <*> getInput)
 
@@ -154,10 +154,11 @@ bot cfg eval = withResource (connect cfg) $ \h -> do
   on_msg m = flip execStateT [] $ do
     when (join_trigger cfg == Just m) join_chans
     case m of
+      IRC.Message _ "433" {- Nick in use. -} _ -> msapp $ [msg "NICK" [alternate_nick cfg]]
       IRC.Message _ "PING" a -> msapp [msg "PONG" a]
       IRC.Message (Just (IRC.NickName fromnick _ _)) "PRIVMSG" [c, txt] ->
         when (c `elem` chans cfg && not (fromnick `elem` blacklist cfg)) $ do
-        maybeM (is_request (nick cfg) txt) $ \r -> do
+        maybeM (is_request (nick cfg) (alternate_nick cfg) txt) $ \r -> do
         o <- lift $ take (max_msg_length cfg) . takeWhile (/= '\n') . eval r
         msapp [msg "PRIVMSG" [c, if null o then no_output_msg cfg else o]]
       IRC.Message _ "376" {- End of motd. -} _ -> do

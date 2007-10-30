@@ -5,6 +5,7 @@ BotConfig
 , chans = ["#geordi"]
 , nick = "geordiclone"
 , nick_pass = Nothing
+, alternate_nick = "geordiclone_"
 , blacklist = ["nolyc", "Oort", "geordi"]
 , user = "nobody"
 , group = "nobody"
