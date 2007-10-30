@@ -4,17 +4,30 @@
 
 <html xmlns='http://www.w3.org/1999/xhtml' xml:lang='en'>
   <head>
-    <title>Geordi installation instructions</title>
+    <title>Geordi Readme</title>
   </head>
   <body>
-    <h1>Geordi installation instructions</h1>
 
-    <h2>Introduction</h2>
+    <h1>Geordi Readme</h1>
+
+    <hr/><h2>Table of Contents</h2>
+
+    <ul>
+      <li><a href='#installation'>1. Installation</a></li>
+      <li><a href='#running'>2. Running geordi</a></li>
+      <li><a href='#problems'>3. Known problems</a></li>
+    </ul>
+    <ul>
+      <li><a href='#exampletree'>Appendix A: Example rt tree</a></li>
+      <li><a href='#examplelisting'>Appendix B: Example rt file listing</a></li>
+    </ul>
+
+    <h2><a id='installation'/>1. Installation</h2>
     <p>
       Geordi is not "<kbd>./configure &amp;&amp; make &amp;&amp; make install</kbd>" software. Setting up geordi is a somewhat awkward manual task, mainly because there are some installation steps that would be very hard to automate.
     </p>
 
-    <h2>Prerequisites</h2>
+    <h3>Prerequisites</h3>
     <ul>
       <li>i386 or x86_64 box</li>
       <li>Linux &ge; 2.6.10</li>
@@ -24,7 +37,7 @@
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/utf8-string-0.1'>utf8-string</a> &ge; 0.1</li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/irc-0.2.3'>irc</a> 0.2.3</li>
     </ul>
-    <p>These last two GHC packages. For those of us not familiar with GHC packages, to install these do:</p>
+    <p>These last two are GHC packages. For those of us not familiar with GHC packages, to install these do:</p>
     <p>
       <kbd>
         tar xf utf8-string-0.1.tar.gz<br/>
@@ -36,7 +49,7 @@
     </p>
     <p>(And likewise for the irc package.)</p>
 
-    <h2>Optional step for improved error messages</h2>
+    <h3>Optional step for improved error messages</h3>
     <p>
       Do <kbd>grep get_max_length /usr/include/c++/4.3.0/debug/formatter.h</kbd> (corrected for your system, of course). If you don't get output, it means that your gcc version does not yet have configurable libstdc++ debug mode error formatter line width, which means that you should do the following manually: in that file, find the value 78, and change it into 780.
     </p>
@@ -44,7 +57,7 @@
       (See <a href='http://gcc.gnu.org/bugzilla/show_bug.cgi?id=31518'>GCC bug 31518</a> for more information.)
     </p>
 
-    <h2>Installation procedure</h2>
+    <h3>Installation procedure</h3>
     <p>
       The following is a list of steps needed to set up the environment geordi runs in. Don't copy/paste this into your terminal, this is not a shell script! It is intended to be read and interpreted by a human.
     </p>
@@ -69,16 +82,17 @@
       <li><kbd>scripts/perms</kbd> # To set up proper permissions for rt and selected files in it.</li>
       <li><kbd>find rt -perm -o+w</kbd> # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
       <li><kbd>find rt -user nobody</kbd> # This should find nothing.</li>
+      <li><kbd>find rt -perm -4000</kbd> # This should find nothing either.</li>
       <li><kbd>sudo ./Bot "&lt;&lt; 'x'"</kbd> # If this does not print 'x', something's wrong.</li>
-      <li>To get an idea of what rt could look like, look at the tree and file listing below.</li>
+      <li>To get an idea of what rt could look like, look at the <a href='#exampletree'>example rt tree</a> and the <a href='#examplelisting'>example rt file list</a>.</li>
       <li>A modest testsuite can now be run with <kbd>sudo scripts/run-tests</kbd></li>
     </ol>
 
-    <h2>Running the bot</h2>
+    <h2><a id='running'/>2. Running geordi</h2>
 
     <p>Usage:&emsp;<kbd>sudo ./Bot [option]... [request]...</kbd></p>
 
-    <p>Request syntax is described in the <a href='http://www.eelis.net/geordi/#usage'>manual</a>, except that here the nickname must be omitted.</p>
+    <p>Request syntax is described in the <a href='http://www.eelis.net/geordi/#usage'>manual</a>, except that here the nickname (and colon/comma) must be omitted.</p>
 
     <p>Options:</p>
 
@@ -103,7 +117,17 @@
 
     <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./Bot; sleep 120; done</kbd></p>
 
-    <h2>Example rt tree</h2>
+    <h2><a id='problems'/>3. Known problems</h2>
+    <ul>
+      <li>
+        <p>Some errors/warnings are truncated. This is partly because of <a href='http://gcc.gnu.org/bugzilla/show_bug.cgi?id=33952'>a gcc bug</a> and partly because of gcc's inconsistent error/warning formatting.</p>
+      </li>
+      <li>
+        Because geordi connects as root, IRC servers that query ident may get a root response and may decide to reject the connection. (Quakenet is known to do this.)
+      </li>
+    </ul>
+
+    <h2><a id='exampletree'/>Appendix A: Example rt tree</h2>
     <pre>
       rt
       |-- advice.txt
@@ -172,7 +196,7 @@
               `-- libstdc++.so.6
     </pre>
 
-    <h2>Example rt file listing</h2>
+    <h2><a id='examplelisting'/>Appendix B: Example rt file listing</h2>
     <pre>
       rt:
       total 73M
