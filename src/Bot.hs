@@ -1,6 +1,8 @@
 
-import Network (PortID(..), connectTo)
-import System.IO (hGetLine, hFlush, stdout)
+import qualified Network.Socket as Net
+import Network.BSD (getProtocolNumber, hostAddress, getHostByName)
+import Control.Exception (bracketOnError)
+import System.IO (hGetLine, hFlush, stdout, Handle, IOMode(..))
 import System.Environment (getArgs)
 import System.Directory (setCurrentDirectory, getDirectoryContents)
 import System.Posix.Process (getProcessID)
@@ -129,8 +131,17 @@ main = do
       evalRequest l >>= putStrLn
     (_, _, e) -> putStr $ concat e
 
+connect :: BotConfig -> IO Handle
+  -- Mostly copied from Network.connectTo. We can't use that one because we want to set SO_KEEPALIVE (and related) options on the socket, which can't be done on a Handle.
+connect cfg = do
+  proto <- getProtocolNumber "tcp"
+  bracketOnError (Net.socket Net.AF_INET Net.Stream proto) Net.sClose $ \sock -> do
+  setKeepAlive sock 30 10 5
+  Net.connect sock =<< Net.SockAddrInet (fromIntegral $ port cfg) . hostAddress . getHostByName (server cfg)
+  Net.socketToHandle sock ReadWriteMode
+
 bot :: BotConfig -> (String -> IO String) -> IO ()
-bot cfg eval = withResource (connectTo (server cfg) (PortNumber (fromIntegral $ port cfg))) $ \h -> do
+bot cfg eval = withResource (connect cfg) $ \h -> do
   setEnv "LC_ALL" "C" True -- Otherwise compiler warnings may use non-ASCII characters (e.g. for quotes).
   jail cfg
   let send = (>> hFlush h) . mapM_ (hPutStrLn h . IRC.render)

@@ -15,7 +15,12 @@ import System.Posix.Resource
 import System.Posix.IO
 import System.IO
 import GHC.Read
-import Control.Parallel.Strategies
+import Control.Parallel.Strategies (NFData, rnf)
+import Network.Socket (Socket(..), setSocketOption, SocketOption(..))
+import Foreign (Ptr, with, sizeOf)
+
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 
 full_evaluate :: NFData a => a -> IO a
 full_evaluate x = do () <- evaluate (rnf x); return x
@@ -108,3 +113,25 @@ maybe_if x f y = maybe y f x
 
 (.||.) :: (a -> Bool) -> (a -> Bool) -> (a -> Bool)
 f .||. g = \x -> f x || g x
+
+foreign import ccall unsafe "setsockopt"
+  c_setsockopt :: CInt -> CInt -> CInt -> Ptr CInt -> CInt -> IO CInt
+
+bareSetSocketOption :: Socket -> CInt -> CInt -> CInt -> IO ()
+  -- Needed because Network.Socket.SocketOption lacks several options (such as TCP_KEEPIDLE, TCP_KEEPINTVL, and KEEPCNT).
+bareSetSocketOption socket level option value = do
+   with value $ \p -> do
+   throwErrnoIfMinus1_ "bareSetSocketOption" $
+    c_setsockopt (socketFd socket) level option p (fromIntegral $ sizeOf value)
+   return ()
+
+socketFd :: Socket -> CInt
+socketFd (MkSocket fd _ _ _ _) = fd
+
+setKeepAlive :: Socket -> CInt -> CInt -> CInt -> IO ()
+setKeepAlive sock keepidle keepintvl keepcnt = do
+  setSocketOption sock KeepAlive 1
+  let sso = bareSetSocketOption sock (#const IPPROTO_TCP)
+  sso (#const TCP_KEEPIDLE) keepidle
+  sso (#const TCP_KEEPINTVL) keepintvl
+  sso (#const TCP_KEEPCNT) keepcnt
