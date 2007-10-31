@@ -17,7 +17,7 @@ import Control.Monad
 import Text.ParserCombinators.Parsec
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Data.Char
-import Data.List ((\\))
+import Data.List ((\\), sortBy)
 import Data.Maybe
 import EvalCpp (evalCpp)
 import qualified EvalCpp
@@ -67,7 +67,8 @@ is_request :: String -> String -> String -> Maybe String
 is_request botnick botaltnick txt = either (const Nothing) Just (parse p "" txt)
   where
    p = do
-    foldr1 (<|>) $ try . string . [botnick, capitalize botnick, botaltnick, capitalize botaltnick]
+    foldr1 (<|>) $ try . string . sortBy (\x y -> compare (length y) (length x))
+      [botnick, capitalize botnick, botaltnick, capitalize botaltnick]
     notFollowedBy $ char '\''
     (oneOf ":," >> getInput) <|> ((:) . (spaces >> satisfy (not . isLetter)) <*> getInput)
 
