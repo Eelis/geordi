@@ -19,8 +19,8 @@ import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Data.Char
 import Data.List ((\\), sortBy)
 import Data.Maybe
-import EvalCpp (evalCpp)
-import qualified EvalCpp
+import EvalCxx (evalCxx)
+import qualified EvalCxx
 import Util
 import System.IO.UTF8 hiding (hGetLine, getLine)
 import System.Console.GetOpt
@@ -104,8 +104,8 @@ help = putStrLn $ usageInfo "Usage: sudo ./Bot [option]... [request]...\nOptions
 main :: IO ()
 main = do
 
-  do -- See section "Inherited file descriptors." in EvalCpp.hsc.
-    let cre = EvalCpp.close_range_end
+  do -- See section "Inherited file descriptors." in EvalCxx.hsc.
+    let cre = EvalCxx.close_range_end
     setResourceLimit ResourceOpenFiles $ simpleResourceLimits $ fromIntegral cre
     high_fds <- filter (>= cre) . (read .) . (\\ [".", ".."]) . (getDirectoryContents =<< (\s -> "/proc/" ++ s ++ "/fd") . show . getProcessID)
     when (high_fds /= []) $ fail $ "fd(s) open >= " ++ show cre ++ ": " ++ show high_fds
@@ -118,7 +118,7 @@ main = do
       gxx : flags <- words . (full_evaluate =<< readFile "compile-config")
       let
         evalRequest :: String -> IO String
-        evalRequest = either return ((filter (isPrint .||. (== '\n')) .) . uncurry (evalCpp gxx (["prelude.a"] ++ flags))) . parse_request
+        evalRequest = either return ((filter (isPrint .||. (== '\n')) .) . uncurry (evalCxx gxx (["prelude.a"] ++ flags))) . parse_request
       let interactive = LO_interactive `elem` opts
       if rest == [] && not interactive then bot cfg evalRequest else do
       echo <- not . queryTerminal stdInput

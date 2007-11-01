@@ -34,15 +34,16 @@ process_prog_errors output result =
 (>>>) = liftM2 (++)
 
 strSepBy :: CharParser st String -> String -> CharParser st String
-strSepBy x y = fmap (concat . intersperse y) $ sepBy x (string y)
+strSepBy x y = concat . intersperse y . sepBy x (string y)
 
 cxxExpr :: CharParser st String
 cxxExpr =
-    try (fmap show (charLiteral haskell) >>> cxxExpr) <|>
+    try (show . charLiteral haskell >>> cxxExpr) <|>
+    try (show . stringLiteral haskell >>> cxxExpr) <|>
     (oneOf "(<[" >>= \o -> return [o] >>> strSepBy cxxExpr "," >>> string [mirror o] >>> cxxExpr) <|>
-    option [] (fmap (:[]) (noneOf ")>],'\"") >>> cxxExpr)
+    option [] ((:[]) . noneOf ")>],'\"" >>> cxxExpr)
   where mirror '(' = ')'; mirror '[' = ']'; mirror '<' = '>'; mirror c = error $ "no mirror for " ++ [c]
-    -- Can get confused when faced with sneaky uses of characters like '>'. Consequently, neither repl_withs nor hide_default_arguments works flawlessly in every imaginable case.
+    -- Can get confused when faced with sneaky uses of tokens like '>'. Consequently, neither repl_withs nor hide_default_arguments works flawlessly in every imaginable case.
 
 class Tok a where t :: a -> CharParser st String
 
@@ -59,7 +60,7 @@ clutter_namespaces = ["std", "boost", "__debug", "__gnu_norm", "__gnu_debug_def"
 
 localReplacer :: CharParser st String -> CharParser st String
 localReplacer x = anyStringTill $ try $ (:[]) . satisfy (not . isIdChar) >>> x
-  where isIdChar c = isAlphaNum c || c == '_'
+  where isIdChar = isAlphaNum .||. (== '_')
     -- Todo: Doesn't replace at start of input. (Situation does not occur in geordi's use, though.)
 
 defaulter :: [String] -> Int -> ([String] -> CharParser st a) -> CharParser st String

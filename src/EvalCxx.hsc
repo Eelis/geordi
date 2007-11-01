@@ -52,7 +52,7 @@ In our code, M is close_range_end.
 
 -}
 
-module EvalCpp (evalCpp, close_range_end) where
+module EvalCxx (evalCxx, close_range_end) where
 
 import Prelude hiding (catch, (.))
 import Control.Monad
@@ -121,7 +121,7 @@ wait p = do
     d s | c_WIFEXITED s /= 0 = WR_Exited $ c_WEXITSTATUS s
     d s | c_WIFSIGNALED s /= 0 = WR_Signaled $ c_WTERMSIG s
     d s | c_WIFSTOPPED s /= 0 = WR_Stopped $ c_WSTOPSIG s
-    d _ = error "unexpected wait status"
+    d _ = error "unknown wait status"
 
 data WaitResult = WR_NoChild | WR_Exited CInt | WR_Signaled CInt | WR_Stopped CInt
   deriving (Show, Eq)
@@ -130,11 +130,10 @@ data SuperviseResult = Exited ExitCode | DisallowedSyscall CInt | Signaled Signa
   deriving Eq
 
 instance Show SuperviseResult where
-  show sr = case sr of
-    Exited c -> "Exited: " ++ show c
-    DisallowedSyscall c -> "Disallowed system call: " ++ syscallName c
-    Signaled s -> if s == sigALRM then "Timeout" else strsignal s
-    ChildVanished -> "Child vanished"
+  show (Exited c) = "Exited: " ++ show c
+  show (DisallowedSyscall c) = "Disallowed system call: " ++ syscallName c
+  show (Signaled s) = if s == sigALRM then "Timeout" else strsignal s
+  show ChildVanished = "Child vanished"
 
 supervise :: ProcessID -> IO SuperviseResult
   -- supervise assumes that the first event observed is the child raising sigSTOP.
@@ -194,8 +193,8 @@ capture_restricted a argv env (Resources timeout rlims bs) =
 
 -- The actual output size is also limited by the pipe buffer.
 
-evalCpp :: FilePath -> [String] -> String -> Bool {- also run? -} -> IO String
-evalCpp gxx flags code also_run = do
+evalCxx :: FilePath -> [String] -> String -> Bool -> IO String
+evalCxx gxx flags code also_run = do
   let
     cap :: [String] -> Resources -> (String -> String) -> IO String -> IO String
     cap argv r err act = do

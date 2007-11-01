@@ -26,3 +26,5 @@ extern "C" char const s [] = "Hello world!"; int main () { asm("movl $12, %edx; 
 { assert(string("warp").length() == 4); }
 extern "C" int chmod (char const *, int); int main () { errno = 0; chmod(__FILE__, 0); cout << strerror(errno); } // Ignored system call.
 { asm("movl $3, $3"); } // as error filter test.
+extern "C" int uname (char * buf); int main () { char buf [1000], * p = buf; uname(buf); for (int i = 0; i != 6; ++i) { while (*p) cout.put(*p++); while (!*p) ++p; cout << "  "; } }
+{ throw std::logic_error("It is not logical, Captain."); }
