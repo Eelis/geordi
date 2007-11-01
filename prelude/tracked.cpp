@@ -3,6 +3,8 @@
 
 #include "foreach.hpp"
 
+namespace geordi { void abort (); }
+
 namespace tracked
 {
   namespace detail
@@ -22,18 +24,11 @@ namespace tracked
     Idd & Idd::operator= (Idd const & i)
     { i.live("assign from"); dead = false; return *this; }
 
-    void silent_exit ()
-    {
-      std::flush(std::cout);
-      std::fclose(stdout); // Otherwise we get leak messages.
-      std::exit(0);
-    }
-
     void Idd::live (char const * const s) const
     {
       if (!dead) return;
       std::cout << " Error: Tried to " << s << " dead " << name << id << '.';
-      silent_exit();
+      geordi::abort();
     }
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__

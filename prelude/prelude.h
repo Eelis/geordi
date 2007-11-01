@@ -114,12 +114,7 @@
 #include <boost/utility.hpp>
 #include <boost/variant.hpp>
 
-using namespace std;
-using namespace boost::assign;
-
 char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
-
-std::string advice ();
 
 template <typename T, size_t N> size_t array_size (T (&)[N]) { return N; }
   // Redundant. boost::size from Boost.Range handles these.
@@ -144,24 +139,28 @@ typedef unsigned long ulong;
 typedef unsigned short ushort;
 typedef long double ldouble;
 
-struct geordi_initializer_t { geordi_initializer_t (); };
-
-geordi_initializer_t const geordi_initializer;
-  // Could theoretically be located in other TU, but our using of an .a for our .o's makes that painful.
-
 #define RANGE(x) (boost::begin(x)), (boost::end(x))
 
-#define GEORDI_STATEMENTS_PRE \
-  int main () { try {
-#define GEORDI_STATEMENTS_POST \
-  } catch (std::exception const & e) { std::cout << "exception: " << e.what(); } }
+#define GEORDI_STATEMENTS_PRE int main () {
+#define GEORDI_STATEMENTS_POST }
 
-#define GEORDI_PRINT_PRE GEORDI_STATEMENTS_PRE std::boolalpha(std::cout); std::cout <<
+#define GEORDI_PRINT_PRE GEORDI_STATEMENTS_PRE std::cout <<
 #define GEORDI_PRINT_POST ; GEORDI_STATEMENTS_POST
-  // Having the  std::boolalpha(std::cout);  statement separate gives cleaner error messages (for example for "obrien << sqrt(-1) == NAN").
+
+namespace geordi
+{
+  std::string advice ();
+  void abort ();
+  struct initializer_t { initializer_t (); } const initializer;
+    // Could theoretically be located in other TU, but our using of an .a for our .o's makes that painful.
+}
 
 #undef assert
-#define assert(e) ((e) ? void() : (void(::std::cout << "Assertion `" #e "' fails."), ::fclose(stdout), exit(0)));
+#define assert(e) ((e) ? void() : (void(::std::cout << "Assertion `" #e "' fails."), geordi::abort()));
 
 #define SHOW(x) (#x " = " + boost::lexical_cast<string>(x))
   // The more obvious   #define SHOW(x) #x " = " << (x)   does not work in   cout << SHOW(x), SHOW(y);.
+
+using namespace std;
+using namespace boost::assign;
+using geordi::advice;

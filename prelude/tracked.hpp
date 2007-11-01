@@ -10,6 +10,8 @@
 #include <cassert>
 #include <utility>
 
+namespace geordi { void abort(); }
+
 namespace tracked
 {
   namespace detail
@@ -55,8 +57,6 @@ namespace tracked
 
         static Reg reg;
     };
-
-    void silent_exit ();
 
     typedef std::map<std::pair<void const *, void const *>, std::set<unsigned int> > Allocations;
     extern Allocations allocations;
@@ -128,7 +128,7 @@ namespace tracked
           for (; i != allocations.end(); ++i) if (i->first.first == p) break;
           if (i == allocations.end()) {
             std::cout << " Error: Tried to delete" << (array ? "[]" : "") << " pointer not pointing to valid allocation.";
-            silent_exit();
+            geordi::abort();
           }
 
           std::set<unsigned int> const & ids (i->second);
