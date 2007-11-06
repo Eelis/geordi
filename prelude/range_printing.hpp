@@ -3,6 +3,7 @@
 #define RANGE_PRINTING_HPP
 
 #include <ostream>
+#include <valarray>
 #include <utility>
 #include <boost/range.hpp>
 #include <boost/type_traits/is_same.hpp>
@@ -68,6 +69,17 @@ template <typename C, typename Tr, typename T, size_t N>
 typename boost::disable_if<boost::is_same<T, char>, std::basic_ostream<C, Tr> &>::type
   operator<< (std::basic_ostream<C, Tr> & o, T const (& a) [N])
 { print_range(o, a); return o; }
+
+namespace std
+{
+  template <typename Ch, typename Tr, typename T>
+  std::basic_ostream<Ch, Tr> & operator<< (std::basic_ostream<Ch, Tr> & o, std::valarray<T> const & v)
+  {
+    o << '[';
+    for (std::size_t i = 0; i != v.size(); ++i) { if (i != 0) o << ", "; o << v[i]; }
+    return o << ']';
+  }
+}
 
 #endif // header guard
 
