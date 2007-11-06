@@ -24,7 +24,7 @@ namespace tracked
     Idd & Idd::operator= (Idd const & i)
     { i.live("assign from"); dead = false; return *this; }
 
-    void Idd::live (char const * const s) const
+    void Idd::live (std::string const & s) const
     {
       if (!dead) return;
       std::cout << " Error: Tried to " << s << " dead " << name << id << '.';

@@ -6,6 +6,7 @@
 #include <set>
 #include <map>
 #include <cstdlib>
+#include <string>
 #include <cstdio>
 #include <cassert>
 #include <utility>
@@ -39,7 +40,7 @@ namespace tracked
 
         virtual ~Idd ();
 
-        void live (char const *) const;
+        void live (std::string const & s) const;
 
       private:
 
@@ -90,8 +91,8 @@ namespace tracked
       T & operator++ () { Base::live("pre-increment"); std::cout << " ++" << *this << ' '; return *this; }
       T operator++ (int) { Base::live("post-increment"); T const r (*this); operator++(); return r;  }
 
-      void f () const { Base::live("call T::f() on"); std::cout << ' ' << *this << ".f() "; }
-      virtual void vf () const { Base::live("call T::vf() on"); std::cout << ' ' << *this << ".vf() "; }
+      void f () const { Base::live(std::string("call ") + Name + "::f() on"); std::cout << ' ' << *this << ".f() "; }
+      virtual void vf () const { Base::live(std::string("call ") + Name + "::vf() on"); std::cout << ' ' << *this << ".vf() "; }
 
       virtual ~T () { std::cout << ' ' << *this << "~ "; }
 
