@@ -9,6 +9,8 @@ namespace tracked
 {
   namespace detail
   {
+    bool muted = false;
+
     id_t Idd::new_id = 0;
 
     Idd::Idd (name_t const name): id(new_id++), name(name), dead(false)

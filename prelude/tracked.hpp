@@ -17,6 +17,9 @@ namespace tracked
 {
   namespace detail
   {
+    extern bool muted;
+      // Does not muted errors (such as calling functions on dead objects).
+
     typedef char name_t;
 
     struct Idd
@@ -65,36 +68,40 @@ namespace tracked
     template <typename Base, name_t Name>
     struct T: Base
     {
-      explicit T (name_t const name = Name): Base(name) { std::cout << ' ' << *this << "* "; }
+      explicit T (name_t const name = Name): Base(name)
+      { if (!muted) std::cout << ' ' << *this << "* "; }
 
       explicit T (int const i, name_t const name = Name):
-        Base(name) { std::cout << ' ' << *this << "*(" << i << ") "; }
+        Base(name) { if (!muted) std::cout << ' ' << *this << "*(" << i << ") "; }
 
       T (T const & t, name_t const name = Name):
-        Base(t, name) { std::cout << ' ' << *this << "*(" << t << ") "; }
+        Base(t, name) { if (!muted) std::cout << ' ' << *this << "*(" << t << ") "; }
 
       T & operator= (T const & t)
-      { Base::operator=(t); std::cout << ' ' << *this << '=' << t << ' '; return *this; }
+      { Base::operator=(t); if (!muted) std::cout << ' ' << *this << '=' << t << ' '; return *this; }
 
       #ifdef __GXX_EXPERIMENTAL_CXX0X__
 
         // Moves are displayed as =>, because -> and <= are operators.
 
         T (T && t, name_t const name = Name):
-          Base(std::move(t), name) { std::cout << ' ' << t << "=>" << *this << "* "; }
+          Base(std::move(t), name) { if (!muted) std::cout << ' ' << t << "=>" << *this << "* "; }
 
         T & operator= (T && t)
-        { Base::operator=(std::move(t)); std::cout << ' ' << t << "=>" << *this << ' '; return *this; }
+        { Base::operator=(std::move(t)); if (!muted) std::cout << ' ' << t << "=>" << *this << ' '; return *this; }
 
       #endif
 
-      T & operator++ () { Base::live("pre-increment"); std::cout << " ++" << *this << ' '; return *this; }
+      T & operator++ () { Base::live("pre-increment"); if (!muted) std::cout << " ++" << *this << ' '; return *this; }
       T operator++ (int) { Base::live("post-increment"); T const r (*this); operator++(); return r;  }
 
-      void f () const { Base::live(std::string("call ") + Name + "::f() on"); std::cout << ' ' << *this << ".f() "; }
-      virtual void vf () const { Base::live(std::string("call ") + Name + "::vf() on"); std::cout << ' ' << *this << ".vf() "; }
+      void f () const
+      { Base::live(std::string("call ") + Name + "::f() on"); if (!muted) std::cout << ' ' << *this << ".f() "; }
 
-      virtual ~T () { std::cout << ' ' << *this << "~ "; }
+      virtual void vf () const
+      { Base::live(std::string("call ") + Name + "::vf() on"); if (!muted) std::cout << ' ' << *this << ".vf() "; }
+
+      virtual ~T () { if (!muted) std::cout << ' ' << *this << "~ "; }
 
       // normal new:
       void * operator new (std::size_t const s) { return op_new(s, false, ::operator new(s)); }
@@ -119,7 +126,7 @@ namespace tracked
         {
           if (!r) return 0;
           allocations.insert(std::make_pair(std::make_pair(r, static_cast<char *>(r) + s), std::set<unsigned int>()));
-          std::cout << " new(" << Name << (array ? "[]" : "") << ") ";
+          if (!muted) std::cout << " new(" << Name << (array ? "[]" : "") << ") ";
           return r;
         }
 
@@ -132,18 +139,22 @@ namespace tracked
             geordi::abort();
           }
 
-          std::set<unsigned int> const & ids (i->second);
-          std::cout << " delete";
-          if (array) {
-            typename std::set<unsigned int>::const_iterator b = ids.begin(), e = ids.end();
-            std::cout << '[';
-            if (b != e) { std::cout << Name << *b; while (++b != e) std::cout << ',' << Name << *b; }
-            std::cout << ']';
-          } else {
-            assert(ids.size() == 1);
-            std::cout << '(' << Name << *(ids.begin()) << ')';
+          if (!muted)
+          {
+            std::set<unsigned int> const & ids (i->second);
+            std::cout << " delete";
+            if (array) {
+              typename std::set<unsigned int>::const_iterator b = ids.begin(), e = ids.end();
+              std::cout << '[';
+              if (b != e) { std::cout << Name << *b; while (++b != e) std::cout << ',' << Name << *b; }
+              std::cout << ']';
+            } else {
+              assert(ids.size() == 1);
+              std::cout << '(' << Name << *(ids.begin()) << ')';
+            }
+            std::cout << ' ';
           }
-          std::cout << ' ';
+
           allocations.erase(i);
           ::operator delete(p);
         }
@@ -166,6 +177,9 @@ namespace tracked
     #endif
 
   } // namespace detail
+
+  inline void mute () { detail::muted = true; }
+  inline void unmute () { detail::muted = false; }
 
   typedef detail::T<detail::Idd, 'B'> B;
   typedef detail::T<B, 'D'> D;
