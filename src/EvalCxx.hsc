@@ -73,12 +73,10 @@ import Data.Char
 import qualified Codec.Binary.UTF8.String as UTF8
 import Data.Maybe
 import SyscallNames
-import Resource
 
 #include <syscall.h>
 #include <sys/ptrace.h>
 #include <sys/reg.h>
-#include <sys/resource.h>
 
 syscall_off, syscall_ret :: CInt
 #ifdef __x86_64__
@@ -169,7 +167,7 @@ supervise pid = alloca $ \wstatp -> do
               return $ DisallowedSyscall syscall
       WR_Stopped sig -> Ptrace.kill pid >> sv Nothing >> return (Signaled sig)
 
-data Resources = Resources { walltime :: Int, rlimits :: [(CInt, CRLim)], bufsize :: CSize }
+data Resources = Resources { walltime :: Int, rlimits :: [(Resource, ResourceLimits)], bufsize :: CSize }
 
 close_range_end :: CInt
 close_range_end = 25
@@ -185,7 +183,7 @@ capture_restricted a argv env (Resources timeout rlims bs) =
       dupTo pipe_w stdOutput
       forM_ ([0..close_range_end] \\ [fdOfFd stdOutput, fdOfFd stdError]) c_close
       scheduleAlarm timeout
-      mapM (uncurry setrlimit) rlims
+      mapM (uncurry setResourceLimit) rlims
       Ptrace.traceme
       raiseSignal sigSTOP
       executeFile a False argv (Just env)
@@ -240,12 +238,9 @@ common_resources :: Int -> Resources
 common_resources t = Resources
   { walltime = t
   , rlimits =
-    [ ((#const RLIMIT_CPU), fromIntegral t)
-    , ((#const RLIMIT_AS), 200 * mebi)
-    , ((#const RLIMIT_FSIZE), 5 * mebi)
-    , ((#const RLIMIT_NPROC), 0) -- Strictly redundant since SYS_clone is not allowed.
-    , ((#const RLIMIT_CORE), 0)
-    , ((#const RLIMIT_MSGQUEUE), 0)
+    [ (ResourceCPUTime, simpleResourceLimits $ fromIntegral t)
+    , (ResourceTotalMemory, simpleResourceLimits $ 200 * mebi)
+    , (ResourceFileSize, simpleResourceLimits $ 5 * mebi)
     ]
   , bufsize = 4 * kibi
   }
@@ -257,4 +252,4 @@ as_resources = common_resources 5
 ld_resources = common_resources 10
 prog_resources = common_resources 4
 
--- Note: We don't add RLIMIT_NOFILE here, because it is already set as part of the fd closing scheme described in the "Inherited file descriptors" section at the top of this file, and that "global" limit is sufficient.
+-- Note: We don't add ResourceOpenFiles here, because it is already set as part of the fd closing scheme described in the "Inherited file descriptors" section at the top of this file, and that "global" limit is sufficient.

@@ -106,7 +106,7 @@ main = do
 
   do -- See section "Inherited file descriptors." in EvalCxx.hsc.
     let cre = EvalCxx.close_range_end
-    let l = ResourceLimit $ fromIntegral cre in setResourceLimit ResourceOpenFiles $ ResourceLimits l l
+    setResourceLimit ResourceOpenFiles $ simpleResourceLimits $ fromIntegral cre
     high_fds <- filter (>= cre) . (read .) . (\\ [".", ".."]) . (getDirectoryContents =<< (\s -> "/proc/" ++ s ++ "/fd") . show . getProcessID)
     when (high_fds /= []) $ fail $ "fd(s) open >= " ++ show cre ++ ": " ++ show high_fds
 

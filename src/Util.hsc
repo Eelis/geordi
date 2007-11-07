@@ -11,6 +11,7 @@ import Control.Monad.State
 import Control.Applicative
 import Control.Monad.Instances
 import System.Posix.Types
+import System.Posix.Resource
 import System.Posix.IO
 import System.IO
 import GHC.Read
@@ -65,6 +66,9 @@ chroot s = throwErrnoIfMinus1_ "chroot" (withCString s c_chroot)
 
 readTypedFile :: Read a => FilePath -> IO a
 readTypedFile f = either (const $ fail $ "parsing \"" ++ f ++ "\"") return =<< readEither . readFile f
+
+simpleResourceLimits :: Integer -> ResourceLimits
+simpleResourceLimits l = ResourceLimits (ResourceLimit l) (ResourceLimit l)
 
 stripPrefix :: String -> String -> Maybe String
 stripPrefix [] ys = Just ys
