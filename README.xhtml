@@ -14,7 +14,15 @@
 
     <ul>
       <li><a href='#installation'>1. Installation</a></li>
-      <li><a href='#running'>2. Running geordi</a></li>
+      <li>
+        <a href='#running'>2. Running geordi</a>
+        <ul>
+          <li><a href='#invocation'>2.1 Invocation</a></li>
+          <li><a href='#nickserv'>2.2 NickServ identification</a></li>
+          <li><a href='#reconnect'>2.3 Auto-reconnect</a></li>
+          <li><a href='#multinetwork'>2.4 Connecting to multiple networks</a></li>
+        </ul>
+      </li>
       <li><a href='#problems'>3. Known problems</a></li>
     </ul>
     <ul>
@@ -22,7 +30,7 @@
       <li><a href='#examplelisting'>Appendix B: Example rt file listing</a></li>
     </ul>
 
-    <h2><a id='installation'/>1. Installation</h2>
+    <hr/><h2><a id='installation'/>1. Installation</h2>
     <p>
       Geordi is not "<kbd>./configure &amp;&amp; make &amp;&amp; make install</kbd>" software. Setting up geordi is a somewhat awkward manual task, mainly because there are some installation steps that would be very hard to automate.
     </p>
@@ -88,7 +96,9 @@
       <li>A modest testsuite can now be run with <kbd>sudo scripts/run-tests</kbd></li>
     </ol>
 
-    <h2><a id='running'/>2. Running geordi</h2>
+    <hr/><h2><a id='running'/>2. Running geordi</h2>
+
+    <h3><a id='invocation'>2.1&ensp;Invocation</a></h3>
 
     <p>Usage:&emsp;<kbd>sudo ./Bot [option]... [request]...</kbd></p>
 
@@ -110,14 +120,22 @@
 
     <p>If <kbd>-i</kbd> is not specified and no requests are passed, the bot connects to the specified IRC server, optionally identifies with NickServ, and joins the specified channels. Otherwise, any requests are evaluated and the program exits (unless <kbd>-i</kbd> was specified).</p>
 
+    <h3><a id='nickserv'>2.2&ensp;NickServ identification</a></h3>
+
     <p>To have the bot identify to NickServ, change the following line in config:</p>
     <p><code>, nick_pass = Nothing</code></p>
     <p>into:</p>
     <p><code>, nick_pass = Just "mypassword"</code></p>
 
+    <h3><a id='reconnect'>2.3&ensp;Auto-reconnect</a></h3>
+
     <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./Bot; sleep 120; done</kbd></p>
 
-    <h2><a id='problems'/>3. Known problems</h2>
+    <h3><a id='multinetwork'>2.4&ensp;Connecting to multiple networks</a></h3>
+
+    <p>Make config files for the different networks. Then run one geordi instance for each network, passing -c arguments pointing to the respective config files. The rt directory will be safely shared.</p>
+
+    <hr/><h2><a id='problems'/>3. Known problems</h2>
     <ul>
       <li>
         <p>Some errors/warnings are truncated. This is due to <a href='http://gcc.gnu.org/bugzilla/show_bug.cgi?id=33952'>a GCC bug</a> that its developers don't feel like fixing.</p>
@@ -127,7 +145,7 @@
       </li>
     </ul>
 
-    <h2><a id='exampletree'/>Appendix A: Example rt tree</h2>
+    <hr/><h2><a id='exampletree'/>Appendix A: Example rt tree</h2>
     <pre>
       rt
       |-- advice.txt
@@ -196,7 +214,7 @@
               `-- libstdc++.so.6
     </pre>
 
-    <h2><a id='examplelisting'/>Appendix B: Example rt file listing</h2>
+    <hr/><h2><a id='examplelisting'/>Appendix B: Example rt file listing</h2>
     <pre>
       rt:
       total 73M

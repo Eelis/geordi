@@ -59,10 +59,8 @@ import Control.Monad
 import Control.Monad.Fix
 import Foreign
 import Foreign.C
-import System.IO
-import System.Exit
-import System.Posix hiding (Stopped, Exited)
-import System.Posix.Internals
+import System.Exit (ExitCode(..))
+import System.Posix.Internals (c_read, c_close)
 import System.FilePath
 import Util
 import ErrorFilters
@@ -73,6 +71,9 @@ import Data.Char
 import qualified Codec.Binary.UTF8.String as UTF8
 import Data.Maybe
 import SyscallNames
+import System.Posix
+  (Fd(..), CPid, Signal, sigALRM, sigSTOP, sigTRAP, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, ByteCount, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimits(..), setResourceLimit)
+import qualified Flock
 
 #include <syscall.h>
 #include <sys/ptrace.h>
@@ -203,6 +204,8 @@ evalCxx gxx flags code also_run = do
         Exited ExitSuccess -> act
         Exited (ExitFailure _) -> return $ err out
         _ -> return $ "g++: " ++ show res
+  withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd -> do
+  Flock.exclusive lock_fd
   writeFile "t.cpp" code
   cap (words "-S t.cpp" ++ flags) cc1plus_resources process_cc1plus_errors $ do
   if not also_run then return "Compilation successful" else do
