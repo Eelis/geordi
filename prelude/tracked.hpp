@@ -18,7 +18,7 @@ namespace tracked
   namespace detail
   {
     extern bool muted;
-      // Does not muted errors (such as calling functions on dead objects).
+      // Does not muted errors (such as calling functions on pillaged objects).
 
     typedef char name_t;
 
@@ -43,11 +43,12 @@ namespace tracked
 
         virtual ~Idd ();
 
-        void live (std::string const & s) const;
+        void assert_not_pillaged (std::string const & s) const;
+        void assert_not_destructed (std::string const & s) const;
 
       private:
 
-        bool dead;
+        enum { fresh, pillaged, destructed } status;
 
         static id_t new_id;
 
@@ -92,14 +93,14 @@ namespace tracked
 
       #endif
 
-      T & operator++ () { Base::live("pre-increment"); if (!muted) std::cout << " ++" << *this << ' '; return *this; }
-      T operator++ (int) { Base::live("post-increment"); T const r (*this); operator++(); return r;  }
+      T & operator++ () { Base::assert_not_pillaged("pre-increment"); if (!muted) std::cout << " ++" << *this << ' '; return *this; }
+      T operator++ (int) { Base::assert_not_pillaged("post-increment"); T const r (*this); operator++(); return r;  }
 
       void f () const
-      { Base::live(std::string("call ") + Name + "::f() on"); if (!muted) std::cout << ' ' << *this << ".f() "; }
+      { Base::assert_not_pillaged(std::string("call ") + Name + "::f() on"); if (!muted) std::cout << ' ' << *this << ".f() "; }
 
       virtual void vf () const
-      { Base::live(std::string("call ") + Name + "::vf() on"); if (!muted) std::cout << ' ' << *this << ".vf() "; }
+      { Base::assert_not_pillaged(std::string("call ") + Name + "::vf() on"); if (!muted) std::cout << ' ' << *this << ".vf() "; }
 
       virtual ~T () { if (!muted) std::cout << ' ' << *this << "~ "; }
 
