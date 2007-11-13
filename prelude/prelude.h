@@ -8,7 +8,6 @@
 #include "tracked.hpp"
 #include "using.hpp"
 #include "range_printing.hpp"
-#include "foreach.hpp"
 #include "type_strings.hpp"
 #include "delimited_ostream.hpp"
 #include "bin_iomanip.hpp"
@@ -113,6 +112,10 @@
 #include <boost/tokenizer.hpp>
 #include <boost/utility.hpp>
 #include <boost/variant.hpp>
+
+#if BOOST_VERSION >= 103400
+  #include <boost/foreach.hpp>
+#endif
 
 char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
 

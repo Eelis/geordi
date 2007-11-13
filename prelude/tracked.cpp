@@ -1,8 +1,6 @@
 
 #include "tracked.hpp"
 
-#include "foreach.hpp"
-
 namespace geordi { void abort (); }
 
 namespace tracked
@@ -71,7 +69,7 @@ namespace tracked
     {
       if (s.empty()) return;
       std::cout << " || leaked:";
-      BOOST_FOREACH(map::value_type const & p, s) std::cout << ' ' << p.second << p.first;
+      for (map::const_iterator i = s.begin(); i != s.end(); ++i) std::cout << ' ' << i->second << i->first;
     }
   }
 }
