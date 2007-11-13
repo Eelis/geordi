@@ -119,9 +119,6 @@
 
 char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
 
-template <typename T, size_t N> size_t array_size (T (&)[N]) { return N; }
-  // Redundant. boost::size from Boost.Range handles these.
-
 // Evil casts:
 
   // Consider   some_evil_cast<char const *>("foo")   . There are two possible interpretations for the result: either the array should decay into a pointer and be immediately returned, or the bytes making up the array are interpreted as the bytes making up the to-be-returned pointer. cast_dammit_cast does the former, while savage_cast does the latter.
