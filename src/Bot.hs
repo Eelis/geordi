@@ -154,6 +154,8 @@ bot cfg eval = withResource (connect cfg) $ \h -> do
   on_msg m = flip execStateT [] $ do
     when (join_trigger cfg == Just m) join_chans
     case m of
+      IRC.Message (Just (IRC.NickName who _ _)) "QUIT" _ | who == nick cfg ->
+        msapp [msg "NICK" [nick cfg]]
       IRC.Message _ "433" {- Nick in use. -} _ -> msapp $ [msg "NICK" [alternate_nick cfg]]
       IRC.Message _ "PING" a -> msapp [msg "PONG" a]
       IRC.Message (Just (IRC.NickName fromnick _ _)) "PRIVMSG" [c, txt] ->
