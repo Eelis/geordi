@@ -156,6 +156,8 @@ bot cfg eval = withResource (connect cfg) $ \h -> do
     case m of
       IRC.Message (Just (IRC.NickName who _ _)) "QUIT" _ | who == nick cfg ->
         msapp [msg "NICK" [nick cfg]]
+      IRC.Message (Just (IRC.NickName from _ _)) "PRIVMSG" [_, "\1VERSION\1"] ->
+        msapp [msg "NOTICE" [from, "\1VERSION Geordi C++ bot - http://www.eelis.net/geordi/\1"]]
       IRC.Message _ "433" {- Nick in use. -} _ -> msapp $ [msg "NICK" [alternate_nick cfg]]
       IRC.Message _ "PING" a -> msapp [msg "PONG" a]
       IRC.Message (Just (IRC.NickName fromnick _ _)) "PRIVMSG" [c, txt] ->
