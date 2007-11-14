@@ -72,6 +72,7 @@ replacers :: [CharParser st String]
 replacers = (.) localReplacer
   [ t clutter_namespaces >> t "::" >> return []
   , string "basic_" >> t ioBasics <* string "<char>"
+  , ('w':) . (string "basic_" >> t ioBasics <* string "<wchar_t>")
   , (\e -> "list<" ++ e ++ ">::iterator") . (t "_List_iterator<" >> cxxExpr <* t '>')
   , (\e -> "list<" ++ e ++ ">::const_iterator") . (t "_List_const_iterator<" >> cxxExpr <* t '>')
   , (++ "::const_iterator") . (t "__normal_iterator<const " >> cxxExpr >> t ',' >> cxxExpr <* t '>')
