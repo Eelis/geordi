@@ -11,9 +11,9 @@
 #include "type_strings.hpp"
 #include "delimited_ostream.hpp"
 #include "bin_iomanip.hpp"
+#include "lvalue_rvalue.hpp"
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
-  #include "lvalue_rvalue.hpp"
   #include "unique_ptr.hpp"
 #endif
 
