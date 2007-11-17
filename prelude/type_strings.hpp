@@ -39,6 +39,8 @@
   #include "tlists.hpp"
 #endif
 
+namespace type_strings_detail {
+
 template <typename I>
 std::string commas_and (I b, I e)
 {
@@ -55,6 +57,7 @@ template <typename>
 std::string type ()
 { std::string r (__PRETTY_FUNCTION__); r.resize(r.size() - 1); return r.substr(r.find('=') + 2); }
   // Note: Depends on specific string format used by __PRETTY_FUNCTION__.
+  // Todo: Consider __func__ in C++0x.
 
 // Note: Since type relies on passing the type as a template argument, it will not work for locally defined types.
 
@@ -458,19 +461,24 @@ namespace textual_type_descriptions
 template <typename T> std::string type_desc (bool const plural)
 { return textual_type_descriptions::type_desc_t<T>::s(plural); }
 
-// The following macros are variadic so that things like TYPE(pair<int, bool>) work (note the comma).
+// The following macros are variadic so that things like TYPE(pair<int, bool>) and ETYPE(pair<bool, int>(true, 3)) work (note the commas).
 // The E* variants are necessary because decltype does not allow type arguments, and eventually we will want to remove the __typeof__ implementation.
 
-#define TYPEID_NAME(...) (cxa_demangle(typeid( __VA_ARGS__ ).name()))
-#define TYPE(...) (type< __VA_ARGS__ >())
-#define TYPE_DESC(...) (type_desc< __VA_ARGS__ >())
+} // type_strings_detail
+
+#define TYPEID_NAME(...) (::type_strings_detail::cxa_demangle(typeid(__VA_ARGS__).name()))
+#define TYPE(...) (::type_strings_detail::type<__VA_ARGS__>())
+#define TYPE_DESC(...) (::type_strings_detail::type_desc<__VA_ARGS__>())
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
-  #define ETYPE(...) (type<decltype( __VA_ARGS__ )>())
-  #define ETYPE_DESC(...) (type_desc<decltype( __VA_ARGS__ )>())
+  #define ETYPE(...) ((IS_LVALUE(__VA_ARGS__) ? "lvalue " : "rvalue ") + ::type_strings_detail::type<decltype(__VA_ARGS__)>())
+  #define ETYPE_DESC(...) (::type_strings_detail::type_desc<decltype(__VA_ARGS__)>())
 #else
-  #define ETYPE(...) (type<__typeof__( __VA_ARGS__ )>())
-  #define ETYPE_DESC(...) (type_desc<__typeof__( __VA_ARGS__ )>())
+  #define ETYPE(...) ( \
+    (MAY_BE_LVALUE(__VA_ARGS__) ? "" : "rvalue ") + \
+    std::string(MAY_BE_RVALUE(__VA_ARGS__) ? "" : "lvalue ") + \
+     ::type_strings_detail::type<__typeof__(__VA_ARGS__)>())
+  #define ETYPE_DESC(...) (::type_strings_detail::type_desc<__typeof__(__VA_ARGS__)>())
 #endif
 
 #endif // header guard
