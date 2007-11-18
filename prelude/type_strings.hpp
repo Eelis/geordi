@@ -421,12 +421,12 @@ namespace textual_type_descriptions
     // C++0x
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
-    
+
     template <typename T, size_t N> struct type_desc_t<std::array<T, N> >: Vowel
     { static std::string s (bool b) { return pl("array", b) + " of " + count<T>(N); } };
-    
+
     template<size_t N> struct num_vowel { enum { vowel = N == 8 || N == 18 }; };
-    
+
     template <typename... T> struct type_desc_t<std::tuple<T...>> {
       static std::string s (bool b) {
         std::vector<std::string> v; list_desc<T...>::s(v);
@@ -434,19 +434,19 @@ namespace textual_type_descriptions
       }
       enum { vowel = num_vowel<sizeof...(T)>::vowel };
     };
-    
+
     template <typename T> struct type_desc_t<unique_ptr<T>>: consonant
     { static std::string s (bool b) { return "unique " + type_desc<T*>(b); } };
 
     template <typename T> struct type_desc_t<std::reference_wrapper<T>>: consonant
     { static std::string s (bool b) { return "reference wrapped " + type_desc_t<T>::s(b); } };
-    
+
     template <typename T, typename U, typename H, typename P, typename A> struct type_desc_t<std::unordered_map<T, U, H, P, A>>: consonant
     { static std::string s (bool b) { return pl("unordered map", b) + " from " + many<T>() + " to " + many<U>(); } };
-    
+
     template <typename T, typename U, typename H, typename P, typename A> struct type_desc_t<std::unordered_multimap<T, U, H, P, A>>: consonant
     { static std::string s (bool b) { return pl("unordered multi-map", b) + " from " + many<T>() + " to " + many<U>(); } };
-  
+
     template <typename T, typename H, typename P, typename A>
     struct type_desc_t<std::unordered_set<T, H, P, A>>: consonant
     { static std::string s (bool b) { return pl("unordered set", b) + " of " + many<T>(); } };

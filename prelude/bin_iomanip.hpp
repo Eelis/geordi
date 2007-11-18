@@ -33,7 +33,7 @@ This is surprising, because the num_put facet only has output functions for long
 
 In a stunning display of disregard for the design principle of separation of responsibilities, [27.6.2.6.2] paragraph 1 in N2369 (the latest standard draft at the time of this writing) achieves the former behavior by dictating that std::basic_ostream::operator<<(short) check to see if (flags()&basefield) equals oct or hex, and if so convert the value to an unsigned short before sending it to the num_put facet. That is, short(-1) is actually sent as the long integer value 0xffff to the num_put facet(!).
 
-Since this special-case code is burried in std::basic_ostream::operator<<(short), there is no way for us to get the same behavior for our "bin" manipulator.
+Since this special-case code is buried in std::basic_ostream::operator<<(short), there is no way for us to get the same behavior for our "bin" manipulator.
 
 All of the above is also the case for plain int.
 

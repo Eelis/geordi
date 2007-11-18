@@ -118,7 +118,7 @@ stripRef s | Just s' <- stripSuffix "&" s = (s', LRef)
 stripRef s = (s, NoRef)
 
 subRegex' :: Regex -> String -> String -> String
-subRegex' s = flip $ subRegex s
+subRegex' = flip . subRegex
 
 with_subst :: (String, String) -> String -> String
 with_subst (k, v) = let (v', vrk) = stripRef v in

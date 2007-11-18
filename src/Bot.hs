@@ -97,8 +97,8 @@ localOptsDesc =
   , Option "h" ["help"] (NoArg LO_help) "Display this help and exit."
   ]
 
-help :: IO ()
-help = putStrLn $ usageInfo "Usage: sudo ./Bot [option]... [request]...\nOptions:" localOptsDesc ++ "\nSee INSTALL.xhtml for more information."
+help :: String
+help = usageInfo "Usage: sudo ./Bot [option]... [request]...\nOptions:" localOptsDesc ++ "\nSee README.xhtml for more information."
 
 main :: IO ()
 main = do
@@ -112,7 +112,7 @@ main = do
   args <- getArgs
   case getOpt RequireOrder localOptsDesc args of
     (opts, rest, []) ->
-      if LO_help `elem` opts then help else do
+      if LO_help `elem` opts then putStrLn help else do
       cfg <- readTypedFile $ maybe "config" id $ findMaybe (\o -> case o of LO_config cf -> Just cf; _ -> Nothing) opts
       gxx : flags <- words . (full_evaluate =<< readFile "compile-config")
       let

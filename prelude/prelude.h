@@ -158,7 +158,7 @@ namespace geordi
 #undef assert
 #define assert(e) ((e) ? void() : (void(::std::cout << "Assertion `" #e "' fails."), geordi::abort()));
 
-#define SHOW(x) (#x " = " + boost::lexical_cast<string>(x))
+#define SHOW(x) (#x " = " + boost::lexical_cast<std::string>(x))
   // The more obvious   #define SHOW(x) #x " = " << (x)   does not work in   cout << SHOW(x), SHOW(y);.
 
 using namespace std;
