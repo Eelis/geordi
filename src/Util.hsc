@@ -1,23 +1,24 @@
-
 module Util where
 
-import Foreign.C
-import Prelude hiding (catch, (.))
-import Data.List
-import Data.Char
-import Data.Monoid
-import Control.Exception
-import Control.Monad.State
-import Control.Applicative
-import Control.Monad.Instances
-import System.Posix.Types
-import System.Posix.Resource
-import System.Posix.IO
-import System.IO
-import GHC.Read
+import qualified System.Posix.IO
+import qualified GHC.Read
+import qualified Data.Monoid
+
+import Data.List (sortBy, isPrefixOf)
+import Data.Char (toUpper, isSpace)
+import Control.Exception (catch, bracket, evaluate)
+import Control.Monad.State (MonadState, ap, modify)
+import Control.Applicative (Applicative(..))
+import Control.Monad.Instances ()
+import System.Posix.Types (Fd(..))
+import System.Posix.Resource (ResourceLimits(..), ResourceLimit(..))
+import System.IO (Handle, hClose)
 import Control.Parallel.Strategies (NFData, rnf)
 import Network.Socket (Socket(..), setSocketOption, SocketOption(..))
 import Foreign (Ptr, with, sizeOf)
+
+import Foreign.C
+import Prelude hiding (catch, (.))
 
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -45,7 +46,7 @@ withResource :: IOResource a => IO a -> (a -> IO b) -> IO b
 withResource x = bracket x $ noThrow . dealloc
 
 instance IOResource Handle where dealloc = hClose
-instance IOResource Fd where dealloc = closeFd
+instance IOResource Fd where dealloc = System.Posix.IO.closeFd
 
 instance (IOResource x, IOResource y) => IOResource (x, y) where
   dealloc (x, y) = noThrow (dealloc x) >> dealloc y
@@ -65,7 +66,7 @@ chroot :: FilePath -> IO ()
 chroot s = throwErrnoIfMinus1_ "chroot" (withCString s c_chroot)
 
 readTypedFile :: Read a => FilePath -> IO a
-readTypedFile f = either (const $ fail $ "parsing \"" ++ f ++ "\"") return =<< readEither . readFile f
+readTypedFile f = either (const $ fail $ "parsing \"" ++ f ++ "\"") return =<< GHC.Read.readEither . readFile f
 
 simpleResourceLimits :: Integer -> ResourceLimits
 simpleResourceLimits l = ResourceLimits (ResourceLimit l) (ResourceLimit l)
@@ -104,8 +105,8 @@ dropTailWhile p = reverse . dropWhile p . reverse
 maybeM :: Monad m => Maybe a -> (a -> m ()) -> m ()
 maybeM m a = maybe (return ()) a m
 
-msapp :: (Monoid a, MonadState a m) => a -> m ()
-msapp = modify . flip mappend
+msapp :: (Data.Monoid.Monoid a, MonadState a m) => a -> m ()
+msapp = modify . flip Data.Monoid.mappend
 
 maybe_if :: Maybe a -> (a -> b) -> b -> b
 maybe_if x f y = maybe y f x
@@ -135,3 +136,6 @@ setKeepAlive sock keepidle keepintvl keepcnt = do
   sso (#const TCP_KEEPIDLE) keepidle
   sso (#const TCP_KEEPINTVL) keepintvl
   sso (#const TCP_KEEPCNT) keepcnt
+
+sortByProperty :: Ord b => (a -> b) -> [a] -> [a]
+sortByProperty f = sortBy $ \x y -> compare (f x) (f y)

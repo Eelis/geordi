@@ -1,31 +1,28 @@
-
 import qualified Network.Socket as Net
+import qualified System.Directory
+import qualified EvalCxx
+import qualified Network.IRC as IRC
+import qualified System.Environment
+import qualified System.Posix.Terminal
+import qualified System.Posix.Env
+
 import Network.BSD (getProtocolNumber, hostAddress, getHostByName)
 import Control.Exception (bracketOnError)
 import System.IO (hGetLine, hFlush, stdout, Handle, IOMode(..))
-import System.Environment (getArgs)
-import System.Directory (setCurrentDirectory, getDirectoryContents)
-import System.Posix.Process (getProcessID)
-import System.Posix.Env (setEnv)
 import System.Posix.User
-import System.Posix.Resource
-import System.Posix.Terminal (queryTerminal)
+  (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
 import System.Posix.IO (stdInput)
+import Control.Monad (forM_, when)
+import Data.Char (isLetter, isPrint)
 import Control.Monad.Error ()
-import Control.Monad.State
-import Control.Monad
-import Text.ParserCombinators.Parsec
+import Control.Monad.State (execStateT, lift)
+import Text.ParserCombinators.Parsec (parse, getInput, spaces, satisfy, (<|>), oneOf, try, string)
+import System.IO.UTF8 (putStr, readFile, putStrLn, hPutStrLn)
+import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
+import Control.Applicative ((<*>))
+
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
-import Data.Char
-import Data.List ((\\), sortBy)
-import Data.Maybe
-import EvalCxx (evalCxx)
-import qualified EvalCxx
 import Util
-import System.IO.UTF8 hiding (hGetLine, getLine)
-import System.Console.GetOpt
-import Control.Applicative hiding ((<|>))
-import qualified Network.IRC as IRC
 
 data BotConfig = BotConfig
   { server :: String, port :: Integer, max_msg_length :: Int
@@ -42,7 +39,7 @@ jail cfg = do
   gid <- groupID . getGroupEntryForName (group cfg)
   uid <- userID . getUserEntryForName (user cfg)
   chroot "rt"
-  setCurrentDirectory "/"
+  System.Directory.setCurrentDirectory "/"
   setGroupID gid
   setUserID uid
 
@@ -67,23 +64,29 @@ is_request :: String -> String -> String -> Maybe String
 is_request botnick botaltnick txt = either (const Nothing) Just (parse p "" txt)
   where
    p = do
-    foldr1 (<|>) $ try . string . sortBy (\x y -> compare (length y) (length x))
+    foldr1 (<|>) $ try . string . sortByProperty length
       [botnick, capitalize botnick, botaltnick, capitalize botaltnick]
     (oneOf ":," >> getInput) <|> ((:) . (spaces >> satisfy (not . (isLetter .||. (`elem` "\'/*")))) <*> getInput)
 
 parse_request :: Monad m => String -> m (String {- code -}, Bool {- also run -})
-parse_request s = do
-  (opts, nonopcount) <- case getOpt RequireOrder requestOptsDesc (words s) of
-    (_, _, (e:_)) -> fail e
-    (f, o, []) -> return (f, length o)
+parse_request req = do
+  (opts, rest) <- case getOpt RequireOrder requestOptsDesc (words req) of
+    (_, _, (err:_)) -> fail err
+    (opts, non_opts, []) -> return (opts, concat $ takeBack (length non_opts) $ wordsWithWhite req)
+      -- We can't use non_opts' contents, because whitespace between tokens has been lost.
   let
-    u = concat $ takeBack nonopcount $ wordsWithWhite s
-    also_run = RO_help `elem` opts || RO_version `elem` opts || not (RO_compileOnly `elem` opts)
-    code
-      | RO_help `elem` opts = wrapPrint "help"
-      | RO_version `elem` opts = wrapPrint $ "\"g++ (GCC) \" << __VERSION__"
-      | otherwise = maybe_if (stripPrefix "<<" u) wrapPrint $ maybe_if (stripPrefix "{" u) (wrapStmts . ('{':)) u
-  return (unlines $ ["#include \"prelude.h\""] ++ (if RO_terse `elem` opts then ["#include \"terse.hpp\""] else []) ++ [code], also_run)
+    opt = (`elem` opts)
+    code = unlines $
+      ["#include \"prelude.h\""] ++
+      (if opt RO_terse then ["#include \"terse.hpp\""] else []) ++
+      case () of
+        _ | opt RO_help -> [wrapPrint "help"]
+        _ | opt RO_version -> [wrapPrint $ "\"g++ (GCC) \" << __VERSION__"]
+        _ | '{':_ <- rest -> [wrapStmts rest]
+        _ | '<':'<':x <- rest -> [wrapPrint x]
+        _ -> [rest]
+    also_run = opt RO_help || opt RO_version || not (opt RO_compileOnly)
+  return (code, also_run)
 
 local_prompt :: String
 local_prompt = "\n> "
@@ -102,34 +105,32 @@ help = usageInfo "Usage: sudo ./Bot [option]... [request]...\nOptions:" localOpt
 
 main :: IO ()
 main = do
-
-  do -- See section "Inherited file descriptors." in EvalCxx.hsc.
-    let cre = EvalCxx.close_range_end
-    setResourceLimit ResourceOpenFiles $ simpleResourceLimits $ fromIntegral cre
-    high_fds <- filter (>= cre) . (read .) . (\\ [".", ".."]) . (getDirectoryContents =<< (\s -> "/proc/" ++ s ++ "/fd") . show . getProcessID)
-    when (high_fds /= []) $ fail $ "fd(s) open >= " ++ show cre ++ ": " ++ show high_fds
-
-  args <- getArgs
+  EvalCxx.cap_fds
+  args <- System.Environment.getArgs
   case getOpt RequireOrder localOptsDesc args of
-    (opts, rest, []) ->
-      if LO_help `elem` opts then putStrLn help else do
+    (_, _, err:_) -> putStr err
+    (opts, rest, []) -> do
       cfg <- readTypedFile $ maybe "config" id $ findMaybe (\o -> case o of LO_config cf -> Just cf; _ -> Nothing) opts
       gxx : flags <- words . (full_evaluate =<< readFile "compile-config")
+        -- readFile would fail after the chroot, hence full_evaluate.
       let
         evalRequest :: String -> IO String
-        evalRequest = either return ((filter (isPrint .||. (== '\n')) .) . uncurry (evalCxx gxx (["prelude.a", "-lmcheck"] ++ flags))) . parse_request
-      let interactive = LO_interactive `elem` opts
-      if rest == [] && not interactive then bot cfg evalRequest else do
-      echo <- not . queryTerminal stdInput
-      jail cfg
-      forM_ rest $ (>>= putStrLn) . evalRequest
-      when interactive $ forever $ do
-      putStr local_prompt
-      hFlush stdout
-      l <- getLine
-      when echo $ putStrLn l
-      evalRequest l >>= putStrLn
-    (_, _, e) -> putStr $ concat e
+        evalRequest = either return ((filter (isPrint .||. (== '\n')) . show .) . uncurry (EvalCxx.evaluate gxx (["prelude.a", "-lmcheck"] ++ flags))) . parse_request
+          -- filtering using isPrint works properly because (1) EvalCxx.evaluate returns a proper Unicode String, not a load of bytes; and (2) to print filtered strings we will use System.IO.UTF8's hPutStrLn which properly UTF-8 encodes the filtered String.
+          -- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.
+      case () of
+        ()| LO_help `elem` opts -> putStrLn help
+        ()| rest == [] && not (LO_interactive `elem` opts) -> bot cfg evalRequest
+        ()| otherwise -> do
+          echo <- not . System.Posix.Terminal.queryTerminal stdInput
+          jail cfg
+          forM_ rest $ (>>= putStrLn) . evalRequest
+          when (LO_interactive `elem` opts) $ forever $ do
+          putStr local_prompt
+          hFlush stdout
+          l <- getLine
+          when echo $ putStrLn l
+          evalRequest l >>= putStrLn
 
 connect :: BotConfig -> IO Handle
   -- Mostly copied from Network.connectTo. We can't use that one because we want to set SO_KEEPALIVE (and related) options on the socket, which can't be done on a Handle.
@@ -142,7 +143,8 @@ connect cfg = do
 
 bot :: BotConfig -> (String -> IO String) -> IO ()
 bot cfg eval = withResource (connect cfg) $ \h -> do
-  setEnv "LC_ALL" "C" True -- Otherwise compiler warnings may use non-ASCII characters (e.g. for quotes).
+  System.Posix.Env.setEnv "LC_ALL" "C" True
+    -- Otherwise compiler warnings may use non-ASCII characters (e.g. for quotes).
   jail cfg
   let send = (>> hFlush h) . mapM_ (hPutStrLn h . IRC.render)
   send [msg "NICK" [nick cfg], msg "USER" [nick cfg, "0", "*", nick cfg]]
@@ -169,6 +171,3 @@ bot cfg eval = withResource (connect cfg) $ \h -> do
         maybeM (nick_pass cfg) $ \np -> msapp [msg "PRIVMSG" ["NickServ", "identify " ++ np]]
         when (join_trigger cfg == Nothing) join_chans
       _ -> return ()
-
--- (filter isPrint) works properly because (1) eval returns a proper Unicode String, not a load of bytes; and (2) we use System.IO.UTF8's hPutStrLn which properly UTF-8 encodes the filtered String.
--- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.

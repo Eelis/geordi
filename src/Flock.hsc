@@ -2,6 +2,7 @@ module Flock (exclusive) where
 
 import System.Posix.Types
 import Foreign.C
+import Prelude (IO, ($))
 
 #include <sys/file.h>
 

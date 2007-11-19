@@ -1,32 +1,27 @@
-module ErrorFilters
-  ( process_cc1plus_errors
-  , process_as_errors
-  , process_ld_errors
-  , process_prog_errors
-  ) where
+module ErrorFilters (cc1plus, as, ld, prog) where
 
-import Prelude hiding (catch, (.))
-import Control.Monad
-import Control.Monad.Fix
-import Text.Regex
-import Util
-import Data.List
-import Data.Char
-import Data.Maybe
+import Control.Monad (liftM2)
+import Control.Monad.Fix (fix)
+import Text.Regex (matchRegex, mkRegex, subRegex, Regex)
+import Data.List (intersperse)
+import Data.Char (isAlphaNum)
 import Text.ParserCombinators.Parsec
-import Text.ParserCombinators.Parsec.Language
-import Text.ParserCombinators.Parsec.Token
-import Control.Applicative hiding ((<|>))
+  (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, anyChar, noneOf, option, oneOf, count, CharParser)
+import Text.ParserCombinators.Parsec.Language (haskell)
+import Text.ParserCombinators.Parsec.Token (charLiteral, stringLiteral)
+import Control.Applicative ((<*), (<*>))
 
-process_as_errors, process_ld_errors, process_cc1plus_errors :: String -> String
+import Util
+import Prelude hiding (catch, (.))
 
-process_as_errors e = maybe e (!!1) $ matchRegex (mkRegex "\\b(Error|Warning): ([^\n]*)") e
+as, ld, cc1plus :: String -> String
 
-process_ld_errors e = maybe e head $ matchRegex (mkRegex "\\b(undefined reference to [^\n]*)") e
+as e = maybe e (!!1) $ matchRegex (mkRegex "\\b(Error|Warning): ([^\n]*)") e
 
-process_prog_errors :: String -> String -> String
-process_prog_errors output result =
-  maybe (output ++ result) head $ matchRegex (mkRegex ":error: ([^\n]*)") output
+ld e = maybe e head $ matchRegex (mkRegex "\\b(undefined reference to [^\n]*)") e
+
+prog :: String -> String -> String
+prog output result = maybe (output ++ result) head $ matchRegex (mkRegex ":error: ([^\n]*)") output
 
 -- cc1plus:
 
@@ -126,7 +121,7 @@ with_subst (k, v) = let (v', vrk) = stripRef v in
     subRegex' (mkRegex $ "\\b" ++ k ++ "\\s*&") (v' ++ "&") .
     subRegex' (mkRegex $ "\\b" ++ k ++ "\\s*&&") (v' ++ show (rrefTo vrk))
 
-process_cc1plus_errors e = maybe e' (!!1) $ matchRegex (mkRegex "\\b(error|warning): ([^\n]*)") e'
+cc1plus e = maybe e' (!!1) $ matchRegex (mkRegex "\\b(error|warning): ([^\n]*)") e'
   where
     h s = either (const s) h $ parse (foldr1 (<|>) (try . replacers) >>> getInput) "" s
     e' = h e

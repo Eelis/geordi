@@ -4,7 +4,8 @@ module Ptrace (traceme, syscall, peekuser, pokeuser, cont, kill, tracesysgood) w
 import Foreign.C
 import Foreign.C.Error
 import System.Posix
-import Control.Monad
+import Control.Monad (when)
+import Prelude
 
 #include <sys/ptrace.h>
 #include <linux/ptrace.h>

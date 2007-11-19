@@ -1,4 +1,3 @@
-
 {-- Correct ptrace-ing
 
 Our goal is simple: we want to be in control over everything the child does after it execve's. In particular, we want to know which syscall traps are entries and exits (we need this to be able to have ignored syscalls whose entry we replace by entry to getpid, and whose exits we replace with "return 0;"). Since the ptrace interface offers no built-in way to distinguish between the two, this means that we need to keep an in_syscall flag that we toggle at every syscall trap. Correct initialization of this flag is a concern.
@@ -52,28 +51,29 @@ In our code, M is close_range_end.
 
 -}
 
-module EvalCxx (evalCxx, close_range_end) where
+module EvalCxx (evaluate, EvaluationResult(..), cap_fds) where
 
-import Prelude hiding (catch, (.))
-import Control.Monad
-import Control.Monad.Fix
-import Foreign
-import Foreign.C
-import System.Exit (ExitCode(..))
-import System.Posix.Internals (c_read, c_close)
-import System.FilePath
-import Util
-import ErrorFilters
+import qualified System.Posix.Internals
 import qualified Ptrace
-import Data.List
-import Data.Word
-import Data.Char
 import qualified Codec.Binary.UTF8.String as UTF8
-import Data.Maybe
-import SyscallNames
+import qualified Flock
+import qualified ErrorFilters
+import qualified System.Directory
+import qualified System.Posix.Process (getProcessID)
+import qualified SyscallNames
+
+import Control.Monad (when, forM_)
+import Control.Monad.Fix (fix)
+import Foreign (peek, alloca, Ptr, Word8, unsafePerformIO, allocaBytes, (.|.))
+import Foreign.C
+  (CInt, CSize, getErrno, throwErrno, eWOULDBLOCK, CString, peekCString, peekCStringLen, eCHILD)
+import System.Exit (ExitCode(..))
+import Data.List ((\\))
 import System.Posix
   (Fd(..), CPid, Signal, sigALRM, sigSTOP, sigTRAP, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, ByteCount, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimits(..), setResourceLimit)
-import qualified Flock
+
+import Prelude hiding ((.))
+import Util
 
 #include <syscall.h>
 #include <sys/ptrace.h>
@@ -103,10 +103,10 @@ strsignal = unsafePerformIO . (peekCString =<<) . c_strsignal
 nonblocking_read :: Fd -> ByteCount -> IO [Word8]
 nonblocking_read (Fd fd) bc = do
   allocaBytes (fromIntegral bc) $ \buf -> do
-  r <- c_read fd buf bc
+  r <- System.Posix.Internals.c_read fd buf bc
   case r of
     -1 -> getErrno >>= \e -> if e == eWOULDBLOCK then return [] else throwErrno "nonblocking_read"
-    n -> (fromIntegral . ord .) . peekCStringLen (buf, fromIntegral n)
+    n -> (fromIntegral . fromEnum .) . peekCStringLen (buf, fromIntegral n)
   -- Wrapping c_read ourselves is easier and more to the point than using fdRead and catching&filtering (stringized) eWOULDBLOCK errors.
 
 foreign import ccall "wait" c_wait :: Ptr CInt -> IO CPid
@@ -132,7 +132,7 @@ data SuperviseResult = Exited ExitCode | DisallowedSyscall CInt | Signaled Signa
 
 instance Show SuperviseResult where
   show (Exited c) = "Exited: " ++ show c
-  show (DisallowedSyscall c) = "Disallowed system call: " ++ syscallName c
+  show (DisallowedSyscall c) = "Disallowed system call: " ++ SyscallNames.syscallName c
   show (Signaled s) = if s == sigALRM then "Timeout" else strsignal s
   show ChildVanished = "Child vanished"
 
@@ -173,48 +173,69 @@ data Resources = Resources { walltime :: Int, rlimits :: [(Resource, ResourceLim
 close_range_end :: CInt
 close_range_end = 25
 
+cap_fds :: IO ()
+cap_fds = do -- See section "Inherited file descriptors." in EvalCxx.hsc.
+  let cre = close_range_end
+  setResourceLimit ResourceOpenFiles $ simpleResourceLimits $ fromIntegral cre
+  high_fds <- filter (>= cre) . (read .) . (\\ [".", ".."]) . (System.Directory.getDirectoryContents =<< (\s -> "/proc/" ++ s ++ "/fd") . show . System.Posix.Process.getProcessID)
+  when (high_fds /= []) $ fail $ "fd(s) open >= " ++ show cre ++ ": " ++ show high_fds
+
 -- capture_restricted assumes the program produces UTF-8 encoded text and returns it as a proper Unicode String.
 
-capture_restricted :: FilePath -> [String] -> [(String,String)] -> Resources -> IO (SuperviseResult, String)
+data CaptureResult = CaptureResult { supervise_result :: SuperviseResult, output :: String }
+
+capture_restricted :: FilePath -> [String] -> [(String,String)] -> Resources -> IO CaptureResult
 capture_restricted a argv env (Resources timeout rlims bs) =
   withResource createPipe $ \(pipe_r, pipe_w) -> do
     setFdOption pipe_r NonBlockingRead True
     res <- (=<<) supervise $ forkProcess $ do
-      dupTo pipe_w stdError
-      dupTo pipe_w stdOutput
-      forM_ ([0..close_range_end] \\ [fdOfFd stdOutput, fdOfFd stdError]) c_close
       scheduleAlarm timeout
       mapM (uncurry setResourceLimit) rlims
+      dupTo pipe_w stdError
+      dupTo pipe_w stdOutput
+      forM_ ([0..close_range_end] \\ [fdOfFd stdOutput, fdOfFd stdError]) System.Posix.Internals.c_close
       Ptrace.traceme
       raiseSignal sigSTOP
       executeFile a False argv (Just env)
         -- The Haskell implementation of executeFile calls pPrPr_disableITimers, which calls setitimer to disable all interval timers, including ours set a few lines above. However, since by this time we're being ptraced, the setitimer calls are ignored.
       exitImmediately ExitSuccess
-    (,) res . UTF8.decode . nonblocking_read pipe_r bs
+    CaptureResult res . UTF8.decode . nonblocking_read pipe_r bs
 
 -- The actual output size is also limited by the pipe buffer.
 
-evalCxx :: FilePath -> [String] -> String -> Bool -> IO String
-evalCxx gxx flags code also_run = do
-  let
-    cap :: [String] -> Resources -> (String -> String) -> IO String -> IO String
-    cap argv r err act = do
-      (res, out) <- capture_restricted gxx argv [] r
-      case res of
-        Exited ExitSuccess -> act
-        Exited (ExitFailure _) -> return $ err out
-        _ -> return $ "g++: " ++ show res
+data Stage = Compile | Assemble | Link | Run
+
+data EvaluationResult = EvaluationResult Stage CaptureResult
+  -- The capture result of the last stage attempted.
+
+instance Show EvaluationResult where
+  show (EvaluationResult stage (CaptureResult r o)) = case (stage, r, o) of
+    (Compile, Exited ExitSuccess, _) -> "Compilation Successful"
+    (Run, Exited ExitSuccess, _) -> o
+    (Run, _, _) -> ErrorFilters.prog o (show r)
+    (Compile, Exited (ExitFailure _), _) -> ErrorFilters.cc1plus o
+    (Assemble, Exited (ExitFailure _), _) -> ErrorFilters.as o
+    (Link, Exited (ExitFailure _), _) -> ErrorFilters.ld o
+    _ -> "g++: " ++ show r
+
+prog_env :: [(String, String)]
+prog_env = [("GLIBCXX_DEBUG_MESSAGE_LENGTH","0")]
+
+evaluate :: FilePath -> [String] -> String -> Bool -> IO EvaluationResult
+evaluate gxx_path gxx_flags code also_run = do
   withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd -> do
   Flock.exclusive lock_fd
   writeFile "t.cpp" code
-  cap (words "-S t.cpp" ++ flags) cc1plus_resources process_cc1plus_errors $ do
-  if not also_run then return "Compilation successful" else do
-  cap (words "-c t.s" ++ flags) as_resources process_as_errors $ do
-  cap (words "t.o -o t" ++ flags) ld_resources process_ld_errors $ do
-  (prog_result, prog_output) <- capture_restricted "/t" [] [("GLIBCXX_DEBUG_MESSAGE_LENGTH","0")] prog_resources
-  return $ if prog_result == Exited ExitSuccess
-    then prog_output
-    else process_prog_errors prog_output (show prog_result)
+  gxx ["-S", "t.cpp"] Compile $ do
+  if not also_run then return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "") else do
+  gxx ["-c", "t.s"] Assemble $ do
+  gxx ["t.o", "-o", "t"] Link $ do
+  EvaluationResult Run . capture_restricted "/t" [] prog_env (resources Run)
+ where
+  gxx :: [String] -> Stage -> IO EvaluationResult -> IO EvaluationResult
+  gxx argv stage act = do
+    cr <- capture_restricted gxx_path (argv ++ gxx_flags) [] (resources stage)
+    if supervise_result cr == Exited ExitSuccess then act else return $ EvaluationResult stage cr
 
 ------------- Config (or at least things that are likely more prone to per-site modification):
 
@@ -237,22 +258,20 @@ allowed_syscalls =
 
 -- Resources:
 
-common_resources :: Int -> Resources
-common_resources t = Resources
-  { walltime = t
-  , rlimits =
-    [ (ResourceCPUTime, simpleResourceLimits $ fromIntegral t)
-    , (ResourceTotalMemory, simpleResourceLimits $ 200 * mebi)
-    , (ResourceFileSize, simpleResourceLimits $ 5 * mebi)
-    ]
-  , bufsize = 4 * kibi
-  }
-
-cc1plus_resources, as_resources, ld_resources, prog_resources :: Resources
-
-cc1plus_resources = common_resources 10
-as_resources = common_resources 5
-ld_resources = common_resources 10
-prog_resources = common_resources 4
-
--- Note: We don't add ResourceOpenFiles here, because it is already set as part of the fd closing scheme described in the "Inherited file descriptors" section at the top of this file, and that "global" limit is sufficient.
+resources :: Stage -> Resources
+resources stage = Resources
+    { walltime = t
+    , rlimits =
+      [ (ResourceCPUTime, simpleResourceLimits $ fromIntegral t)
+      , (ResourceTotalMemory, simpleResourceLimits $ 200 * mebi)
+      , (ResourceFileSize, simpleResourceLimits $ 5 * mebi)
+        -- Note: We don't add ResourceOpenFiles here, because it is already set as part of the fd closing scheme described in the "Inherited file descriptors" section at the top of this file, and that "global" limit is sufficient.
+      ]
+    , bufsize = 4 * kibi
+    }
+  where
+    t = case stage of
+      Compile -> 10
+      Assemble -> 5
+      Link -> 10
+      Run -> 4
