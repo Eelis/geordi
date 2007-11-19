@@ -117,7 +117,7 @@ main = do
       gxx : flags <- words . (full_evaluate =<< readFile "compile-config")
       let
         evalRequest :: String -> IO String
-        evalRequest = either return ((filter (isPrint .||. (== '\n')) .) . uncurry (evalCxx gxx (["prelude.a"] ++ flags))) . parse_request
+        evalRequest = either return ((filter (isPrint .||. (== '\n')) .) . uncurry (evalCxx gxx (["prelude.a", "-lmcheck"] ++ flags))) . parse_request
       let interactive = LO_interactive `elem` opts
       if rest == [] && not interactive then bot cfg evalRequest else do
       echo <- not . queryTerminal stdInput
