@@ -60,7 +60,7 @@ localReplacer x = anyStringTill $ try $ (:[]) . satisfy (not . isIdChar) >>> x
 
 defaulter :: [String] -> Int -> ([String] -> CharParser st a) -> CharParser st String
 defaulter names idx def = localReplacer $
-  t names >>> t '<' >>> (count idx (cxxExpr <* t ',') >>= \prec -> def prec >> return (concat $ intersperse ", " prec)) >>> t '>'
+  t names >>> t '<' >>> (count idx (cxxExpr <* t ',') >>= \prec -> def prec >> return (concat $ intersperse ", " prec)) >>> string ">"
     -- Hides default template arguments.
 
 replacers :: [CharParser st String]
@@ -68,15 +68,15 @@ replacers = (.) localReplacer
   [ t clutter_namespaces >> t "::" >> return []
   , string "basic_" >> t ioBasics <* string "<char>"
   , ('w':) . (string "basic_" >> t ioBasics <* string "<wchar_t>")
-  , (\e -> "list<" ++ e ++ ">::iterator") . (t "_List_iterator<" >> cxxExpr <* t '>')
-  , (\e -> "list<" ++ e ++ ">::const_iterator") . (t "_List_const_iterator<" >> cxxExpr <* t '>')
-  , (++ "::const_iterator") . (t "__normal_iterator<const " >> cxxExpr >> t ',' >> cxxExpr <* t '>')
-  , (++ "::iterator") . (t "__normal_iterator<" >> cxxExpr >> t ',' >> cxxExpr <* t '>')
+  , (\e -> "list<" ++ e ++ ">::iterator") . (t "_List_iterator<" >> cxxExpr <* char '>')
+  , (\e -> "list<" ++ e ++ ">::const_iterator") . (t "_List_const_iterator<" >> cxxExpr <* char '>')
+  , (++ "::const_iterator") . (t "__normal_iterator<const " >> cxxExpr >> t ',' >> cxxExpr <* char '>')
+  , (++ "::iterator") . (t "__normal_iterator<" >> cxxExpr >> t ',' >> cxxExpr <* char '>')
       -- Last two are for vector/string.
-  , (++ "::const_iterator") . (t "_Safe_iterator<_Rb_tree_const_iterator<" >> cxxExpr >> t ">," >> cxxExpr <* t '>')
-  , (++ "::iterator") . (t "_Safe_iterator<_Rb_tree_iterator<" >> cxxExpr >> t ">," >> cxxExpr <* t '>')
+  , (++ "::const_iterator") . (t "_Safe_iterator<_Rb_tree_const_iterator<" >> cxxExpr >> t ">," >> cxxExpr <* char '>')
+  , (++ "::iterator") . (t "_Safe_iterator<_Rb_tree_iterator<" >> cxxExpr >> t ">," >> cxxExpr <* char '>')
       -- Last two are for (multi)set/(multi)map.
-  , t "_Safe_iterator<" >> cxxExpr <* t ',' <* cxxExpr <* t '>'
+  , t "_Safe_iterator<" >> cxxExpr <* t ',' <* cxxExpr <* char '>'
   -- Regarding deque iterators:   deque<void(*)() >::const_iterator   is written in errors as   _Deque_iterator<void (*)(), void (* const&)(), void (* const*)()>   . Detecting the const in there is too hard (for now).
   ] ++
   [ defaulter ["list", "deque", "vector"] 1 (\[e] -> t "allocator<" >> t e >> t '>')
