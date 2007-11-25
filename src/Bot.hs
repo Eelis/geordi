@@ -66,7 +66,7 @@ is_request botnick botaltnick txt = either (const Nothing) Just (parse p "" txt)
    p = do
     foldr1 (<|>) $ try . string . sortByProperty length
       [botnick, capitalize botnick, botaltnick, capitalize botaltnick]
-    (oneOf ":," >> getInput) <|> ((:) . (spaces >> satisfy (not . (isLetter .||. (`elem` "\'/*")))) <*> getInput)
+    (oneOf ":," >> getInput) <|> ((:) . (spaces >> satisfy (not . (isLetter .||. (`elem` "(\'/*")))) <*> getInput)
 
 parse_request :: Monad m => String -> m (String {- code -}, Bool {- also run -})
 parse_request req = do
