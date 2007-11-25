@@ -15,13 +15,11 @@
   #include <type_traits>
 
   #define IS_LVALUE(...) \
-    (std::identity<decltype(lvalue_rvalue_detail::deduce(__VA_ARGS__))>::type::value)
+    (std::identity<decltype(lvalue_rvalue_detail::deduce((__VA_ARGS__)))>::type::value)
   #define IS_RVALUE(...) (!IS_LVALUE(__VA_ARGS__))
 
   #define MAY_BE_LVALUE(...) (IS_LVALUE(__VA_ARGS__))
   #define MAY_BE_RVALUE(...) (IS_RVALUE(__VA_ARGS__))
-
-  // These macros are variadic so that things like IS_LVALUE(pair<int, bool>(3, true)) work (note the comma).
 
   namespace lvalue_rvalue_detail
   {
@@ -41,23 +39,21 @@
     template <typename T> no is_nonconst_rvalue (T &, void *);
     template <typename T> yes is_nonconst_rvalue (T const &, ...);
 
-    #define IS_NONCONST_RVALUE(e) \
-      (sizeof(::lvalue_rvalue_detail::is_nonconst_rvalue(e, 0))==sizeof(::lvalue_rvalue_detail::yes))
+    #define IS_NONCONST_RVALUE(...) \
+      (sizeof(::lvalue_rvalue_detail::is_nonconst_rvalue((__VA_ARGS__), 0))==sizeof(::lvalue_rvalue_detail::yes))
 
     template <typename T> typename boost::disable_if<boost::is_const<T>, yes>::type
       is_nonconst_lvalue (T &, void *);
     template <typename T> no is_nonconst_lvalue (T const &, ...);
 
-    #define IS_NONCONST_LVALUE(e) \
-      (sizeof(::lvalue_rvalue_detail::is_nonconst_lvalue(e, 0))==sizeof(::lvalue_rvalue_detail::yes))
-
-    // (Macros not variadic here because unlike C++0x, C++03 has no variadic macros.)
+    #define IS_NONCONST_LVALUE(...) \
+      (sizeof(::lvalue_rvalue_detail::is_nonconst_lvalue((__VA_ARGS__), 0))==sizeof(::lvalue_rvalue_detail::yes))
   }
 
   // In C++03, there does not seem to be a way to distinguish a const lvalue from a const rvalue at compile-time other than by trying to take the address or perform a const_cast to T& (where T is not const). The following two "may be ..." tests are the best we can do.
 
-  #define MAY_BE_LVALUE(e) (!IS_NONCONST_RVALUE(e))
-  #define MAY_BE_RVALUE(e) (!IS_NONCONST_LVALUE(e))
+  #define MAY_BE_LVALUE(...) (!IS_NONCONST_RVALUE(__VA_ARGS__))
+  #define MAY_BE_RVALUE(...) (!IS_NONCONST_LVALUE(__VA_ARGS__))
 
 #endif
 
