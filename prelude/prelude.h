@@ -153,13 +153,22 @@ namespace geordi
   void abort ();
   struct initializer_t { initializer_t (); } const initializer;
     // Could theoretically be located in other TU, but our using of an .a for our .o's makes that painful.
+
+  template <typename T> struct shower { T const & v; char const * const s; };
+
+  template <typename C, typename Tr, typename T>
+  std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, shower<T> const & s)
+  { return o << s.s << " = " << s.v; }
+
+  template <typename T>
+  shower<T> show(T const & v, char const * const s) { shower<T> const r = { v, s }; return r; }
 }
 
-#undef assert
-#define assert(e) ((e) ? void() : (void(::std::cout << "Assertion `" #e "' fails."), geordi::abort()));
+#define SHOW(x) ::geordi::show((x), #x)
+  // The more obvious   #define SHOW(x) #x " = " << (x)   does not work in   cout << SHOW(x), SHOW(y);. The alternative   #define SHOW(x) (#x " = " + ::boost::lexical_cast<::std::string>(x))   does not use the stream's formatting flags.
 
-#define SHOW(x) (#x " = " + boost::lexical_cast<std::string>(x))
-  // The more obvious   #define SHOW(x) #x " = " << (x)   does not work in   cout << SHOW(x), SHOW(y);.
+#undef assert
+#define assert(e) ((e) ? void() : (void(::std::cout << "Assertion `" #e "' fails."), ::geordi::abort()));
 
 using namespace std;
 using namespace boost::assign;
