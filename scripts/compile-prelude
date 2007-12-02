@@ -6,3 +6,4 @@ cd ..
 rm -f rt/prelude.a
 ar -rsc rt/prelude.a prelude/*.o || exit
 $GXX -c prelude/prelude.h -o rt/prelude.h.gch
+chmod 644 rt/prelude.a rt/prelude.h.gch
