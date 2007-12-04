@@ -16,24 +16,24 @@ colored :: Integer -> String -> String
 colored c s = [esc] ++ "[" ++ show c ++ "m" ++ s ++ [esc] ++ "[0m"
 
 red, green, yellow, cyan :: String -> String
-green = colored 32
 red = colored 31
+green = colored 32
 yellow = colored 33
 cyan = colored 36
 
 class Show t => Test t where do_test :: t -> String -> Bool
 
 newtype ExactMatch = ExactMatch String deriving Show
-instance Test ExactMatch where do_test (ExactMatch s) s' = s == s'
+instance Test ExactMatch where do_test (ExactMatch s) = (== s)
 
 newtype PrefixMatch = PrefixMatch String deriving Show
-instance Test PrefixMatch where do_test (PrefixMatch s) s' = s `isPrefixOf` s'
+instance Test PrefixMatch where do_test (PrefixMatch s) = isPrefixOf s
 
 newtype RegexMatch = RegexMatch String deriving Show
 instance Test RegexMatch where do_test (RegexMatch r) s = matchRegex (mkRegex r) s /= Nothing
 
 data NoOutput = NoOutput deriving Show
-instance Test NoOutput where do_test _ = (== "")
+instance Test NoOutput where do_test NoOutput = (== "")
 
 main :: IO ()
 main = do
@@ -48,15 +48,15 @@ main = do
       out <- evalRequest req
       let success = do_test t out
       putStrLn $ "Output: " ++ (if success then green else red) (if out == "" then "<none>" else out)
-      when (not success) $ do putStr "Expected: "; print t
+      when (not success) $ putStr "Expected: " >> print t
 
   jail
 
-  test "close()" "{ for(int i = 0; i != 1024; ++i) assert(i == 1 || i == 2 || close(i) == -1); }" $ NoOutput
+  test "close()" "{ for(int i = 0; i != 1024; ++i) assert(i == 1 || i == 2 || close(i) == -1); }" NoOutput
 
-  test "srand()/time()" "{ srand(time(0)); }" $ NoOutput
+  test "srand()/time()" "{ srand(time(0)); }" NoOutput
 
-  test "Working directory" "{ assert(get_current_dir_name() == string(\"/\")); }" $ NoOutput
+  test "Working directory" "<< get_current_dir_name()" $ ExactMatch "/"
 
   test "File creation" "{ ofstream f (\"bla\"); assert(errno == EACCES); }" $ ExactMatch ""
 
@@ -79,9 +79,9 @@ main = do
   test "File I/O" "{ { ofstream f (__FILE__); f << \"foo\"; } cout << ifstream(__FILE__).rdbuf(); }" $
     ExactMatch "foo"
 
-  test "Memory limit" "{ int i = 0; while (new (nothrow) char [1 << 20]) ++i; assert(i < 250); }" $ NoOutput
+  test "Memory limit" "{ int i = 0; while (new (nothrow) char [1 << 20]) ++i; assert(i < 250); }" NoOutput
 
-  test "Fd limit" "extern \"C\" int open (char const *, int); int main () { int i = 0; while (open(__FILE__, 0) != -1) ++i; assert(errno == EMFILE); assert(i < 50); }" $ NoOutput
+  test "Fd limit" "extern \"C\" int open (char const *, int); int main () { int i = 0; while (open(__FILE__, 0) != -1) ++i; assert(errno == EMFILE); assert(i < 50); }" NoOutput
 
   test "File size limit" "{ ofstream f (__FILE__); string meg (1 << 20, 'x'); for (;;) { f << meg << flush; cout << '+' << flush; } }" $
     RegexMatch "\\+{1,50} File size limit exceeded$"
@@ -98,10 +98,10 @@ main = do
   test "-mcheck diagnostic" "{ int * p = new int [3]; p[3] = 6; delete[] p; }" $
     PrefixMatch "memory clobbered past end of allocated block\n"
 
-  test "ditto" "{ int * p = new int [3]; p[-1] = 6; delete[] p; }" $
+  test "Ditto" "{ int * p = new int [3]; p[-1] = 6; delete[] p; }" $
     PrefixMatch "memory clobbered before allocated block\n"
 
-  test "ditto" "{ int * p = new int [3]; delete[] p; delete[] p; }" $
+  test "Ditto" "{ int * p = new int [3]; delete[] p; delete[] p; }" $
     PrefixMatch "block freed twice\n"
 
   let s = "dicekjhbagfl" in
@@ -125,11 +125,11 @@ main = do
   test "Error filters" "{ wistringstream is; !is.str(); }" $
     ExactMatch "no match for 'operator!' in '!wistringstream::str() const()'"
 
+  test "Ditto" "<< ETYPE(&vector<queue<istream_iterator<int> > >::foo)" $
+    ExactMatch "'foo' is not a member of 'vector<queue<istream_iterator<int>>>'"
+
   test "-fstack-protector-all" "{ char buf [10]; fill(buf, buf+30, 'x'); }" $
     PrefixMatch "*** stack smashing detected ***: /t terminated\n"
-
-  test "Runtime error filters" "<< ETYPE(&vector<queue<istream_iterator<int> > >::foo)" $
-    ExactMatch "'foo' is not a member of 'vector<queue<istream_iterator<int>>>'"
 
   test "ETYPE" "{ int i = 4; cout << ETYPE(++i); }" $ ExactMatch "lvalue int"
 
