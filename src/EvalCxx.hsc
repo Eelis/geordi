@@ -210,7 +210,7 @@ data EvaluationResult = EvaluationResult Stage CaptureResult
 
 instance Show EvaluationResult where
   show (EvaluationResult stage (CaptureResult r o)) = case (stage, r, o) of
-    (Compile, Exited ExitSuccess, _) -> "Compilation Successful"
+    (Compile, Exited ExitSuccess, _) -> "Compilation successful"
     (Run, Exited ExitSuccess, _) -> ErrorFilters.prog o
     (Run, _, _) -> ErrorFilters.prog $ (if o == "" then "" else o ++ " ") ++ show r
     (Compile, Exited (ExitFailure _), _) -> ErrorFilters.cc1plus o

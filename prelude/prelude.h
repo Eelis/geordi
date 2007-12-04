@@ -139,7 +139,7 @@ typedef unsigned long ulong;
 typedef unsigned short ushort;
 typedef long double ldouble;
 
-#define RANGE(x) (boost::begin(x)), (boost::end(x))
+#define RANGE(x) (::boost::begin(x)), (::boost::end(x))
 
 #define GEORDI_STATEMENTS_PRE int main () {
 #define GEORDI_STATEMENTS_POST }

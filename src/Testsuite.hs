@@ -61,7 +61,7 @@ main = do
   test "File creation" "{ ofstream f (\"bla\"); assert(errno == EACCES); }" $ ExactMatch ""
 
   test "-t/-c" "-tc use ns boost; tmpl <tpn T> cls C { expl C (C co &); pvt: stc dub d; pub: void op() (); };" $
-    ExactMatch "Compilation Successful"
+    ExactMatch "Compilation successful"
 
   test "Simple output" "<< 3" $ ExactMatch "3"
 
