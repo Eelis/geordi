@@ -3,6 +3,7 @@ module Util where
 import qualified System.Posix.IO
 import qualified GHC.Read
 import qualified Data.Monoid
+import qualified System.Directory
 
 import Data.List (sortBy, isPrefixOf)
 import Data.Char (toUpper, isSpace)
@@ -16,6 +17,8 @@ import System.IO (Handle, hClose)
 import Control.Parallel.Strategies (NFData, rnf)
 import Network.Socket (Socket(..), setSocketOption, SocketOption(..))
 import Foreign (Ptr, with, sizeOf)
+import System.Posix.User
+  (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
 
 import Foreign.C
 import Prelude hiding (catch, (.))
@@ -142,3 +145,15 @@ sortByProperty f = sortBy $ \x y -> compare (f x) (f y)
 
 strip :: String -> String
 strip = dropWhile isSpace . reverse . dropWhile isSpace . reverse
+
+data JailConfig = JailConfig { user, group :: String, path :: FilePath } deriving Read
+
+jail :: IO ()
+jail = do
+  cfg <- readTypedFile "jail-config"
+  gid <- groupID . getGroupEntryForName (group cfg)
+  uid <- userID . getUserEntryForName (user cfg)
+  chroot $ path cfg
+  System.Directory.setCurrentDirectory "/"
+  setGroupID gid
+  setUserID uid

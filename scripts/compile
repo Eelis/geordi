@@ -1,4 +1,7 @@
 #!/bin/bash -v
 scripts/getsyscallnames > src/SyscallNames.hs
 cd src
-hsc2hs *.hsc && ghc -fglasgow-exts -fallow-undecidable-instances -Wall -fno-warn-unused-binds -fno-warn-orphans -cpp -ffi --make Bot.hs -o ../Bot
+hsc2hs *.hsc || exit
+GHC="ghc -fglasgow-exts -fallow-undecidable-instances -Wall -fno-warn-unused-binds -fno-warn-orphans -cpp -ffi"
+$GHC --make Bot.hs -o ../Bot || exit
+$GHC --make Testsuite.hs -o ../Testsuite

@@ -77,8 +77,8 @@
       <li><kbd>scripts/compile</kbd> # To produce the ./Bot executable.</li>
       <li>Edit `config' and `compile-config' to your liking.</li>
       <li><kbd>mkdir rt</kbd> # This will be our chroot root.</li>
-      <li>scripts/compile-prelude # To produce rt/prelude.h.gch and a few rt/foo.o's.</li>
-      <li><kbd>cp res/terse.hpp rt/</kbd></li>
+      <li>scripts/compile-prelude # To produce rt/prelude.h.gch and rt/prelude.a.</li>
+      <li><kbd>cp prelude/terse.hpp rt/</kbd></li>
       <li><kbd>rtcp () { cp -L -r -v --parents $@ rt ; }</kbd></li>
       <li><kbd>libs () { ldd $@ | runhaskell scripts/parse-ldd-output.hs ; }</kbd></li>
       <li><kbd>EXECS="`which g++ as ld` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> # Correct the last one for your system.</li>
@@ -93,7 +93,7 @@
       <li><kbd>find rt -perm -4000</kbd> # This should find nothing either.</li>
       <li><kbd>sudo ./Bot "&lt;&lt; 'x'"</kbd> # If this does not print 'x', something's wrong.</li>
       <li>To get an idea of what rt could look like, look at the <a href='#exampletree'>example rt tree</a> and the <a href='#examplelisting'>example rt file list</a>.</li>
-      <li>A modest testsuite can now be run with <kbd>sudo scripts/run-tests</kbd></li>
+      <li>A modest testsuite can now be run with <kbd>sudo ./Testsuite</kbd> (recommended).</li>
     </ol>
 
     <hr/><h2><a id='running'/>2. Running geordi</h2>

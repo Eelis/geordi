@@ -7,8 +7,6 @@ BotConfig
 , nick_pass = Nothing
 , alternate_nick = "geordiclone_"
 , blacklist = ["nolyc", "Oort", "geordi"]
-, user = "nobody"
-, group = "nobody"
 , no_output_msg = " "
 , join_trigger = Nothing
 }

@@ -1,0 +1,5 @@
+JailConfig
+{ user = "nobody"
+, group = "nobody"
+, path = "rt"
+}
