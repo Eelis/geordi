@@ -1,5 +1,5 @@
 #!/bin/bash -v
-chmod 701 rt
+chmod 711 rt
 cd rt
 rm -f t.cpp t.s t.o t
 touch t.s t.o t lock
