@@ -99,7 +99,7 @@ bot cfg eval = withResource (connect cfg) $ \h -> do
         maybeM (Request.is_request (nick cfg) (alternate_nick cfg) txt) $ \r -> do
         o <- lift $ take (max_msg_length cfg) . takeWhile (/= '\n') . eval r
         msapp [msg "PRIVMSG" [c, if null o then no_output_msg cfg else o]]
-      IRC.Message _ "376" {- End of motd. -} _ -> do
+      IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
         maybeM (nick_pass cfg) $ \np -> msapp [msg "PRIVMSG" ["NickServ", "identify " ++ np]]
         when (join_trigger cfg == Nothing) join_chans
       _ -> return ()
