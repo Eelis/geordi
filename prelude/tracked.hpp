@@ -18,7 +18,7 @@ namespace tracked
   namespace detail
   {
     extern bool muted;
-      // Does not muted errors (such as calling functions on pillaged objects).
+      // Does not mute errors (such as calling functions on pillaged objects).
 
     typedef char name_t;
 
