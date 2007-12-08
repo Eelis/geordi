@@ -52,6 +52,14 @@ main = do
 
   jail
 
+  putStrLn $
+    "\nNote: In several tests, output is expected to include an error (sometimes on a separate line), so seeing an error in a test's output does not mean the test failed. A test failed if its output is colored red."
+
+  test "Simple output" "<< 3" $ ExactMatch "3"
+
+  test "Stack overflow" "void f(int i) { if (i % 10000 == 0) cout << '+' << flush; f(++i); } int main () { f(0); }" $
+    RegexMatch "\\++ Segmentation fault"
+
   test "close()" "{ for(int i = 0; i != 1024; ++i) assert(i == 1 || i == 2 || close(i) == -1); }" NoOutput
 
   test "srand()/time()" "{ srand(time(0)); }" NoOutput
@@ -62,8 +70,6 @@ main = do
 
   test "-t/-c" "-tc use ns boost; tmpl <tpn T> cls C { expl C (C co &); pvt: stc dub d; pub: void op() (); };" $
     ExactMatch "Compilation successful"
-
-  test "Simple output" "<< 3" $ ExactMatch "3"
 
   let quine = "{string t,u,y(1,34);stringstream i(\"{string t,u,y(1,34);stringstream i(!);getline(i,t,'!')>>u;cout<<t<<y<<i.str()<<y<<u;}\");getline(i,t,'!')>>u;cout<<t<<y<<i.str()<<y<<u;}"
   test "Quine" quine $ ExactMatch quine
