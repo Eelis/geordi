@@ -24,12 +24,12 @@ namespace tracked
 
     struct Idd
     {
-      typedef unsigned int id_t;
-
-      id_t const id;
-      name_t const name;
-
       protected:
+
+        typedef unsigned int id_t;
+
+        id_t const id;
+        name_t const name; // of the most derived class
 
         explicit Idd (name_t);
         Idd (Idd const &, name_t);
@@ -66,17 +66,26 @@ namespace tracked
     typedef std::map<std::pair<void const *, void const *>, std::set<unsigned int> > Allocations;
     extern Allocations allocations;
 
-    template <typename Base, name_t Name>
+    struct U: virtual Idd
+    {
+      U(): Idd('X') {}
+      void operator=(U const & u) { Idd::operator=(u); }
+      #ifdef __GXX_EXPERIMENTAL_CXX0X__
+        void operator=(U && u) { Idd::operator=(std::move(u)); }
+      #endif
+    };
+
+    template <typename Derived, typename Base, name_t Name>
     struct T: Base
     {
-      explicit T (name_t const name = Name): Base(name)
-      { if (!muted) std::cout << ' ' << *this << "* "; }
+      Derived & derived_this() { return *static_cast<Derived *>(this); }
+      Derived const & derived_this() const { return *static_cast<Derived *>(this); }
 
-      explicit T (int const i, name_t const name = Name):
-        Base(name) { if (!muted) std::cout << ' ' << *this << "*(" << i << ") "; }
+      T (): Idd('X') { if (!muted) std::cout << ' ' << *this << "* "; }
 
-      T (T const & t, name_t const name = Name):
-        Base(t, name) { if (!muted) std::cout << ' ' << *this << "*(" << t << ") "; }
+      explicit T (int const i): Idd('X') { if (!muted) std::cout << ' ' << *this << "*(" << i << ") "; }
+
+      T (T const & t): Idd('X'), Base(t) { if (!muted) std::cout << ' ' << *this << "*(" << t << ") "; }
 
       T & operator= (T const & t)
       { Base::operator=(t); if (!muted) std::cout << ' ' << *this << '=' << t << ' '; return *this; }
@@ -85,24 +94,44 @@ namespace tracked
 
         // Moves are displayed as =>, because -> and <= are operators.
 
-        T (T && t, name_t const name = Name):
-          Base(std::move(t), name) { if (!muted) std::cout << ' ' << t << "=>" << *this << "* "; }
+        T (T && t): Idd('X'), Base(std::move(t)) { if (!muted) std::cout << ' ' << t << "=>" << *this << "* "; }
 
-        T & operator= (T && t)
-        { Base::operator=(std::move(t)); if (!muted) std::cout << ' ' << t << "=>" << *this << ' '; return *this; }
+        Derived & operator= (T && t)
+        {
+          Base::operator=(std::move(t));
+          if (!muted) std::cout << ' ' << t << "=>" << *this << ' ';
+          return derived_this();
+        }
 
       #endif
 
-      T & operator++ () { Base::assert_not_pillaged("pre-increment"); if (!muted) std::cout << " ++" << *this << ' '; return *this; }
-      T operator++ (int) { Base::assert_not_pillaged("post-increment"); T const r (*this); operator++(); return r;  }
+      Derived & operator++ ()
+      {
+        Base::assert_not_pillaged("pre-increment");
+        if (!muted) std::cout << " ++" << *this << ' ';
+        return derived_this();
+      }
+
+      Derived operator++ (int)
+      {
+        Base::assert_not_pillaged("post-increment");
+        Derived const r(derived_this());
+        operator++(); return r;
+      }
 
       void f () const
-      { Base::assert_not_pillaged(std::string("call ") + Name + "::f() on"); if (!muted) std::cout << ' ' << *this << ".f() "; }
+      {
+        Base::assert_not_pillaged(std::string("call ") + Name + "::f() on");
+        if (!muted) std::cout << ' ' << *this << ".f() ";
+      }
 
       virtual void vf () const
-      { Base::assert_not_pillaged(std::string("call ") + Name + "::vf() on"); if (!muted) std::cout << ' ' << *this << ".vf() "; }
+      {
+        Base::assert_not_pillaged(std::string("call ") + Name + "::vf() on");
+        if (!muted) std::cout << ' ' << *this << ".vf() ";
+      }
 
-      virtual ~T () { if (!muted) std::cout << ' ' << *this << "~ "; }
+      virtual ~T () = 0;
 
       // normal new:
       void * operator new (std::size_t const s) { return op_new(s, false, ::operator new(s)); }
@@ -159,31 +188,56 @@ namespace tracked
           allocations.erase(i);
           ::operator delete(p);
         }
+
+        friend std::ostream & operator<< (std::ostream & o, T const & t) { return o << Name << t.id; }
     };
 
-    template <typename B, char N>
-    std::ostream & operator<< (std::ostream & o, T<B, N> const & t) { return o << N << t.id; }
-
-    #ifdef __GXX_EXPERIMENTAL_CXX0X__
-
-      // This "three moves" swap implementation is most likely identical to what libstdc++'s std::swap will be using, so once libstdc++'s std::swap has been updated, the functions below can be removed.
-
-      template <typename B, char N>
-      void swap(T<B, N> & a, T<B, N> & b)
-      { T<B, N> tmp(std::move(b)); b = std::move(a); a = std::move(tmp); }
-
-      template <typename B, char N> void swap(T<B, N> && a, T<B, N> & b) { b = std::move(a); }
-      template <typename B, char N> void swap(T<B, N> & a, T<B, N> && b) { a = std::move(b); }
-
-    #endif
+    template <typename Derived, typename Base, name_t Name>
+    T<Derived, Base, Name>::~T() { if (!muted) std::cout << ' ' << *this << "~ "; }
 
   } // namespace detail
 
   inline void mute () { detail::muted = true; }
   inline void unmute () { detail::muted = false; }
 
-  typedef detail::T<detail::Idd, 'B'> B;
-  typedef detail::T<B, 'D'> D;
+  struct B: private virtual detail::Idd, detail::T<B, detail::U, 'B'>
+  {
+    typedef detail::T<B, detail::U, 'B'> Base;
+
+    B(): Idd('B') {}
+    B (B const & b): Idd(b, 'B'), Base(b) {}
+    explicit B (int const i): Idd('B'), Base(i) {}
+
+    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+      B(B && b): Idd(std::move(b), 'B'), Base(std::move(b)) {}
+      B & operator=(B && b) { Base::operator=(std::move(b)); return *this; }
+    #endif
+  };
+
+  struct D: private virtual detail::Idd, detail::T<D, B, 'D'>
+  {
+    typedef detail::T<D, B, 'D'> Base;
+
+    D(): Idd('D') {}
+    D(D const & d): Idd(d, 'D'), Base(d) {}
+    explicit D(int const i): Idd('D'), Base(i) {}
+
+    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+      D(D && d): Idd(std::move(d), 'D'), Base(std::move(d)) {}
+      D & operator=(D && d) { Base::operator=(std::move(d)); return *this; }
+    #endif
+  };
+
+  // B and D used to be mere typedefs for detail::T<detail::Idd, 'B'> and detail::T<B, 'D'> (back when T did not yet use the CRTP). However, with that approach, b.~B() does not work.
+
+  #ifdef __GXX_EXPERIMENTAL_CXX0X__
+
+    // This "three moves" swap implementation is most likely identical to what libstdc++'s std::swap will be using, so once libstdc++'s std::swap has been updated, the functions below can be removed.
+
+    inline void swap(B & a, B & b) { B tmp(std::move(b)); b = std::move(a); a = std::move(tmp); }
+    inline void swap(D & a, D & b) { D tmp(std::move(b)); b = std::move(a); a = std::move(tmp); }
+
+  #endif
 
 } // namespace tracked
 
