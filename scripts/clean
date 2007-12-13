@@ -1,2 +1,2 @@
 #!/bin/bash
-rm -f Bot Testsuite prelude/*.o rt/prelude.a rt/prelude.h.gch src/*.o src/*.hi src/*_hsc.* src/EvalCxx.hs src/Ptrace.hs src/SyscallNames.hs src/Util.hs src/Flock.hs src/Resource.hs
+rm -f Bot Local Testsuite prelude/*.o rt/prelude.a rt/prelude.h.gch src/*.o src/*.hi src/*_hsc.* src/EvalCxx.hs src/Ptrace.hs src/SyscallNames.hs src/Util.hs src/Flock.hs src/Resource.hs

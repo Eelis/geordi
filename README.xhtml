@@ -14,16 +14,9 @@
 
     <ul>
       <li><a href='#installation'>1. Installation</a></li>
-      <li>
-        <a href='#running'>2. Running geordi</a>
-        <ul>
-          <li><a href='#invocation'>2.1 Invocation</a></li>
-          <li><a href='#nickserv'>2.2 NickServ identification</a></li>
-          <li><a href='#reconnect'>2.3 Auto-reconnect</a></li>
-          <li><a href='#multinetwork'>2.4 Connecting to multiple networks</a></li>
-        </ul>
-      </li>
-      <li><a href='#problems'>3. Known problems</a></li>
+      <li><a href='#locally'>2. Running geordi locally</a></li>
+      <li><a href='#ircbot'>3. Running a geordi IRC bot</a></li>
+      <li><a href='#problems'>4. Known problems</a></li>
     </ul>
     <ul>
       <li><a href='#exampletree'>Appendix A: Example rt tree</a></li>
@@ -74,83 +67,85 @@
     </p>
     <ol>
       <li><kbd>chmod +x scripts/*</kbd> &nbsp; # darcs is not yet aware of executability</li>
-      <li><kbd>scripts/compile</kbd> # To produce the ./Bot executable.</li>
-      <li>Edit `config' and `compile-config' to your liking.</li>
-      <li><kbd>mkdir rt</kbd> # This will be our chroot root.</li>
-      <li>scripts/compile-prelude # To produce rt/prelude.h.gch and rt/prelude.a.</li>
+      <li><kbd>scripts/compile</kbd> &nbsp; # To produce the ./Bot, ./Local, and ./Testsuite executables.</li>
+      <li>Edit `jail-config' and `compile-config' to your liking. Important: check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</li>
+      <li><kbd>mkdir rt</kbd> &nbsp; # This will be our chroot root.</li>
+      <li><kbd>scripts/compile-prelude</kbd> &nbsp; # To produce rt/prelude.h.gch and rt/prelude.a.</li>
       <li><kbd>cp prelude/terse.hpp rt/</kbd></li>
-      <li><kbd>rtcp () { cp -L -r -v --parents $@ rt ; }</kbd></li>
-      <li><kbd>libs () { ldd $@ | runhaskell scripts/parse-ldd-output.hs ; }</kbd></li>
-      <li><kbd>EXECS="`which g++ as ld` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> # Correct the last one for your system.</li>
-      <li><kbd>rtcp $EXECS `libs $EXECS`</kbd></li>
-      <li><kbd>sudo scripts/trycompile</kbd> # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/t is produced successfully.</li>
+      <li><kbd>rtcp () { cp -L -r -v --parents $@ rt ; }</kbd> &nbsp; # This defines a shell function <kbd>rtcp</kbd> that makes copying stuff into rt more convenient.</li>
+      <li><kbd>libs () { ldd $@ | runhaskell scripts/parse-ldd-output.hs ; }</kbd> &nbsp; # This defines a shell function <kbd>libs</kbd> that lets us easily query library file dependencies.</li>
+      <li><kbd>EXECS="`which g++ as ld` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> &nbsp; # Correct the last one for your system.</li>
+      <li><kbd>rtcp $EXECS `libs $EXECS`</kbd> &nbsp; # This copies the executables and their library dependencies into rt.</li>
+      <li><kbd>sudo scripts/trycompile</kbd> &nbsp; # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/t is produced successfully. If, while doing this, you decide (out of sheer desperation) at some point to just copy entire gcc directories into rt (which in itself is not completely unreasonable), make sure that there is no collect2 binary in rt (it confuses geordi).</li>
       <li><kbd>rtcp `libs rt/t`</kbd></li>
       <li><kbd>sudo chroot rt /t &amp;&amp; echo</kbd> # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
-      <li>If, while doing the above, you decided at some point to just copy entire gcc directories into rt (which in itself is not at all unreasonable), make sure that there is no collect2 binary in rt (it confuses geordi).</li>
-      <li><kbd>scripts/perms</kbd> # To set up proper permissions for rt and selected files in it.</li>
-      <li><kbd>find rt -perm -o+w</kbd> # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
-      <li><kbd>find rt -user nobody</kbd> # This should find nothing.</li>
-      <li><kbd>find rt -perm -4000</kbd> # This should find nothing either.</li>
-      <li><kbd>sudo ./Bot "&lt;&lt; 'x'"</kbd> # If this does not print 'x', something's wrong.</li>
+      <li><kbd>scripts/perms</kbd> &nbsp; # To set up proper permissions for rt and selected files in it.</li>
+      <li><kbd>find rt -perm -o+w</kbd> &nbsp; # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
+      <li><kbd>find rt -user nobody</kbd> &nbsp; # This should find nothing.</li>
+      <li><kbd>find rt -perm -4000</kbd> &nbsp; # This should find nothing either.</li>
+      <li><kbd>sudo ./Local "&lt;&lt; 'x'"</kbd> &nbsp; # If this does not print 'x', something's wrong.</li>
       <li>To get an idea of what rt could look like, look at the <a href='#exampletree'>example rt tree</a> and the <a href='#examplelisting'>example rt file list</a>.</li>
       <li>A modest testsuite can now be run with <kbd>sudo ./Testsuite</kbd> (recommended).</li>
     </ol>
 
-    <hr/><h2><a id='running'/>2. Running geordi</h2>
-
-    <h3><a id='invocation'>2.1&ensp;Invocation</a></h3>
-
-    <p>Usage:&emsp;<kbd>sudo ./Bot [option]... [request]...</kbd></p>
-
+    <hr/><h2><a id='locally'>2. Running geordi locally</a></h2>
+    <p><kbd>Local</kbd> lets one test snippets locally (that is, without connecting to any IRC server).</p>
+    <p>Usage:&emsp;<kbd>sudo ./Local [option]... [request]...</kbd></p>
     <p>Request syntax is described in the <a href='http://www.eelis.net/geordi/#usage'>manual</a>, except that here the nickname (and colon/comma) must be omitted.</p>
+    <p>Options:</p>
+    <dl>
+      <dt><kbd>-h</kbd> / <kbd>--help</kbd></dt>
+      <dd><p>Display help and exit.</p></dd>
+    </dl>
+    <p>If any requests are specified, they are evaluated and their results are shown.</p>
+    <p>If no requests are specified, the program goes into a Read-Eval-Print-Loop. To get nice command line editing and history in this mode, use something like <a href='http://utopia.knoware.nl/~hlub/rlwrap/'>rlwrap</a> (with it, the command becomes <kbd>sudo rlwrap ./Local</kbd>).</p>
+
+    <hr/><h2><a id='ircbot'>3. Running a geordi IRC bot</a></h2>
+
+    <p>Usage:&emsp;<kbd>sudo ./Bot [option]...</kbd></p>
 
     <p>Options:</p>
 
     <dl>
       <dt><kbd>-c &lt;file></kbd> / <kbd>--config &lt;file></kbd></dt>
-      <dd><p>Load configuration from &lt;file> instead of "config".</p></dd>
-      <dt><kbd>-i</kbd> / <kbd>--interactive</kbd></dt>
-      <dd>
-        <p>Go into Read-Eval-Print-Loop.</p>
-        <p>To get nice command line editing and history in this mode, use something like <a href='http://utopia.knoware.nl/~hlub/rlwrap/'>rlwrap</a> (with it, the command becomes <kbd>sudo rlwrap ./Bot -i</kbd>).</p>
-      </dd>
+      <dd><p>Load bot configuration from &lt;file> instead of "bot-config".</p></dd>
       <dt><kbd>-h</kbd> / <kbd>--help</kbd></dt>
       <dd><p>Display help and exit.</p></dd>
     </dl>
 
-    <p>If <kbd>-i</kbd> is not specified and no requests are passed, the bot connects to the specified IRC server, optionally identifies with NickServ, and joins the specified channels. Otherwise, any requests are evaluated and the program exits (unless <kbd>-i</kbd> was specified).</p>
+    <h3>Regarding the need for root permissions</h3>
 
-    <h3><a id='nickserv'>2.2&ensp;NickServ identification</a></h3>
+    <p>Starting an IRC bot with root permissions should make one seriously nervous. Geordi requires root permissions only because <a href='http://linux.die.net/man/2/chroot'>chroot(2)</a> does. Geordi chroots into rt as one of the first things it does on startup, and changes to the user and group specified in bot-config before it starts responding to IRC messages.</p>
+
+    <h3><a id='nickserv'>NickServ identification</a></h3>
 
     <p>To have the bot identify to NickServ, change the following line in config:</p>
     <p><code>, nick_pass = Nothing</code></p>
     <p>into:</p>
     <p><code>, nick_pass = Just "mypassword"</code></p>
 
-    <h3><a id='reconnect'>2.3&ensp;Auto-reconnect</a></h3>
+    <h3><a id='reconnect'>Auto-reconnect</a></h3>
 
     <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./Bot; sleep 120; done</kbd></p>
 
-    <h3><a id='multinetwork'>2.4&ensp;Connecting to multiple networks</a></h3>
+    <h3><a id='multinetwork'>Connecting to multiple networks</a></h3>
 
     <p>Make config files for the different networks. Then run one geordi instance for each network, passing -c arguments pointing to the respective config files. The rt directory will be safely shared.</p>
 
-    <hr/><h2><a id='problems'/>3. Known problems</h2>
+    <hr/><h2><a id='problems'/>4. Known problems</h2>
     <ul>
       <li>
-        Because geordi connects as root, IRC servers that query ident may get a root response and may decide to reject the connection. (Quakenet is known to do this.)
+        Because <kbd>Bot</kbd> connects as root, IRC servers that query ident may get a root response and may decide to reject the connection. (Quakenet is known to do this.)
       </li>
     </ul>
 
     <hr/><h2><a id='exampletree'/>Appendix A: Example rt tree</h2>
     <pre>
       rt
-      |-- advice.txt
       |-- lib64
       |   |-- ld-linux-x86-64.so.2
       |   |-- libc.so.6
-      |   |-- libgcc_s.so.1
-      |   `-- libm.so.6
+      |   `-- libgcc_s.so.1
       |-- lock
       |-- prelude.a
       |-- prelude.h.gch
@@ -164,25 +159,7 @@
           |   |-- as
           |   |-- g++
           |   `-- ld
-          |-- lib
-          |   `-- locale
-          |       `-- en_US.utf8
-          |           |-- LC_ADDRESS
-          |           |-- LC_COLLATE
-          |           |-- LC_CTYPE
-          |           |-- LC_IDENTIFICATION
-          |           |-- LC_MEASUREMENT
-          |           |-- LC_MESSAGES
-          |           |   `-- SYS_LC_MESSAGES
-          |           |-- LC_MONETARY
-          |           |-- LC_NAME
-          |           |-- LC_NUMERIC
-          |           |-- LC_PAPER
-          |           |-- LC_TELEPHONE
-          |           `-- LC_TIME
           `-- lib64
-              |-- Mcrt1.o
-              |-- Scrt1.o
               |-- crt1.o
               |-- crti.o
               |-- crtn.o
@@ -191,130 +168,79 @@
               |       `-- 4.1.2
               |           |-- cc1plus
               |           |-- crtbegin.o
-              |           |-- crtbeginS.o
-              |           |-- crtbeginT.o
               |           |-- crtend.o
-              |           |-- crtendS.o
-              |           |-- crtfastmath.o
               |           |-- libgcc.a
-              |           |-- libgcc_eh.a
               |           |-- libgcc_s.so
-              |           |-- libstdc++.a
-              |           `-- libstdc++.so
-              |-- gcrt1.o
+              |           `-- libstdc++.a
               |-- libbfd-2.17.50.0.5.so
               |-- libc.a
               |-- libc.so
               |-- libc_nonshared.a
               |-- libm.a
-              |-- libm.so
-              |-- libmcheck.a
-              `-- libstdc++.so.6
+              `-- libmcheck.a
     </pre>
 
     <hr/><h2><a id='examplelisting'/>Appendix B: Example rt file listing</h2>
     <pre>
       rt:
-      total 73M
-      -rwxr-xr-x 1 eelis users  62K 2007-08-22 23:27 advice.txt
-      drwxr-xr-x 2 eelis users  184 2007-07-28 03:33 lib64
-      -rw-r--r-- 1 eelis users    0 2007-11-07 17:22 lock
-      -rw-r--r-- 1 eelis users  59K 2007-10-26 00:55 prelude.a
-      -rw-r--r-- 1 eelis users  73M 2007-10-26 00:55 prelude.h.gch
-      -rwxrwxrwx 1 eelis users  35K 2007-10-26 00:58 t
-      -rw-rw-rw- 1 eelis users  203 2007-10-26 00:58 t.cpp
-      -rwxr-xr-x 1 eelis users 1.3K 2007-10-20 08:34 terse.hpp
-      -rw-rw-rw- 1 eelis users  40K 2007-10-26 00:58 t.o
-      -rw-rw-rw- 1 eelis users  90K 2007-10-26 00:58 t.s
-      drwxr-xr-x 5 eelis users  120 2007-10-25 16:17 usr
+      total 74M
+      drwxr-xr-x 2 eelis users  152 2007-12-13 16:53 lib64
+      -rw-r--r-- 1 eelis users    0 2007-12-13 16:53 lock
+      -rw-r--r-- 1 eelis users  66K 2007-12-13 16:47 prelude.a
+      -rw-r--r-- 1 eelis users  73M 2007-12-13 16:48 prelude.h.gch
+      -rwxrwxrwx 1 eelis users 726K 2007-12-13 16:53 t
+      -rw-rw-rw- 1 eelis users   61 2007-12-13 16:53 t.cpp
+      -rwxr-xr-x 1 eelis users 1.3K 2007-12-13 16:48 terse.hpp
+      -rw-rw-rw- 1 eelis users  39K 2007-12-13 16:53 t.o
+      -rw-rw-rw- 1 eelis users  87K 2007-12-13 16:53 t.s
+      drwxr-xr-x 4 eelis users   96 2007-12-13 16:48 usr
 
       rt/lib64:
-      total 2.2M
-      -rwxr-xr-x 1 eelis users 139K 2007-07-28 03:33 ld-linux-x86-64.so.2
-      -rwxr-xr-x 1 eelis users 1.6M 2007-07-28 03:33 libc.so.6
-      -rwxr-xr-x 1 eelis users  59K 2007-07-28 03:33 libgcc_s.so.1
-      -rwxr-xr-x 1 eelis users 400K 2007-07-28 03:33 libm.so.6
+      total 1.8M
+      -rwxr-xr-x 1 eelis users 139K 2007-12-13 16:48 ld-linux-x86-64.so.2
+      -rwxr-xr-x 1 eelis users 1.6M 2007-12-13 16:48 libc.so.6
+      -rwxr-xr-x 1 eelis users  59K 2007-12-13 16:53 libgcc_s.so.1
 
       rt/usr:
       total 0
-      drwxr-xr-x 2 eelis users 120 2007-10-26 00:32 bin
-      drwxr-xr-x 3 eelis users  72 2007-10-25 16:17 lib
-      drwxr-xr-x 3 eelis users 448 2007-08-23 21:31 lib64
+      drwxr-xr-x 2 eelis users 120 2007-12-13 16:48 bin
+      drwxr-xr-x 3 eelis users 320 2007-12-13 16:52 lib64
 
       rt/usr/bin:
       total 2.3M
-      -rwxr-xr-x 1 eelis users 343K 2007-07-28 03:30 as
-      -rwxr-xr-x 1 eelis users 139K 2007-07-28 03:30 g++
-      -rwxr-xr-x 1 eelis users 1.9M 2007-07-28 03:30 ld
-
-      rt/usr/lib:
-      total 0
-      drwxr-xr-x 3 eelis users 80 2007-10-25 16:17 locale
-
-      rt/usr/lib/locale:
-      total 0
-      drwxr-xr-x 3 eelis users 408 2007-10-25 16:17 en_US.utf8
-
-      rt/usr/lib/locale/en_US.utf8:
-      total 1.2M
-      -rw-r--r-- 1 eelis users  155 2007-10-25 16:17 LC_ADDRESS
-      -rw-r--r-- 1 eelis users 860K 2007-10-25 16:17 LC_COLLATE
-      -rw-r--r-- 1 eelis users 233K 2007-10-25 16:17 LC_CTYPE
-      -rw-r--r-- 1 eelis users  373 2007-10-25 16:17 LC_IDENTIFICATION
-      -rw-r--r-- 1 eelis users   23 2007-10-25 16:17 LC_MEASUREMENT
-      drwxr-xr-x 2 eelis users   80 2007-10-25 16:17 LC_MESSAGES
-      -rw-r--r-- 1 eelis users  286 2007-10-25 16:17 LC_MONETARY
-      -rw-r--r-- 1 eelis users   77 2007-10-25 16:17 LC_NAME
-      -rw-r--r-- 1 eelis users   54 2007-10-25 16:17 LC_NUMERIC
-      -rw-r--r-- 1 eelis users   34 2007-10-25 16:17 LC_PAPER
-      -rw-r--r-- 1 eelis users   59 2007-10-25 16:17 LC_TELEPHONE
-      -rw-r--r-- 1 eelis users 2.4K 2007-10-25 16:17 LC_TIME
-
-      rt/usr/lib/locale/en_US.utf8/LC_MESSAGES:
-      total 4.0K
-      -rw-r--r-- 1 eelis users 52 2007-10-25 16:17 SYS_LC_MESSAGES
+      -rwxr-xr-x 1 eelis users 343K 2007-12-13 16:48 as
+      -rwxr-xr-x 1 eelis users 139K 2007-12-13 16:48 g++
+      -rwxr-xr-x 1 eelis users 1.9M 2007-12-13 16:48 ld
 
       rt/usr/lib64:
-      total 8.1M
-      -rw-r--r-- 1 eelis users 3.5K 2007-07-28 03:32 crt1.o
-      -rw-r--r-- 1 eelis users 3.2K 2007-07-28 03:32 crti.o
-      -rw-r--r-- 1 eelis users 2.7K 2007-07-28 03:32 crtn.o
-      drwxr-xr-x 3 eelis users   88 2007-07-28 03:30 gcc
-      -rw-r--r-- 1 eelis users 6.3K 2007-07-28 03:32 gcrt1.o
-      -rwxr-xr-x 1 eelis users 1.7M 2007-07-28 03:30 libbfd-2.17.50.0.5.so
-      -rw-r--r-- 1 eelis users 4.0M 2007-07-28 03:32 libc.a
-      -rw-r--r-- 1 eelis users  21K 2007-07-28 03:32 libc_nonshared.a
-      -rw-r--r-- 1 eelis users  253 2007-07-28 03:32 libc.so
-      -rw-r--r-- 1 eelis users 1.1M 2007-07-28 03:32 libm.a
-      -rw-r--r-- 1 eelis users 1.6K 2007-08-23 21:31 libmcheck.a
-      -rwxr-xr-x 1 eelis users 400K 2007-07-28 03:32 libm.so
-      -rwxr-xr-x 1 eelis users 948K 2007-07-28 03:33 libstdc++.so.6
-      -rw-r--r-- 1 eelis users 1.3K 2007-07-28 03:32 Mcrt1.o
-      -rw-r--r-- 1 eelis users 3.5K 2007-07-28 03:32 Scrt1.o
+      total 6.8M
+      -rw-r--r-- 1 eelis users 3.5K 2007-12-13 16:48 crt1.o
+      -rw-r--r-- 1 eelis users 3.2K 2007-12-13 16:49 crti.o
+      -rw-r--r-- 1 eelis users 2.7K 2007-12-13 16:52 crtn.o
+      drwxr-xr-x 3 eelis users   88 2007-12-13 16:48 gcc
+      -rwxr-xr-x 1 eelis users 1.7M 2007-12-13 16:48 libbfd-2.17.50.0.5.so
+      -rw-r--r-- 1 eelis users 4.0M 2007-12-13 16:50 libc.a
+      -rw-r--r-- 1 eelis users  21K 2007-12-13 16:51 libc_nonshared.a
+      -rw-r--r-- 1 eelis users  253 2007-12-13 16:50 libc.so
+      -rw-r--r-- 1 eelis users 1.1M 2007-12-13 16:50 libm.a
+      -rw-r--r-- 1 eelis users 1.6K 2007-12-13 16:50 libmcheck.a
 
       rt/usr/lib64/gcc:
       total 0
-      drwxr-xr-x 3 eelis users 72 2007-07-28 03:30 x86_64-suse-linux
+      drwxr-xr-x 3 eelis users 72 2007-12-13 16:48 x86_64-suse-linux
 
       rt/usr/lib64/gcc/x86_64-suse-linux:
       total 0
-      drwxr-xr-x 2 eelis users 408 2007-07-28 03:32 4.1.2
+      drwxr-xr-x 2 eelis users 216 2007-12-13 16:50 4.1.2
 
       rt/usr/lib64/gcc/x86_64-suse-linux/4.1.2:
-      total 9.6M
-      -rwxr-xr-x 1 eelis users 5.9M 2007-07-28 03:30 cc1plus
-      -rw-r--r-- 1 eelis users 2.4K 2007-07-28 03:32 crtbegin.o
-      -rw-r--r-- 1 eelis users 2.9K 2007-07-28 03:32 crtbeginS.o
-      -rw-r--r-- 1 eelis users 2.9K 2007-07-28 03:32 crtbeginT.o
-      -rw-r--r-- 1 eelis users 1.9K 2007-07-28 03:32 crtend.o
-      -rw-r--r-- 1 eelis users 1.9K 2007-07-28 03:32 crtendS.o
-      -rw-r--r-- 1 eelis users 3.2K 2007-07-28 03:32 crtfastmath.o
-      -rw-r--r-- 1 eelis users 113K 2007-07-28 03:32 libgcc.a
-      -rw-r--r-- 1 eelis users  44K 2007-07-28 03:32 libgcc_eh.a
-      -rwxr-xr-x 1 eelis users  59K 2007-07-28 03:32 libgcc_s.so
-      -rw-r--r-- 1 eelis users 2.6M 2007-07-28 03:32 libstdc++.a
-      -rwxr-xr-x 1 eelis users 948K 2007-07-28 03:32 libstdc++.so
-
+      total 8.6M
+      -rwxr-xr-x 1 eelis users 5.9M 2007-12-13 16:48 cc1plus
+      -rw-r--r-- 1 eelis users 2.4K 2007-12-13 16:49 crtbegin.o
+      -rw-r--r-- 1 eelis users 1.9K 2007-12-13 16:49 crtend.o
+      -rw-r--r-- 1 eelis users 113K 2007-12-13 16:50 libgcc.a
+      -rwxr-xr-x 1 eelis users  59K 2007-12-13 16:53 libgcc_s.so
+      -rw-r--r-- 1 eelis users 2.6M 2007-12-13 16:50 libstdc++.a
     </pre>
   </body>
 </html>
