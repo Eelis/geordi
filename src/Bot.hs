@@ -17,7 +17,7 @@ import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Util
 
 data BotConfig = BotConfig
-  { server :: Net.HostName, port :: Net.PortNumber, max_msg_length :: Int
+  { server :: String, port :: Net.PortNumber, max_msg_length :: Int
   , chans :: [String], nick :: String, nick_pass :: Maybe String, alternate_nick :: String
   , blacklist :: [String]
   , no_output_msg :: String
@@ -89,7 +89,7 @@ main = do
         mapM_ print r
         send r
 
-connect :: Net.HostName -> Net.PortNumber -> IO Handle
+connect :: String -> Net.PortNumber -> IO Handle
   -- Mostly copied from Network.connectTo. We can't use that one because we want to set SO_KEEPALIVE (and related) options on the socket, which can't be done on a Handle.
 connect host portn = do
   proto <- getProtocolNumber "tcp"
