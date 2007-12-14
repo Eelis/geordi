@@ -28,9 +28,6 @@ data BotConfig = BotConfig
 instance Read Net.PortNumber where
   readsPrec i s = (\(x, s') -> (fromIntegral (x :: Int), s')) . readsPrec i s
 
-local_prompt :: String
-local_prompt = "\n> "
-
 data Opt = Config String | Help deriving Eq
 
 optsDesc :: [OptDescr Opt]
@@ -51,9 +48,9 @@ main = do
     (_, w:_, []) -> putStr "Redundant argument: " >> putStrLn w
     (opts, [], []) -> do
       cfg <- readTypedFile $ maybe "bot-config" id $ findMaybe (\o -> case o of Config cf -> Just cf; _ -> Nothing) opts
-      putStrLn $ "connecting to " ++ show (server cfg) ++ " on port " ++ show (Net.PortNum $ fromIntegral $ port cfg)
+      putStrLn $ "Connecting to " ++ server cfg ++ ":" ++ show (port cfg) ++ "."
       withResource (connect (server cfg) (fromIntegral $ port cfg)) $ \h -> do
-      print "connected"
+      putStrLn "Connected."
       evalRequest <- Request.prepare_evaluator
       System.Posix.Env.setEnv "LC_ALL" "C" True
         -- Otherwise compiler warnings may use non-ASCII characters (e.g. for quotes).
@@ -83,11 +80,14 @@ main = do
             _ -> return ()
       send [msg "NICK" [nick cfg], msg "USER" [nick cfg, "0", "*", nick cfg]]
       forever $ do
-        Just m <- IRC.parseMessage . (++ "\n") . hGetLine h
-        print m
-        r <- on_msg m
-        mapM_ print r
-        send r
+        l <- hGetLine h
+        case IRC.parseMessage (l ++ "\n") of
+          Nothing -> putStr "Malformed IRC message: " >> putStrLn l
+          Just m -> do
+            print m
+            r <- on_msg m
+            mapM_ print r
+            send r
 
 connect :: String -> Net.PortNumber -> IO Handle
   -- Mostly copied from Network.connectTo. We can't use that one because we want to set SO_KEEPALIVE (and related) options on the socket, which can't be done on a Handle.
