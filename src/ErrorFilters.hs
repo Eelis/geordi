@@ -159,6 +159,8 @@ with_subst (k, v) =
   (v', vrk) = stripRef v
   subRegex' = flip . subRegex
 
+-- With-substitution would fail if the following occurred in an error: "... T const ... [with T = int&]" (because it would be replaced with "... int& const ...". Fortunately, g++ places cv-qualifiers on the left side in these cases. For example, see the error message for: "template <typename T> std::string f(T const &); void g() { int i = 3; !f<int&>(i); }".
+
 cleanup_types :: String -> String
 cleanup_types s = either (const s) cleanup_types $ parse (foldr1 (<|>) (try . replacers) >>> getInput) "" s
 

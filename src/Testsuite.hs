@@ -7,7 +7,6 @@ import Text.Regex (matchRegex, mkRegex)
 import Data.List (sort, isPrefixOf)
 
 import Prelude hiding (catch, (.))
-import Util
 
 esc :: Char
 esc = '\x1b'
@@ -49,8 +48,6 @@ main = do
       let success = do_test t out
       putStrLn $ "Output: " ++ (if success then green else red) (if out == "" then "<none>" else out)
       when (not success) $ putStr "Expected: " >> print t
-
-  jail
 
   putStrLn $
     "\nNote: In several tests, output is expected to include an error (sometimes on a separate line), so seeing an error in a test's output does not mean the test failed. A test failed if its output is colored red."
@@ -140,7 +137,7 @@ main = do
   test "ETYPE" "{ int i = 4; cout << ETYPE(++i); }" $ ExactMatch "lvalue int"
 
   test "Recursive exec()"
-    "int main (int const argc, char const * const * argv) { string s; if (argc >= 2) s = argv[1]; s += 'x'; if (s.size() % 20 == 0) cout << '+' << flush; execl(\"/t\", \"/t\", s.c_str(), 0); }" $
+    "int main (int const argc, char const * const * argv) { string s; if (argc >= 2) s = argv[1]; s += 'x'; if (s.size() % 100 == 0) cout << '+' << flush; execl(\"/t\", \"/t\", s.c_str(), 0); }" $
     RegexMatch "\\++( Timeout)?$"
 
   test "Range printing" "{ vector<int> v; v += 3, 5, 9, 4, 1; cout << v; }" $ ExactMatch "[3, 5, 9, 4, 1]"

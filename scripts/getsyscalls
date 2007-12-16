@@ -1,0 +1,20 @@
+#!/bin/bash
+
+echo "module SysCalls where"
+echo "import Foreign.C"
+echo
+echo "data SysCall = "
+echo "#include <asm/unistd.h>" | g++ -E -dM - | sed -r 's/^#define __NR_(\w*) ([[:digit:]]+)$/  SYS_\1 |/' | grep -v '#' | sort | uniq
+echo "  UnknownSysCall CInt"
+echo "    deriving (Eq, Show)"
+echo
+echo "fromNumber :: CInt -> SysCall"
+echo "fromNumber x = case x of"
+echo "#include <asm/unistd.h>" | g++ -E -dM - | sed -r 's/^#define __NR_(\w*) ([[:digit:]]+)$/  \2 -> SYS_\1/' | grep -v '#' | sort | uniq
+echo "  _ -> UnknownSysCall x"
+echo
+echo "toNumber :: SysCall -> CInt"
+echo "toNumber x = case x of"
+echo "#include <asm/unistd.h>" | g++ -E -dM - | sed -r 's/^#define __NR_(\w*) ([[:digit:]]+)$/  SYS_\1 -> \2/' | grep -v '#' | sort | uniq
+echo "  UnknownSysCall y -> y"
+

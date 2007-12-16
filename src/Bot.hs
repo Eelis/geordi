@@ -12,6 +12,7 @@ import Control.Monad.Error ()
 import Control.Monad.State (execStateT, lift)
 import System.IO.UTF8 (putStr, putStrLn, hPutStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
+import Sys (setKeepAlive)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Util
@@ -39,55 +40,63 @@ optsDesc =
 help :: String
 help = usageInfo "Usage: sudo ./Bot [option]...\nOptions:" optsDesc ++ "\nSee README.xhtml for more information."
 
-main :: IO ()
-main = do
+getArgs :: IO [Opt]
+getArgs = do
   args <- System.Environment.getArgs
   case getOpt RequireOrder optsDesc args of
-    (_, _, err:_) -> putStr err
-    (opts, _, []) | Help `elem` opts -> putStrLn help
-    (_, w:_, []) -> putStr "Redundant argument: " >> putStrLn w
-    (opts, [], []) -> do
-      cfg <- readTypedFile $ maybe "bot-config" id $ findMaybe (\o -> case o of Config cf -> Just cf; _ -> Nothing) opts
-      putStrLn $ "Connecting to " ++ server cfg ++ ":" ++ show (port cfg) ++ "."
-      withResource (connect (server cfg) (fromIntegral $ port cfg)) $ \h -> do
-      putStrLn "Connected."
-      evalRequest <- Request.prepare_evaluator
-      System.Posix.Env.setEnv "LC_ALL" "C" True
-        -- Otherwise compiler warnings may use non-ASCII characters (e.g. for quotes).
-      jail
-      let
-        send = (>> hFlush h) . mapM_ (hPutStrLn h . IRC.render)
-        join_chans = msapp $ msg "JOIN" . (:[]) . chans cfg
-        msg = IRC.Message Nothing
-        on_msg :: IRC.Message -> IO [IRC.Message]
-        on_msg m = flip execStateT [] $ do
-          when (join_trigger cfg == Just m) join_chans
-          case m of
-            IRC.Message (Just (IRC.NickName who _ _)) "QUIT" _ | who == nick cfg ->
-              msapp [msg "NICK" [nick cfg]]
-            IRC.Message (Just (IRC.NickName from _ _)) "PRIVMSG" [_, "\1VERSION\1"] ->
-              msapp [msg "NOTICE" [from, "\1VERSION Geordi C++ bot - http://www.eelis.net/geordi/\1"]]
-            IRC.Message _ "433" {- Nick in use. -} _ -> msapp $ [msg "NICK" [alternate_nick cfg]]
-            IRC.Message _ "PING" a -> msapp [msg "PONG" a]
-            IRC.Message (Just (IRC.NickName fromnick _ _)) "PRIVMSG" [c, txt] ->
-              when (c `elem` chans cfg && not (fromnick `elem` blacklist cfg)) $ do
-              maybeM (Request.is_request (nick cfg) (alternate_nick cfg) txt) $ \r -> do
-              o <- lift $ take (max_msg_length cfg) . takeWhile (/= '\n') . evalRequest r
-              msapp [msg "PRIVMSG" [c, if null o then no_output_msg cfg else o]]
-            IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
-              maybeM (nick_pass cfg) $ \np -> msapp [msg "PRIVMSG" ["NickServ", "identify " ++ np]]
-              when (join_trigger cfg == Nothing) join_chans
-            _ -> return ()
-      send [msg "NICK" [nick cfg], msg "USER" [nick cfg, "0", "*", nick cfg]]
-      forever $ do
-        l <- hGetLine h
-        case IRC.parseMessage (l ++ "\n") of
-          Nothing -> putStr "Malformed IRC message: " >> putStrLn l
-          Just m -> do
-            print m
-            r <- on_msg m
-            mapM_ print r
-            send r
+    (_, _, err:_) -> fail $ init err
+    (_, w:_, []) -> fail $ "superfluous command line argument: " ++ w
+    (opts, [], []) -> return opts
+
+msg :: IRC.Command -> [IRC.Parameter] -> IRC.Message
+msg = IRC.Message Nothing
+
+main :: IO ()
+main = do
+  opts <- getArgs
+  if Help `elem` opts then putStrLn help else do
+  cfg <- readTypedFile $ maybe "bot-config" id $ findMaybe (\o -> case o of Config cf -> Just cf; _ -> Nothing) opts
+  putStrLn $ "Connecting to " ++ server cfg ++ ":" ++ show (port cfg)
+  withResource (connect (server cfg) (fromIntegral $ port cfg)) $ \h -> do
+  putStrLn "Connected"
+  System.Posix.Env.setEnv "LC_ALL" "C" True
+    -- Otherwise compiler diagnostics may use non-ASCII characters (e.g. for quotes).
+  evalRequest <- Request.prepare_evaluator
+  let send m = hPutStrLn h (IRC.render m) >> hFlush h
+  send $ msg "NICK" [nick cfg]
+  send $ msg "USER" [nick cfg, "0", "*", nick cfg]
+  forever $ do
+    l <- hGetLine h
+    case IRC.parseMessage (l ++ "\n") of
+      Nothing -> putStr "Malformed IRC message: " >> putStrLn l
+      Just m -> do
+        print m
+        r <- on_msg evalRequest cfg m
+        mapM_ print r
+        mapM_ send r
+
+on_msg :: (Functor m, Monad m) => (String -> m String) -> BotConfig -> IRC.Message -> m [IRC.Message]
+on_msg eval cfg m = flip execStateT [] $ do
+  when (join_trigger cfg == Just m) join_chans
+  case m of
+    IRC.Message (Just (IRC.NickName who _ _)) "QUIT" _ | who == nick cfg ->
+      send $ msg "NICK" [nick cfg]
+    IRC.Message (Just (IRC.NickName from _ _)) "PRIVMSG" [_, "\1VERSION\1"] ->
+      send $ msg "NOTICE" [from, "\1VERSION Geordi C++ bot - http://www.eelis.net/geordi/\1"]
+    IRC.Message _ "433" {- ERR_NICKNAMEINUSE -} _ -> send $ msg "NICK" [alternate_nick cfg]
+    IRC.Message _ "PING" a -> msapp [msg "PONG" a]
+    IRC.Message (Just (IRC.NickName fromnick _ _)) "PRIVMSG" [c, txt] ->
+      when (c `elem` chans cfg && not (fromnick `elem` blacklist cfg)) $ do
+      maybeM (Request.is_request (nick cfg) (alternate_nick cfg) txt) $ \r -> do
+      o <- lift $ take (max_msg_length cfg) . takeWhile (/= '\n') . eval r
+      send $ msg "PRIVMSG" [c, if null o then no_output_msg cfg else o]
+    IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
+      maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
+      when (join_trigger cfg == Nothing) join_chans
+    _ -> return ()
+  where
+    send = msapp . (:[])
+    join_chans = msapp $ msg "JOIN" . (:[]) . chans cfg
 
 connect :: String -> Net.PortNumber -> IO Handle
   -- Mostly copied from Network.connectTo. We can't use that one because we want to set SO_KEEPALIVE (and related) options on the socket, which can't be done on a Handle.

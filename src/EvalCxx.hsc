@@ -53,120 +53,68 @@ In our code, M is close_range_end.
 
 module EvalCxx (evaluate, EvaluationResult(..), cap_fds) where
 
-import qualified System.Posix.Internals
 import qualified Ptrace
 import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Flock
 import qualified ErrorFilters
 import qualified System.Directory
 import qualified System.Posix.Process (getProcessID)
-import qualified SyscallNames
+import qualified SysCalls
+import qualified System.Posix.Internals
 
+import Sys (wait, WaitResult(..), strsignal, syscall_off, syscall_ret, fdOfFd, nonblocking_read)
+import SysCalls (SysCall(..))
 import Control.Monad (when, forM_)
 import Control.Monad.Fix (fix)
-import Foreign (peek, alloca, Ptr, Word8, unsafePerformIO, allocaBytes, (.|.))
-import Foreign.C
-  (CInt, CSize, getErrno, throwErrno, eWOULDBLOCK, CString, peekCString, peekCStringLen, eCHILD)
+import Foreign (alloca, (.|.))
+import Foreign.C (CInt, CSize)
 import System.Exit (ExitCode(..))
 import Data.List ((\\))
 import System.Posix
-  (Fd(..), CPid, Signal, sigALRM, sigSTOP, sigTRAP, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, ByteCount, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimits(..), setResourceLimit)
+  (Signal, sigALRM, sigSTOP, sigTRAP, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
 
 import Prelude hiding ((.))
 import Util
 
-#include <syscall.h>
-#include <sys/ptrace.h>
-#include <sys/reg.h>
-
-syscall_off, syscall_ret :: CInt
-#ifdef __x86_64__
-syscall_off = (#const ORIG_RAX) * 8
-syscall_ret = (#const RAX) * 8
-#else
-syscall_off = (#const ORIG_EAX) * 4
-syscall_ret = (#const EAX) * 4
-#endif
-
-foreign import ccall unsafe "__hsunix_wifexited" c_WIFEXITED :: CInt -> CInt
-foreign import ccall unsafe "__hsunix_wexitstatus" c_WEXITSTATUS :: CInt -> CInt
-foreign import ccall unsafe "__hsunix_wifsignaled" c_WIFSIGNALED :: CInt -> CInt
-foreign import ccall unsafe "__hsunix_wtermsig" c_WTERMSIG :: CInt -> CInt
-foreign import ccall unsafe "__hsunix_wifstopped" c_WIFSTOPPED :: CInt -> CInt
-foreign import ccall unsafe "__hsunix_wstopsig" c_WSTOPSIG :: CInt -> CInt
-
-foreign import ccall unsafe "string.h strsignal" c_strsignal :: CInt -> IO CString
-
-strsignal :: CInt -> String
-strsignal = unsafePerformIO . (peekCString =<<) . c_strsignal
-
-nonblocking_read :: Fd -> ByteCount -> IO [Word8]
-nonblocking_read (Fd fd) bc = do
-  allocaBytes (fromIntegral bc) $ \buf -> do
-  r <- System.Posix.Internals.c_read fd buf bc
-  case r of
-    -1 -> getErrno >>= \e -> if e == eWOULDBLOCK then return [] else throwErrno "nonblocking_read"
-    n -> (fromIntegral . fromEnum .) . peekCStringLen (buf, fromIntegral n)
-  -- Wrapping c_read ourselves is easier and more to the point than using fdRead and catching&filtering (stringized) eWOULDBLOCK errors.
-
-foreign import ccall "wait" c_wait :: Ptr CInt -> IO CPid
-
-wait :: Ptr CInt -> IO WaitResult
-wait p = do
-  r <- c_wait p
-  if r /= -1 then d . peek p else do
-  e <- getErrno
-  if e == eCHILD then return WR_NoChild else throwErrno "wait"
-  where
-    d :: CInt -> WaitResult
-    d s | c_WIFEXITED s /= 0 = WR_Exited $ c_WEXITSTATUS s
-    d s | c_WIFSIGNALED s /= 0 = WR_Signaled $ c_WTERMSIG s
-    d s | c_WIFSTOPPED s /= 0 = WR_Stopped $ c_WSTOPSIG s
-    d _ = error "unknown wait status"
-
-data WaitResult = WR_NoChild | WR_Exited CInt | WR_Signaled CInt | WR_Stopped CInt
-  deriving (Show, Eq)
-
-data SuperviseResult = Exited ExitCode | DisallowedSyscall CInt | Signaled Signal | ChildVanished
+data SuperviseResult = Exited ExitCode | DisallowedSyscall SysCall | Signaled Signal | ChildVanished
   deriving Eq
 
 instance Show SuperviseResult where
   show (Exited c) = "Exited: " ++ show c
-  show (DisallowedSyscall c) = "Disallowed system call: " ++ SyscallNames.syscallName c
+  show (DisallowedSyscall c) = "Disallowed system call: " ++ show c
   show (Signaled s) = if s == sigALRM then "Timeout" else strsignal s
   show ChildVanished = "Child vanished"
 
 supervise :: ProcessID -> IO SuperviseResult
-  -- supervise assumes that the first event observed is the child raising sigSTOP.
-  -- wait is called so often that sharing the allocated wstatp is required for acceptable performance.
+  -- We assume that the first event observed is the child raising sigSTOP.
 supervise pid = alloca $ \wstatp -> do
-  wait wstatp >>= \s -> when (s /= WR_Stopped sigSTOP) $ fail $ "first ptraced event not sigSTOP, but " ++ show s
+  wait wstatp >>= \s -> when (s /= WaitStopped sigSTOP) $ fail $ "first ptraced event not sigSTOP, but " ++ show s
   Ptrace.tracesysgood pid
   Ptrace.syscall pid
   ($ Nothing) $ fix $ \sv current_syscall -> do
     wstat <- wait wstatp
     case wstat of
-      WR_NoChild -> return ChildVanished
-      WR_Exited e -> return $ Exited $ if e == 0 then ExitSuccess else ExitFailure $ fromIntegral e
-      WR_Signaled s -> return $ Signaled s
-      WR_Stopped s | s == sigTRAP -> Ptrace.syscall pid >> sv current_syscall
-      WR_Stopped s | s == (sigTRAP .|. 0x80) -> do
+      WaitNoChild -> return ChildVanished
+      WaitExited e -> return $ Exited e
+      WaitSignaled s -> return $ Signaled s
+      WaitStopped s | s == sigTRAP -> Ptrace.syscall pid >> sv current_syscall
+      WaitStopped s | s == (sigTRAP .|. 0x80) ->
         case current_syscall of
           Just sc -> do
             when (sc `elem` ignored_syscalls) $ Ptrace.pokeuser pid syscall_ret 0
             Ptrace.syscall pid; sv Nothing
-          Nothing -> Ptrace.peekuser pid syscall_off >>= \syscall -> case () of
+          Nothing -> SysCalls.fromNumber . Ptrace.peekuser pid syscall_off >>= \syscall -> case () of
             _ | syscall `elem` ignored_syscalls -> do
-              Ptrace.pokeuser pid syscall_off #const SYS_getpid
+              Ptrace.pokeuser pid syscall_off $ SysCalls.toNumber SYS_getpid
               Ptrace.syscall pid; sv (Just syscall)
             _ | syscall `elem` allowed_syscalls -> Ptrace.syscall pid >> sv (Just syscall)
             _ -> do
-              Ptrace.pokeuser pid syscall_off #const SYS_exit_group
+              Ptrace.pokeuser pid syscall_off $ SysCalls.toNumber SYS_exit_group
               Ptrace.kill pid
                 -- The documentation for PTRACE_KILL is extremely vague, but it seems that it in this scenario it actually restarts the process, after which one of two things happens: either exit_group succeeds and the next wait returns WR_Exited, or it fails and the process is half dead, twitching, and being delivered SIGKILL. Both cases are dealt with adequately by sv.
-              sv $ Just #const SYS_exit_group
+              sv $ Just SYS_exit_group
               return $ DisallowedSyscall syscall
-      WR_Stopped sig -> Ptrace.kill pid >> sv Nothing >> return (Signaled sig)
+      WaitStopped sig -> Ptrace.kill pid >> sv Nothing >> return (Signaled sig)
 
 data Resources = Resources { walltime :: Int, rlimits :: [(Resource, ResourceLimits)], bufsize :: CSize }
 
@@ -174,26 +122,26 @@ close_range_end :: CInt
 close_range_end = 25
 
 cap_fds :: IO ()
-cap_fds = do -- See section "Inherited file descriptors." in EvalCxx.hsc.
+  -- See section "Inherited file descriptors." in EvalCxx.hsc.
+cap_fds = do
   let cre = close_range_end
-  setResourceLimit ResourceOpenFiles $ simpleResourceLimits $ fromIntegral cre
+  setResourceLimit ResourceOpenFiles $
+    ResourceLimits (ResourceLimit $ fromIntegral cre) (ResourceLimit $ fromIntegral cre)
   high_fds <- filter (>= cre) . (read .) . (\\ [".", ".."]) . (System.Directory.getDirectoryContents =<< (\s -> "/proc/" ++ s ++ "/fd") . show . System.Posix.Process.getProcessID)
   when (high_fds /= []) $ fail $ "fd(s) open >= " ++ show cre ++ ": " ++ show high_fds
-
--- capture_restricted assumes the program produces UTF-8 encoded text and returns it as a proper Unicode String.
 
 data CaptureResult = CaptureResult { supervise_result :: SuperviseResult, output :: String }
 
 capture_restricted :: FilePath -> [String] -> [(String,String)] -> Resources -> IO CaptureResult
+  -- We assume the program produces UTF-8 encoded text and return it as a proper Unicode String.
 capture_restricted a argv env (Resources timeout rlims bs) =
   withResource createPipe $ \(pipe_r, pipe_w) -> do
     setFdOption pipe_r NonBlockingRead True
     res <- (=<<) supervise $ forkProcess $ do
       scheduleAlarm timeout
-      mapM (uncurry setResourceLimit) rlims
-      dupTo pipe_w stdError
-      dupTo pipe_w stdOutput
-      forM_ ([0..close_range_end] \\ [fdOfFd stdOutput, fdOfFd stdError]) System.Posix.Internals.c_close
+      mapM_ (uncurry setResourceLimit) rlims
+      mapM_ (dupTo pipe_w) [stdOutput, stdError]
+      forM_ ([0..close_range_end] \\ (fdOfFd . [stdOutput, stdError])) System.Posix.Internals.c_close
       Ptrace.traceme
       raiseSignal sigSTOP
       executeFile a False argv (Just env)
@@ -241,18 +189,18 @@ evaluate gxx_path gxx_flags code also_run = do
 
 -- System calls:
 
-ignored_syscalls, allowed_syscalls :: [CInt]
+ignored_syscalls, allowed_syscalls :: [SysCall]
 
 ignored_syscalls = -- These are effectively replaced with "return 0;".
-  [(#const SYS_chmod), (#const SYS_fadvise64), (#const SYS_unlink), (#const SYS_munmap), (#const SYS_madvise), (#const SYS_umask), (#const SYS_rt_sigaction), (#const SYS_rt_sigprocmask), (#const SYS_ioctl), (#const SYS_setitimer), (#const SYS_vfork) {- see "Secure compilation" -}]
+  [ SYS_chmod, SYS_fadvise64, SYS_unlink, SYS_munmap, SYS_madvise, SYS_umask, SYS_rt_sigaction, SYS_rt_sigprocmask, SYS_ioctl, SYS_setitimer, SYS_vfork {- see "Secure compilation" -} ]
 
 allowed_syscalls =
-  [ (#const SYS_open), (#const SYS_write), (#const SYS_uname), (#const SYS_brk), (#const SYS_read), (#const SYS_mmap), (#const SYS_exit_group), (#const SYS_getpid), (#const SYS_access), (#const SYS_getrusage), (#const SYS_close), (#const SYS_gettimeofday), (#const SYS_time), (#const SYS_writev), (#const SYS_execve), (#const SYS_mprotect), (#const SYS_getcwd)
+  [ SYS_open, SYS_write, SYS_uname, SYS_brk, SYS_read, SYS_mmap, SYS_exit_group, SYS_getpid, SYS_access, SYS_getrusage, SYS_close, SYS_gettimeofday, SYS_time, SYS_writev, SYS_execve, SYS_mprotect, SYS_getcwd
 
   #ifdef __x86_64__
-    , (#const SYS_stat), (#const SYS_fstat), (#const SYS_arch_prctl), (#const SYS_getrlimit), (#const SYS_fcntl), (#const SYS_lseek), (#const SYS_lstat), (#const SYS_dup)
+    , SYS_stat, SYS_fstat, SYS_arch_prctl, SYS_getrlimit, SYS_fcntl, SYS_lseek, SYS_lstat, SYS_dup
   #else
-    , (#const SYS_fstat64), (#const SYS_lstat64), (#const SYS_stat64), (#const SYS_ugetrlimit), (#const SYS_fcntl64), (#const SYS__llseek), (#const SYS_mmap2), (#const SYS_mremap), (#const SYS_set_thread_area), (#const SYS_times), (#const SYS_readlink)
+    , SYS_fstat64, SYS_lstat64, SYS_stat64, SYS_ugetrlimit, SYS_fcntl64, SYS__llseek, SYS_mmap2, SYS_mremap, SYS_set_thread_area, SYS_times, SYS_readlink
   #endif
   ]
 
@@ -261,10 +209,10 @@ allowed_syscalls =
 resources :: Stage -> Resources
 resources stage = Resources
     { walltime = t
-    , rlimits =
-      [ (ResourceCPUTime, simpleResourceLimits $ fromIntegral t)
-      , (ResourceTotalMemory, simpleResourceLimits $ 200 * mebi)
-      , (ResourceFileSize, simpleResourceLimits $ 5 * mebi)
+    , rlimits = (\(r, l) -> (r, ResourceLimits (ResourceLimit l) (ResourceLimit l))) .
+      [ (ResourceCPUTime, fromIntegral t)
+      , (ResourceTotalMemory, 200 * mebi)
+      , (ResourceFileSize, 5 * mebi)
         -- Note: We don't add ResourceOpenFiles here, because it is already set as part of the fd closing scheme described in the "Inherited file descriptors" section at the top of this file, and that "global" limit is sufficient.
       ]
     , bufsize = 4 * kibi

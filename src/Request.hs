@@ -1,6 +1,7 @@
 module Request (is_request, prepare_evaluator) where
 
 import qualified EvalCxx
+import qualified System.Directory
 
 import Control.Exception ()
 import Data.Char (isLetter, isPrint)
@@ -8,6 +9,9 @@ import Control.Monad.Error ()
 import Text.ParserCombinators.Parsec (parse, getInput, spaces, satisfy, (<|>), oneOf, try, string)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt)
 import Control.Applicative ((<*>))
+import System.Posix.User
+  (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
+import Sys (chroot)
 
 import Prelude hiding (catch, (.))
 import Util
@@ -57,11 +61,24 @@ parse_request req = do
     also_run = opt Help || opt Version || not (opt CompileOnly)
   return (code, also_run)
 
+data JailConfig = JailConfig { user, group :: String, path :: FilePath } deriving Read
+
+jail :: IO ()
+jail = do
+  cfg <- readTypedFile "jail-config"
+  gid <- groupID . getGroupEntryForName (group cfg)
+  uid <- userID . getUserEntryForName (user cfg)
+  chroot $ path cfg
+  System.Directory.setCurrentDirectory "/"
+  setGroupID gid
+  setUserID uid
+
 prepare_evaluator :: IO (String -> IO String)
 prepare_evaluator = do
   EvalCxx.cap_fds
   gxx : flags <- words . (full_evaluate =<< readFile "compile-config")
     -- readFile would fail after the chroot, hence full_evaluate.
+  jail
   return $ either return ((filter (isPrint .||. (== '\n')) . show .) . uncurry (EvalCxx.evaluate gxx (["prelude.a", "-lmcheck"] ++ flags))) . parse_request
     -- filtering using isPrint works properly because (1) EvalCxx.evaluate returns a proper Unicode String, not a load of bytes; and (2) to print filtered strings we will use System.IO.UTF8's hPutStrLn which properly UTF-8 encodes the filtered String.
     -- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.
