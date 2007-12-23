@@ -1,4 +1,5 @@
-#!/bin/bash -v
+#!/bin/sh
+set -e
 chmod 711 rt
 cd rt
 rm -f t.cpp t.s t.o t

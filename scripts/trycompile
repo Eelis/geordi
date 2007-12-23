@@ -1,3 +1,4 @@
-#!/bin/bash -v
+#!/bin/sh
+set -eu
 echo -e "#include \"prelude.h\"\nGEORDI_PRINT_PRE 9 GEORDI_PRINT_POST" > rt/t.cpp
 chroot rt `cat compile-config` t.cpp prelude.a -lmcheck -o t
