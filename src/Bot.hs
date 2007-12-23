@@ -13,6 +13,7 @@ import Control.Monad.State (execStateT, lift)
 import System.IO.UTF8 (putStr, putStrLn, hPutStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Sys (setKeepAlive)
+import Text.Regex (Regex, subRegex, mkRegex)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Util
@@ -24,7 +25,11 @@ data BotConfig = BotConfig
   , no_output_msg :: String
   , join_trigger :: Maybe IRC.Message
       -- Defaults to RPL_WELCOME. Can be set to NickServ/cloak confirmations and such.
+  , censor :: [Regex]
   } deriving Read
+
+instance Read Regex where
+  readsPrec i s = (\(a, r) -> (mkRegex a, r)) . readsPrec i s
 
 instance Read Net.PortNumber where
   readsPrec i s = (\(x, s') -> (fromIntegral (x :: Int), s')) . readsPrec i s
@@ -51,11 +56,15 @@ getArgs = do
 msg :: IRC.Command -> [IRC.Parameter] -> IRC.Message
 msg = IRC.Message Nothing
 
+do_censor :: BotConfig -> String -> String
+do_censor cfg s = foldr (\r t -> subRegex r t "<censored>") s (censor cfg)
+
 main :: IO ()
 main = do
   opts <- getArgs
   if Help `elem` opts then putStrLn help else do
   cfg <- readTypedFile $ maybe "bot-config" id $ findMaybe (\o -> case o of Config cf -> Just cf; _ -> Nothing) opts
+  full_evaluate $ do_censor cfg "abc" -- So that any mkRegex failures occur before we start connecting.
   putStrLn $ "Connecting to " ++ server cfg ++ ":" ++ show (port cfg)
   withResource (connect (server cfg) (fromIntegral $ port cfg)) $ \h -> do
   putStrLn "Connected"
@@ -89,7 +98,7 @@ on_msg eval cfg m = flip execStateT [] $ do
       when (c `elem` chans cfg && not (fromnick `elem` blacklist cfg)) $ do
       maybeM (Request.is_request (nick cfg) (alternate_nick cfg) txt) $ \r -> do
       o <- lift $ take (max_msg_length cfg) . takeWhile (/= '\n') . eval r
-      send $ msg "PRIVMSG" [c, if null o then no_output_msg cfg else o]
+      send $ msg "PRIVMSG" [c, if null o then no_output_msg cfg else do_censor cfg o]
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
       when (join_trigger cfg == Nothing) join_chans

@@ -132,6 +132,12 @@
 
     <p>Make config files for the different networks. Then run one geordi instance for each network, passing -c arguments pointing to the respective config files. The rt directory will be safely shared.</p>
 
+    <h3>Censoring phrases</h3>
+
+    <p>Some networks automatically kick or ban clients that utter certain phrases (like botnet commands). To prevent a geordi bot from uttering these, list regexes for them in bot-config. E.g.:</p>
+
+    <pre>  , censor = ["some naughty phrase", "some wicked utterance"]</pre>
+
     <hr/><h2><a id='problems'/>4. Known problems</h2>
     <ul>
       <li>

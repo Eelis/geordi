@@ -9,4 +9,5 @@ BotConfig
 , blacklist = ["nolyc", "Oort", "geordi"]
 , no_output_msg = " "
 , join_trigger = Nothing
+, censor = []
 }
