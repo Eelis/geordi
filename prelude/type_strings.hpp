@@ -477,8 +477,10 @@ template <typename T> std::string type_desc (bool const plural)
   #define ETYPE(...) ( \
     (MAY_BE_LVALUE(__VA_ARGS__) ? "" : "rvalue ") + \
     std::string(MAY_BE_RVALUE(__VA_ARGS__) ? "" : "lvalue ") + \
-     ::type_strings_detail::type<__typeof__(__VA_ARGS__)>())
-  #define ETYPE_DESC(...) (::type_strings_detail::type_desc<__typeof__(__VA_ARGS__)>())
+     ::type_strings_detail::type<__typeof__((__VA_ARGS__))>())
+  #define ETYPE_DESC(...) (::type_strings_detail::type_desc<__typeof__((__VA_ARGS__))>())
 #endif
+
+// The double parentheses around __VA_ARGS__ above are a workaround for GCC bug 11701.
 
 #endif // header guard
