@@ -24,11 +24,6 @@
 #include <boost/optional.hpp>
 #include <boost/utility.hpp>
 #include <boost/array.hpp>
-#include <boost/bind.hpp>
-
-#include <cxxabi.h>
-
-#include "ScopeGuard.hpp"
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
   #include <array>
@@ -81,20 +76,7 @@ TYPEDEF_TYPE(wstring)
 
 // Demangling toys
 
-std::string cxa_demangle (const char * const name)
-{
-  int st;
-  char * const p = abi::__cxa_demangle(name, 0, 0, &st);
-
-  switch (st)
-  {
-    case 0: { ScopeGuard const freeer (boost::bind(&std::free, p)); return p; }
-    case -1: throw std::runtime_error("A memory allocation failure occurred.");
-    case -2: throw std::runtime_error("Not a valid name under the GCC C++ ABI mangling rules.");
-    case -3: throw std::runtime_error("One of the arguments is invalid.");
-    default: assert(!"unexpected demangle status");
-  }
-}
+std::string cxa_demangle(const char *);
 
 template <typename T> std::string typeid_name (T const & t) { return cxa_demangle(typeid(t).name()); }
 template <typename T> std::string typeid_name () { return cxa_demangle(typeid(T).name()); }
@@ -131,7 +113,7 @@ namespace textual_type_descriptions
   template <typename T> std::string returning (bool const plural)
   { return "returning " + an_or_many<T>(plural); }
 
-  template <> std::string returning<void> (bool) { return "returning nothing"; }
+  template <> inline std::string returning<void> (bool) { return "returning nothing"; }
 
   // built-in types
 

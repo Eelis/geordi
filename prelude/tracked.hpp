@@ -204,13 +204,13 @@ namespace tracked
   {
     typedef detail::T<B, detail::U, 'B'> Base;
 
-    B(): Idd('B') {}
-    B (B const & b): Idd(b, 'B'), Base(b) {}
-    explicit B (int const i): Idd('B'), Base(i) {}
+    B();
+    B(B const &);
+    explicit B(int);
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      B(B && b): Idd(std::move(b), 'B'), Base(std::move(b)) {}
-      B & operator=(B && b) { Base::operator=(std::move(b)); return *this; }
+      B(B &&);
+      B & operator=(B &&);
     #endif
   };
 
@@ -218,13 +218,13 @@ namespace tracked
   {
     typedef detail::T<D, B, 'D'> Base;
 
-    D(): Idd('D') {}
-    D(D const & d): Idd(d, 'D'), Base(d) {}
-    explicit D(int const i): Idd('D'), Base(i) {}
+    D();
+    D(D const & d);
+    explicit D(int);
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      D(D && d): Idd(std::move(d), 'D'), Base(std::move(d)) {}
-      D & operator=(D && d) { Base::operator=(std::move(d)); return *this; }
+      D(D &&);
+      D & operator=(D &&);
     #endif
   };
 

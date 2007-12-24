@@ -72,4 +72,26 @@ namespace tracked
       for (map::const_iterator i = s.begin(); i != s.end(); ++i) std::cout << ' ' << i->second << i->first;
     }
   }
+
+  // B:
+
+    B::B(): Idd('B') {}
+    B::B (B const & b): Idd(b, 'B'), Base(b) {}
+    B::B (int const i): Idd('B'), Base(i) {}
+
+    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+      B::B(B && b): Idd(std::move(b), 'B'), Base(std::move(b)) {}
+      B & B::operator=(B && b) { Base::operator=(std::move(b)); return *this; }
+    #endif
+
+  // D:
+
+    D::D(): Idd('D') {}
+    D::D(D const & d): Idd(d, 'D'), Base(d) {}
+    D::D(int const i): Idd('D'), Base(i) {}
+
+    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+      D::D(D && d): Idd(std::move(d), 'D'), Base(std::move(d)) {}
+      D & D::operator=(D && d) { Base::operator=(std::move(d)); return *this; }
+    #endif
 }
