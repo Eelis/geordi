@@ -126,8 +126,8 @@ replacers = (.) localReplacer
   , defaulter ["queue", "stack"] 1 (\[e] -> "deque" $> '<' $> e $> '>')
   , defaulter ((("basic_" ++) . ioBasics) ++ ["ostreambuf_iterator", "istreambuf_iterator"])
       1 (\[e] -> "char_traits" $> '<' $> e $> '>')
-  , defaulter ["istream_iterator"] 3 (const $ "long" $> "int")
-      -- "long int" is what is printed for ptrdiff_t, though probably not on all platforms.
+  , defaulter ["istream_iterator"] 3 (const $ option [] (try $ string "long") $> "int")
+      -- "int"/"long int" is what is printed for ptrdiff_t.
   , defaulter ["istream_iterator", "ostream_iterator"] 2 (\[_, c] -> "char_traits" $> '<' $> c $> '>')
   , defaulter ["istream_iterator", "ostream_iterator"] 1 (const $ string "char")
 
