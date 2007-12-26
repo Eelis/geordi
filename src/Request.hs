@@ -4,11 +4,10 @@ import qualified EvalCxx
 import qualified System.Directory
 
 import Control.Exception ()
-import Data.Char (isLetter, isPrint)
+import Data.Char (isPrint)
 import Control.Monad.Error ()
-import Text.ParserCombinators.Parsec (parse, getInput, spaces, satisfy, (<|>), oneOf, try, string)
+import Text.ParserCombinators.Parsec (parse, getInput, (<|>), oneOf, try, string, lookAhead, choice, skipMany1, space)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt)
-import Control.Applicative ((<*>))
 import System.Posix.User
   (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
 import Sys (chroot)
@@ -37,9 +36,10 @@ is_request :: String -> String -> String -> Maybe String
 is_request botnick botaltnick txt = either (const Nothing) Just (parse p "" txt)
   where
    p = do
-    foldr1 (<|>) $ try . string . sortByProperty length
+    choice $ (try . string .) $ reverse $ sortByProperty length
       [botnick, capitalize botnick, botaltnick, capitalize botaltnick]
-    (oneOf ":," >> getInput) <|> ((:) . (spaces >> satisfy (not . (isLetter .||. (`elem` "\'/*")))) <*> getInput)
+    oneOf ":," <|> lookAhead (oneOf "<{") <|> (skipMany1 space >> lookAhead (oneOf "<{-"))
+    getInput
 
 parse_request :: Monad m => String -> m (String {- code -}, Bool {- also run -})
 parse_request req = do
