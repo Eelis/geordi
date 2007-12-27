@@ -56,11 +56,9 @@ x $> y = exact x >> spaces >> exact y
 x <$ y = exact x << spaces << exact y
 x $>> y = (exact x << spaces) >>> exact y
 
-anyCharAsStr :: CharParser st String
-anyCharAsStr = (:[]) . anyChar
-
 anyStringTill :: CharParser st String -> CharParser st String
-anyStringTill end = end <|> (anyCharAsStr >>> anyStringTill end)
+anyStringTill end = scan ""
+  where scan r = (reverse r ++) . end <|> (scan . (:r) =<< anyChar)
 
 ioBasics, clutter_namespaces :: [String]
 ioBasics = ["streambuf", "ofstream", "ifstream", "fstream", "filebuf", "ostream", "istream", "ostringstream", "istringstream", "stringstream", "iostream", "ios", "string"]
