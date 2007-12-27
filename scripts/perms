@@ -4,6 +4,6 @@ chmod 711 rt
 cd rt
 rm -f t.cpp t.s t.o t
 touch t.s t.o t lock
-echo -e "#include \"prelude.h\"\nGEORDI_PRINT_PRE 9 GEORDI_PRINT_POST" > t.cpp
+printf "#include \"prelude.h\"\nGEORDI_PRINT_PRE 9 GEORDI_PRINT_POST\n" > t.cpp
 chmod 666 t.cpp t.s t.o
 chmod 777 t
