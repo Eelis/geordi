@@ -4,7 +4,7 @@ scripts/getsyscalls > src/SysCalls.hs
 cd src
 hsc2hs *.hsc
 GHC="ghc -cpp -ffi -Wall -fno-warn-unused-binds -fno-warn-orphans -fglasgow-exts -fallow-undecidable-instances"
-if ghc --version | grep -q "6\.8"; then GHC+=" -O"; fi # -O causes errors on x86_64 with GHC 6.6.1
+if ghc --version | grep -q "6\.8"; then GHC="$GHC -O"; fi # -O causes errors on x86_64 with GHC 6.6.1
 $GHC --make Bot.hs -o ../Bot
 $GHC --make Testsuite.hs -o ../Testsuite
 $GHC --make Local.hs -o ../Local
