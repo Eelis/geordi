@@ -97,7 +97,7 @@ del_ostream const del;
 // Lighter-weight alternative:
 
 template <typename Ch, typename Tr, typename T>
-std::basic_ostream<Ch, Tr> & operator, (std::basic_ostream<Ch, Tr> & o, T const & t)
+inline std::basic_ostream<Ch, Tr> & operator, (std::basic_ostream<Ch, Tr> & o, T const & t)
 { return o << ", " << t; }
 
 template <typename Ch, typename Tr>
