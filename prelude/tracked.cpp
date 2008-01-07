@@ -76,8 +76,10 @@ namespace tracked
   // B:
 
     B::B(): Idd('B') {}
-    B::B (B const & b): Idd(b, 'B'), Base(b) {}
-    B::B (int const i): Idd('B'), Base(i) {}
+    B::B(B const & b): Idd(b, 'B'), Base(b) {}
+    B::B(int const i): Idd('B'), Base(i) {}
+    B::B(char const c): Idd('B'), Base(c) {}
+    B::B(std::string const & s): Idd('B'), Base(s) {}
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       B::B(B && b): Idd(std::move(b), 'B'), Base(std::move(b)) {}
@@ -89,6 +91,8 @@ namespace tracked
     D::D(): Idd('D') {}
     D::D(D const & d): Idd(d, 'D'), Base(d) {}
     D::D(int const i): Idd('D'), Base(i) {}
+    D::D(char const c): Idd('D'), Base(c) {}
+    D::D(std::string const & s): Idd('D'), Base(s) {}
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       D::D(D && d): Idd(std::move(d), 'D'), Base(std::move(d)) {}

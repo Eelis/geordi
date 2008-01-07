@@ -83,7 +83,8 @@ namespace tracked
 
       T (): Idd('X') { if (!muted) std::cout << ' ' << *this << "* "; }
 
-      explicit T (int const i): Idd('X') { if (!muted) std::cout << ' ' << *this << "*(" << i << ") "; }
+      template <typename U>
+      explicit T(U const & u): Idd('X') { if (!muted) std::cout << ' ' << *this << "*(" << u << ") "; }
 
       T (T const & t): Idd('X'), Base(t) { if (!muted) std::cout << ' ' << *this << "*(" << t << ") "; }
 
@@ -207,6 +208,9 @@ namespace tracked
     B();
     B(B const &);
     explicit B(int);
+    explicit B(char);
+    explicit B(std::string const &);
+      // We don't use a template because then we'd lose precious separate compilation.
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       B(B &&);
@@ -221,6 +225,8 @@ namespace tracked
     D();
     D(D const & d);
     explicit D(int);
+    explicit D(char);
+    explicit D(std::string const &);
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       D(D &&);
