@@ -12,7 +12,7 @@ import System.Exit (ExitCode(..))
 import System.Posix (Fd(..), CPid, ByteCount, Signal)
 import Util ((.))
 import Foreign.C
-  (CInt, CString, getErrno, eCHILD, throwErrno, withCString, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen)
+  (CInt, CLong, CString, getErrno, eCHILD, throwErrno, withCString, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen)
 
 #include <syscall.h>
 #include <sys/ptrace.h>
@@ -20,7 +20,7 @@ import Foreign.C
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
-syscall_off, syscall_ret :: CInt
+syscall_off, syscall_ret :: CLong
 #ifdef __x86_64__
 syscall_off = (#const ORIG_RAX) * 8
 syscall_ret = (#const RAX) * 8

@@ -1,5 +1,5 @@
 
-module Ptrace (traceme, syscall, peekuser, pokeuser, cont, kill, tracesysgood) where
+module Ptrace (traceme, syscall, peektext, peekuser, pokeuser, cont, kill, tracesysgood) where
 
 import Foreign.C
 import Foreign.C.Error
@@ -11,12 +11,12 @@ import Prelude
 #include <linux/ptrace.h>
 #include <syscall.h>
 
-foreign import ccall "sys/ptrace.h ptrace" c_ptrace :: CInt -> CPid -> CInt -> CInt -> IO CInt
+foreign import ccall "sys/ptrace.h ptrace" c_ptrace :: CInt -> CPid -> CLong -> CLong -> IO CLong
 
-ignored_param :: CInt
+ignored_param :: CLong
 ignored_param = 0
 
-ptrace :: CInt -> ProcessID -> CInt -> CInt -> IO CInt
+ptrace :: CInt -> ProcessID -> CLong -> CLong -> IO CLong
 ptrace act proc addr datum = do
   resetErrno
   r <- c_ptrace act proc addr datum
@@ -29,13 +29,16 @@ traceme = ptrace (#const PTRACE_TRACEME) 0 ignored_param ignored_param >> return
 syscall :: ProcessID -> IO ()
 syscall p = ptrace (#const PTRACE_SYSCALL) p ignored_param ignored_param >> return ()
 
-peekuser :: ProcessID -> CInt -> IO CInt
+peekuser :: ProcessID -> CLong -> IO CLong
 peekuser p a = ptrace (#const PTRACE_PEEKUSER) p a ignored_param
 
-pokeuser :: ProcessID -> CInt -> CInt -> IO ()
+peektext :: ProcessID -> CLong -> IO CLong
+peektext p a = ptrace (#const PTRACE_PEEKTEXT) p a ignored_param
+
+pokeuser :: ProcessID -> CLong -> CLong -> IO ()
 pokeuser p a d = ptrace (#const PTRACE_POKEUSER) p a d >> return ()
 
-cont :: ProcessID -> Maybe CInt -> IO ()
+cont :: ProcessID -> Maybe CLong -> IO ()
 cont p s = ptrace (#const PTRACE_CONT) p ignored_param (maybe 0 id s) >> return ()
 
 tracesysgood :: ProcessID -> IO ()

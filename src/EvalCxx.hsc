@@ -66,15 +66,17 @@ import Sys (wait, WaitResult(..), strsignal, syscall_off, syscall_ret, fdOfFd, n
 import SysCalls (SysCall(..))
 import Control.Monad (when, forM_)
 import Control.Monad.Fix (fix)
-import Foreign (alloca, (.|.))
+import Foreign (alloca, (.|.), (.&.))
 import Foreign.C (CInt, CSize)
 import System.Exit (ExitCode(..))
 import Data.List ((\\))
 import System.Posix
-  (Signal, sigALRM, sigSTOP, sigTRAP, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
+  (Signal, sigALRM, sigSTOP, sigTRAP, sigKILL, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
 
 import Prelude hiding ((.))
 import Util
+
+#include <sys/reg.h>
 
 data SuperviseResult = Exited ExitCode | DisallowedSyscall SysCall | Signaled Signal | ChildVanished
   deriving Eq
@@ -84,6 +86,10 @@ instance Show SuperviseResult where
   show (DisallowedSyscall c) = "Disallowed system call: " ++ show c
   show (Signaled s) = if s == sigALRM then "Timeout" else strsignal s
   show ChildVanished = "Child vanished"
+
+i386_SYS_exit_group, i386_syscall_instruction :: Num a => a
+i386_syscall_instruction = 0x80cd -- "int 0x80"
+i386_SYS_exit_group = 252
 
 supervise :: ProcessID -> IO SuperviseResult
   -- We assume that the first event observed is the child raising sigSTOP.
@@ -103,18 +109,31 @@ supervise pid = alloca $ \wstatp -> do
           Just sc -> do
             when (sc `elem` ignored_syscalls) $ Ptrace.pokeuser pid syscall_ret 0
             Ptrace.syscall pid; sv Nothing
-          Nothing -> SysCalls.fromNumber . Ptrace.peekuser pid syscall_off >>= \syscall -> case () of
-            _ | syscall `elem` ignored_syscalls -> do
-              Ptrace.pokeuser pid syscall_off $ SysCalls.toNumber SYS_getpid
-              Ptrace.syscall pid; sv (Just syscall)
-            _ | syscall `elem` allowed_syscalls -> Ptrace.syscall pid >> sv (Just syscall)
-            _ -> do
-              Ptrace.pokeuser pid syscall_off $ SysCalls.toNumber SYS_exit_group
-              Ptrace.kill pid
-                -- The documentation for PTRACE_KILL is extremely vague, but it seems that it in this scenario it actually restarts the process, after which one of two things happens: either exit_group succeeds and the next wait returns WR_Exited, or it fails and the process is half dead, twitching, and being delivered SIGKILL. Both cases are dealt with adequately by sv.
-              sv $ Just SYS_exit_group
-              return $ DisallowedSyscall syscall
+          Nothing -> do
+            #ifdef __x86_64__
+            rip <- Ptrace.peekuser pid $ 8 * #const RIP
+            instr <- Ptrace.peektext pid (rip - 2)
+            if instr .&. 0xffff == i386_syscall_instruction
+              then do
+                Ptrace.pokeuser pid syscall_off i386_SYS_exit_group
+                Ptrace.kill pid
+                sv (Just SYS_exit_group)
+                return $ Signaled sigKILL -- Not entirely accurate, but it's not worth the hassle to add a new alternative to SuperviseResult.
+              else
+            #endif
+                SysCalls.fromNumber . Ptrace.peekuser pid syscall_off >>= \syscall -> case () of
+                  ()| syscall `elem` ignored_syscalls -> do
+                    Ptrace.pokeuser pid syscall_off $ SysCalls.toNumber SYS_getpid
+                    Ptrace.syscall pid; sv (Just syscall)
+                  ()| syscall `elem` allowed_syscalls -> Ptrace.syscall pid >> sv (Just syscall)
+                  () -> do
+                    Ptrace.pokeuser pid syscall_off $ SysCalls.toNumber SYS_exit_group
+                    Ptrace.kill pid
+                    sv $ Just SYS_exit_group
+                    return $ DisallowedSyscall syscall
       WaitStopped sig -> Ptrace.kill pid >> sv Nothing >> return (Signaled sig)
+
+-- The documentation for PTRACE_KILL is extremely vague. In supervise above, when we use Ptrace.kill to kill a child attempting to call a disallowed system call (or using a disallowed system call mechanism), it actually restarts the process to finish the system call. That is why we replace the system call with SYS_exit_group, so that one of two things happens: either exit_group succeeds and the next wait returns WaitExited, or it fails and the process is half dead, twitching, and being delivered SIGKILL. Both cases are dealt with adequately by sv.
 
 data Resources = Resources { walltime :: Int, rlimits :: [(Resource, ResourceLimits)], bufsize :: CSize }
 
