@@ -25,16 +25,20 @@
 
     <hr/><h2><a id='installation'/>1. Installation</h2>
     <p>
-      Geordi is not "<kbd>./configure &amp;&amp; make &amp;&amp; make install</kbd>" software. Setting up geordi is a somewhat awkward manual task, mainly because there are some installation steps that would be very hard to automate.
+      Geordi is not "<kbd>./configure &amp;&amp; make &amp;&amp; make install</kbd>" software. Setting up geordi is a somewhat awkward manual task, because preparing a chroot tree containing only those files necessary for C++ compilation involves copying into the tree various system and GCC libraries and executables whose location differs wildly from system to system. Since there is no easy way to get a list of precisely those files required for C++ compilation, we'll resort to what is basically a trial and error procedure.
     </p>
+
+    <p>Be warned: If you are relatively new to Linux (and truth be told, even when you're not), installation could very well turn out to be quite a hassle.</p>
 
     <h3>Prerequisites</h3>
     <ul>
-      <li>An x86-32 or x86-64 machine</li>
+      <li>An i386 or x86-64 machine</li>
       <li>GNU/Linux &ge; 2.6.10</li>
       <li>GCC/G++ &ge; 4</li>
       <li><a href='http://www.boost.org/'>Boost</a> &ge; 1.33 (Not strictly needed for the operation of geordi itself, but many prelude parts use Boost headers. Link libraries are not needed.)</li>
-      <li><a href='http://www.haskell.org/ghc/'>GHC</a> &ge; 6.6.1</li>
+      <li><a href='http://www.haskell.org/ghc/'>GHC</a> &ge; 6.6.1
+        <p>On Ubuntu, it is highly recommended to use GHC packages from the Ubuntu repositories. Use of haskell.org's GHC packages may result in strange "g++: Virtual timer expired" errors.</p>
+      </li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/utf8-string-0.1'>utf8-string</a> &ge; 0.1</li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/irc-0.2.3'>irc</a> 0.2.3</li>
     </ul>
@@ -122,10 +126,10 @@
 
     <h3><a id='nickserv'>NickServ identification</a></h3>
 
-    <p>To have the bot identify to NickServ, change the following line in config:</p>
-    <p><code>, nick_pass = Nothing</code></p>
+    <p>To have the bot identify to NickServ, change the following line in bot-config:</p>
+    <pre>  , nick_pass = Nothing</pre>
     <p>into:</p>
-    <p><code>, nick_pass = Just "mypassword"</code></p>
+    <pre>  , nick_pass = Just "mypassword"</pre>
 
     <h3><a id='reconnect'>Auto-reconnect</a></h3>
 
