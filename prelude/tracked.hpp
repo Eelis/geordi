@@ -19,7 +19,13 @@ namespace tracked
   {
     extern bool muted;
       // Does not mute errors (such as calling functions on pillaged objects).
+  }
 
+  inline void mute () { detail::muted = true; }
+  inline void unmute () { detail::muted = false; }
+
+  namespace detail
+  {
     typedef char name_t;
 
     struct Idd
@@ -196,10 +202,34 @@ namespace tracked
     template <typename Derived, typename Base, name_t Name>
     T<Derived, Base, Name>::~T() { if (!muted) std::cout << ' ' << *this << "~ "; }
 
+    /* mute/unmute allow us to suppress boring messages that are not relevant to the issue under consideration. Their use can be a bit tedious though. If we only want to get messages for a few statements inside a statement block, we have to do something like:
+
+      geordi { mute(); ..foo.. unmute(); ..bar.. mute(); ..bas.. }
+
+    We therefore introduce some trickery to let us write the above as:
+
+      geordi { ..foo.. TRACK{ ..bar.. } ..bas.. }
+
+    */
+
+    template <typename>
+    class focus_t
+    {
+      struct mute_in_ctor { mute_in_ctor() { mute(); } };
+      static mute_in_ctor m;
+      public:
+        focus_t() { &m; unmute(); }
+        ~focus_t() { mute(); }
+          // Taking m's address forces it to exist, but only if the focus_t template is ever instantiated. The effect is that if TRACK (which instantiates focus_t) is ever used, mute() will be called before main() is entered.
+        operator bool() const { return false; }
+    };
+
+    template <typename T> typename focus_t<T>::mute_in_ctor focus_t<T>::m;
+
   } // namespace detail
 
-  inline void mute () { detail::muted = true; }
-  inline void unmute () { detail::muted = false; }
+  #define TRACK \
+    if(::tracked::detail::focus_t<void> const & tracked_detail_focus = ::tracked::detail::focus_t<void>()) ; else
 
   struct B: private virtual detail::Idd, detail::T<B, detail::U, 'B'>
   {
