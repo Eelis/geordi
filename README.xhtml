@@ -64,7 +64,7 @@
 
     <h3>Installation procedure</h3>
     <p>
-      The following is a list of steps needed to set up the environment geordi runs in. Don't copy/paste this into your terminal, this is not a shell script! It is intended to be read and interpreted by a human.
+      The following is a list of steps needed to set up the environment geordi runs in. Don't copy&amp;paste this into your terminal, this is not a shell script! It is intended to be read and interpreted by a human.
     </p>
     <p>
       Assuming you have cd'd into the "geordi" directory obtained through darcs (or extracted from a snapshot), do the following:
@@ -72,13 +72,14 @@
     <ol>
       <li><kbd>chmod +x scripts/*</kbd> &nbsp; # darcs is not yet aware of executability</li>
       <li><kbd>scripts/compile</kbd> &nbsp; # To produce the ./Bot, ./Local, and ./Testsuite executables.</li>
-      <li>Edit `jail-config' and `compile-config' to your liking. Important: check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</li>
+      <li>Edit the compile-config file to your liking. Also check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</li>
+      <li>On Debian and Ubuntu, replace <code>group = "nobody"</code> with <code>group = "nogroup"</code> in jail-config.</li>
       <li><kbd>mkdir rt</kbd> &nbsp; # This will be our chroot root.</li>
       <li><kbd>scripts/compile-prelude</kbd> &nbsp; # To produce rt/prelude.h.gch and rt/prelude.a.</li>
       <li><kbd>cp prelude/terse.hpp rt/</kbd></li>
       <li><kbd>rtcp () { cp -L -r -v --parents $@ rt ; }</kbd> &nbsp; # This defines a shell function <kbd>rtcp</kbd> that makes copying stuff into rt more convenient.</li>
       <li><kbd>libs () { ldd $@ | runhaskell scripts/parse-ldd-output.hs ; }</kbd> &nbsp; # This defines a shell function <kbd>libs</kbd> that lets us easily query library file dependencies.</li>
-      <li><kbd>EXECS="`which g++ as ld` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> &nbsp; # Correct the last one for your system.</li>
+      <li><kbd>EXECS="`which g++ as ld` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> &nbsp; # Correct the last one for your system. Also, if g++ is only some wrapper that adds output coloring or something, specify the name of the real binary instead.</li>
       <li><kbd>rtcp $EXECS `libs $EXECS`</kbd> &nbsp; # This copies the executables and their library dependencies into rt.</li>
       <li><kbd>sudo scripts/trycompile</kbd> &nbsp; # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/t is produced successfully.
         <p>For libstdc++ and libm, both the static (.a) and shared (.so) versions work, but the latter make geordi respond significantly faster to requests that require linking.</p>
