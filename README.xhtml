@@ -38,6 +38,7 @@
       <li><a href='http://www.boost.org/'>Boost</a> &ge; 1.33 (Not strictly needed for the operation of geordi itself, but many prelude parts use Boost headers. Link libraries are not needed.)</li>
       <li><a href='http://www.haskell.org/ghc/'>GHC</a> &ge; 6.6.1
         <p>On Ubuntu, it is highly recommended to use GHC packages from the Ubuntu repositories. Use of haskell.org's GHC packages may result in strange "g++: Virtual timer expired" errors.</p>
+        <p>Some distributions package GHC libraries separately. If, when compiling, you get errors like “Could not find module "Control.Monad.State"”, look for separate mtl and network packages.</p>
       </li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/utf8-string-0.1'>utf8-string</a> &ge; 0.1</li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/irc-0.2.3'>irc</a> 0.2.3</li>
