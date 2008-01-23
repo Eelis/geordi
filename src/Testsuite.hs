@@ -104,8 +104,8 @@ main = do
   test "Ditto" "{ int * p = new int [3]; p[-1] = 6; delete[] p; }" $
     PrefixMatch "memory clobbered before allocated block\n"
 
-  test "Ditto" "{ int * p = new int [3]; delete[] p; delete[] p; }" $
-    PrefixMatch "block freed twice\n"
+  test "Checking global allocation/deallocation operators" "{ delete new int[3]; }" $
+    PrefixMatch "Error: Tried to apply non-array operator delete to pointer returned by new[].\n"
 
   let s = "dicekjhbagfl" in
     test "Nontrivial program (Brainfuck interpreter)" ("char program[]=\">>,[>>,]<<[[-<+<]>[>[>>]<[.[-]<[[>>+<<-]<]>>]>]<<]\",input[]=\"" ++ s ++ "\", *i=input,m[512]={},*p=m;void b(char*c){for(;*c&&*c!=']';++c){(*((p+=*c=='>')-=*c=='<')+=*c=='+') -=*c=='-';*c=='.'&&cout<<*p;if(*c==',')*p=*i++;if(*c=='['){for(++c;*p;)b(c);for(int d=0;*c!=']'||d--;++c)d+=*c=='[';}}}int main(){b(program);}") $ ExactMatch (sort s)
