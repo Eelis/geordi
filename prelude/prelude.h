@@ -1,10 +1,4 @@
 
-#define _GLIBCXX_DEBUG
-#define _GLIBCXX_DEBUG_PEDANTIC
-  // These add a few seconds compile-time on slower machines.
-
-#define _GLIBCXX_CONCEPT_CHECKS // adds approx 1 mbyte to pch
-
 #include "tracked.hpp"
 #include "using.hpp"
 #include "more_stdlib_ostreaming.hpp"
