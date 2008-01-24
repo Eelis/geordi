@@ -1,112 +1,104 @@
-
 #ifndef TRACKED_HPP
 #define TRACKED_HPP
 
 #include <iostream>
-#include <set>
-#include <map>
-#include <cstdlib>
 #include <string>
-#include <cstdio>
-#include <cassert>
-#include <utility>
+#include <boost/ref.hpp>
+
+#include "type_strings.hpp"
+#include "more_ostreaming.hpp"
 
 namespace geordi { void abort(); }
 
 namespace tracked
 {
-  namespace detail
-  {
-    extern bool muted;
-      // Does not mute errors (such as calling functions on pillaged objects).
-  }
-
-  inline void mute () { detail::muted = true; }
-  inline void unmute () { detail::muted = false; }
+  namespace detail { extern bool muted; }
+  inline void mute() { detail::muted = true; }
+  inline void unmute() { detail::muted = false; }
+    // Note: Terminal errors such as calling functions on pillaged objects are never muted.
 
   namespace detail
   {
-    typedef char name_t;
+    std::string unqualified(std::string const &);
 
-    struct Idd
+    class Root
     {
       protected:
 
-        typedef unsigned int id_t;
+        unsigned int id() const;
 
-        id_t const id;
-        name_t const name; // of the most derived class
-
-        explicit Idd (name_t);
-        Idd (Idd const &, name_t);
-
-        Idd & operator= (Idd const &);
+        Root();
+        template <typename T> explicit Root(T const &) { make_entry(); }
+        Root(Root const &);
+        Root & operator=(Root const &);
+        virtual ~Root();
 
         #ifdef __GXX_EXPERIMENTAL_CXX0X__
-          Idd (Idd &&, name_t);
-          Idd & operator= (Idd &&);
+          Root(Root &&);
+          Root & operator=(Root &&);
         #endif
 
-        virtual ~Idd ();
+        enum Status { fresh, pillaged, destructed };
+        void assert_status_below(Status, std::string const & s) const;
 
-        void assert_not_pillaged (std::string const & s) const;
-        void assert_not_destructed (std::string const & s) const;
+        template <typename T> void set_name() { entry()->name = unqualified(TYPE(T)); }
+
+        static void op_delete(void * const p, bool const array, std::size_t const s, std::string const & name);
 
       private:
 
-        enum { fresh, pillaged, destructed } status;
-
-        static id_t new_id;
-
-        struct Reg
+        struct Entry
         {
-          typedef std::map<id_t, name_t> map;
-            // This used to be a std::set<Idd const *>, but that broke when ~Reg tried to print the name and id of an Idd that was leaked and yet no longer around (for instance because it was placement-new'd into a stack-allocated buffer).
-          map s;
-          ~Reg ();
+          void const * p;
+          std::string name;
+          Status status;
+          explicit Entry(void const * const p): p(p), name("?"), status(fresh) {}
         };
 
-        static Reg reg;
+        friend std::ostream & operator<<(std::ostream & o, Entry const & e)
+        { return o << e.name << &e - &entries.front(); }
+
+        typedef std::vector<Entry> Entries;
+        static Entries entries;
+          // Invariant: If multiple entries have identical p, then all but the last have status==destructed.
+          // Invariant: Entry objects only ever exist as temporaries and in the entries variable.
+          // Keeping track of names and IDs outside of the objects themselves allows us to give nice diagnostics for operations on objects that have already perished.
+
+        void make_entry() const;
+        Entry * entry() const;
+
+        struct LeakReporter { ~LeakReporter(); };
+        static LeakReporter leakReporter;
     };
 
-    typedef std::map<std::pair<void const *, void const *>, std::set<unsigned int> > Allocations;
-    extern Allocations allocations;
-
-    struct U: virtual Idd
+    template <typename Derived, typename Base>
+    struct Noisy: Base
     {
-      U(): Idd('X') {}
-      void operator=(U const & u) { Idd::operator=(u); }
-      #ifdef __GXX_EXPERIMENTAL_CXX0X__
-        void operator=(U && u) { Idd::operator=(std::move(u)); }
-      #endif
-    };
+      static std::string const name;
 
-    template <typename Derived, typename Base, name_t Name>
-    struct T: Base
-    {
       Derived & derived_this() { return *static_cast<Derived *>(this); }
       Derived const & derived_this() const { return *static_cast<Derived *>(this); }
 
-      T (): Idd('X') { if (!muted) std::cout << ' ' << *this << "* "; }
+      Noisy() { Base::template set_name<Derived>(); if (!muted) std::cout << ' ' << *this << "* "; }
 
-      template <typename U>
-      explicit T(U const & u): Idd('X') { if (!muted) std::cout << ' ' << *this << "*(" << u << ") "; }
+      template <typename X>
+      Noisy(X const & x): Base(x)
+      { Base::template set_name<Derived>(); if (!muted) std::cout << ' ' << *this << "*(" << x << ") "; }
 
-      T (T const & t): Idd('X'), Base(t) { if (!muted) std::cout << ' ' << *this << "*(" << t << ") "; }
-
-      T & operator= (T const & t)
-      { Base::operator=(t); if (!muted) std::cout << ' ' << *this << '=' << t << ' '; return *this; }
+      Derived & operator=(Noisy const & t)
+      { Base::operator=(t); if (!muted) std::cout << ' ' << *this << '=' << t << ' '; return derived_this(); }
 
       #ifdef __GXX_EXPERIMENTAL_CXX0X__
 
         // Moves are displayed as =>, because -> and <= are operators.
 
-        T (T && t): Idd('X'), Base(std::move(t)) { if (!muted) std::cout << ' ' << t << "=>" << *this << "* "; }
+        Noisy(Noisy && n): Base(std::move<Base>(n))
+        { if (!muted) std::cout << ' ' << n << "=>" << *this << "* "; }
 
-        Derived & operator= (T && t)
+        Derived & operator=(Noisy && n)
         {
-          Base::operator=(std::move(t));
-          if (!muted) std::cout << ' ' << t << "=>" << *this << ' ';
+          Base::operator=(std::move<Base>(n));
+          if (!muted) std::cout << ' ' << n << "=>" << *this << ' ';
           return derived_this();
         }
 
@@ -114,93 +106,65 @@ namespace tracked
 
       Derived & operator++ ()
       {
-        Base::assert_not_pillaged("pre-increment");
+        Base::assert_status_below(Base::pillaged, "pre-increment");
         if (!muted) std::cout << " ++" << *this << ' ';
         return derived_this();
       }
 
       Derived operator++ (int)
       {
-        Base::assert_not_pillaged("post-increment");
+        Base::assert_status_below(Base::pillaged, "post-increment");
         Derived const r(derived_this());
         operator++(); return r;
       }
 
       void f () const
       {
-        Base::assert_not_pillaged(std::string("call ") + Name + "::f() on");
+        Base::assert_status_below(Base::pillaged, "call " + name + "::f() on");
         if (!muted) std::cout << ' ' << *this << ".f() ";
       }
 
       virtual void vf () const
       {
-        Base::assert_not_pillaged(std::string("call ") + Name + "::vf() on");
+        Base::assert_status_below(Base::pillaged, "call " + name + "::vf() on");
         if (!muted) std::cout << ' ' << *this << ".vf() ";
       }
 
-      virtual ~T () = 0;
+      virtual ~Noisy() = 0;
 
-      // normal new:
       void * operator new (std::size_t const s) { return op_new(s, false, ::operator new(s)); }
-      void * operator new[] (std::size_t const s) { return op_new(s, true, ::operator new(s)); }
+      void * operator new[] (std::size_t const s) { return op_new(s, true, ::operator new[](s)); }
 
-      // placement new:
       void * operator new (std::size_t const, void * const p) throw () { return p; }
       void * operator new[] (std::size_t const, void * const p) throw () { return p; }
 
-      // nothrow new:
       void * operator new (std::size_t const s, std::nothrow_t const & t) throw ()
-      { return op_new(s, false, ::operator new (s, t)); }
+      { return op_new(s, false, ::operator new(s, t)); }
       void * operator new[] (std::size_t const s, std::nothrow_t const & t) throw ()
-      { return op_new(s, true, ::operator new (s, t)); }
+      { return op_new(s, true, ::operator new[](s, t)); }
 
-      void operator delete (void * const p) throw () { op_delete(p, false); }
-      void operator delete[] (void * const p) throw () { op_delete(p, true); }
+      void operator delete (void * const p, std::size_t const s) throw ()
+      { Base::op_delete(p, false, s, name); }
+      void operator delete[] (void * const p, std::size_t const s) throw ()
+      { Base::op_delete(p, true, s, name); }
 
       private:
 
-        static void * op_new (std::size_t const s, bool const array, void * const r)
+        static void * op_new(std::size_t const s, bool const array, void * const r)
         {
           if (!r) return 0;
-          allocations.insert(std::make_pair(std::make_pair(r, static_cast<char *>(r) + s), std::set<unsigned int>()));
-          if (!muted) std::cout << " new(" << Name << (array ? "[]" : "") << ") ";
+          if (!muted) std::cout << " new(" << name << (array ? "[]" : "") << ") ";
           return r;
         }
 
-        static void op_delete (void * const p, bool const array)
-        {
-          Allocations::iterator i = allocations.begin();
-          for (; i != allocations.end(); ++i) if (i->first.first == p) break;
-          if (i == allocations.end()) {
-            std::cout << " Error: Tried to delete" << (array ? "[]" : "") << " pointer not pointing to valid allocation.";
-            geordi::abort();
-          }
-
-          if (!muted)
-          {
-            std::set<unsigned int> const & ids (i->second);
-            std::cout << " delete";
-            if (array) {
-              typename std::set<unsigned int>::const_iterator b = ids.begin(), e = ids.end();
-              std::cout << '[';
-              if (b != e) { std::cout << Name << *b; while (++b != e) std::cout << ',' << Name << *b; }
-              std::cout << ']';
-            } else {
-              assert(ids.size() == 1);
-              std::cout << '(' << Name << *(ids.begin()) << ')';
-            }
-            std::cout << ' ';
-          }
-
-          allocations.erase(i);
-          ::operator delete(p);
-        }
-
-        friend std::ostream & operator<< (std::ostream & o, T const & t) { return o << Name << t.id; }
+        friend std::ostream & operator<<(std::ostream & o, Noisy const & n) { return o << name << n.id(); }
     };
 
-    template <typename Derived, typename Base, name_t Name>
-    T<Derived, Base, Name>::~T() { if (!muted) std::cout << ' ' << *this << "~ "; }
+    template <typename Derived, typename Base>
+    std::string const Noisy<Derived, Base>::name(unqualified(TYPE(Derived)));
+
+    template <typename Derived, typename Base>
+    Noisy<Derived, Base>::~Noisy() { if (!muted) std::cout << ' ' << *this << "~ "; }
 
     /* mute/unmute allow us to suppress boring messages that are not relevant to the issue under consideration. Their use can be a bit tedious though. If we only want to get messages for a few statements inside a statement block, we have to do something like:
 
@@ -231,16 +195,20 @@ namespace tracked
   #define TRACK \
     if(::tracked::detail::focus_t<void> const & tracked_detail_focus = ::tracked::detail::focus_t<void>()) ; else
 
-  struct B: private virtual detail::Idd, detail::T<B, detail::U, 'B'>
+  // For B and D below, the implicitly declared/defined default ctor, copy ctor, assignment operator, and dtor are all symantically correct, but defining them ourselves gives us precious separate compilation. This is also the primary reason why B and D are not simply typedefs for detail::Noisy<detail::Root, 'B'> and detail::Noisy<B, 'D'>. Another problem with such typedefs is that b.~B() does not work.
+
+  struct B: detail::Noisy<B, detail::Root>
   {
-    typedef detail::T<B, detail::U, 'B'> Base;
+    typedef detail::Noisy<B, detail::Root> Base;
 
     B();
     B(B const &);
     explicit B(int);
     explicit B(char);
     explicit B(std::string const &);
-      // We don't use a template because then we'd lose precious separate compilation.
+      // We don't use a template for these because then we'd lose precious separate compilation.
+    B & operator=(B const &);
+    ~B();
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       B(B &&);
@@ -248,23 +216,23 @@ namespace tracked
     #endif
   };
 
-  struct D: private virtual detail::Idd, detail::T<D, B, 'D'>
+  struct D: detail::Noisy<D, B>
   {
-    typedef detail::T<D, B, 'D'> Base;
+    typedef detail::Noisy<D, B> Base;
 
     D();
-    D(D const & d);
+    D(D const &);
     explicit D(int);
     explicit D(char);
     explicit D(std::string const &);
+    D & operator=(D const &);
+    ~D();
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       D(D &&);
       D & operator=(D &&);
     #endif
   };
-
-  // B and D used to be mere typedefs for detail::T<detail::Idd, 'B'> and detail::T<B, 'D'> (back when T did not yet use the CRTP). However, with that approach, b.~B() does not work.
 
   #ifdef __GXX_EXPERIMENTAL_CXX0X__
 

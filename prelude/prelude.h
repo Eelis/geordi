@@ -1,7 +1,7 @@
 
 #include "tracked.hpp"
 #include "using.hpp"
-#include "more_stdlib_ostreaming.hpp"
+#include "more_ostreaming.hpp"
 #include "type_strings.hpp"
 #include "delimited_ostream.hpp"
 #include "bin_iomanip.hpp"

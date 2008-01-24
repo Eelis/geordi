@@ -1,6 +1,6 @@
 
-#ifndef MORE_STDLIB_OSTREAMING_HPP
-#define MORE_STDLIB_OSTREAMING_HPP
+#ifndef MORE_OSTREAMING_HPP
+#define MORE_OSTREAMING_HPP
 
 #include <ostream>
 #include <valarray>
@@ -8,6 +8,14 @@
 #include <boost/range.hpp>
 #include <boost/type_traits/is_same.hpp>
 #include <boost/utility/enable_if.hpp>
+#include <boost/ref.hpp>
+
+namespace boost
+{
+  template <typename C, typename Tr, typename T>
+  std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, boost::reference_wrapper<T> const & rw)
+  { T & r(rw); return o << r; }
+}
 
 template <typename C, typename Tr, typename A, typename B>
 std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::pair<A, B> const & p)
@@ -18,7 +26,7 @@ std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::pair
   #include <tr1/tuple>
   #include <tuple>
 
-  namespace more_stdlib_ostreaming_detail
+  namespace more_ostreaming_detail
   {
     template <int O>
     struct tuple_printer
@@ -48,15 +56,15 @@ std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::pair
 
   template <typename C, typename Tr, typename... P>
   std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::tr1::tuple<P...> const & t)
-  { o << '('; more_stdlib_ostreaming_detail::tuple_printer<sizeof...(P)>::print(o, t); return o << ')'; }
+  { o << '('; more_ostreaming_detail::tuple_printer<sizeof...(P)>::print(o, t); return o << ')'; }
 
   template <typename C, typename Tr, typename... P>
   std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::tuple<P...> const & t)
-  { o << '('; more_stdlib_ostreaming_detail::tuple_printer<sizeof...(P)>::print(o, t); return o << ')'; }
+  { o << '('; more_ostreaming_detail::tuple_printer<sizeof...(P)>::print(o, t); return o << ')'; }
 
 #endif
 
-namespace more_stdlib_ostreaming_detail
+namespace more_ostreaming_detail
 {
   template <typename C, typename Tr, typename Range>
   void print_range (std::basic_ostream<C, Tr> & o, Range const & r)
@@ -71,9 +79,9 @@ namespace more_stdlib_ostreaming_detail
 }
 
 template <typename C, typename Tr, typename R>
-typename more_stdlib_ostreaming_detail::snd<typename R::iterator, std::basic_ostream<C, Tr> &>::type
+typename more_ostreaming_detail::snd<typename R::iterator, std::basic_ostream<C, Tr> &>::type
   operator<<(std::basic_ostream<C, Tr> & o, R const & r)
-{ more_stdlib_ostreaming_detail::print_range(o, r); return o; }
+{ more_ostreaming_detail::print_range(o, r); return o; }
 
 // Since we defined our generic operator<< for ranges in the global namespace, boost::lexical_cast won't find it when used on range types defined in namespaces other than the global namespace. For now, our quick fix for standard library containers is the following:
 
@@ -82,7 +90,7 @@ namespace std { using ::operator<<; }
 template <typename C, typename Tr, typename T, size_t N>
 typename boost::disable_if<boost::is_same<T, char>, std::basic_ostream<C, Tr> &>::type
   operator<<(std::basic_ostream<C, Tr> & o, T const (& a) [N])
-{ more_stdlib_ostreaming_detail::print_range(o, a); return o; }
+{ more_ostreaming_detail::print_range(o, a); return o; }
 
 namespace std
 {
@@ -97,7 +105,7 @@ namespace std
 
 #endif // header guard
 
-#ifdef MORE_STDLIB_OSTREAMING_TEST
+#ifdef MORE_OSTREAMING_TEST
 
 #include <vector>
 #include <set>
