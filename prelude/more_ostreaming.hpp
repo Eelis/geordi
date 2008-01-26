@@ -9,12 +9,17 @@
 #include <boost/type_traits/is_same.hpp>
 #include <boost/utility/enable_if.hpp>
 #include <boost/ref.hpp>
+#include <boost/optional.hpp>
 
 namespace boost
 {
   template <typename C, typename Tr, typename T>
   std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, boost::reference_wrapper<T> const & rw)
   { T & r(rw); return o << r; }
+
+  template <typename C, typename Tr, typename T>
+  std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, boost::optional<T> const & x)
+  { return x ? (o << *x) : (o << "none"); }
 }
 
 template <typename C, typename Tr, typename A, typename B>
