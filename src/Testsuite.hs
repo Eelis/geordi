@@ -95,9 +95,6 @@ main = do
   test "System call interception" "<< fork()" $
     PrefixMatch "Disallowed system call: "
 
-  test "libstdc++ debug mode" "{ vector<int> s (3); cout << *(s.begin() + 4); }" $
-    ExactMatch "attempt to advance a dereferenceable (start-of-sequence) iterator 4 steps, which falls outside its valid range."
-
   test "-mcheck diagnostic" "{ int * p = new int [3]; p[3] = 6; delete[] p; }" $
     PrefixMatch "memory clobbered past end of allocated block\n"
 
