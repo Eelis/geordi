@@ -8,8 +8,7 @@ import Data.Maybe (listToMaybe, mapMaybe)
 import Data.List (sortBy)
 import Data.Char (toUpper, isSpace)
 import Control.Exception (catch, bracket, evaluate)
-import Control.Monad.State (MonadState, ap, modify)
-import Control.Applicative (Applicative(..))
+import Control.Monad.State (MonadState, modify)
 import Control.Monad.Instances ()
 import Control.Parallel.Strategies (NFData, rnf)
 import System.Posix.Types (Fd(..))
@@ -21,10 +20,12 @@ full_evaluate :: NFData a => a -> IO a
 full_evaluate x = do () <- evaluate (rnf x); return x
   -- evaluate only evaluates up to WHNF.
 
+readFileNow :: FilePath -> IO String
+readFileNow f = readFile f >>= full_evaluate
+  -- Useful when, for example, one needs to read from a file before performing a chroot after which the file is no longer accessible.
+
 (.) :: Functor f => (a -> b) -> f a -> f b
 (.) = fmap
-
-instance (Monad m, Functor m) => Applicative m where pure = return; (<*>) = ap
 
 forever :: Monad m => m a -> m b
 forever x = x >> forever x

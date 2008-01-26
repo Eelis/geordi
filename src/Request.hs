@@ -4,6 +4,7 @@ import qualified EvalCxx
 import qualified System.Directory
 
 import Control.Exception ()
+import Control.Applicative ((<*>))
 import Data.Char (isPrint)
 import Control.Monad.Error ()
 import Text.ParserCombinators.Parsec (parse, getInput, (<|>), oneOf, try, string, lookAhead, choice, skipMany1, space)
@@ -76,9 +77,8 @@ jail = do
 prepare_evaluator :: IO (String -> IO String)
 prepare_evaluator = do
   EvalCxx.cap_fds
-  gxx : flags <- words . (full_evaluate =<< readFile "compile-config")
-    -- readFile would fail after the chroot, hence full_evaluate.
+  gxx : flags <- (words .) $ (++) . readFileNow "compile-config" <*> readFileNow "link-config"
   jail
-  return $ either return ((filter (isPrint .||. (== '\n')) . show .) . uncurry (EvalCxx.evaluate gxx (["prelude.a", "-lmcheck"] ++ flags))) . parse_request
-    -- filtering using isPrint works properly because (1) EvalCxx.evaluate returns a proper Unicode String, not a load of bytes; and (2) to print filtered strings we will use System.IO.UTF8's hPutStrLn which properly UTF-8 encodes the filtered String.
+  return $ either return ((filter (isPrint .||. (== '\n')) . show .) . uncurry (EvalCxx.evaluate gxx flags)) . parse_request
+    -- filtering using isPrint works properly because (1) EvalCxx.evaluate returns a proper Unicode String, not a load of bytes; and (2) to print filtered strings we will use System.IO.UTF8's hPutStrLn which properly UTF-8-encodes the filtered String.
     -- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.

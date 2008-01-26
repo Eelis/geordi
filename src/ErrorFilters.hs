@@ -2,18 +2,25 @@
 
 module ErrorFilters (cc1plus, as, ld, prog) where
 
-import Control.Monad (liftM2)
+import Control.Monad (liftM2, ap)
 import Text.Regex (matchRegex, mkRegex, subRegex)
 import Data.List (intersperse)
 import Data.Char (isAlphaNum)
 import Text.ParserCombinators.Parsec
   (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, anyChar, noneOf, option, count, CharParser, notFollowedBy)
+import Text.ParserCombinators.Parsec.Prim (GenParser)
 import Text.ParserCombinators.Parsec.Language (haskell)
 import Text.ParserCombinators.Parsec.Token (charLiteral, stringLiteral)
-import Control.Applicative (Applicative, (<*), (<*>))
+import Control.Applicative (Applicative(..), (<*))
 
 import Util
 import Prelude hiding (catch, (.))
+
+instance Applicative (Text.ParserCombinators.Parsec.Prim.GenParser Char st) where
+  pure = return; (<*>) = ap
+
+-- Using the following more general instance causes overlapping instance problems elsewhere:
+--   instance (Monad m, Functor m) => Applicative m where pure = return; (<*>) = ap
 
 as, ld, cc1plus, prog :: String -> String
 
