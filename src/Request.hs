@@ -51,7 +51,7 @@ parse_request req = do
   let
     opt = (`elem` opts)
     code = unlines $
-      ["#include \"prelude.h\""] ++
+      ["#include \"prelude.hpp\""] ++
       (if opt Terse then ["#include \"terse.hpp\""] else []) ++
       case () of
         ()| opt Help -> [wrapPrint "help"]

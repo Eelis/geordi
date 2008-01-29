@@ -6,5 +6,5 @@ $GXX -c *.cpp
 cd ..
 rm -f rt/prelude.a
 ar -rsc rt/prelude.a prelude/*.o
-$GXX -c prelude/prelude.h -o rt/prelude.h.gch
-chmod 644 rt/prelude.a rt/prelude.h.gch
+$GXX -c -x c++-header prelude/prelude.hpp -o rt/prelude.hpp.gch
+chmod 644 rt/prelude.a rt/prelude.hpp.gch
