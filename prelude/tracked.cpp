@@ -1,9 +1,11 @@
-
 #include "tracked.hpp"
-
+#include <vector>
 #include <cassert>
+#include <boost/implicit_cast.hpp>
+#include <boost/ref.hpp>
+#include "more_ostreaming.hpp"
 
-namespace geordi { void abort (); }
+namespace geordi { void abort(); }
 
 namespace tracked
 {
@@ -11,41 +13,36 @@ namespace tracked
   {
     bool muted = false;
 
-    std::string unqualified(std::string const & s)
-    {
-      std::string::size_type const i = s.find_last_of(":");
-      if (i == std::string::npos) return s;
-      return s.substr(i + 1);
+    enum Status { fresh, pillaged, destructed };
+
+    struct Entry {
+      Tracked const * p;
+      char const * name;
+      Status status;
+    };
+
+    typedef std::vector<Entry> Entries;
+    Entries entries;
+      // Keeping track of Trackeds outside of the objects themselves allows us to give nice diagnostics for operations on objects that have already perished.
+      // Invariant: If multiple entries have identical p, then all but the last have status==destructed.
+
+    std::ostream & operator<<(std::ostream & o, Entry const & e)
+    { return o << e.name << &e - &entries.front(); }
+
+    Entry * entry(Tracked const * const r) {
+      for (Entries::reverse_iterator i(entries.rbegin()); i != entries.rend(); ++i) if (i->p == r) return &*i;
+      return 0;
     }
 
-    void Root::op_delete (void * const p, bool const array, std::size_t const s, std::string const & name)
-    {
-      if (array) ::operator delete[](p);
-      else ::operator delete(p);
-      if (muted) return;
-      std::vector<boost::reference_wrapper<Entry const> > v;
-      for (Entries::const_iterator j = entries.begin(); j != entries.end(); ++j)
-        if (p <= j->p && j->p <= static_cast<char *>(p) + s) v.push_back(boost::cref(*j));
-      if (array) std::cout << " delete" << v << ' ';
-      else { assert(v.size() == 1); std::cout << " delete(" << v.front() << ") "; }
+    void make_entry(Tracked const * const r) {
+      if (Entry * const e = entry(r))
+        if (e->status != destructed) { std::cout << "Error: Leaked: " << *e; geordi::abort(); }
+      Entry const e = { r, "?", fresh };
+      entries.push_back(e);
     }
 
-    Root::Root() { make_entry(); }
-
-    Root::Root(Root const & i) { make_entry(); i.assert_status_below(pillaged, "copy"); }
-
-    Root & Root::operator=(Root const & r)
-    {
-      assert_status_below(destructed, "assign to");
-      r.assert_status_below(pillaged, "assign from");
-      entry()->status = fresh;
-      return *this;
-    }
-
-    void Root::assert_status_below(Status const st, std::string const & s) const
-    {
-      if (Entry * const e = entry())
-      {
+    void assert_status_below(Tracked const * const r, Status const st, std::string const & s) {
+      if (Entry * const e = entry(r)) {
         if (e->status < st) return;
         std::cout << " Error: Tried to " << s << (e->status == pillaged ? " pillaged " : " destructed ") << *e << '.';
         geordi::abort();
@@ -53,81 +50,162 @@ namespace tracked
       else { std::cout << " Error: Tried to " << s << " non-existent object."; geordi::abort(); }
     }
 
+    void * op_new(std::size_t const s, bool const array, void * const r, char const * const name) {
+      if (!r) return 0;
+      if (!muted) std::cout << " new(" << name << (array ? "[]" : "") << ") ";
+      return r;
+    }
+
+    void op_delete(void * const p, bool const array, std::size_t const s) {
+      if (array) ::operator delete[](p);
+      else ::operator delete(p);
+      if (muted) return;
+      std::vector<boost::reference_wrapper<Entry const> > v;
+      for (Entries::const_iterator j = entries.begin(); j != entries.end(); ++j)
+        if (p <= j->p && boost::implicit_cast<void const *>(j->p) <= static_cast<char *>(p) + s)
+          v.push_back(boost::cref(*j));
+      if (array) std::cout << " delete" << v << ' ';
+      else { assert(v.size() == 1); std::cout << " delete(" << v.front() << ") "; }
+    }
+
+    void Tracked::set_name(char const * const s) const { entry(this)->name = s; }
+
+    Tracked::Tracked() { make_entry(this); }
+
+    Tracked::Tracked(Tracked const & i) { make_entry(this); assert_status_below(&i, pillaged, "copy"); }
+
+    void Tracked::operator=(Tracked const & r) {
+      assert_status_below(this, destructed, "assign to");
+      assert_status_below(&r, pillaged, "assign from");
+      entry(this)->status = fresh;
+    }
+
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
 
-      Root::Root(Root && r)
-      { make_entry(); r.assert_status_below(pillaged, "move"); r.entry()->status = pillaged; }
+      Tracked::Tracked(Tracked && r)
+      { make_entry(this); assert_status_below(&r, pillaged, "move"); entry(&r)->status = pillaged; }
 
-      Root & Root::operator=(Root && r)
-      {
-        assert_status_below(destructed, "move-assign to");
-        r.assert_status_below(pillaged, "move");
-        entry()->status = fresh;
-        r.entry()->status = pillaged;
-        return *this;
+      void Tracked::operator=(Tracked && r) {
+        assert_status_below(this, destructed, "move-assign to");
+        assert_status_below(&r, pillaged, "move");
+        entry(this)->status = fresh;
+        entry(&r)->status = pillaged;
       }
 
     #endif
 
-    Root::~Root () { assert_status_below(destructed, "re-destruct"); entry()->status = destructed; }
+    Tracked::~Tracked()
+    { assert_status_below(this, destructed, "re-destruct"); entry(this)->status = destructed; }
 
-    Root::Entries Root::entries;
-    Root::LeakReporter Root::leakReporter; // Must come after entries, so it will be destructed first.
+    struct LeakReporter {
+      ~LeakReporter() {
+        std::vector<boost::reference_wrapper<Entry const> > v;
+        for (Entries::const_iterator i = entries.begin(); i != entries.end(); ++i)
+          if (i->status != destructed) v.push_back(boost::cref(*i));
+        if (!v.empty()) { std::cout << " Leaked: " << v; geordi::abort(); }
+      }
+    } leakReporter; // Must come after entries, so it will be destructed first.
 
-    void Root::make_entry() const
-    {
-      if (Entry * const e = entry())
-        if (e->status != destructed) { std::cout << "Error: Leaked: " << *e; geordi::abort(); }
-      entries.push_back(Entry(this));
-    }
-
-    Root::Entry * Root::entry() const
-    {
-      for (Entries::reverse_iterator i(entries.rbegin()); i != entries.rend(); ++i)
-        if (i->p == this) return &*i;
-      return 0;
-    }
-
-    unsigned int Root::id() const { return entry() - &entries.front(); }
-
-    Root::LeakReporter::~LeakReporter()
-    {
-      std::vector<boost::reference_wrapper<Entry const> > v;
-      for (Entries::const_iterator i = entries.begin(); i != entries.end(); ++i)
-        if (i->status != destructed) v.push_back(boost::cref(*i));
-      if (!v.empty()) { std::cout << " Leaked: " << v; geordi::abort(); }
-    }
+    unsigned int id(Tracked const & t) { return entry(&t) - &entries.front(); }
 
   } // namespace detail
 
   // B:
 
-    B::B() {}
-    B::B(B const & b): Base(b) {}
-    B::B(int const i): Base(i) {}
-    B::B(char const c): Base(c) {}
-    B::B(std::string const & s): Base(s) {}
-    B & B::operator=(B const & b) { return Base::operator=(b); }
-    B::~B() {}
+    B::B() { set_name("B"); if (!detail::muted) std::cout << ' ' << *this << "* "; }
+    B::B(B const & b): Tracked(b)
+    { set_name("B"); if (!detail::muted) std::cout << ' ' << *this << "*(" << b << ") "; }
+    B & B::operator=(B const & b)
+    { Tracked::operator=(b); if (!detail::muted) std::cout << ' ' << *this << "=" << b << ' '; return *this; }
+
+    B::~B() { if (!detail::muted) std::cout << ' ' << *this << "~ "; }
+
+    void * B::operator new(std::size_t const s)
+    { return detail::op_new(s, false, ::operator new(s), "B"); }
+    void * B::operator new[](std::size_t const s)
+    { return detail::op_new(s, true, ::operator new[](s), "B"); }
+    void * B::operator new(std::size_t const s, std::nothrow_t const & t) throw ()
+    { return detail::op_new(s, false, ::operator new(s, t), "B"); }
+    void * B::operator new[](std::size_t const s, std::nothrow_t const & t) throw ()
+    { return detail::op_new(s, true, ::operator new[](s, t), "B"); }
+    void B::operator delete(void * const p, std::size_t const s) throw ()
+    { detail::op_delete(p, false, s); }
+    void B::operator delete[](void * const p, std::size_t const s) throw ()
+    { detail::op_delete(p, true, s); }
+
+    void B::f() const {
+      assert_status_below(this, detail::pillaged, "call B::f() on");
+      if (!detail::muted) std::cout << ' ' << *this << ".f() ";
+    }
+
+    void B::vf() const {
+      assert_status_below(this, detail::pillaged, "call B::vf() on");
+      if (!detail::muted) std::cout << ' ' << *this << ".vf() ";
+    }
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      B::B(B && b): Base(std::move<Base>(b)) {}
-      B & B::operator=(B && b) { return Base::operator=(std::move<Base>(b)); }
+      B::B(B && b): Tracked(std::move<Tracked>(b))
+      { set_name("B"); if (!detail::muted) std::cout << ' ' << b << "=>" << *this << "* "; }
+      B & B::operator=(B && b) {
+        Tracked::operator=(std::move<Tracked>(b));
+        if (!detail::muted) std::cout << ' ' << b << "=>" << *this << ' ';
+        return *this;
+      }
     #endif
+
+    B & B::operator++() {
+      assert_status_below(this, detail::pillaged, "pre-increment");
+      if (!detail::muted) std::cout << " ++" << *this << ' ';
+      return *this;
+    }
+
+    B B::operator++(int) {
+      assert_status_below(this, detail::pillaged, "post-increment");
+      B const r(*this); operator++(); return r;
+    }
 
   // D:
 
-    D::D() {}
-    D::D(D const & d): Base(d) {}
-    D::D(int const i): Base(i) {}
-    D::D(char const c): Base(c) {}
-    D::D(std::string const & s): Base(s) {}
-    D & D::operator=(D const & b) { return Base::operator=(b); }
-    D::~D() {}
+    D::D() { set_name("D"); if (!detail::muted) std::cout << ' ' << *this << "* "; }
+    D::D(D const & d): B(boost::implicit_cast<B const&>(d))
+    { set_name("D"); if (!detail::muted) std::cout << ' ' << *this << "*(" << d << ") "; }
+    D & D::operator=(D const & d)
+    { B::operator=(d); if (!detail::muted) std::cout << ' ' << *this << "=" << d << ' '; return *this; }
+    D::~D() { if (!detail::muted) std::cout << ' ' << *this << "~ "; }
+
+    void * D::operator new(std::size_t const s)
+    { return detail::op_new(s, false, ::operator new(s), "D"); }
+    void * D::operator new[](std::size_t const s)
+    { return detail::op_new(s, true, ::operator new[](s), "D"); }
+    void * D::operator new(std::size_t const s, std::nothrow_t const & t) throw ()
+    { return detail::op_new(s, false, ::operator new(s, t), "D"); }
+    void * D::operator new[](std::size_t const s, std::nothrow_t const & t) throw ()
+    { return detail::op_new(s, true, ::operator new[](s, t), "D"); }
+    void D::operator delete(void * const p, std::size_t const s) throw ()
+    { detail::op_delete(p, false, s); }
+    void D::operator delete[](void * const p, std::size_t const s) throw ()
+    { detail::op_delete(p, true, s); }
+
+    void D::f() const {
+      assert_status_below(this, detail::pillaged, "call D::f() on");
+      if (!detail::muted) std::cout << ' ' << *this << ".f() ";
+    }
+
+    void D::vf() const {
+      assert_status_below(this, detail::pillaged, "call D::vf() on");
+      if (!detail::muted) std::cout << ' ' << *this << ".vf() ";
+    }
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      D::D(D && d): Base(std::move<Base>(d)) {}
-      D & D::operator=(D && d) { return Base::operator=(std::move<Base>(d)); }
+      D::D(D && d): B(std::move<B>(d))
+      { set_name("D"); if (!detail::muted) std::cout << ' ' << d << "=>" << *this << "* "; }
+      D & D::operator=(D && d) {
+        B::operator=(std::move<B>(d));
+        if (!detail::muted) std::cout << ' ' << d << "=>" << *this << ' ';
+        return *this;
+      }
     #endif
+
+  // In the above, it looks like there is a lot of code duplication for B and D. Previous implementations of these tracking facilities used clever CRTP helper templates to factor out as much of the common code as possible. However, to prevent the cleverness from showing through in gcc diagnostics, small delegators had to be put in B/D for all operations (in addition to the ones for the constructors which were always there, since constructors cannot be inherited (yet)). In the end, the hassle was not worth the gain, so I reverted back to the simple straightforward approach.
 
 } // namespace tracked
