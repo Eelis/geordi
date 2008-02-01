@@ -4,6 +4,8 @@
 #ifndef TYPE_STRINGS_HPP
 #define TYPE_STRINGS_HPP
 
+#include "lvalue_rvalue.hpp"
+
 #include <tr1/array>
 
 #include <list>

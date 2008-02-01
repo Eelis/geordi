@@ -91,5 +91,9 @@ sortByProperty f = sortBy $ \x y -> compare (f x) (f y)
 strip :: String -> String
 strip = dropWhile isSpace . reverse . dropWhile isSpace . reverse
 
+orElse :: Maybe a -> a -> a
+orElse (Just x) _ = x
+orElse Nothing x = x
+
 putNewLn :: IO ()
 putNewLn = putStrLn ""

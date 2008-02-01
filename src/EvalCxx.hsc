@@ -97,7 +97,7 @@ supervise pid = alloca $ \wstatp -> do
   wait wstatp >>= \s -> when (s /= WaitStopped sigSTOP) $ fail $ "first ptraced event not sigSTOP, but " ++ show s
   Ptrace.tracesysgood pid
   Ptrace.syscall pid
-  ($ Nothing) $ fix $ \sv current_syscall -> do
+  flip fix Nothing $ \sv current_syscall -> do
     wstat <- wait wstatp
     case wstat of
       WaitNoChild -> return ChildVanished
@@ -186,7 +186,7 @@ instance Show EvaluationResult where
     _ -> "g++: " ++ show r
 
 prog_env :: [(String, String)]
-prog_env = [("GLIBCXX_DEBUG_MESSAGE_LENGTH","0")]
+prog_env = [("GLIBCXX_DEBUG_MESSAGE_LENGTH", "0")]
 
 evaluate :: FilePath -> [String] -> String -> Bool -> IO EvaluationResult
 evaluate gxx_path gxx_flags code also_run = do

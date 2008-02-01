@@ -7,7 +7,7 @@ import Text.Regex (matchRegex, mkRegex, subRegex)
 import Data.List (intersperse)
 import Data.Char (isAlphaNum)
 import Text.ParserCombinators.Parsec
-  (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, anyChar, noneOf, option, count, CharParser, notFollowedBy)
+  (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, anyChar, noneOf, option, count, CharParser, notFollowedBy, choice)
 import Text.ParserCombinators.Parsec.Prim (GenParser)
 import Text.ParserCombinators.Parsec.Language (haskell)
 import Text.ParserCombinators.Parsec.Token (charLiteral, stringLiteral)
@@ -54,7 +54,7 @@ class ExactParse a st | a -> st where exact :: a -> CharParser st String
 
 instance ExactParse Char st where exact c = string [c]
 instance ExactParse String st where exact = string
-instance ExactParse [String] st where exact l = foldr1 (<|>) (try . string . l)
+instance ExactParse [String] st where exact l = choice (try . string . l)
 instance ExactParse (CharParser st String) st where exact = id
 instance ExactParse (CharParser st Char) st where exact = ((:[]) .)
 
@@ -167,7 +167,7 @@ with_subst (k, v) =
 -- With-substitution would fail if the following occurred in an error: "... T const ... [with T = int&]" (because it would be replaced with "... int& const ...". Fortunately, g++ places cv-qualifiers on the left side in these cases. For example, see the error message for: "template <typename T> std::string f(T const &); void g() { int i = 3; !f<int&>(i); }".
 
 cleanup_types :: String -> String
-cleanup_types s = either (const s) cleanup_types $ parse (foldr1 (<|>) (try . replacers) >>> getInput) "" s
+cleanup_types s = either (const s) cleanup_types $ parse (choice (try . replacers) >>> getInput) "" s
 
 cc1plus e = maybe e' (!!1) $ matchRegex (mkRegex "\\b(error|warning): ([^\n]*)") e'
   where e' = cleanup_types e

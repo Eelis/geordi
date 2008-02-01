@@ -51,6 +51,7 @@ typedef ::std::string str;
 #define numlim ::std::numeric_limits
 
 // Boost:
+#define opt ::boost::optional
 #define lcast ::boost::lexical_cast
 #define foreach BOOST_FOREACH
 using boost::next;

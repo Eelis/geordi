@@ -6,8 +6,6 @@ import Control.Monad.Error ()
 import Text.Regex (matchRegex, mkRegex)
 import Data.List (sort, isPrefixOf)
 
-import Prelude hiding (catch, (.))
-
 esc :: Char
 esc = '\x1b'
 
