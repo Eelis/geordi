@@ -1,14 +1,13 @@
 import qualified System.Environment
-import qualified System.Posix.Terminal
 import qualified Request
+import qualified System.Console.Readline as RL
 
-import System.IO (hFlush, stdout)
-import System.Posix.IO (stdInput)
 import Control.Monad (forM_, when)
-import System.IO.UTF8 (putStr, putStrLn)
+import Control.Monad.Fix (fix)
+import System.IO.UTF8 (putStrLn)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 
-import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
+import Prelude hiding ((.), readFile, putStrLn)
 import Util
 
 data Opt = Help deriving Eq
@@ -28,14 +27,17 @@ getArgs = do
 
 main :: IO ()
 main = do
+  RL.initialize -- Reads stuff from files not present in the chroot.
   (opts, rest) <- getArgs
   if Help `elem` opts then putStrLn help else do
-  echo <- not . System.Posix.Terminal.queryTerminal stdInput
   evalRequest <- Request.prepare_evaluator
   forM_ rest $ (>>= putStrLn) . evalRequest
-  when (rest == []) $ forever $ do
-    putStr "\ngeordi: "
-    hFlush stdout
-    l <- getLine
-    when echo $ putStrLn l
-    evalRequest l >>= putStrLn
+  when (rest == []) $ fix $ \loop -> do
+    ml <- RL.readline "geordi: "
+    case ml of
+      Nothing -> putNewLn
+      Just l -> do
+        when (l /= "") $ do
+          evalRequest l >>= putStrLn
+          RL.addHistory l
+        loop

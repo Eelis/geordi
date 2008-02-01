@@ -90,3 +90,6 @@ sortByProperty f = sortBy $ \x y -> compare (f x) (f y)
 
 strip :: String -> String
 strip = dropWhile isSpace . reverse . dropWhile isSpace . reverse
+
+putNewLn :: IO ()
+putNewLn = putStrLn ""
