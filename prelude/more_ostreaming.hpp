@@ -5,6 +5,8 @@
 #include <ostream>
 #include <valarray>
 #include <utility>
+#include <stack>
+#include <queue>
 #include <boost/range.hpp>
 #include <boost/type_traits/is_same.hpp>
 #include <boost/utility/enable_if.hpp>
@@ -106,6 +108,23 @@ namespace std
     for (std::size_t i = 0; i != v.size(); ++i) { if (i != 0) o << ", "; o << v[i]; }
     return o << ']';
   }
+
+  // WARNING: Evil stdlib implementation specific hacks ahead.
+
+  template <typename Ch, typename Tr, typename T, typename C>
+  std::basic_ostream<Ch, Tr> &
+    operator<<(std::basic_ostream<Ch, Tr> & o, std::stack<T, C> const & s)
+  { return o << reinterpret_cast<C const &>(s); }
+
+  template <typename Ch, typename Tr, typename T, typename C>
+  std::basic_ostream<Ch, Tr> &
+    operator<<(std::basic_ostream<Ch, Tr> & o, std::queue<T, C> const & q)
+  { return o << reinterpret_cast<C const &>(q); }
+
+  template <typename Ch, typename Tr, typename T, typename C, typename P>
+  std::basic_ostream<Ch, Tr> &
+    operator<<(std::basic_ostream<Ch, Tr> & o, std::priority_queue<T, C, P> const & q)
+  { return o << reinterpret_cast<C const &>(q); }
 }
 
 #endif // header guard
