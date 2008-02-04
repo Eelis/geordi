@@ -72,7 +72,7 @@
     </p>
     <ol>
       <li><kbd>chmod +x scripts/*</kbd> &nbsp; # darcs is not yet aware of executability</li>
-      <li><kbd>scripts/compile</kbd> &nbsp; # To produce the ./Bot, ./Local, and ./Testsuite executables.</li>
+      <li><kbd>scripts/compile</kbd> &nbsp; # To produce the ./geordi-bot, ./geordi-local, and ./geordi-testsuite executables.</li>
       <li>Edit the compile-config file to your liking. Also check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</li>
       <li>On Debian and Ubuntu, replace <code>group = "nobody"</code> with <code>group = "nogroup"</code> in jail-config.</li>
       <li><kbd>mkdir rt</kbd> &nbsp; # This will be our chroot root.</li>
@@ -92,14 +92,14 @@
       <li><kbd>find rt -perm -o+w</kbd> &nbsp; # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
       <li><kbd>find rt -user nobody</kbd> &nbsp; # This should find nothing.</li>
       <li><kbd>find rt -perm -4000</kbd> &nbsp; # This should find nothing either.</li>
-      <li><kbd>sudo ./Local "&lt;&lt; 'x'"</kbd> &nbsp; # If this does not print 'x', something's wrong.</li>
+      <li><kbd>sudo ./geordi-local "&lt;&lt; 'x'"</kbd> &nbsp; # If this does not print 'x', something's wrong.</li>
       <li>To get an idea of what rt could look like, look at the <a href='#exampletree'>example rt tree</a> and the <a href='#examplelisting'>example rt file list</a>.</li>
-      <li>A modest testsuite can now be run with <kbd>sudo ./Testsuite</kbd> (recommended).</li>
+      <li>A modest testsuite can now be run with <kbd>sudo ./geordi-testsuite</kbd> (recommended).</li>
     </ol>
 
     <hr/><h2><a id='locally'>2. Running geordi locally</a></h2>
-    <p><kbd>Local</kbd> lets one test snippets locally (that is, without connecting to any IRC server).</p>
-    <p>Usage:&emsp;<kbd>sudo ./Local [option]... [request]...</kbd></p>
+    <p><kbd>geordi-local</kbd> lets one test snippets locally (that is, without connecting to any IRC server).</p>
+    <p>Usage:&emsp;<kbd>sudo ./geordi-local [option]... [request]...</kbd></p>
     <p>Request syntax is described in the <a href='http://www.eelis.net/geordi/#usage'>manual</a>, except that here the nickname (and colon/comma) must be omitted.</p>
     <p>Options:</p>
     <dl>
@@ -111,7 +111,7 @@
 
     <hr/><h2><a id='ircbot'>3. Running a geordi IRC bot</a></h2>
 
-    <p>Usage:&emsp;<kbd>sudo ./Bot [option]...</kbd></p>
+    <p>Usage:&emsp;<kbd>sudo ./geordi-bot [option]...</kbd></p>
 
     <p>Options:</p>
 
@@ -135,11 +135,11 @@
 
     <h3><a id='reconnect'>Auto-reconnect</a></h3>
 
-    <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./Bot; sleep 120; done</kbd></p>
+    <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./geordi-bot; sleep 120; done</kbd></p>
 
     <h3><a id='multinetwork'>Connecting to multiple networks</a></h3>
 
-    <p>Make config files for the different networks. Then run one geordi instance for each network, passing -c arguments pointing to the respective config files. The rt directory will be safely shared.</p>
+    <p>Make config files for the different networks. Then run one geordi-bot instance for each network, passing -c arguments pointing to the respective config files. The rt directory will be safely shared.</p>
 
     <h3>Censoring phrases</h3>
 
@@ -150,7 +150,7 @@
     <hr/><h2><a id='problems'/>4. Known problems</h2>
     <ul>
       <li>
-        Because <kbd>Bot</kbd> connects as root, IRC servers that query ident may get a root response and may decide to reject the connection. (Quakenet is known to do this.)
+        Because <kbd>geordi-bot</kbd> connects as root, IRC servers that query ident may get a root response and may decide to reject the connection. (Quakenet is known to do this.)
       </li>
     </ul>
 
