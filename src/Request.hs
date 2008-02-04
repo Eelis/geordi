@@ -5,9 +5,9 @@ import qualified System.Directory
 
 import Control.Exception ()
 import Control.Applicative ((<*>))
-import Data.Char (isPrint)
+import Data.Char (isPrint, toUpper, toLower)
 import Control.Monad.Error ()
-import Text.ParserCombinators.Parsec (parse, getInput, (<|>), oneOf, try, string, lookAhead, choice, skipMany1, space)
+import Text.ParserCombinators.Parsec (parse, getInput, (<|>), oneOf, try, string, lookAhead, choice, spaces, satisfy)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt)
 import System.Posix.User
   (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
@@ -33,13 +33,14 @@ wrapPrint, wrapStmts :: String -> String
 wrapPrint = wrapPrePost "PRINT"
 wrapStmts = wrapPrePost "STATEMENTS"
 
-is_request :: String -> String -> String -> Maybe String
-is_request botnick botaltnick txt = either (const Nothing) Just (parse p "" txt)
+is_request :: [String] -> String -> Maybe String
+is_request nicks txt = either (const Nothing) Just (parse p "" txt)
   where
    p = do
-    choice $ (try . string .) $ reverse $ sortByProperty length
-      [botnick, capitalize botnick, botaltnick, capitalize botaltnick]
-    oneOf ":," <|> lookAhead (oneOf "<{") <|> (skipMany1 space >> lookAhead (oneOf "<{-"))
+    choice $ ((\(x:xs) -> try $ oneOf [toLower x, toUpper x] >> string xs) .) $
+      reverse $ sortByProperty length nicks
+    lookAhead $ satisfy (/= '-')
+    oneOf ":," <|> (spaces >> lookAhead (oneOf "<{-"))
     getInput
 
 parse_request :: Monad m => String -> m (String {- code -}, Bool {- also run -})

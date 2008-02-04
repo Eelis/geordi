@@ -6,7 +6,7 @@ import qualified Data.Monoid
 
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.List (sortBy)
-import Data.Char (toUpper, isSpace)
+import Data.Char (isSpace)
 import Control.Exception (catch, bracket, evaluate)
 import Control.Monad.State (MonadState, modify)
 import Control.Monad.Instances ()
@@ -60,10 +60,6 @@ stripPrefix _ _ = Nothing
 
 stripSuffix :: String -> String -> Maybe String
 stripSuffix x y = reverse . stripPrefix (reverse x) (reverse y)
-
-capitalize :: String -> String
-capitalize "" = ""
-capitalize (x:xs) = toUpper x : xs
 
 takeBack :: Int -> [a] -> [a]
 takeBack n = reverse . take n . reverse
