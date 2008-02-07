@@ -5,9 +5,11 @@ import qualified GHC.Read
 import qualified Data.Monoid
 
 import Data.Maybe (listToMaybe, mapMaybe)
+import Data.Monoid (Monoid(..))
 import Data.List (sortBy)
 import Data.Char (isSpace)
 import Control.Exception (catch, bracket, evaluate)
+import Control.Monad (liftM2)
 import Control.Monad.State (MonadState, modify)
 import Control.Monad.Instances ()
 import Control.Parallel.Strategies (NFData, rnf)
@@ -93,3 +95,9 @@ orElse Nothing x = x
 
 putNewLn :: IO ()
 putNewLn = putStrLn ""
+
+(<<) :: Monad m => m a -> m b -> m a
+x << y = x >>= \z -> y >> return z
+
+(>+>) :: (Monad m, Monoid n) => m n -> m n -> m n
+(>+>) = liftM2 mappend
