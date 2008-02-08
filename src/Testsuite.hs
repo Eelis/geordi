@@ -52,7 +52,7 @@ main = do
 
   test "Simple output" "<< 3" $ ExactMatch "3"
 
-  test "Stack overflow" "void f(int i) { if (i % 10000 == 0) cout << '+' << flush; f(++i); } int main () { f(0); }" $
+  test "Stack overflow" "{ f(0); } void f(int i) { if (i % 10000 == 0) cout << '+' << flush; f(++i); }" $
     RegexMatch "\\++ Segmentation fault"
 
   test "close()" "{ for(int i = 0; i != 1024; ++i) assert(i == 1 || i == 2 || close(i) == -1); }" NoOutput
@@ -82,7 +82,7 @@ main = do
 
   test "Memory limit" "{ int i = 0; while (new (nothrow) char [1 << 20]) ++i; assert(i < 250); }" NoOutput
 
-  test "Fd limit" "extern \"C\" int open (char const *, int); int main () { int i = 0; while (open(__FILE__, 0) != -1) ++i; assert(errno == EMFILE); assert(i < 50); }" NoOutput
+  test "Fd limit" "{ int i = 0; while (open(__FILE__, 0) != -1) ++i; assert(errno == EMFILE); assert(i < 50); }  extern \"C\" int open (char const *, int);" NoOutput
 
   test "File size limit" "{ ofstream f (__FILE__); string meg (1 << 20, 'x'); for (;;) { f << meg << flush; cout << '+' << flush; } }" $
     RegexMatch "\\+{1,50} File size limit exceeded$"
@@ -103,7 +103,7 @@ main = do
     PrefixMatch "Error: Tried to apply non-array operator delete to pointer returned by new[].\n"
 
   let s = "dicekjhbagfl" in
-    test "Nontrivial program (Brainfuck interpreter)" ("char program[]=\">>,[>>,]<<[[-<+<]>[>[>>]<[.[-]<[[>>+<<-]<]>>]>]<<]\",input[]=\"" ++ s ++ "\", *i=input,m[512]={},*p=m;void b(char*c){for(;*c&&*c!=']';++c){(*((p+=*c=='>')-=*c=='<')+=*c=='+') -=*c=='-';*c=='.'&&cout<<*p;if(*c==',')*p=*i++;if(*c=='['){for(++c;*p;)b(c);for(int d=0;*c!=']'||d--;++c)d+=*c=='[';}}}int main(){b(program);}") $ ExactMatch (sort s)
+    test "Nontrivial program (Brainfuck interpreter)" ("{b(program);}char program[]=\">>,[>>,]<<[[-<+<]>[>[>>]<[.[-]<[[>>+<<-]<]>>]>]<<]\",input[]=\"" ++ s ++ "\", *i=input,m[512]={},*p=m;void b(char*c){for(;*c&&*c!=']';++c){(*((p+=*c=='>')-=*c=='<')+=*c=='+') -=*c=='-';*c=='.'&&cout<<*p;if(*c==',')*p=*i++;if(*c=='['){for(++c;*p;)b(c);for(int d=0;*c!=']'||d--;++c)d+=*c=='[';}}}") $ ExactMatch (sort s)
 
   test "Compiler timeout" "-c #include __FILE__" $
     ExactMatch "g++: Timeout"

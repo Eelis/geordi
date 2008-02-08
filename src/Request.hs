@@ -7,11 +7,14 @@ import Control.Exception ()
 import Control.Applicative ((<*>))
 import Data.Char (isPrint, toUpper, toLower)
 import Control.Monad.Error ()
-import Text.ParserCombinators.Parsec (parse, getInput, (<|>), oneOf, try, string, lookAhead, choice, spaces, satisfy)
+import Text.ParserCombinators.Parsec (parse, getInput, (<|>), oneOf, try, string, lookAhead, choice, spaces, satisfy, sourceColumn, eof, GenParser)
+import Text.ParserCombinators.Parsec.Error (errorMessages, Message(..), errorPos, showErrorMessages)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt)
 import System.Posix.User
   (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
 import Sys (chroot)
+
+import qualified CxxParse as Cxx
 
 import Prelude hiding (catch, (.))
 import Util
@@ -43,7 +46,23 @@ is_request nicks txt = either (const Nothing) Just (parse p "" txt)
     oneOf ":," <|> (spaces >> lookAhead (oneOf "<{-"))
     getInput
 
-parse_request :: Monad m => String -> m (String {- code -}, Bool {- also run -})
+splitSemicolon :: Cxx.Code -> (Cxx.Code, Cxx.Code)
+splitSemicolon (Cxx.Code []) = (Cxx.Code [], Cxx.Code [])
+splitSemicolon (Cxx.Code (Cxx.Plain s : r)) | last s == ';' = (Cxx.Code [Cxx.Plain s], Cxx.Code r)
+splitSemicolon (Cxx.Code (a : r)) = (Cxx.Code $ a : x, y)
+  where (Cxx.Code x,y) = splitSemicolon (Cxx.Code r)
+
+parseOrFail :: Monad m => GenParser tok () a -> [tok] -> m a
+parseOrFail p t = either (fail . showParseError) return $ parse p "" t
+ where
+  showParseError e =
+    "column " ++ show (sourceColumn $ errorPos e) ++ ": " ++
+    concatMap (++ ". ") (tail $ lines $ showErrorMessages "or" undefined undefined "unexpected" "end of request" $ filter isUnexpMsg $ errorMessages e)
+  isUnexpMsg (SysUnExpect _) = True
+  isUnexpMsg (UnExpect _) = True
+  isUnexpMsg _ = False
+
+parse_request :: (Functor m, Monad m) => String -> m (String {- code -}, Bool {- also run -})
 parse_request req = do
   (opts, rest) <- case getOpt RequireOrder optsDesc (words req) of
     (_, _, (err:_)) -> fail err
@@ -51,16 +70,18 @@ parse_request req = do
       -- We can't use non_opts' contents, because whitespace between tokens has been lost.
   let
     opt = (`elem` opts)
-    code = unlines $
-      ["#include \"prelude.hpp\""] ++
-      (if opt Terse then ["#include \"terse.hpp\""] else []) ++
-      case () of
-        ()| opt Help -> [wrapPrint "help"]
-        ()| opt Version -> [wrapPrint $ "\"g++ (GCC) \" << __VERSION__"]
-        ()| '{':_ <- rest -> [wrapStmts rest]
-        ()| '<':'<':x <- rest -> [wrapPrint x]
-        ()| otherwise -> [rest]
+    pre = ["#include \"prelude.hpp\""] ++ if opt Terse then ["#include \"terse.hpp\""] else []
     also_run = opt Help || opt Version || not (opt CompileOnly)
+  code <- unlines . (pre ++) . case () of
+    ()| opt Help -> return [wrapPrint "help"]
+    ()| opt Version -> return [wrapPrint $ "\"g++ (GCC) \" << __VERSION__"]
+    ()| '{':_ <- rest -> do
+      Cxx.Code (Cxx.Curlies c : b) <- parseOrFail (Cxx.code << eof) rest
+      return [show (Cxx.Code b), wrapStmts (show c)]
+    ()| '<':'<':x <- rest -> do
+      (a, b) <- splitSemicolon . parseOrFail (Cxx.code << eof) x
+      return [show b, wrapPrint (show a)]
+    ()| otherwise -> return [rest]
   return (code, also_run)
 
 data JailConfig = JailConfig { user, group :: String, path :: FilePath } deriving Read
