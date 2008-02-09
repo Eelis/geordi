@@ -68,7 +68,7 @@ localReplacer x = try x <|> scan
     -- Turns a replacer that replaces X with Y into a replacer that replaces ZX with ZY for any Z.
 
 defaulter :: [String] -> Int -> ([String] -> CharParser st a) -> Replacer st
-defaulter names idx def = localReplacer $
+defaulter names idx def =
   strings names $>> string "<" $>> (count idx (cxxArg <$ char ',' << spaces) >>= \prec -> def prec >> return (concat $ intersperse ", " prec)) $>> string ">"
     where x $>> y = (x << spaces) >+> y
     -- Hides default template arguments.
@@ -90,8 +90,8 @@ tmpi n p = tmpl n (replicate p cxxArg)
 tmpls :: String -> [String] -> GenParser Char st [String]
 tmpls n u = tmpl n (string . u)
 
-replacers :: [Replacer st]
-replacers = localReplacer .
+replacer :: Replacer st
+replacer = (try . localReplacer . choice) (try .
   [ strings clutter_namespaces $> string "::" $> return ""
   , string "basic_" >> strings ioBasics <$ char '<' <$ string "char" <$ char '>'
   , string "basic_" >> ('w':) . strings ioBasics <$ char '<' <$ string "wchar_t" <$ char '>'
@@ -110,8 +110,7 @@ replacers = localReplacer .
   , tmpi "allocator" 1 >> string "::" $> name "size_type" >> return "size_t"
   , name "typename " $> return ""
       -- Shows up in assertion failures after replacements have been performed.
-  ] ++
-  [ defaulter ["list", "deque", "vector"] 1 $ tmpls "allocator"
+  , defaulter ["list", "deque", "vector"] 1 $ tmpls "allocator"
   , defaulter ["set", "multiset", "basic_stringstream", "basic_string", "basic_ostringstream", "basic_istringstream"] 2 $ \[k, _] -> tmpls "allocator" [k]
   , defaulter ["map", "multimap"] 3 $ \[k, v, _] -> tmpl "allocator" [tmpl "pair" [try (string "const " $> string k) <|> (string k $> string "const"), string v]]
   , defaulter ["set", "multiset"] 1 $ tmpls "less"
@@ -124,13 +123,11 @@ replacers = localReplacer .
       -- "int"/"long int" is what is printed for ptrdiff_t.
   , defaulter ["istream_iterator", "ostream_iterator"] 2 $ tmpls "char_traits" . tail
   , defaulter ["istream_iterator", "ostream_iterator"] 1 $ const $ string "char"
-
-  , do
-      s <- anyChar `manyTill` try (string " [with ")
-      d <- (try $ (,) . (satisfy isIdChar `manyTill` string " = ") <*> cxxArg) `sepBy` string ", "
-      char ']'
-      return $ foldr with_subst s d
-  ]
+  ]) <|> (try $ do
+    s <- anyChar `manyTill` try (string " [with ")
+    d <- (try $ (,) . (satisfy isIdChar `manyTill` string " = ") <*> cxxArg) `sepBy` string ", "
+    char ']'
+    return $ foldr with_subst s d)
 
 -- Security note: Together, the replacers above must be strongly normalizing.
 
@@ -160,7 +157,7 @@ with_subst (k, v) =
 -- With-substitution would fail if the following occurred in an error: "... T const ... [with T = int&]" (because it would be replaced with "... int& const ...". Fortunately, g++ places cv-qualifiers on the left side in these cases. For example, see the error message for: "template <typename T> std::string f(T const &); void g() { int i = 3; !f<int&>(i); }".
 
 cleanup_types :: String -> String
-cleanup_types s = either (const s) cleanup_types $ parse (choice (try . replacers) >+> getInput) "" s
+cleanup_types s = either (const s) cleanup_types $ parse (replacer >+> getInput) "" s
 
 cc1plus e = maybe e' (!!1) $ matchRegex (mkRegex "\\b(error|warning): ([^\n]*)") e'
   where e' = cleanup_types e
