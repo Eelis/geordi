@@ -12,6 +12,8 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <stack>
+#include <queue>
 #include <set>
 #include <utility>
 #include <deque>
@@ -26,6 +28,7 @@
 #include <boost/optional.hpp>
 #include <boost/utility.hpp>
 #include <boost/array.hpp>
+#include <boost/type_traits/is_same.hpp>
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
   #include <array>
@@ -374,8 +377,23 @@ namespace textual_type_descriptions
     template <typename T> struct type_desc_t<std::multiset<T> >: consonant
     { static std::string s (bool b) { return pl("multi-set", b) + " of " + many<T>(); } };
 
-    template <typename T, typename U> struct type_desc_t<std::map<T, U> >: consonant
-    { static std::string s (bool b) { return pl("map", b) + " from " + many<T>() + " to " + many<U>(); } };
+      /* Like most containers, std::map has a couple of parameters with default arguments. We only want to return a nice verbose string for specializations which use the default arguments. Naively, we might expect that to get this effect, we should simply partially specialize for type_desc_t<map<T, U> >. However, that partial specialization will not match type_desc_t<map<int const, int> >, because this is really:
+
+        type_desc_t<map<int const, int, less<int const>, ...> > (note the double-const collapse),
+
+      while the partial specialization is really for:
+
+        type_desc_t<map<T, U, less<T const>, ...> >,
+
+      which doesn't match! This is why we use boost::is_same below. As far as I can see map is the only container affected because it has this double-const collapse in its default arguments. */
+
+    template <typename T, typename U, typename V, typename W>
+    struct type_desc_t<std::map<T, U, V, W> >: consonant
+    { static std::string s (bool const b) {
+        if (boost::is_same<std::map<T, U>, std::map<T, U, V, W> >::value)
+          return pl("map", b) + " from " + many<T>() + " to " + many<U>();
+        else return pl(type<std::map<T, U, V, W> >(), b);
+    } };
 
     template <typename T, typename U> struct type_desc_t<std::multimap<T, U> >: consonant
     { static std::string s (bool b) { return pl("multi-map", b) + " from " + many<T>() + " to " + many<U>(); } };
@@ -385,6 +403,15 @@ namespace textual_type_descriptions
 
     template <typename T> struct type_desc_t<std::deque<T> >: consonant
     { static std::string s (bool b) { return pl("double-ended queue", b) + " of " + many<T>(); } };
+
+    template <typename T> struct type_desc_t<std::queue<T> >: consonant
+    { static std::string s (bool b) { return pl("queue", b) + " of " + many<T>(); } };
+
+    template <typename T> struct type_desc_t<std::priority_queue<T> >: consonant
+    { static std::string s (bool b) { return pl("priority queue", b) + " of " + many<T>(); } };
+
+    template <typename T> struct type_desc_t<std::stack<T> >: consonant
+    { static std::string s (bool b) { return pl("stack", b) + " of " + many<T>(); } };
 
     // Boost
 
