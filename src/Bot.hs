@@ -95,7 +95,7 @@ on_msg eval cfg m = flip execStateT [] $ do
     IRC.Message _ "433" {- ERR_NICKNAMEINUSE -} _ -> send $ msg "NICK" [alternate_nick cfg]
     IRC.Message _ "PING" a -> msapp [msg "PONG" a]
     IRC.Message (Just (IRC.NickName fromnick _ _)) "PRIVMSG" [c, txt] ->
-      when (c `elem` chans cfg && not (fromnick `elem` blacklist cfg)) $ do
+      when (elemBy caselessStringEq c (chans cfg) && not (fromnick `elem` blacklist cfg)) $ do
       maybeM (Request.is_request [nick cfg, alternate_nick cfg] txt) $ \r -> do
       o <- lift $ take (max_msg_length cfg) . takeWhile (/= '\n') . eval r
       send $ msg "PRIVMSG" [c, if null o then no_output_msg cfg else do_censor cfg o]

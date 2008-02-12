@@ -7,7 +7,7 @@ import qualified Data.Monoid
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
 import Data.List (sortBy)
-import Data.Char (isSpace)
+import Data.Char (isSpace, isAlphaNum, toLower)
 import Control.Exception (catch, bracket, evaluate)
 import Control.Monad (liftM2)
 import Control.Monad.State (MonadState, modify)
@@ -101,3 +101,12 @@ x << y = x >>= \z -> y >> return z
 
 (>+>) :: (Monad m, Monoid n) => m n -> m n -> m n
 (>+>) = liftM2 mappend
+
+isIdChar :: Char -> Bool
+isIdChar = isAlphaNum .||. (== '_')
+
+caselessStringEq :: String -> String -> Bool
+caselessStringEq a b = (toLower . a) == (toLower . b)
+
+elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
+elemBy f x = or . (f x .)
