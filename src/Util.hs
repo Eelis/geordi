@@ -102,9 +102,6 @@ x << y = x >>= \z -> y >> return z
 (>+>) :: (Monad m, Monoid n) => m n -> m n -> m n
 (>+>) = liftM2 mappend
 
-isIdChar :: Char -> Bool
-isIdChar = isAlphaNum .||. (== '_')
-
 caselessStringEq :: String -> String -> Bool
 caselessStringEq a b = (toLower . a) == (toLower . b)
 
