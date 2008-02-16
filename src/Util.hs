@@ -3,6 +3,7 @@ module Util where
 import qualified System.Posix.IO
 import qualified GHC.Read
 import qualified Data.Monoid
+import qualified Data.Sequence as Seq
 
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
@@ -15,6 +16,7 @@ import Control.Monad.Instances ()
 import Control.Parallel.Strategies (NFData, rnf)
 import System.Posix.Types (Fd(..))
 import System.IO (Handle, hClose)
+import Data.Sequence (Seq, ViewL(..), (<|))
 
 import Prelude hiding (catch, (.))
 
@@ -107,3 +109,17 @@ caselessStringEq a b = (toLower . a) == (toLower . b)
 
 elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy f x = or . (f x .)
+
+class Queue q e | q -> e where
+  qpush :: e -> q -> q
+  qpop :: q -> Maybe (e, q)
+
+instance Queue (Seq e) e where
+  qpush = (<|)
+  qpop q = case (Seq.viewl q) of
+    Seq.EmptyL -> Nothing
+    e :< q' -> Just (e, q')
+
+qPopWhile :: Queue q e => (e -> Bool) -> q -> q
+qPopWhile p q | Just (e, q') <- qpop q, p e = qPopWhile p q'
+qPopWhile _ q = q

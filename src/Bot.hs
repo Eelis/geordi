@@ -3,6 +3,7 @@ import qualified Network.IRC as IRC
 import qualified System.Environment
 import qualified System.Posix.Env
 import qualified Request
+import qualified Data.Sequence as Seq
 
 import Network.BSD (getProtocolNumber, hostAddress, getHostByName)
 import Control.Exception (bracketOnError)
@@ -10,10 +11,13 @@ import System.IO (hGetLine, hFlush, Handle, IOMode(..))
 import Control.Monad (when)
 import Control.Monad.Error ()
 import Control.Monad.State (execStateT, lift)
+import Control.Monad.Fix (fix)
 import System.IO.UTF8 (putStr, putStrLn, hPutStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
-import Sys (setKeepAlive)
+import Sys (setKeepAlive, sleep)
 import Text.Regex (Regex, subRegex, mkRegex)
+import System.Posix.Time (epochTime)
+import Data.IORef (newIORef, readIORef, writeIORef)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Util
@@ -26,6 +30,7 @@ data BotConfig = BotConfig
   , join_trigger :: Maybe IRC.Message
       -- Defaults to RPL_WELCOME. Can be set to NickServ/cloak confirmations and such.
   , censor :: [Regex]
+  , rate_limit_messages, rate_limit_window :: Int
   } deriving Read
 
 instance Read Regex where
@@ -59,6 +64,19 @@ msg = IRC.Message Nothing
 do_censor :: BotConfig -> String -> String
 do_censor cfg s = foldr (\r t -> subRegex r t "<censored>") s (censor cfg)
 
+
+rate_limiter :: Int -> Int -> IO (IO ())
+rate_limiter bound window = do
+  r <- newIORef Seq.empty
+  return $ fix $ \loop -> do
+    now <- epochTime
+    hist <- discard_until (now - fromIntegral window) `fmap` readIORef r
+    if Seq.length hist < bound
+      then writeIORef r (qpush now hist)
+      else writeIORef r hist >> sleep 1 >> loop
+ where discard_until t = qPopWhile (< t)
+  -- Given |rl <- rate_limiter b w|, |rl| actions will sleep as required to make sure no more than b actions pass during any w second time window.
+
 main :: IO ()
 main = do
   opts <- getArgs
@@ -71,7 +89,8 @@ main = do
   System.Posix.Env.setEnv "LC_ALL" "C" True
     -- Otherwise compiler diagnostics may use non-ASCII characters (e.g. for quotes).
   evalRequest <- Request.prepare_evaluator
-  let send m = hPutStrLn h (IRC.render m) >> hFlush h
+  limit_rate <- rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
+  let send m = limit_rate >> hPutStrLn h (IRC.render m) >> hFlush h
   send $ msg "NICK" [nick cfg]
   send $ msg "USER" [nick cfg, "0", "*", nick cfg]
   forever $ do

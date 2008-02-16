@@ -12,7 +12,7 @@ import System.Exit (ExitCode(..))
 import System.Posix (Fd(..), CPid, ByteCount, Signal)
 import Util ((.))
 import Foreign.C
-  (CInt, CLong, CString, getErrno, eCHILD, throwErrno, withCString, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen)
+  (CInt, CUInt, CLong, CString, getErrno, eCHILD, throwErrno, withCString, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen)
 
 #include <syscall.h>
 #include <sys/ptrace.h>
@@ -35,6 +35,8 @@ foreign import ccall unsafe "__hsunix_wifsignaled" c_WIFSIGNALED :: CInt -> CInt
 foreign import ccall unsafe "__hsunix_wtermsig" c_WTERMSIG :: CInt -> CInt
 foreign import ccall unsafe "__hsunix_wifstopped" c_WIFSTOPPED :: CInt -> CInt
 foreign import ccall unsafe "__hsunix_wstopsig" c_WSTOPSIG :: CInt -> CInt
+
+foreign import ccall unsafe "unistd.h sleep" sleep :: CUInt -> IO ()
 
 foreign import ccall unsafe "string.h strsignal" c_strsignal :: CInt -> IO CString
 
