@@ -35,6 +35,7 @@
   #include <tuple>
   #include <unordered_set>
   #include <unordered_map>
+  #include <type_traits>
   #include "unique_ptr.hpp"
   #include "tlists.hpp"
 #endif
@@ -59,7 +60,7 @@ std::string type ()
   // Note: Depends on specific string format used by __PRETTY_FUNCTION__.
   // Todo: Consider __func__ in C++0x.
 
-// Note: Since type relies on passing the type as a template argument, it will not work for locally defined types.
+// Note: Since type relies on passing the type as a template argument, it will not work for locally defined types (in C++03).
 
 #define TYPEDEF_TYPE(n) template <> inline std::string type<std::n> () { return #n; }
 
@@ -360,8 +361,6 @@ namespace textual_type_descriptions
 
     // C++03
 
-    // Todo: Add allocator/predicate parameters where appropriate.
-
     template <typename T, typename A> struct type_desc_t<std::vector<T, A> >: consonant
     { static std::string s (bool b) { return pl("vector", b) + " of " + many<T>(); } };
 
@@ -475,23 +474,65 @@ template <typename T> std::string type_desc (bool const plural)
 // The following macros are variadic so that things like TYPE(pair<int, bool>) and ETYPE(pair<bool, int>(true, 3)) work (note the commas).
 // The E* variants are necessary because decltype does not allow type arguments, and eventually we will want to remove the __typeof__ implementation.
 
-} // type_strings_detail
-
 #define TYPEID_NAME(...) (::type_strings_detail::cxa_demangle(typeid(__VA_ARGS__).name()))
 #define TYPE(...) (::type_strings_detail::type<__VA_ARGS__>())
 #define TYPE_DESC(...) (::type_strings_detail::type_desc<__VA_ARGS__>())
 
+/* Regarding ETYPE(_DESC) semantics:
+
+  We want ETYPE(_DESC) to return (a string representation of) "the type of the expression". It is not immediately clear what this means. For example, is there a difference between an expression having type int and one having type int&&? And is decltype not exactly what we want? Answers come from chapter 5, paragraphs 5 and 6 (in n2521), which state respectively:
+
+    If an expression initially has the type "lvalue reference to T", the type is adjusted to T prior to any further analysis, the expression designates the object or function denoted by the lvalue reference, and the expression is an lvalue.
+
+    If an expression initially has the type "rvalue reference to T", the type is adjusted to T prior to any further analysis, and the expression designates the object or function denoted by the rvalue reference. If the expression is the result of calling a function, whether implicitly or explicitly, it is an rvalue; otherwise, it is an lvalue.
+
+  Here, we immediately see two important points, on which we will base our ETYPE(_DESC) semantics. First, for all intents and purposes (in particular reference binding), expressions never have reference types. Second, expressions are instead classified as lvalues or rvalues.
+
+  We currently have ETYPE(_DESC) indicate lvalue/rvalue-ness by explicit "lvalue "/"rvalue " prefixes. A nicer approach would be to show lvalue Ts as T&, and show rvalue Ts as plain T. However, there is no room in this rather terse "encoding" to signal the ambiguity that arises when our C++03 lvalue/rvalue tests cannot determine the classification (see lvalue_rvalue.hpp), whereas with the explicit prefix approach we can simply omit any prefix in such cases. Hence, until C++0x mode (in which there is no ambiguity because our tests are conclusive) becomes the default, we stick with explicit prefixes.
+
+  Note that our first question regarding the differences between an expression of type int and one of type int&& was ambiguous, because the answer depends on (1) whether the expression of type int denotes and lvalue or an rvalue, and (2) whether the expression of type int&& is the result of calling a function.
+
+  Furthermore, It is now also easy to see that decltype is in fact /not/ exactly what we want, because it does not include sufficient lvalue/rvalue information: decltype(3) and decltype(i) both denote the type int when i has been declared as int i;, while the former is an rvalue and the latter an lvalue.
+
+*/
+
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
-  #define ETYPE(...) ((IS_LVALUE(__VA_ARGS__) ? "lvalue " : "rvalue ") + ::type_strings_detail::type<decltype(__VA_ARGS__)>())
-  #define ETYPE_DESC(...) (::type_strings_detail::type_desc<decltype(__VA_ARGS__)>())
+
+  template <typename T> std::string etype()
+  { return type<typename std::remove_reference<T>::type>(); }
+
+  template <typename T> std::string etype_desc()
+  { return type_desc<typename std::remove_reference<T>::type>(); }
+
+  // We can't do the remove_reference in the ETYPE(_DESC) macros because there would be no correct choice for whether or not to use typename, since whether std::remove_reference<T>::type is a dependent type depends on the context. Hence the separate etype(_desc) functions.
+
+  #define ETYPE(...) \
+    ((IS_LVALUE(__VA_ARGS__) ? "lvalue " : "rvalue ") + \
+    ::type_strings_detail::etype<decltype(__VA_ARGS__)>())
+
+  #define ETYPE_DESC(...) \
+    ((IS_LVALUE(__VA_ARGS__) ? "lvalue " : "rvalue ") + \
+    ::type_strings_detail::etype_desc<decltype(__VA_ARGS__)>())
+
 #else
-  #define ETYPE(...) ( \
-    (MAY_BE_LVALUE(__VA_ARGS__) ? "" : "rvalue ") + \
-    std::string(MAY_BE_RVALUE(__VA_ARGS__) ? "" : "lvalue ") + \
-     ::type_strings_detail::type<__typeof__((__VA_ARGS__))>())
-  #define ETYPE_DESC(...) (::type_strings_detail::type_desc<__typeof__((__VA_ARGS__))>())
+
+  #define TYPE_STRINGS_DETAIL_LVALUE_RVALUE_TAG(...) \
+    (MAY_BE_LVALUE(__VA_ARGS__) \
+      ? (MAY_BE_RVALUE(__VA_ARGS__) ? "" : "lvalue ") \
+      : "rvalue ")
+
+  #define ETYPE(...) \
+    (TYPE_STRINGS_DETAIL_LVALUE_RVALUE_TAG(__VA_ARGS__) + \
+    ::type_strings_detail::type<__typeof__((__VA_ARGS__))>())
+
+  #define ETYPE_DESC(...) \
+    (TYPE_STRINGS_DETAIL_LVALUE_RVALUE_TAG(__VA_ARGS__) + \
+    ::type_strings_detail::type_desc<__typeof__((__VA_ARGS__))>())
+
+  // The double parentheses around __VA_ARGS__ in the __typeof__ expressions are a workaround for GCC bug 11701.
+
 #endif
 
-// The double parentheses around __VA_ARGS__ above are a workaround for GCC bug 11701.
+} // type_strings_detail
 
 #endif // header guard
