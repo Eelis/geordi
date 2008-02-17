@@ -51,7 +51,7 @@ In our code, M is close_range_end.
 
 -}
 
-module EvalCxx (evaluate, EvaluationResult(..), cap_fds) where
+module EvalCxx (evaluator, EvaluationResult(..)) where
 
 import qualified Ptrace
 import qualified Codec.Binary.UTF8.String as UTF8
@@ -61,15 +61,19 @@ import qualified System.Directory
 import qualified System.Posix.Process (getProcessID)
 import qualified SysCalls
 import qualified System.Posix.Internals
+import qualified Data.Map as Map
 
-import Sys (wait, WaitResult(..), strsignal, syscall_off, syscall_ret, fdOfFd, nonblocking_read)
+import Sys (wait, WaitResult(..), strsignal, syscall_off, syscall_ret, fdOfFd, nonblocking_read, chroot)
 import SysCalls (SysCall(..))
+import Control.Applicative ((<*>))
 import Control.Monad (when, forM_)
 import Control.Monad.Fix (fix)
 import Foreign (alloca, (.|.), (.&.))
 import Foreign.C (CInt, CSize)
 import System.Exit (ExitCode(..))
 import Data.List ((\\))
+import System.Posix.User
+  (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
 import System.Posix
   (Signal, sigALRM, sigSTOP, sigTRAP, sigKILL, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
 
@@ -188,21 +192,51 @@ instance Show EvaluationResult where
 prog_env :: [(String, String)]
 prog_env = [("GLIBCXX_DEBUG_MESSAGE_LENGTH", "0")]
 
-evaluate :: FilePath -> [String] -> String -> Bool -> IO EvaluationResult
-evaluate gxx_path gxx_flags code also_run = do
+data JailConfig = JailConfig { user, group :: String, path :: FilePath } deriving Read
+
+jail :: IO ()
+jail = do
+  cfg <- readTypedFile "jail-config"
+  gid <- groupID . getGroupEntryForName (group cfg)
+  uid <- userID . getUserEntryForName (user cfg)
+  chroot $ path cfg
+  System.Directory.setCurrentDirectory "/"
+  setGroupID gid
+  setUserID uid
+
+data CompileConfig = CompileConfig { gxxPath :: FilePath, compileFlags, linkFlags :: [String] }
+
+readCompileConfig :: IO CompileConfig
+readCompileConfig = do
+  l <- lines . readFileNow "compile-config"
+  let m = Map.fromList $ (\s -> let (k,_:v) = span (/= '=') s in (k, read v)) . l
+  CompileConfig .
+    (Map.lookup "GXX" m) <*>
+    (words . Map.lookup "COMPILE_FLAGS" m) <*>
+    (words . Map.lookup "LINK_FLAGS" m)
+
+evaluate :: CompileConfig -> String -> Bool -> IO EvaluationResult
+evaluate cfg code also_run = do
   withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd -> do
   Flock.exclusive lock_fd
   writeFile "t.cpp" code
-  gxx ["-S", "t.cpp"] Compile $ do
+  gxx (["-S", "t.cpp"] ++ compileFlags cfg) Compile $ do
   if not also_run then return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "") else do
-  gxx ["-c", "t.s"] Assemble $ do
-  gxx ["t.o", "-o", "t"] Link $ do
+  gxx (["-c", "t.s"] ++ compileFlags cfg) Assemble $ do
+  gxx (["t.o", "-o", "t"] ++ compileFlags cfg ++ linkFlags cfg) Link $ do
   EvaluationResult Run . capture_restricted "/t" [] prog_env (resources Run)
  where
   gxx :: [String] -> Stage -> IO EvaluationResult -> IO EvaluationResult
   gxx argv stage act = do
-    cr <- capture_restricted gxx_path (argv ++ gxx_flags) [] (resources stage)
+    cr <- capture_restricted (gxxPath cfg) argv [] (resources stage)
     if supervise_result cr == Exited ExitSuccess then act else return $ EvaluationResult stage cr
+
+evaluator :: IO (String -> Bool -> IO EvaluationResult)
+evaluator = do
+  cap_fds
+  cfg <- readCompileConfig
+  jail
+  return $ evaluate cfg
 
 ------------- Config (or at least things that are likely more prone to per-site modification):
 

@@ -1,10 +1,10 @@
 #!/bin/sh
 set -eu
-GXX=`cat compile-config`
+source compile-config
 cd prelude
-$GXX -c *.cpp
+$GXX $COMPILE_FLAGS -c *.cpp
 cd ..
 rm -f rt/prelude.a
 ar -rsc rt/prelude.a prelude/*.o
-$GXX -c -x c++-header prelude/prelude.hpp -o rt/prelude.hpp.gch
+$GXX $COMPILE_FLAGS -c -x c++-header prelude/prelude.hpp -o rt/prelude.hpp.gch
 chmod 644 rt/prelude.a rt/prelude.hpp.gch

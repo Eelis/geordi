@@ -73,21 +73,22 @@
     <ol>
       <li><kbd>chmod +x scripts/*</kbd> &nbsp; # darcs is not yet aware of executability</li>
       <li><kbd>scripts/compile</kbd> &nbsp; # To produce the ./geordi-bot, ./geordi-local, and ./geordi-testsuite executables.</li>
-      <li>Edit the compile-config file to your liking. Also check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</li>
+      <li>Edit the compile-config file to your liking. Check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</li>
+      <li><kbd>source compile-config</kbd></li>
       <li>On Debian and Ubuntu, replace <code>group = "nobody"</code> with <code>group = "nogroup"</code> in jail-config.</li>
       <li><kbd>mkdir rt</kbd> &nbsp; # This will be our chroot root.</li>
-      <li><kbd>scripts/compile-prelude</kbd> &nbsp; # To produce rt/prelude.h.gch and rt/prelude.a.</li>
+      <li><kbd>scripts/compile-prelude</kbd> &nbsp; # Produces rt/prelude.h.gch and rt/prelude.a.</li>
       <li><kbd>cp prelude/terse.hpp rt/</kbd></li>
-      <li><kbd>rtcp () { cp -L -r -v --parents $@ rt ; }</kbd> &nbsp; # This defines a shell function <kbd>rtcp</kbd> that makes copying stuff into rt more convenient.</li>
-      <li><kbd>libs () { ldd $@ | runhaskell scripts/parse-ldd-output.hs ; }</kbd> &nbsp; # This defines a shell function <kbd>libs</kbd> that lets us easily query library file dependencies.</li>
-      <li><kbd>EXECS="`which g++ as ld` /usr/lib/gcc/i586-suse-linux/4.1.2/cc1plus"</kbd> &nbsp; # Correct the last one for your system. Also, if g++ is only some wrapper that adds output coloring or something, specify the name of the real binary instead.</li>
-      <li><kbd>rtcp $EXECS `libs $EXECS`</kbd> &nbsp; # This copies the executables and their library dependencies into rt.</li>
+      <li><kbd>rtcp () { cp -L -r -v --parents $@ rt ; }</kbd> &nbsp; # Defines a shell function <kbd>rtcp</kbd> that makes copying stuff into rt more convenient.</li>
+      <li><kbd>libs () { ldd $@ | runhaskell scripts/parse-ldd-output.hs ; }</kbd> &nbsp; # Defines a shell function <kbd>libs</kbd> that lets us easily query library file dependencies.</li>
+      <li><kbd>EXECS="$GXX `which as ld` `$GXX -print-prog-name=cc1plus`"</kbd></li>
+      <li><kbd>rtcp $EXECS `libs $EXECS`</kbd> &nbsp; # Copies the executables and their library dependencies into rt.</li>
       <li><kbd>sudo scripts/trycompile</kbd> &nbsp; # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/t is produced successfully.
         <p>For libstdc++ and libm, both the static (.a) and shared (.so) versions work, but the latter make geordi respond significantly faster to requests that require linking.</p>
         <p>If, while doing this step, you decide (out of sheer desperation) at some point to just copy entire gcc directories into rt (which in itself is not completely unreasonable), make sure that there is no collect2 binary in rt (it confuses geordi).</p>
       </li>
       <li><kbd>rtcp `libs rt/t`</kbd></li>
-      <li><kbd>sudo chroot rt /t &amp;&amp; echo</kbd> # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
+      <li><kbd>sudo chroot rt /t</kbd> &nbsp; # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
       <li><kbd>scripts/perms</kbd> &nbsp; # To set up proper permissions for rt and selected files in it.</li>
       <li><kbd>find rt -perm -o+w</kbd> &nbsp; # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
       <li><kbd>find rt -user nobody</kbd> &nbsp; # This should find nothing.</li>

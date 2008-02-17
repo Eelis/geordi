@@ -35,7 +35,7 @@ instance Test NoOutput where do_test NoOutput = (== "")
 main :: IO ()
 main = do
 
-  evalRequest <- Request.prepare_evaluator
+  evalRequest <- Request.evaluator
 
   let
     test :: Test t => String -> String -> t -> IO ()

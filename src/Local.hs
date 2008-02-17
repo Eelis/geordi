@@ -30,7 +30,7 @@ main = do
   RL.initialize -- Reads stuff from files not present in the chroot.
   (opts, rest) <- getArgs
   if Help `elem` opts then putStrLn help else do
-  evalRequest <- Request.prepare_evaluator
+  evalRequest <- Request.evaluator
   forM_ rest $ (>>= putStrLn) . evalRequest
   when (rest == []) $ fix $ \loop -> do
     ml <- RL.readline "geordi: "

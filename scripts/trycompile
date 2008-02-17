@@ -1,4 +1,5 @@
 #!/bin/sh
 set -eu
+source compile-config
 printf "#include \"prelude.hpp\"\nGEORDI_PRINT_PRE \"9\\\n\" GEORDI_PRINT_POST\n" > rt/t.cpp
-chroot rt `cat compile-config` t.cpp -o t `cat link-config`
+chroot rt $GXX $COMPILE_FLAGS t.cpp -o t $LINK_FLAGS

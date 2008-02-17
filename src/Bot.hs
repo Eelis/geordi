@@ -88,7 +88,7 @@ main = do
   putStrLn "Connected"
   System.Posix.Env.setEnv "LC_ALL" "C" True
     -- Otherwise compiler diagnostics may use non-ASCII characters (e.g. for quotes).
-  evalRequest <- Request.prepare_evaluator
+  evalRequest <- Request.evaluator
   limit_rate <- rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
   let send m = limit_rate >> hPutStrLn h (IRC.render m) >> hFlush h
   send $ msg "NICK" [nick cfg]
