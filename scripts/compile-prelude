@@ -1,6 +1,6 @@
 #!/bin/sh
 set -eu
-source compile-config
+. compile-config
 cd prelude
 $GXX $COMPILE_FLAGS -c *.cpp
 cd ..
