@@ -40,14 +40,14 @@
         <p>On Ubuntu, it is highly recommended to use GHC packages from the Ubuntu repositories. Use of haskell.org's GHC packages may result in strange "g++: Virtual timer expired" errors.</p>
         <p>Some distributions package GHC libraries separately. If, when compiling, you get errors like “Could not find module "Control.Monad.State"”, look for separate mtl and network packages.</p>
       </li>
-      <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/utf8-string-0.1'>utf8-string</a> &ge; 0.1</li>
+      <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/utf8-string-0.2'>utf8-string</a> &ge; 0.2</li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/irc-0.2.3'>irc</a> 0.2.3</li>
     </ul>
     <p>These last two are GHC packages. For those of us not familiar with GHC packages, to install these do:</p>
     <p>
       <kbd>
-        tar xf utf8-string-0.1.tar.gz<br/>
-        cd utf8-string-0.1<br/>
+        tar xf utf8-string-0.2.tar.gz<br/>
+        cd utf8-string-0.2<br/>
         runhaskell Setup.lhs configure<br/>
         runhaskell Setup.lhs build<br/>
         su -c "runhaskell Setup.lhs install"
