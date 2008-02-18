@@ -4,15 +4,16 @@ import qualified System.Environment
 import qualified System.Posix.Env
 import qualified Request
 import qualified Data.Sequence as Seq
+import qualified Codec.Binary.UTF8.String as UTF8
 
 import Network.BSD (getProtocolNumber, hostAddress, getHostByName)
 import Control.Exception (bracketOnError)
-import System.IO (hGetLine, hFlush, Handle, IOMode(..))
+import System.IO (hGetLine, hPutStrLn, hFlush, Handle, IOMode(..))
 import Control.Monad (when)
 import Control.Monad.Error ()
 import Control.Monad.State (execStateT, lift)
 import Control.Monad.Fix (fix)
-import System.IO.UTF8 (putStr, putStrLn, hPutStrLn, print)
+import System.IO.UTF8 (putStr, putStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Sys (setKeepAlive, sleep)
 import Text.Regex (Regex, subRegex, mkRegex)
@@ -64,6 +65,15 @@ msg = IRC.Message Nothing
 do_censor :: BotConfig -> String -> String
 do_censor cfg s = foldr (\r t -> subRegex r t "<censored>") s (censor cfg)
 
+utf8_encode_upto :: Int -> String -> String
+utf8_encode_upto n (c:s) | c' <- UTF8.encodeString [c], n' <- n - length c', n' >= 0 =
+  c' ++ utf8_encode_upto n' s
+utf8_encode_upto _ _ = ""
+  -- Only encodes as much characters as can fit in the allotted number of bytes.
+
+send_irc_msg :: Handle -> IRC.Message -> IO ()
+send_irc_msg h m = hPutStrLn h (utf8_encode_upto 450 $ IRC.render m) >> hFlush h
+  -- If we use (System.IO.UTF8.hPutStrLn $ IRC.render m), we risk sending a message longer than allowed by the IRC spec. If we use (System.IO.hPutStrLn $ take 510 $ UTF8.encodeString $ IRC.render m) to fix this, take might cut the last UTF-8 encoded character in half if its encoding consists of multiple bytes. We want to avoid this because it causes some IRC clients (like irssi) to conclude that the encoding must be something other than UTF-8. If we use (System.IO.hPutStrLn $ utf8_encode_upto 510 $ IRC.render m) to fix this, we still risk the aforementioned character cutting because even if the message fit when we sent it to the server, it might not fit in the message sent to the client (because that message might include a longer prefix). Hence our limit of 450 bytes.
 
 rate_limiter :: Int -> Int -> IO (IO ())
 rate_limiter bound window = do
@@ -90,7 +100,7 @@ main = do
     -- Otherwise compiler diagnostics may use non-ASCII characters (e.g. for quotes).
   evalRequest <- Request.evaluator
   limit_rate <- rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
-  let send m = limit_rate >> hPutStrLn h (IRC.render m) >> hFlush h
+  let send m = limit_rate >> send_irc_msg h m
   send $ msg "NICK" [nick cfg]
   send $ msg "USER" [nick cfg, "0", "*", nick cfg]
   forever $ do
