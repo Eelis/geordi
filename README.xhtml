@@ -74,22 +74,17 @@
       <li><kbd>chmod +x scripts/*</kbd> &nbsp; # darcs is not yet aware of executability</li>
       <li><kbd>scripts/compile</kbd> &nbsp; # To produce the ./geordi-bot, ./geordi-local, and ./geordi-testsuite executables.</li>
       <li>Edit the compile-config file to your liking. Check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</li>
-      <li><kbd>source compile-config</kbd></li>
       <li>On Debian and Ubuntu, replace <code>group = "nobody"</code> with <code>group = "nogroup"</code> in jail-config.</li>
-      <li><kbd>mkdir rt</kbd> &nbsp; # This will be our chroot root.</li>
-      <li><kbd>scripts/compile-prelude</kbd> &nbsp; # Produces rt/prelude.h.gch and rt/prelude.a.</li>
-      <li><kbd>cp prelude/terse.hpp rt/</kbd></li>
-      <li><kbd>rtcp () { cp -L -r -v --parents $@ rt ; }</kbd> &nbsp; # Defines a shell function <kbd>rtcp</kbd> that makes copying stuff into rt more convenient.</li>
-      <li><kbd>libs () { ldd $@ | runhaskell scripts/parse-ldd-output.hs ; }</kbd> &nbsp; # Defines a shell function <kbd>libs</kbd> that lets us easily query library file dependencies.</li>
-      <li><kbd>EXECS="$GXX `which as ld` `$GXX -print-prog-name=cc1plus`"</kbd></li>
-      <li><kbd>rtcp $EXECS `libs $EXECS`</kbd> &nbsp; # Copies the executables and their library dependencies into rt.</li>
-      <li><kbd>sudo scripts/trycompile</kbd> &nbsp; # This will keep giving errors about missing .o files and libraries. Copy those into rt using rtcp until rt/t is produced successfully.
+      <li><kbd>scripts/mkrt</kbd> &nbsp; # Creates a directory called "rt", which will be our chroot root, and copies various files into it that GCC needs in order to function.</li>
+      <li><kbd>scripts/compile-prelude</kbd> &nbsp; # Produces rt/prelude.hpp.gch and rt/prelude.a.</li>
+      <li><kbd>sudo scripts/trycompile</kbd> &nbsp; # This might give errors about missing .o files and libraries. Copy those into rt until rt/t is produced successfully.
+        <p>The recommended way to copy files into rt is using</p>
+        <kbd>cp -L --parents /some/system/file rt/</kbd>
+        <p>Here, <kbd>-L</kbd> makes <kbd>cp</kbd> follow symbolic links, and <kbd>--parents</kbd> makes it copy to the same path within <kbd>rt</kbd>.</p>
         <p>For libstdc++ and libm, both the static (.a) and shared (.so) versions work, but the latter make geordi respond significantly faster to requests that require linking.</p>
         <p>If, while doing this step, you decide (out of sheer desperation) at some point to just copy entire gcc directories into rt (which in itself is not completely unreasonable), make sure that there is no collect2 binary in rt (it confuses geordi).</p>
       </li>
-      <li><kbd>rtcp `libs rt/t`</kbd></li>
-      <li><kbd>sudo chroot rt /t</kbd> &nbsp; # This may complain a bit more about missing libraries, which again should be copied into rt using rtcp. Eventually, it should print "9".</li>
-      <li><kbd>scripts/perms</kbd> &nbsp; # To set up proper permissions for rt and selected files in it.</li>
+      <li><kbd>sudo chroot rt /t</kbd> &nbsp; # This may complain a bit more about missing libraries, which again should be copied into rt. Eventually, it should print "9".</li>
       <li><kbd>find rt -perm -o+w</kbd> &nbsp; # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
       <li><kbd>find rt -user nobody</kbd> &nbsp; # This should find nothing.</li>
       <li><kbd>find rt -perm -4000</kbd> &nbsp; # This should find nothing either.</li>
@@ -165,7 +160,7 @@
       |   `-- libm.so.6
       |-- lock
       |-- prelude.a
-      |-- prelude.h.gch
+      |-- prelude.hpp.gch
       |-- t
       |-- t.cpp
       |-- t.o
@@ -205,7 +200,7 @@
       drwxr-xr-x 2 eelis users  184 2007-12-25 01:14 lib64
       -rw-r--r-- 1 eelis users    0 2007-12-25 01:40 lock
       -rw-r--r-- 1 eelis users 123K 2007-12-25 01:15 prelude.a
-      -rw-r--r-- 1 eelis users  68M 2007-12-25 01:15 prelude.h.gch
+      -rw-r--r-- 1 eelis users  68M 2007-12-25 01:15 prelude.hpp.gch
       -rwxrwxrwx 1 eelis users  53K 2007-12-25 01:41 t
       -rw-rw-rw- 1 eelis users   61 2007-12-25 01:41 t.cpp
       -rwxr-xr-x 1 eelis users 1.3K 2007-12-13 17:06 terse.hpp

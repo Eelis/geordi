@@ -1,0 +1,28 @@
+#!/bin/sh
+set -eu
+
+RT=`pwd`/rt # For now.
+
+rtcp () { cp -L -v --parents -- $@ "${RT}" ; }
+libs() { ldd $@ | runhaskell scripts/parse-ldd-output.hs ; }
+
+. ./compile-config
+
+mkdir -p "${RT}"
+chmod 711 "${RT}"
+cd "${RT}"
+
+touch t.cpp t.s t.o t lock
+chmod 666 t.cpp t.s t.o
+chmod 777 t
+
+cd ..
+
+for N in crt1.o crti.o crtn.o cc1plus crtbegin.o crtend.o libgcc.a libgcc_s.so libstdc++.so libstdc++.so.6 libmcheck.a libc.so libc_nonshared.a libm.so libm.so.6 libc.so.6 libgcc_s.so.1
+do
+  F=`$GXX -print-file-name=$N`
+  if [ $F != $N ] ; then rtcp $F ; fi
+done
+
+EXECS="$GXX `which as ld` `$GXX -print-prog-name=cc1plus`"
+rtcp $EXECS `libs $EXECS`
