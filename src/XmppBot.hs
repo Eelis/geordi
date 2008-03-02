@@ -54,9 +54,9 @@ main = do
     forM_ (rooms cfg) $ uncurry $ flip MUC.joinGroupchat
     forever $ do
       msg <- XMPP.waitForStanza (MUC.isGroupchatMessage .&&. XMPP.hasBody .&&. (not . isDelay))
-      maybeM (span (/='/') . XMPP.getAttr "from" msg) $ \(room, '/':fromnick) -> do
+      maybeM (span (/='/') . XMPP.getAttr "from" msg) $ \(room, fromnick) -> do
       maybeM (List.lookup room (rooms cfg)) $ \mynick -> do
-      when (mynick /= fromnick) $ do
+      when (null fromnick || mynick /= tail fromnick) $ do
       maybeM (XMPP.getMessageBody msg >>= Request.is_request [mynick]) $ \r -> do
       o <- XMPP.liftIO $ xmlEntities . take (max_msg_length cfg) . takeWhile (/= '\n') . evalRequest r
       XMPP.liftIO limit_rate
