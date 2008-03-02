@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+. scripts/compile-common
+$GHC --make XmppBot.hs -o ../geordi-xmpp

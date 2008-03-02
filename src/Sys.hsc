@@ -10,7 +10,6 @@ import Foreign (with, sizeOf, peek, Ptr, Word8, unsafePerformIO, allocaBytes)
 import Prelude hiding (catch, (.))
 import System.Exit (ExitCode(..))
 import System.Posix (Fd(..), CPid, ByteCount, Signal)
-import Util ((.))
 import Foreign.C
   (CInt, CUInt, CLong, CString, getErrno, eCHILD, throwErrno, withCString, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen)
 
@@ -41,7 +40,7 @@ foreign import ccall unsafe "unistd.h sleep" sleep :: CUInt -> IO ()
 foreign import ccall unsafe "string.h strsignal" c_strsignal :: CInt -> IO CString
 
 strsignal :: CInt -> String
-strsignal = unsafePerformIO . (peekCString =<<) . c_strsignal
+strsignal = unsafePerformIO `fmap` (peekCString =<<) `fmap` c_strsignal
 
 nonblocking_read :: Fd -> ByteCount -> IO [Word8]
 nonblocking_read (Fd fd) bc = do
@@ -49,7 +48,7 @@ nonblocking_read (Fd fd) bc = do
   r <- System.Posix.Internals.c_read fd buf bc
   case r of
     -1 -> getErrno >>= \e -> if e == eWOULDBLOCK then return [] else throwErrno "nonblocking_read"
-    n -> (fromIntegral . fromEnum .) . peekCStringLen (buf, fromIntegral n)
+    n -> (fromIntegral `fmap` fromEnum `fmap`) `fmap` peekCStringLen (buf, fromIntegral n)
   -- Wrapping c_read ourselves is easier and more to the point than using fdRead and catching&filtering (stringized) eWOULDBLOCK errors.
 
 foreign import ccall "wait" c_wait :: Ptr CInt -> IO CPid
@@ -61,7 +60,7 @@ wait :: Ptr CInt -> IO WaitResult
   -- Sharing the CInt is required for acceptable performance when wait is called very often (like when we intercept each system call when ptracing).
 wait p = do
   r <- c_wait p
-  if r /= -1 then d . peek p else do
+  if r /= -1 then d `fmap` peek p else do
   e <- getErrno
   if e == eCHILD then return WaitNoChild else throwErrno "wait"
   where

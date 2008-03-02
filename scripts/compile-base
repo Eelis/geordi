@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+. scripts/compile-common
+$GHC --make Testsuite.hs -o ../geordi-testsuite
+$GHC --make Local.hs -o ../geordi-local

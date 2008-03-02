@@ -1,0 +1,10 @@
+XmppBotConfig
+{ server = "foo.bar"
+, max_msg_length = 300
+, rooms = [("geordi@conference.jabber.org", "geordiclone")]
+, jid = "john@foo.bar"
+, pass = "secret"
+, no_output_msg = " "
+, rate_limit_messages = 5
+, rate_limit_window = 10
+}

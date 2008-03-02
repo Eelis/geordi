@@ -1,4 +1,4 @@
-BotConfig
+IrcBotConfig
 { server = "irc.freenode.net"
 , port = 6667
 , max_msg_length = 300

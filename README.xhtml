@@ -15,7 +15,7 @@
     <ul>
       <li><a href='#installation'>1. Installation</a></li>
       <li><a href='#locally'>2. Running geordi locally</a></li>
-      <li><a href='#ircbot'>3. Running a geordi IRC bot</a></li>
+      <li><a href='#ircbot'>3. Running a geordi bot</a></li>
       <li><a href='#problems'>4. Known problems</a></li>
     </ul>
     <ul>
@@ -41,9 +41,10 @@
         <p>Some distributions package GHC libraries separately. If, when compiling, you get errors like “Could not find module "Control.Monad.State"”, look for separate mtl and network packages.</p>
       </li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/utf8-string-0.2'>utf8-string</a> &ge; 0.2</li>
-      <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/irc-0.2.3'>irc</a> 0.2.3</li>
+      <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/irc-0.2.3'>irc</a> 0.2.3 (Only needed if you want to run an IRC bot.)</li>
+      <li><a href='http://www.dtek.chalmers.se/~henoch/hsxmpp-doc/index.html'>XMPP</a> 0.0.1 (Only needed if you want to run an XMPP bot.)</li>
     </ul>
-    <p>These last two are GHC packages. For those of us not familiar with GHC packages, to install these do:</p>
+    <p>These last three are GHC packages. For those of us not familiar with GHC packages, to install these do:</p>
     <p>
       <kbd>
         tar xf utf8-string-0.2.tar.gz<br/>
@@ -72,7 +73,8 @@
     </p>
     <ol>
       <li><kbd>chmod +x scripts/*</kbd> &nbsp; # darcs is not yet aware of executability</li>
-      <li><kbd>scripts/compile</kbd> &nbsp; # To produce the ./geordi-bot, ./geordi-local, and ./geordi-testsuite executables.</li>
+      <li><kbd>scripts/compile-base</kbd> &nbsp; # To produce the ./geordi-local, and ./geordi-testsuite executables.</li>
+      <li><kbd>scripts/compile-irc</kbd> and/or <kbd>scripts/compile-xmpp</kbd>, or neither, depending on what kind of bot you want to run (if any).</li>
       <li>Edit the compile-config file to your liking. Check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</li>
       <li>On Debian and Ubuntu, replace <code>group = "nobody"</code> with <code>group = "nogroup"</code> in jail-config.</li>
       <li><kbd>scripts/mkrt</kbd> &nbsp; # Creates a directory called "rt", which will be our chroot root, and copies various files into it that GCC needs in order to function.</li>
@@ -105,48 +107,54 @@
     <p>If any requests are specified, they are evaluated and their results are shown. If the first request starts with a request option, interject “<kbd>--</kbd>” to prevent it from being interpreted as a command option.</p>
     <p>If no requests are specified, the program goes into a Read-Eval-Print-Loop.</p>
 
-    <hr/><h2><a id='ircbot'>3. Running a geordi IRC bot</a></h2>
+    <hr/><h2><a id='ircbot'>3. Running a geordi bot</a></h2>
 
-    <p>Usage:&emsp;<kbd>sudo ./geordi-bot [option]...</kbd></p>
+    <h3>Regarding the need for root permissions</h3>
 
+    <p>Starting an IRC bot with root permissions should make one seriously nervous. Geordi requires root permissions only because <a href='http://linux.die.net/man/2/chroot'>chroot(2)</a> does. Geordi chroots into rt as one of the first things it does on startup, and changes to the user and group specified in jail-config before it starts responding to IRC messages.</p>
+
+    <h3>3.1 IRC</h3>
+
+    <p>Usage:&emsp;<kbd>sudo ./geordi-irc [option]...</kbd></p>
     <p>Options:</p>
-
     <dl>
       <dt><kbd>-c &lt;file></kbd> / <kbd>--config &lt;file></kbd></dt>
-      <dd><p>Load bot configuration from &lt;file> instead of "bot-config".</p></dd>
+      <dd><p>Load bot configuration from &lt;file> instead of "irc-config".</p></dd>
       <dt><kbd>-h</kbd> / <kbd>--help</kbd></dt>
       <dd><p>Display help and exit.</p></dd>
     </dl>
 
-    <h3>Regarding the need for root permissions</h3>
-
-    <p>Starting an IRC bot with root permissions should make one seriously nervous. Geordi requires root permissions only because <a href='http://linux.die.net/man/2/chroot'>chroot(2)</a> does. Geordi chroots into rt as one of the first things it does on startup, and changes to the user and group specified in bot-config before it starts responding to IRC messages.</p>
-
-    <h3><a id='nickserv'>NickServ identification</a></h3>
-
-    <p>To have the bot identify to NickServ, change the following line in bot-config:</p>
+    <h4><a id='nickserv'>NickServ identification</a></h4>
+    <p>To have the bot identify to NickServ, change the following line in irc-config:</p>
     <pre>  , nick_pass = Nothing</pre>
     <p>into:</p>
     <pre>  , nick_pass = Just "mypassword"</pre>
 
-    <h3><a id='reconnect'>Auto-reconnect</a></h3>
-
+    <h4><a id='reconnect'>Auto-reconnect</a></h4>
     <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./geordi-bot; sleep 120; done</kbd></p>
 
-    <h3><a id='multinetwork'>Connecting to multiple networks</a></h3>
-
+    <h4><a id='multinetwork'>Connecting to multiple networks</a></h4>
     <p>Make config files for the different networks. Then run one geordi-bot instance for each network, passing -c arguments pointing to the respective config files. The rt directory will be safely shared.</p>
 
-    <h3>Censoring phrases</h3>
-
-    <p>Some networks automatically kick or ban clients that utter certain phrases (like botnet commands). To prevent a geordi bot from uttering these, list regexes for them in bot-config. E.g.:</p>
-
+    <h4>Censoring phrases</h4>
+    <p>Some networks automatically kick or ban clients that utter certain phrases (like botnet commands). To prevent a geordi bot from uttering these, list regexes for them in irc-config. E.g.:</p>
     <pre>  , censor = ["some naughty phrase", "some wicked utterance"]</pre>
+
+    <h3>3.2 XMPP</h3>
+
+    <p>Usage:&emsp;<kbd>sudo ./geordi-xmpp [option]...</kbd></p>
+    <p>Options:</p>
+    <dl>
+      <dt><kbd>-c &lt;file></kbd> / <kbd>--config &lt;file></kbd></dt>
+      <dd><p>Load bot configuration from &lt;file> instead of "xmpp-config".</p></dd>
+      <dt><kbd>-h</kbd> / <kbd>--help</kbd></dt>
+      <dd><p>Display help and exit.</p></dd>
+    </dl>
 
     <hr/><h2><a id='problems'/>4. Known problems</h2>
     <ul>
       <li>
-        Because <kbd>geordi-bot</kbd> connects as root, IRC servers that query ident may get a root response and may decide to reject the connection. (Quakenet is known to do this.)
+        Because <kbd>geordi-irc</kbd> connects as root, IRC servers that query ident may get a root response and may decide to reject the connection. (Quakenet is known to do this.)
       </li>
     </ul>
 

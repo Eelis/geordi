@@ -9,14 +9,18 @@ import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
 import Data.List (sortBy)
 import Data.Char (isSpace, isAlphaNum, toLower)
+import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.Sequence (Seq, ViewL(..), (<|))
 import Control.Exception (catch, bracket, evaluate)
 import Control.Monad (liftM2)
+import Control.Monad.Fix (fix)
 import Control.Monad.State (MonadState, modify)
 import Control.Monad.Instances ()
 import Control.Parallel.Strategies (NFData, rnf)
 import System.Posix.Types (Fd(..))
+import System.Posix.Time (epochTime)
 import System.IO (Handle, hClose)
-import Data.Sequence (Seq, ViewL(..), (<|))
+import Sys (sleep)
 
 import Prelude hiding (catch, (.))
 
@@ -82,8 +86,10 @@ maybeM m a = maybe (return ()) a m
 msapp :: (Data.Monoid.Monoid a, MonadState a m) => a -> m ()
 msapp = modify . flip Data.Monoid.mappend
 
-(.||.) :: (a -> Bool) -> (a -> Bool) -> (a -> Bool)
+(.||.), (.&&.) :: (a -> Bool) -> (a -> Bool) -> (a -> Bool)
 f .||. g = \x -> f x || g x
+f .&&. g = \x -> f x && g x
+  -- In applicative notation, these could be written: f .||. g = [[ f || g ]].
 
 sortByProperty :: Ord b => (a -> b) -> [a] -> [a]
 sortByProperty f = sortBy $ \x y -> compare (f x) (f y)
@@ -123,3 +129,15 @@ instance Queue (Seq e) e where
 qPopWhile :: Queue q e => (e -> Bool) -> q -> q
 qPopWhile p q | Just (e, q') <- qpop q, p e = qPopWhile p q'
 qPopWhile _ q = q
+
+rate_limiter :: Int -> Int -> IO (IO ())
+rate_limiter bound window = do
+  r <- newIORef Seq.empty
+  return $ fix $ \loop -> do
+    now <- epochTime
+    hist <- discard_until (now - fromIntegral window) . readIORef r
+    if Seq.length hist < bound
+      then writeIORef r (qpush now hist)
+      else writeIORef r hist >> sleep 1 >> loop
+ where discard_until t = qPopWhile (< t)
+  -- Given |rl <- rate_limiter b w|, |rl| actions will sleep as required to make sure no more than b actions pass during any w second time window.
