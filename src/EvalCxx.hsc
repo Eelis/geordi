@@ -248,12 +248,14 @@ ignored_syscalls = -- These are effectively replaced with "return 0;".
   [ SYS_chmod, SYS_fadvise64, SYS_unlink, SYS_munmap, SYS_madvise, SYS_umask, SYS_rt_sigaction, SYS_rt_sigprocmask, SYS_ioctl, SYS_setitimer, SYS_vfork {- see "Secure compilation" -} ]
 
 allowed_syscalls =
-  [ SYS_open, SYS_write, SYS_uname, SYS_brk, SYS_read, SYS_mmap, SYS_exit_group, SYS_getpid, SYS_access, SYS_getrusage, SYS_close, SYS_gettimeofday, SYS_time, SYS_writev, SYS_execve, SYS_mprotect, SYS_getcwd
+  [ SYS_open, SYS_write, SYS_uname, SYS_brk, SYS_read, SYS_mmap, SYS_exit_group, SYS_getpid, SYS_access, SYS_getrusage, SYS_close, SYS_gettimeofday, SYS_time, SYS_writev, SYS_execve, SYS_mprotect, SYS_getcwd, SYS_times
+
+  -- On x86_64, SYS_times is necessary for clock().
 
   #ifdef __x86_64__
     , SYS_stat, SYS_fstat, SYS_arch_prctl, SYS_getrlimit, SYS_fcntl, SYS_lseek, SYS_lstat, SYS_dup
   #else
-    , SYS_fstat64, SYS_lstat64, SYS_stat64, SYS_ugetrlimit, SYS_fcntl64, SYS__llseek, SYS_mmap2, SYS_mremap, SYS_set_thread_area, SYS_times, SYS_readlink
+    , SYS_fstat64, SYS_lstat64, SYS_stat64, SYS_ugetrlimit, SYS_fcntl64, SYS__llseek, SYS_mmap2, SYS_mremap, SYS_set_thread_area, SYS_readlink
   #endif
   ]
 
