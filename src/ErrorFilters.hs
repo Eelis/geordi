@@ -3,7 +3,7 @@
 module ErrorFilters (cc1plus, as, ld, prog) where
 
 import Control.Monad (ap)
-import Text.Regex (matchRegex, mkRegex, subRegex, matchRegexAll)
+import Text.Regex (mkRegex, subRegex, matchRegexAll, Regex)
 import Data.List (intersperse, isPrefixOf)
 import Data.Char (isAlphaNum, toLower)
 import Text.ParserCombinators.Parsec
@@ -28,8 +28,8 @@ as e = maybe e (\(_, (m:ms), _, _) -> toLower m : ms) $ matchRegexAll (mkRegex "
 
 ld e = maybe e (\(_, m, _, _) -> "error: " ++ m) $ matchRegexAll (mkRegex "\\bundefined reference to [^\n]*") e
 
-prog output = maybe (cleanup_types output) head $ matchRegex (mkRegex ":(error: [^\n]*)") output
-  -- We apply cleanup_types even to successful output, to clean up assertion failures and {E}TYPE strings.
+prog = subRegex' (mkRegex "/usr/[^:]+:[[:digit:]]+:error: ") " error: " . cleanup_types
+  -- We apply cleanup_types even to successful output, to clean up assertion failures and {E}TYPE strings. The subRegex cleans up libstdc++ debug mode errors.
 
 cxxArg :: CharParser st String
 cxxArg = strip . ce
@@ -152,7 +152,9 @@ with_subst (k, v) =
     -- Reference collapse rules are described in 7.1.3p9.
  where
   (v', vrk) = stripRef v
-  subRegex' = flip . subRegex
+
+subRegex' :: Regex -> String -> String -> String
+subRegex' = flip . subRegex
 
 -- With-substitution would fail if the following occurred in an error: "... T const ... [with T = int&]" (because it would be replaced with "... int& const ...". Fortunately, g++ places cv-qualifiers on the left side in these cases. For example, see the error message for: "template <typename T> std::string f(T const &); void g() { int i = 3; !f<int&>(i); }".
 
