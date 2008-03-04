@@ -121,10 +121,10 @@ main = do
     ExactMatch "a�bאc"
 
   test "Error filters" "{ wistringstream is; !is.str(); }" $
-    ExactMatch "no match for 'operator!' in '!wistringstream::str() const()'"
+    ExactMatch "error: no match for 'operator!' in '!wistringstream::str() const()'"
 
   test "Ditto" "<< ETYPE(&vector<queue<istream_iterator<int> > >::foo)" $
-    ExactMatch "'foo' is not a member of 'vector<queue<istream_iterator<int>>>'"
+    ExactMatch "error: 'foo' is not a member of 'vector<queue<istream_iterator<int>>>'"
 
   test "-fstack-protector-all" "{ char buf [10]; fill(buf, buf+30, 'x'); }" $
     PrefixMatch "*** stack smashing detected ***: /t terminated\n"

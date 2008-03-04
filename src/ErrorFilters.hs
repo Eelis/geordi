@@ -3,9 +3,9 @@
 module ErrorFilters (cc1plus, as, ld, prog) where
 
 import Control.Monad (ap)
-import Text.Regex (matchRegex, mkRegex, subRegex)
+import Text.Regex (matchRegex, mkRegex, subRegex, matchRegexAll)
 import Data.List (intersperse, isPrefixOf)
-import Data.Char (isAlphaNum)
+import Data.Char (isAlphaNum, toLower)
 import Text.ParserCombinators.Parsec
   (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, anyChar, noneOf, option, count, CharParser, notFollowedBy, choice)
 import Text.ParserCombinators.Parsec.Prim (GenParser)
@@ -24,11 +24,11 @@ instance Applicative (Text.ParserCombinators.Parsec.Prim.GenParser Char st) wher
 
 as, ld, cc1plus, prog :: String -> String
 
-as e = maybe e (!!1) $ matchRegex (mkRegex "\\b(Error|Warning): ([^\n]*)") e
+as e = maybe e (\(_, (m:ms), _, _) -> toLower m : ms) $ matchRegexAll (mkRegex "\\b(Error|Warning): [^\n]*") e
 
-ld e = maybe e head $ matchRegex (mkRegex "\\b(undefined reference to [^\n]*)") e
+ld e = maybe e (\(_, m, _, _) -> "error: " ++ m) $ matchRegexAll (mkRegex "\\bundefined reference to [^\n]*") e
 
-prog output = maybe (cleanup_types output) head $ matchRegex (mkRegex ":error: ([^\n]*)") output
+prog output = maybe (cleanup_types output) head $ matchRegex (mkRegex ":(error: [^\n]*)") output
   -- We apply cleanup_types even to successful output, to clean up assertion failures and {E}TYPE strings.
 
 cxxArg :: CharParser st String
@@ -159,5 +159,5 @@ with_subst (k, v) =
 cleanup_types :: String -> String
 cleanup_types s = either (const s) cleanup_types $ parse (replacer >+> getInput) "" s
 
-cc1plus e = maybe e' (!!1) $ matchRegex (mkRegex "\\b(error|warning): ([^\n]*)") e'
+cc1plus e = maybe e' (\(_, m, _, _) -> m) $ matchRegexAll (mkRegex "\\b(error|warning): [^\n]*") e'
   where e' = cleanup_types e
