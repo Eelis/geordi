@@ -68,14 +68,19 @@ import SysCalls (SysCall(..))
 import Control.Applicative ((<*>))
 import Control.Monad (when, forM_)
 import Control.Monad.Fix (fix)
-import Foreign (alloca, (.|.), (.&.))
+import Foreign (alloca, (.|.))
 import Foreign.C (CInt, CSize)
 import System.Exit (ExitCode(..))
 import Data.List ((\\))
 import System.Posix.User
   (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
 import System.Posix
-  (Signal, sigALRM, sigSTOP, sigTRAP, sigKILL, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
+  (Signal, sigALRM, sigSTOP, sigTRAP, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
+
+#ifdef __x86_64__
+import Foreign ((.&.))
+import System.Posix (sigKILL)
+#endif
 
 import Prelude hiding ((.))
 import Util
