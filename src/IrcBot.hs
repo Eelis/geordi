@@ -28,6 +28,7 @@ data IrcBotConfig = IrcBotConfig
       -- Defaults to RPL_WELCOME. Can be set to NickServ/cloak confirmations and such.
   , censor :: [Regex]
   , rate_limit_messages, rate_limit_window :: Int
+  , serve_private_requests :: Bool
   } deriving Read
 
 instance Read Regex where
@@ -108,10 +109,18 @@ on_msg eval cfg m = flip execStateT [] $ do
     IRC.Message _ "433" {- ERR_NICKNAMEINUSE -} _ -> send $ msg "NICK" [alternate_nick cfg]
     IRC.Message _ "PING" a -> msapp [msg "PONG" a]
     IRC.Message (Just (IRC.NickName fromnick _ _)) "PRIVMSG" [c, txt] ->
-      when (elemBy caselessStringEq c (chans cfg) && not (fromnick `elem` blacklist cfg)) $ do
-      maybeM (Request.is_request [nick cfg, alternate_nick cfg] txt) $ \r -> do
-      o <- lift $ take (max_msg_length cfg) . takeWhile (/= '\n') . eval r
-      send $ msg "PRIVMSG" [c, if null o then no_output_msg cfg else do_censor cfg o]
+      when (not (fromnick `elem` blacklist cfg)) $ do
+      let
+        private = elemBy caselessStringEq c [nick cfg, alternate_nick cfg]
+        reply s = send $ msg "PRIVMSG" [if private then fromnick else c, s]
+      if private && not (serve_private_requests cfg)
+       then reply "This bot does not serve private requests."
+       else case Request.is_request [nick cfg, alternate_nick cfg] txt of
+        Just r -> do
+          o <- lift $ take (max_msg_length cfg) . takeWhile (/= '\n') . eval r
+          reply $ if null o then no_output_msg cfg else do_censor cfg o
+        Nothing | private -> reply "Not a valid request. See http://www.eelis.net/geordi/ for usage syntax."
+        Nothing -> return ()
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
       when (join_trigger cfg == Nothing) join_chans

@@ -12,4 +12,5 @@ IrcBotConfig
 , censor = []
 , rate_limit_messages = 5
 , rate_limit_window = 10
+, serve_private_requests = False
 }
