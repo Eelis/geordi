@@ -16,7 +16,8 @@
       <li><a href='#installation'>1. Installation</a></li>
       <li><a href='#locally'>2. Running geordi locally</a></li>
       <li><a href='#ircbot'>3. Running a geordi bot</a></li>
-      <li><a href='#problems'>4. Known problems</a></li>
+      <li><a href='#localization'>4. Localization</a></li>
+      <li><a href='#problems'>5. Known problems</a></li>
     </ul>
     <ul>
       <li><a href='#exampletree'>Appendix A: Example rt tree</a></li>
@@ -151,7 +152,19 @@
       <dd><p>Display help and exit.</p></dd>
     </dl>
 
-    <hr/><h2><a id='problems'/>4. Known problems</h2>
+    <hr/><h2><a id='localization'/>4. Localization</h2>
+    <p>To get compiler diagnostics (and some (but not all) other geordi messages) in a locale of your choice, copy the following into rt (preserving paths, for example using <kbd>cp --parents</kbd>):</p>
+    <ul>
+      <li>/usr/lib/locale/foo_BAR.utf8/*</li>
+      <li>/usr/share/locale/foo/LC_MESSAGES/{cpplib,gcc,libc,libstdc++,opcodes}.mo</li>
+    </ul>
+    <p>These paths might differ somewhat on your system.</p>
+    <p>You may need to install a separate GCC locales package or other kind of language pack for your distro, to get the files above.</p>
+    <p>Furthermore, not all of the files above may be available for your locale; copy those that are.</p>
+    <p>Additionally, the LC_ALL environment variable must be set to foo_BAR.utf8 when geordi is started. Since sudo clears environment variables, this means you'll have to use something like:</p>
+    <p><kbd>sudo env LC_ALL=foo_BAR.utf8 ./geordi-...</kbd></p>
+
+    <hr/><h2><a id='problems'/>5. Known problems</h2>
     <ul>
       <li>
         Because <kbd>geordi-irc</kbd> connects as root, IRC servers that query ident may get a root response and may decide to reject the connection. (Quakenet is known to do this.)

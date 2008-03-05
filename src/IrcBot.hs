@@ -1,9 +1,9 @@
 import qualified Network.Socket as Net
 import qualified Network.IRC as IRC
 import qualified System.Environment
-import qualified System.Posix.Env
 import qualified Request
 import qualified Codec.Binary.UTF8.String as UTF8
+import qualified Sys
 
 import Network.BSD (getProtocolNumber, hostAddress, getHostByName)
 import Control.Exception (bracketOnError)
@@ -13,7 +13,6 @@ import Control.Monad.Error ()
 import Control.Monad.State (execStateT, lift)
 import System.IO.UTF8 (putStr, putStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
-import Sys (setKeepAlive)
 import Text.Regex (Regex, subRegex, mkRegex)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
@@ -74,6 +73,7 @@ send_irc_msg h m = hPutStrLn h (utf8_encode_upto 450 $ IRC.render m) >> hFlush h
 
 main :: IO ()
 main = do
+  Sys.setlocale_ALL_env
   opts <- getArgs
   if Help `elem` opts then putStrLn help else do
   cfg <- readTypedFile $ findMaybe (\o -> case o of Config cf -> Just cf; _ -> Nothing) opts `orElse` "irc-config"
@@ -81,8 +81,6 @@ main = do
   putStrLn $ "Connecting to " ++ server cfg ++ ":" ++ show (port cfg)
   withResource (connect (server cfg) (fromIntegral $ port cfg)) $ \h -> do
   putStrLn "Connected"
-  System.Posix.Env.setEnv "LC_ALL" "C" True
-    -- Otherwise compiler diagnostics may use non-ASCII characters (e.g. for quotes).
   evalRequest <- Request.evaluator
   limit_rate <- rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
   let send m = limit_rate >> send_irc_msg h m
@@ -134,6 +132,6 @@ connect :: String -> Net.PortNumber -> IO Handle
 connect host portn = do
   proto <- getProtocolNumber "tcp"
   bracketOnError (Net.socket Net.AF_INET Net.Stream proto) Net.sClose $ \sock -> do
-  setKeepAlive sock 30 10 5
+  Sys.setKeepAlive sock 30 10 5
   Net.connect sock =<< Net.SockAddrInet portn . hostAddress . getHostByName host
   Net.socketToHandle sock ReadWriteMode

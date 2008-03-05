@@ -63,23 +63,23 @@ import qualified SysCalls
 import qualified System.Posix.Internals
 import qualified Data.Map as Map
 
-import Sys (wait, WaitResult(..), strsignal, syscall_off, syscall_ret, fdOfFd, nonblocking_read, chroot)
+import Sys (wait, WaitResult(..), strsignal, syscall_off, syscall_ret, fdOfFd, nonblocking_read, chroot, strerror)
 import SysCalls (SysCall(..))
 import Control.Applicative ((<*>))
 import Control.Monad (when, forM_)
 import Control.Monad.Fix (fix)
 import Foreign (alloca, (.|.))
-import Foreign.C (CInt, CSize)
+import System.Environment (getEnvironment)
+import Foreign.C (CInt, CSize, ePERM, eOK)
 import System.Exit (ExitCode(..))
-import Data.List ((\\))
+import Data.List ((\\), isPrefixOf)
 import System.Posix.User
   (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
 import System.Posix
-  (Signal, sigALRM, sigSTOP, sigTRAP, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
+  (Signal, sigALRM, sigSTOP, sigTRAP, sigKILL, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
 
 #ifdef __x86_64__
 import Foreign ((.&.))
-import System.Posix (sigKILL)
 #endif
 
 import Prelude hiding ((.))
@@ -92,9 +92,11 @@ data SuperviseResult = Exited ExitCode | DisallowedSyscall SysCall | Signaled Si
 
 instance Show SuperviseResult where
   show (Exited c) = "Exited: " ++ show c
-  show (DisallowedSyscall c) = "Disallowed system call: " ++ show c
-  show (Signaled s) = if s == sigALRM then "Timeout" else strsignal s
+  show (DisallowedSyscall c) = show c ++ ": " ++ strerror ePERM
+  show (Signaled s) = strsignal $ if s == sigALRM then sigKILL else s
+    -- We replace sigALRM with sigKILL because the two are caused by two geordi measures with the same function: killing the process if it takes too long. In that sense, sigALRM and sigKILL are both implementation details, but sigKILL has a much nicer strsignal message.
   show ChildVanished = "Child vanished"
+    -- This should not actually ever happen, so we don't care about localization.
 
 i386_SYS_exit_group, i386_syscall_instruction :: Num a => a
 i386_syscall_instruction = 0x80cd -- "int 0x80"
@@ -186,7 +188,7 @@ data EvaluationResult = EvaluationResult Stage CaptureResult
 
 instance Show EvaluationResult where
   show (EvaluationResult stage (CaptureResult r o)) = case (stage, r, o) of
-    (Compile, Exited ExitSuccess, _) -> "Compilation successful"
+    (Compile, Exited ExitSuccess, _) -> strerror eOK
     (Run, Exited ExitSuccess, _) -> ErrorFilters.prog o
     (Run, _, _) -> ErrorFilters.prog $ (if o == "" then "" else o ++ " ") ++ show r
     (Compile, Exited (ExitFailure _), _) -> ErrorFilters.cc1plus o
@@ -225,16 +227,17 @@ evaluate cfg code also_run = do
   withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd -> do
   Flock.exclusive lock_fd
   writeFile "t.cpp" code
+  env <- filter (("LC_" `isPrefixOf`) . fst) . getEnvironment
+  let
+    gxx :: [String] -> Stage -> IO EvaluationResult -> IO EvaluationResult
+    gxx argv stage act = do
+      cr <- capture_restricted (gxxPath cfg) argv env (resources stage)
+      if supervise_result cr == Exited ExitSuccess then act else return $ EvaluationResult stage cr
   gxx (["-S", "t.cpp"] ++ compileFlags cfg) Compile $ do
   if not also_run then return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "") else do
   gxx (["-c", "t.s"] ++ compileFlags cfg) Assemble $ do
   gxx (["t.o", "-o", "t"] ++ compileFlags cfg ++ linkFlags cfg) Link $ do
-  EvaluationResult Run . capture_restricted "/t" [] prog_env (resources Run)
- where
-  gxx :: [String] -> Stage -> IO EvaluationResult -> IO EvaluationResult
-  gxx argv stage act = do
-    cr <- capture_restricted (gxxPath cfg) argv [] (resources stage)
-    if supervise_result cr == Exited ExitSuccess then act else return $ EvaluationResult stage cr
+  EvaluationResult Run . capture_restricted "/t" [] (env ++ prog_env) (resources Run)
 
 evaluator :: IO (String -> Bool -> IO EvaluationResult)
 evaluator = do

@@ -1,6 +1,7 @@
 import qualified System.Environment
 import qualified Request
 import qualified System.Console.Readline as RL
+import qualified Sys
 
 import Control.Monad (forM_, when)
 import Control.Monad.Fix (fix)
@@ -27,6 +28,7 @@ getArgs = do
 
 main :: IO ()
 main = do
+  Sys.setlocale_ALL_env
   RL.initialize -- Reads stuff from files not present in the chroot.
   (opts, rest) <- getArgs
   if Help `elem` opts then putStrLn help else do

@@ -12,6 +12,7 @@
 #include <ios>
 #include <set>
 #include <functional>
+#include <clocale>
 #include <cxxabi.h>
 #include <ext/malloc_allocator.h>
 #include <boost/noncopyable.hpp>
@@ -84,6 +85,8 @@ namespace geordi
       // Having this compiled separately saves more than a full second per request.
 
     std::set_terminate(terminate_handler);
+
+    std::setlocale(LC_ALL, "");
   }
 
   typedef std::set<void *, std::less<void *>, __gnu_cxx::malloc_allocator<void *> > allocs;

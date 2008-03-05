@@ -3,6 +3,7 @@
 module Sys where
 
 import qualified System.Posix.Internals
+import qualified Codec.Binary.UTF8.String as UTF8
 
 import Control.Monad.Instances ()
 import Network.Socket (Socket(..), setSocketOption, SocketOption(..))
@@ -11,13 +12,14 @@ import Prelude hiding (catch, (.))
 import System.Exit (ExitCode(..))
 import System.Posix (Fd(..), CPid, ByteCount, Signal)
 import Foreign.C
-  (CInt, CUInt, CLong, CString, getErrno, eCHILD, throwErrno, withCString, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen)
+  (CInt, CUInt, CLong, CString, getErrno, eCHILD, throwErrno, withCString, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen, Errno)
 
 #include <syscall.h>
 #include <sys/ptrace.h>
 #include <sys/reg.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <locale.h>
 
 syscall_off, syscall_ret :: CLong
 #ifdef __x86_64__
@@ -38,9 +40,14 @@ foreign import ccall unsafe "__hsunix_wstopsig" c_WSTOPSIG :: CInt -> CInt
 foreign import ccall unsafe "unistd.h sleep" sleep :: CUInt -> IO ()
 
 foreign import ccall unsafe "string.h strsignal" c_strsignal :: CInt -> IO CString
+foreign import ccall unsafe "string.h strerror" c_strerror :: Errno -> IO CString
 
 strsignal :: CInt -> String
-strsignal = unsafePerformIO `fmap` (peekCString =<<) `fmap` c_strsignal
+strerror :: Errno -> String
+
+strsignal = UTF8.decodeString `fmap` unsafePerformIO `fmap` (peekCString =<<) `fmap` c_strsignal
+strerror = UTF8.decodeString `fmap` unsafePerformIO `fmap` (peekCString =<<) `fmap` c_strerror
+
 
 nonblocking_read :: Fd -> ByteCount -> IO [Word8]
 nonblocking_read (Fd fd) bc = do
@@ -99,3 +106,8 @@ chroot s = throwErrnoIfMinus1_ "chroot" (withCString s c_chroot)
 
 fdOfFd :: Fd -> CInt
 fdOfFd (Fd fd) = fd
+
+foreign import ccall unsafe "locale.h setlocale" setlocale :: CInt -> CString -> IO CString
+
+setlocale_ALL_env :: IO ()
+setlocale_ALL_env = withCString "" $ \s -> setlocale (#const LC_ALL) s >> return ()

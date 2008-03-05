@@ -1,13 +1,15 @@
 import qualified System.Environment
 import qualified XMPP
 import qualified MUC
+import qualified List
+import qualified Sys
 
 import Data.Char (ord)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import System.IO (putStrLn)
 import Control.Monad (when, forM_)
+
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
-import qualified List
 import Util
 import Request
 
@@ -40,6 +42,7 @@ getArgs = do
 
 main :: IO ()
 main = do
+  Sys.setlocale_ALL_env
   opts <- getArgs
   if Help `elem` opts then putStrLn help else do
   cfg <- readTypedFile $ findMaybe (\o -> case o of Config cf -> Just cf; _ -> Nothing) opts `orElse` "xmpp-config"
