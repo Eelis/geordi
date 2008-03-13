@@ -36,17 +36,18 @@ namespace geordi
     {
       if (std::type_info const * const t = abi::__cxa_current_exception_type())
       {
-        std::string name = t->name(); // mangled
+        int status = 0;
+        char const * const name = abi::__cxa_demangle(t->name(), 0, 0, &status);
 
-        int status = -1;
-        char * const dem = abi::__cxa_demangle(name.c_str(), 0, 0, &status);
-
-        if (status == 0) { name = dem; free(dem); }
+        // In OOM conditions, the above call to __cxa_demangle will fail (and name will be 0). Supplying a preallocated buffer using __cxa_demangle's second and third parameters does not help, because it performs additional internal allocations.
 
         try { throw; }
-        catch (std::exception & e) { std::cout << name << ": " << e.what(); }
-        catch (char const * const s) { std::cout << "char const* exception: " << s; }
-        catch (...) { std::cout << "uncaught exception of type " << name; }
+        catch(std::exception & e) { std::cout << (name ? name : "exception") << ": " << e.what(); }
+        catch(char const * const s) { std::cout << "char const* exception: " << s; }
+        catch(...) {
+          std::cout << "uncaught exception";
+          if(name) std::cout << " of type " << name;
+        }
       }
       else std::cout << "terminate called without an active exception.";
         // Happens when terminate() is called explicitly, or "throw;" is called when there is no active exception.
