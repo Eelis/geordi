@@ -1,19 +1,30 @@
 #include "tracked.hpp"
 #include <vector>
 #include <cassert>
+#include <fstream>
 #include <boost/implicit_cast.hpp>
 #include <boost/ref.hpp>
+#include <boost/noncopyable.hpp>
 #include "more_ostreaming.hpp"
-
-namespace geordi { void abort(); }
+#include "geordi.hpp"
 
 namespace tracked
 {
   namespace detail
   {
+    using geordi::error;
+    using geordi::parsep;
+    using geordi::abort;
+
     bool muted = false;
 
+    std::ofstream nullstream; // We don't open this, so writes are no-ops.
+
     enum Status { fresh, pillaged, destructed };
+
+    info::info() { if(!muted) std::cout << parsep; }
+    info::~info() { if(!muted) std::cout << parsep; }
+    std::ostream & info::operator()() const { return muted ? nullstream : std::cout; }
 
     struct Entry {
       Tracked const * p;
@@ -35,37 +46,33 @@ namespace tracked
     }
 
     void make_entry(Tracked const * const r) {
-      if (Entry * const e = entry(r))
-        if (e->status != destructed) { std::cout << "Error: Leaked: " << *e; geordi::abort(); }
+      if (Entry * const e = entry(r)) if (e->status != destructed) error()() << "leaked: " << *e;
       Entry const e = { r, "?", fresh };
       entries.push_back(e);
     }
 
     void assert_status_below(Tracked const * const r, Status const st, std::string const & s) {
-      if (Entry * const e = entry(r)) {
-        if (e->status < st) return;
-        std::cout << " Error: Tried to " << s << (e->status == pillaged ? " pillaged " : " destructed ") << *e << '.';
-        geordi::abort();
-      }
-      else { std::cout << " Error: Tried to " << s << " non-existent object."; geordi::abort(); }
+      Entry * const e = entry(r);
+      if(!e) error()() << "tried to " << s << " non-existent object.";
+      if (e->status < st) return;
+      error()() << "tried to " << s << (e->status == pillaged ? " pillaged " : " destructed ") << *e << '.';
     }
 
     void * op_new(std::size_t const s, bool const array, void * const r, char const * const name) {
       if (!r) return 0;
-      if (!muted) std::cout << " new(" << name << (array ? "[]" : "") << ") ";
+      info()() << "new(" << name << (array ? "[]" : "") << ")";
       return r;
     }
 
     void op_delete(void * const p, bool const array, std::size_t const s) {
       if (array) ::operator delete[](p);
       else ::operator delete(p);
-      if (muted) return;
       std::vector<boost::reference_wrapper<Entry const> > v;
       for (Entries::const_iterator j = entries.begin(); j != entries.end(); ++j)
         if (p <= j->p && boost::implicit_cast<void const *>(j->p) <= static_cast<char *>(p) + s)
           v.push_back(boost::cref(*j));
-      if (array) std::cout << " delete" << v << ' ';
-      else { assert(v.size() == 1); std::cout << " delete(" << v.front() << ") "; }
+      if (array) info()() << "delete" << v;
+      else { assert(v.size() == 1); info()() << "delete(" << v.front() << ")"; }
     }
 
     void Tracked::set_name(char const * const s) const { entry(this)->name = s; }
@@ -102,7 +109,7 @@ namespace tracked
         std::vector<boost::reference_wrapper<Entry const> > v;
         for (Entries::const_iterator i = entries.begin(); i != entries.end(); ++i)
           if (i->status != destructed) v.push_back(boost::cref(*i));
-        if (!v.empty()) { std::cout << " Leaked: " << v; geordi::abort(); }
+        if (!v.empty()) { info()() << "leaked: " << v; abort(); }
       }
     } leakReporter; // Must come after entries, so it will be destructed first.
 
@@ -110,15 +117,15 @@ namespace tracked
 
   } // namespace detail
 
+  void mute() { detail::muted = true; }
+  void unmute() { detail::muted = false; }
+
   // B:
 
-    B::B() { set_name("B"); if (!detail::muted) std::cout << ' ' << *this << "* "; }
-    B::B(B const & b): Tracked(b)
-    { set_name("B"); if (!detail::muted) std::cout << ' ' << *this << "*(" << b << ") "; }
-    B & B::operator=(B const & b)
-    { Tracked::operator=(b); if (!detail::muted) std::cout << ' ' << *this << "=" << b << ' '; return *this; }
-
-    B::~B() { if (!detail::muted) std::cout << ' ' << *this << "~ "; }
+    B::B() { set_name("B"); detail::info()() << *this << "*"; }
+    B::B(B const & b): Tracked(b) { set_name("B"); detail::info()() << *this << "*(" << b << ")"; }
+    B & B::operator=(B const & b) { Tracked::operator=(b); detail::info()() << *this << "=" << b; return *this; }
+    B::~B() { detail::info()() << *this << "~"; }
 
     void * B::operator new(std::size_t const s)
     { return detail::op_new(s, false, ::operator new(s), "B"); }
@@ -135,27 +142,27 @@ namespace tracked
 
     void B::f() const {
       assert_status_below(this, detail::pillaged, "call B::f() on");
-      if (!detail::muted) std::cout << ' ' << *this << ".f() ";
+      detail::info()() << *this << ".f()";
     }
 
     void B::vf() const {
       assert_status_below(this, detail::pillaged, "call B::vf() on");
-      if (!detail::muted) std::cout << ' ' << *this << ".vf() ";
+      detail::info()() << *this << ".vf()";
     }
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       B::B(B && b): Tracked(std::move<Tracked>(b))
-      { set_name("B"); if (!detail::muted) std::cout << ' ' << b << "=>" << *this << "* "; }
+      { set_name("B"); detail::info()() << b << "=>" << *this << "*"; }
       B & B::operator=(B && b) {
         Tracked::operator=(std::move<Tracked>(b));
-        if (!detail::muted) std::cout << ' ' << b << "=>" << *this << ' ';
+        detail::info()() << b << "=>" << *this;
         return *this;
       }
     #endif
 
     B & B::operator++() {
       assert_status_below(this, detail::pillaged, "pre-increment");
-      if (!detail::muted) std::cout << " ++" << *this << ' ';
+      detail::info()() << "++" << *this;
       return *this;
     }
 
@@ -166,12 +173,11 @@ namespace tracked
 
   // D:
 
-    D::D() { set_name("D"); if (!detail::muted) std::cout << ' ' << *this << "* "; }
+    D::D() { set_name("D"); detail::info()() << *this << "*"; }
     D::D(D const & d): B(boost::implicit_cast<B const&>(d))
-    { set_name("D"); if (!detail::muted) std::cout << ' ' << *this << "*(" << d << ") "; }
-    D & D::operator=(D const & d)
-    { B::operator=(d); if (!detail::muted) std::cout << ' ' << *this << "=" << d << ' '; return *this; }
-    D::~D() { if (!detail::muted) std::cout << ' ' << *this << "~ "; }
+    { set_name("D"); detail::info()() << *this << "*(" << d << ")"; }
+    D & D::operator=(D const & d) { B::operator=(d); detail::info()() << *this << "=" << d; return *this; }
+    D::~D() { detail::info()() << *this << "~"; }
 
     void * D::operator new(std::size_t const s)
     { return detail::op_new(s, false, ::operator new(s), "D"); }
@@ -188,20 +194,19 @@ namespace tracked
 
     void D::f() const {
       assert_status_below(this, detail::pillaged, "call D::f() on");
-      if (!detail::muted) std::cout << ' ' << *this << ".f() ";
+      detail::info()() << *this << ".f()";
     }
 
     void D::vf() const {
       assert_status_below(this, detail::pillaged, "call D::vf() on");
-      if (!detail::muted) std::cout << ' ' << *this << ".vf() ";
+      detail::info()() << *this << ".vf()";
     }
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      D::D(D && d): B(std::move<B>(d))
-      { set_name("D"); if (!detail::muted) std::cout << ' ' << d << "=>" << *this << "* "; }
+      D::D(D && d): B(std::move<B>(d)) { set_name("D"); detail::info()() << d << "=>" << *this << "*"; }
       D & D::operator=(D && d) {
         B::operator=(std::move<B>(d));
-        if (!detail::muted) std::cout << ' ' << d << "=>" << *this << ' ';
+        detail::info()() << d << "=>" << *this;
         return *this;
       }
     #endif

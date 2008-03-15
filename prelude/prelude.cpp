@@ -16,7 +16,7 @@
 #include <cxxabi.h>
 #include <ext/malloc_allocator.h>
 #include <boost/noncopyable.hpp>
-
+#include "geordi.hpp"
 #include "bin_iomanip.hpp"
 
 namespace geordi
@@ -28,30 +28,27 @@ namespace geordi
     std::exit(0);
   }
 
-  void abort(char const * const s) { std::printf(s); abort(); }
+  char const parsep[] = "\342\200\251";
+    // UTF-8 encoding of PARAGRAPH SEPARATOR (U+2029). See "Output separators" in notes.txt.
 
   namespace
   {
     void terminate_handler ()
     {
-      if (std::type_info const * const t = abi::__cxa_current_exception_type())
-      {
-        int status = 0;
-        char const * const name = abi::__cxa_demangle(t->name(), 0, 0, &status);
-
-        // In OOM conditions, the above call to __cxa_demangle will fail (and name will be 0). Supplying a preallocated buffer using __cxa_demangle's second and third parameters does not help, because it performs additional internal allocations.
-
-        try { throw; }
-        catch(std::exception & e) { std::cout << (name ? name : "exception") << ": " << e.what(); }
-        catch(char const * const s) { std::cout << "char const* exception: " << s; }
-        catch(...) {
-          std::cout << "uncaught exception";
-          if(name) std::cout << " of type " << name;
-        }
-      }
-      else std::cout << "terminate called without an active exception.";
+      std::type_info const * const t = abi::__cxa_current_exception_type();
+      if(!t) error()() << "terminate called without an active exception.";
         // Happens when terminate() is called explicitly, or "throw;" is called when there is no active exception.
 
+      int status = 0;
+      char const * const name = abi::__cxa_demangle(t->name(), 0, 0, &status);
+
+      // In OOM conditions, the above call to __cxa_demangle will fail (and name will be 0). Supplying a preallocated buffer using __cxa_demangle's second and third parameters does not help, because it performs additional internal allocations.
+
+      std::cout << parsep;
+      try { throw; }
+      catch(std::exception & e) { std::cout << (name ? name : "exception") << ": " << e.what(); }
+      catch(char const * const s) { std::cout << "char const* exception: " << s; }
+      catch(...) { std::cout << "uncaught exception"; if(name) std::cout << " of type " << name; }
       abort();
     }
   }
@@ -72,8 +69,6 @@ namespace geordi
     if (lines.empty()) throw std::runtime_error("no advice available");
     return lines.at(rand() % lines.size());
   }
-
-  struct initializer_t { initializer_t (); };
 
   initializer_t::initializer_t ()
   {
@@ -116,12 +111,12 @@ void operator delete(void * const p, std::nothrow_t const &) throw () { operator
 void operator delete(void * const p) throw ()
 {
   using namespace geordi;
-  if (prev().find(p) != prev().end()) abort("Error: Tried to delete already deleted pointer.");
+  if (prev().find(p) != prev().end()) error()() << "tried to delete already deleted pointer.";
   if (array_current().find(p) != array_current().end())
-    abort("Error: Tried to apply non-array operator delete to pointer returned by new[].");
+    error()() << "tried to apply non-array operator delete to pointer returned by new[].";
   allocs::iterator const i = plain_current().find(p);
   if (i == plain_current().end())
-    abort("Error: Tried to delete pointer not returned by previous matching new invocation.");
+    error()() << "tried to delete pointer not returned by previous matching new invocation.";
   plain_current().erase(i);
   std::free(p);
   prev().insert(p);
@@ -137,12 +132,12 @@ void operator delete[](void * const p, std::nothrow_t const &) throw () { operat
 void operator delete[](void * const p) throw ()
 {
   using namespace geordi;
-  if (prev().find(p) != prev().end()) abort("Error: Tried to delete[] already deleted pointer.");
+  if (prev().find(p) != prev().end()) error()() << "tried to delete[] already deleted pointer.";
   if (plain_current().find(p) != plain_current().end())
-    abort("Error: Tried to delete[] pointer returned by non-array operator new.");
+    error()() << "tried to delete[] pointer returned by non-array operator new.";
   allocs::iterator const i = array_current().find(p);
   if (i == array_current().end())
-    abort("Error: Tried to delete[] pointer not returned by previous new[] invocation.");
+    error()() << "tried to delete[] pointer not returned by previous new[] invocation.";
   array_current().erase(i);
   std::free(p);
   prev().insert(p);

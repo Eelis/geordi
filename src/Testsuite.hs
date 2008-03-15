@@ -64,7 +64,7 @@ main = do
   test "File creation" "{ ofstream f (\"bla\"); assert(errno == EACCES); }" $ ExactMatch ""
 
   test "-t/-c" "-tc use ns boost; tmpl <tpn T> cls C { expl C (C co &); pvt: stc dub d; pub: void op() (); };" $
-    ExactMatch "Compilation successful"
+    ExactMatch "Success"
 
   let quine = "{string t,u,y(1,34);stringstream i(\"{string t,u,y(1,34);stringstream i(!);getline(i,t,'!')>>u;cout<<t<<y<<i.str()<<y<<u;}\");getline(i,t,'!')>>u;cout<<t<<y<<i.str()<<y<<u;}"
   test "Quine" quine $ ExactMatch quine
@@ -73,7 +73,7 @@ main = do
 
   test "getopt" "-monkey chicken" $ ExactMatch "unrecognized option `-m'\n"
 
-  test "Program timeout" "{ for(;;) ; }" $ RegexMatch "Timeout|Killed"
+  test "Program timeout" "{ for(;;) ; }" $ RegexMatch "Killed"
 
   test "Custom assert()/abort()" "{ assert(4 > 9); }" $ ExactMatch "Assertion `4 > 9' fails.\nAborted."
 
@@ -91,7 +91,7 @@ main = do
     ExactMatch "Floating point exception"
 
   test "System call interception" "<< fork()" $
-    PrefixMatch "Disallowed system call: "
+    RegexMatch "SYS_[^:]*: Operation not permitted"
 
   test "-mcheck diagnostic" "{ int * p = new int [3]; p[3] = 6; delete[] p; }" $
     PrefixMatch "memory clobbered past end of allocated block\n"
@@ -100,19 +100,19 @@ main = do
     PrefixMatch "memory clobbered before allocated block\n"
 
   test "Checking global allocation/deallocation operators" "{ delete new int[3]; }" $
-    PrefixMatch "Error: Tried to apply non-array operator delete to pointer returned by new[].\n"
+    PrefixMatch "error: tried to apply non-array operator delete to pointer returned by new[].\n"
 
   let s = "dicekjhbagfl" in
     test "Nontrivial program (Brainfuck interpreter)" ("{b(program);}char program[]=\">>,[>>,]<<[[-<+<]>[>[>>]<[.[-]<[[>>+<<-]<]>>]>]<<]\",input[]=\"" ++ s ++ "\", *i=input,m[512]={},*p=m;void b(char*c){for(;*c&&*c!=']';++c){(*((p+=*c=='>')-=*c=='<')+=*c=='+') -=*c=='-';*c=='.'&&cout<<*p;if(*c==',')*p=*i++;if(*c=='['){for(++c;*p;)b(c);for(int d=0;*c!=']'||d--;++c)d+=*c=='[';}}}") $ ExactMatch (sort s)
 
   test "Compiler timeout" "-c #include __FILE__" $
-    ExactMatch "g++: Timeout"
+    ExactMatch "g++: Killed"
 
   test "bin IO manipulator" "<< showbase << uppercase << bin << setfill('_') << internal << setw(10) << 53" $
     ExactMatch "0B__110101"
 
   test "Tracked" "{ using tracked::B; B x(0), y(x); x.B::~B(); x.f(); }" $
-    ExactMatch " B0*(0)  B1*(B0)  B0~  Error: Tried to call B::f() on destructed B0.\nAborted."
+    ExactMatch "B0*(0) B1*(B0) B0~ error: tried to call B::f() on destructed B0.\nAborted."
 
   test "Custom terminate() handler" "{ throw std::logic_error(\"It is not logical, Captain.\"); }" $
     ExactMatch "logic_error: It is not logical, Captain.\nAborted."
@@ -133,6 +133,6 @@ main = do
 
   test "Recursive exec()"
     "int main (int const argc, char const * const * argv) { string s; if (argc >= 2) s = argv[1]; s += 'x'; if (s.size() % 100 == 0) cout << '+' << flush; execl(\"/t\", \"/t\", s.c_str(), 0); }" $
-    RegexMatch "\\++( Timeout)?$"
+    RegexMatch "\\++( Killed)?$"
 
   test "Range printing" "{ vector<int> v; v += 3, 5, 9, 4, 1; cout << v; }" $ ExactMatch "[3, 5, 9, 4, 1]"

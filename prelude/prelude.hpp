@@ -6,6 +6,9 @@
 #include "delimited_ostream.hpp"
 #include "bin_iomanip.hpp"
 #include "lvalue_rvalue.hpp"
+#include "show.hpp"
+#include "evil_casts.hpp"
+#include "geordi.hpp"
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
   #include "unique_ptr.hpp"
@@ -113,20 +116,6 @@
 
 char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
 
-// Evil casts:
-
-  // Consider   some_evil_cast<char const *>("foo")   . There are two possible interpretations for the result: either the array should decay into a pointer and be immediately returned, or the bytes making up the array are interpreted as the bytes making up the to-be-returned pointer. cast_dammit_cast does the former, while savage_cast does the latter.
-
-  template <typename To, typename From> To savage_cast (From const & from)
-  { return (To const &) from; }
-    // Can even be used to check endianness:  geordi << hex << savage_cast<uint32_t>("\xef\xbe\xad\xde"))
-
-  template <typename To, typename From> To cast_dammit_cast (From const from)
-  {
-    From const & r = from; // from itself is not a reference because we want arrays to decay, so that cast_dammit_cast<char*>("oi") works properly.
-    return (To const &) r;
-  }
-
 typedef unsigned char uchar;
 typedef unsigned int uint;
 typedef unsigned long ulong;
@@ -141,25 +130,8 @@ typedef long double ldouble;
 #define GEORDI_PRINT_PRE GEORDI_STATEMENTS_PRE std::cout <<
 #define GEORDI_PRINT_POST ; GEORDI_STATEMENTS_POST
 
-namespace geordi
-{
-  std::string advice ();
-  void abort ();
-  struct initializer_t { initializer_t (); } const initializer;
-    // Could theoretically be located in other TU, but our using of an .a for our .o's makes that painful.
-
-  template <typename T> struct shower { T const & v; char const * const s; };
-
-  template <typename C, typename Tr, typename T>
-  std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, shower<T> const & s)
-  { return o << s.s << " = " << s.v; }
-
-  template <typename T>
-  shower<T> show(T const & v, char const * const s) { shower<T> const r = { v, s }; return r; }
-}
-
-#define SHOW(x) ::geordi::show((x), #x)
-  // The more obvious   #define SHOW(x) #x " = " << (x)   does not work in   cout << SHOW(x), SHOW(y);. The alternative   #define SHOW(x) (#x " = " + ::boost::lexical_cast<::std::string>(x))   does not use the stream's formatting flags.
+namespace geordi { geordi::initializer_t const initializer; }
+  // Could theoretically be located in other TU, but our using of an .a for our .o's makes that painful.
 
 #undef assert
 #define assert(e) ((e) ? void() : (void(::std::cout << "Assertion `" #e "' fails."), ::geordi::abort()));

@@ -1,6 +1,7 @@
 #ifndef TRACKED_HPP
 #define TRACKED_HPP
 
+#include <boost/noncopyable.hpp>
 #include <iostream>
 
 namespace tracked
@@ -26,12 +27,10 @@ namespace tracked
 
     unsigned int id(Tracked const &);
 
-    extern bool muted;
-      // Note: Terminal errors such as calling functions on pillaged objects are never muted.
+    struct info: boost::noncopyable { info(); ~info(); std::ostream & operator()() const; };
   }
 
-  inline void mute() { detail::muted = true; }
-  inline void unmute() { detail::muted = false; }
+  void mute(); void unmute();
 
   namespace detail
   {
@@ -50,8 +49,8 @@ namespace tracked
       struct mute_in_ctor { mute_in_ctor() { mute(); } };
       static mute_in_ctor m;
       public:
-        focus_t() { &m; unmute(); }
-          // Taking m's address forces it to exist, but only if the focus_t template is ever instantiated. The effect is that if TRACK (which instantiates focus_t) is ever used, mute() will be called before main() is entered.
+        focus_t() { m; unmute(); }
+          // Mentioning m forces it to exist, but only if the focus_t template is ever instantiated. The effect is that if TRACK (which instantiates focus_t) is ever used, mute() will be called before main() is entered.
         ~focus_t() { mute(); }
         operator bool() const { return false; }
     };
@@ -68,7 +67,7 @@ namespace tracked
     B();
     B(B const &);
     template<typename T> explicit B(T const & x)
-    { set_name("B"); if (!detail::muted) std::cout << ' ' << *this << "*(" << x << ") "; }
+    { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
     B & operator=(B const &);
     virtual ~B();
 
@@ -102,7 +101,7 @@ namespace tracked
     D();
     D(D const &);
     template<typename T> explicit D(T const & x): B(x)
-    { set_name("D"); if (!detail::muted) std::cout << ' ' << *this << "*(" << x << ") "; }
+    { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
     D & operator=(D const &);
     ~D();
 

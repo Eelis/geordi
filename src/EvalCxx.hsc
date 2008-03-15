@@ -181,16 +181,27 @@ capture_restricted a argv env (Resources timeout rlims bs) =
 
 -- The actual output size is also limited by the pipe buffer.
 
+parsep :: Char
+parsep = '\x2029'
+
+subst_parseps :: String -> String
+subst_parseps = f
+  where
+    f [] = []
+    f (c:s) | c == parsep = f s
+    f (c:d:s) | d == parsep, s' <- f s = c : (if null s' then [] else ' ' : s')
+    f (c:s) = c : f s
+
 data Stage = Compile | Assemble | Link | Run
 
 data EvaluationResult = EvaluationResult Stage CaptureResult
   -- The capture result of the last stage attempted.
 
 instance Show EvaluationResult where
-  show (EvaluationResult stage (CaptureResult r o)) = case (stage, r, o) of
+  show (EvaluationResult stage (CaptureResult r o)) = subst_parseps $ case (stage, r, o) of
     (Compile, Exited ExitSuccess, _) -> strerror eOK
     (Run, Exited ExitSuccess, _) -> ErrorFilters.prog o
-    (Run, _, _) -> ErrorFilters.prog $ (if o == "" then "" else o ++ " ") ++ show r
+    (Run, _, _) -> ErrorFilters.prog $ o ++ parsep : show r
     (Compile, Exited (ExitFailure _), _) -> ErrorFilters.cc1plus o
     (Assemble, Exited (ExitFailure _), _) -> ErrorFilters.as o
     (Link, Exited (ExitFailure _), _) -> ErrorFilters.ld o
