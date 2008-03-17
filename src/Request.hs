@@ -34,6 +34,7 @@ is_request :: [String] -> String -> Maybe String
 is_request nicks txt = either (const Nothing) Just (parse p "" txt)
   where
    p = do
+    spaces
     choice $ ((\(x:xs) -> try $ oneOf [toLower x, toUpper x] >> string xs) .) $
       reverse $ sortByProperty length nicks
     lookAhead $ satisfy (/= '-')
