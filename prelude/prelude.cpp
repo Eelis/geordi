@@ -110,6 +110,7 @@ void * operator new(size_t const i) throw (std::bad_alloc)
 void operator delete(void * const p, std::nothrow_t const &) throw () { operator delete(p); }
 void operator delete(void * const p) throw ()
 {
+  if(!p) return;
   using namespace geordi;
   if (prev().find(p) != prev().end()) error()() << "tried to delete already deleted pointer.";
   if (array_current().find(p) != array_current().end())
@@ -131,6 +132,7 @@ void * operator new[](size_t const i) throw (std::bad_alloc)
 void operator delete[](void * const p, std::nothrow_t const &) throw () { operator delete[](p); }
 void operator delete[](void * const p) throw ()
 {
+  if(!p) return;
   using namespace geordi;
   if (prev().find(p) != prev().end()) error()() << "tried to delete[] already deleted pointer.";
   if (plain_current().find(p) != plain_current().end())
