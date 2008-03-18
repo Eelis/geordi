@@ -163,7 +163,7 @@ cleanup_types :: String -> String
 cleanup_types s = either (const s) cleanup_types $ parse (replacer >+> getInput) "" s
 
 cc1plus e =
-  case mapMaybe (matchRegexAll $ mkRegex "(^|\n)[^:]+:[[:digit:]]+: ") $ lines e of
+  case mapMaybe (matchRegexAll $ mkRegex "(^|\n)[^:]+:([[:digit:]]+:)+ ") $ lines e of
     [] -> cleanup_types e
     l | (_, _, e', _) <- last l -> cleanup_types e'
   -- Even though we use -Wfatal-errors, we may still get several "instantiated from ..." lines. Only the last of these (the one we're interested in) actually says "error"/"warning". We used to have the regex match on that, greatly simplifying the above, but that broke when a language other than English was used.
