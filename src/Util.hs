@@ -141,3 +141,6 @@ rate_limiter bound window = do
       else writeIORef r hist >> sleep 1 >> loop
  where discard_until t = qPopWhile (< t)
   -- Given |rl <- rate_limiter b w|, |rl| actions will sleep as required to make sure no more than b actions pass during any w second time window.
+
+parsep :: Char
+parsep = '\x2029' -- U+2029 PARAGRAPH SEPARATOR

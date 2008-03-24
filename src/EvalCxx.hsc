@@ -181,9 +181,6 @@ capture_restricted a argv env (Resources timeout rlims bs) =
 
 -- The actual output size is also limited by the pipe buffer.
 
-parsep :: Char
-parsep = '\x2029'
-
 subst_parseps :: String -> String
 subst_parseps = f
   where

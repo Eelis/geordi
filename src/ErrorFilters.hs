@@ -29,7 +29,7 @@ as e = maybe e (\(_, (m:ms), _, _) -> toLower m : ms) $ matchRegexAll (mkRegex "
 
 ld e = maybe e (\(_, m, _, _) -> "error: " ++ m) $ matchRegexAll (mkRegex "\\bundefined reference to [^\n]*") e
 
-prog = subRegex' (mkRegex "/usr/[^:]+:[[:digit:]]+:error: ") " error: " . cleanup_types
+prog = subRegex' (mkRegex "/usr/[^:]+:[[:digit:]]+:error: ") (parsep : "error: ") . cleanup_types
   -- We apply cleanup_types even to successful output, to clean up assertion failures and {E}TYPE strings. The subRegex cleans up libstdc++ debug mode errors.
 
 cxxArg :: CharParser st String
