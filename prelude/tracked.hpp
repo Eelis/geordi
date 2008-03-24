@@ -3,6 +3,7 @@
 
 #include <boost/noncopyable.hpp>
 #include <iostream>
+#include <string>
 
 namespace tracked
 {
@@ -66,8 +67,12 @@ namespace tracked
   {
     B();
     B(B const &);
-    template<typename T> explicit B(T const & x)
-    { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
+
+    explicit B(int const x) { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
+    explicit B(char const x) { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
+    explicit B(std::string const & x) { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
+      // This used to be one ctor template, but that messed up snippets like: struct S { operator tracked::B(); }; S s; tracked::B b(s);
+
     B & operator=(B const &);
     virtual ~B();
 
@@ -100,8 +105,11 @@ namespace tracked
   {
     D();
     D(D const &);
-    template<typename T> explicit D(T const & x): B(x)
-    { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
+
+    explicit D(int const & x): B(x) { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
+    explicit D(char const & x): B(x) { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
+    explicit D(std::string const & x): B(x) { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
+
     D & operator=(D const &);
     ~D();
 
