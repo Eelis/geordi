@@ -33,6 +33,8 @@ namespace geordi
 
   namespace
   {
+    bool is_prefix_of(char const * a, char const * b) { while(*a && *b == *a) { ++a; ++b; } return !*a; }
+
     void terminate_handler ()
     {
       std::type_info const * const t = abi::__cxa_current_exception_type();
@@ -46,7 +48,13 @@ namespace geordi
 
       std::cout << parsep;
       try { throw; }
-      catch(std::exception & e) { std::cout << (name ? name : "exception") << ": " << e.what(); }
+      catch(std::exception const & e)
+      {
+        char const * const what = e.what();
+        if(!name) std::cout << "exception: ";
+        else if(!is_prefix_of(name, what)) std::cout << name << ": ";
+        std::cout << what;
+      }
       catch(char const * const s) { std::cout << "char const* exception: " << s; }
       catch(...) { std::cout << "uncaught exception"; if(name) std::cout << " of type " << name; }
       abort();
