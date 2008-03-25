@@ -6,7 +6,7 @@ IrcBotConfig
 , nick = "geordiclone"
 , nick_pass = Nothing
 , alternate_nick = "geordiclone_"
-, blacklist = ["nolyc", "Oort", "geordi"]
+, blacklist = []
 , no_output_msg = " "
 , join_trigger = Nothing
 , censor = []

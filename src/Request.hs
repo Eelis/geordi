@@ -4,9 +4,9 @@ import qualified EvalCxx
 import qualified CxxParse as Cxx
 
 import Control.Exception ()
-import Data.Char (isPrint, toUpper, toLower)
+import Data.Char (isPrint, isAlpha, isDigit)
 import Control.Monad.Error ()
-import Text.ParserCombinators.Parsec (parse, getInput, (<|>), oneOf, try, string, lookAhead, choice, spaces, satisfy, sourceColumn, eof, GenParser)
+import Text.ParserCombinators.Parsec (parse, getInput, (<|>), oneOf, lookAhead, spaces, satisfy, sourceColumn, eof, GenParser, CharParser, many1)
 import Text.ParserCombinators.Parsec.Error (errorMessages, Message(..), errorPos, showErrorMessages)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt)
 
@@ -30,16 +30,22 @@ wrapPrint, wrapStmts :: String -> String
 wrapPrint = wrapPrePost "PRINT"
 wrapStmts = wrapPrePost "STATEMENTS"
 
-is_request :: [String] -> String -> Maybe String
-is_request nicks txt = either (const Nothing) Just (parse p "" txt)
+type Nick = String
+type Request = String
+
+nickP :: CharParser st Nick
+nickP = many1 $ satisfy $ isAlpha .||. isDigit .||. (`elem` "[]\\`_^|}")
+  -- We don't include '{' because it messes up "geordi{...}", and no sane person would use it in a nick for a geordi bot anyway.
+
+is_request :: String -> Maybe (Nick, Request)
+is_request txt = either (const Nothing) Just (parse p "" txt)
   where
    p = do
     spaces
-    choice $ ((\(x:xs) -> try $ oneOf [toLower x, toUpper x] >> string xs) .) $
-      reverse $ sortByProperty length nicks
-    lookAhead $ satisfy (/= '-')
+    nick <- nickP
     oneOf ":," <|> (spaces >> lookAhead (oneOf "<{-"))
-    getInput
+    r <- getInput
+    return (nick, r)
 
 splitSemicolon :: Cxx.Code -> (Cxx.Code, Cxx.Code)
 splitSemicolon (Cxx.Code []) = (Cxx.Code [], Cxx.Code [])
@@ -57,7 +63,7 @@ parseOrFail p t = either (fail . showParseError) return $ parse p "" t
   isUnexpMsg (UnExpect _) = True
   isUnexpMsg _ = False
 
-parse_request :: (Functor m, Monad m) => String -> m (String {- code -}, Bool {- also run -})
+parse_request :: (Functor m, Monad m) => Request -> m (String {- code -}, Bool {- also run -})
 parse_request req = do
   (opts, rest) <- case getOpt RequireOrder optsDesc (words req) of
     (_, _, (err:_)) -> fail err

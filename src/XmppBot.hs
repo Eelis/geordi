@@ -60,7 +60,8 @@ main = do
       maybeM (span (/='/') . XMPP.getAttr "from" msg) $ \(room, fromnick) -> do
       maybeM (List.lookup room (rooms cfg)) $ \mynick -> do
       when (null fromnick || mynick /= tail fromnick) $ do
-      maybeM (XMPP.getMessageBody msg >>= Request.is_request [mynick]) $ \r -> do
+      maybeM (XMPP.getMessageBody msg >>= Request.is_request) $ \(n, r) -> do
+      when (n == mynick) $ do
       o <- XMPP.liftIO $ xmlEntities . take (max_msg_length cfg) . takeWhile (/= '\n') . evalRequest r
       XMPP.liftIO limit_rate
       MUC.sendGroupchatMessage room o

@@ -14,6 +14,7 @@ import Control.Monad.State (execStateT, lift)
 import System.IO.UTF8 (putStr, putStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Text.Regex (Regex, subRegex, mkRegex)
+import Data.Char (isSpace, toUpper, toLower)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Util
@@ -113,12 +114,12 @@ on_msg eval cfg m = flip execStateT [] $ do
         reply s = send $ msg "PRIVMSG" [if private then fromnick else c, s]
       if private && not (serve_private_requests cfg)
        then reply "This bot does not serve private requests."
-       else case Request.is_request [nick cfg, alternate_nick cfg] txt of
-        Just r -> do
-          o <- lift $ take (max_msg_length cfg) . takeWhile (/= '\n') . eval r
+       else case Request.is_request txt of
+        Just (n, r) | any (\(h:t) -> n == toLower h : t || n == toUpper h : t) [nick cfg, alternate_nick cfg] -> do
+          o <- lift $ take (max_msg_length cfg) . unreq . takeWhile (/= '\n') . eval r
           reply $ if null o then no_output_msg cfg else do_censor cfg o
-        Nothing | private -> reply "Not a valid request. See http://www.eelis.net/geordi/ for usage syntax."
-        Nothing -> return ()
+        _ | private -> reply "Not a valid request. See http://www.eelis.net/geordi/ for usage syntax."
+        _ -> return ()
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
       when (join_trigger cfg == Nothing) join_chans
@@ -126,6 +127,7 @@ on_msg eval cfg m = flip execStateT [] $ do
   where
     send = msapp . (:[])
     join_chans = msapp $ msg "JOIN" . (:[]) . chans cfg
+    unreq s = maybe s (\(n, r) -> n ++ "; " ++ dropWhile isSpace r) (Request.is_request s)
 
 connect :: String -> Net.PortNumber -> IO Handle
   -- Mostly copied from Network.connectTo. We can't use that one because we want to set SO_KEEPALIVE (and related) options on the socket, which can't be done on a Handle.
