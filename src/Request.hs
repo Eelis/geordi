@@ -13,11 +13,12 @@ import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt)
 import Prelude hiding (catch, (.))
 import Util
 
-data Opt = CompileOnly | Terse | Help | Version deriving Eq
+data Opt = CompileOnly | Terse | Help | Version | NoWarn deriving Eq
 
 optsDesc :: [OptDescr Opt]
 optsDesc =
   [ Option "c" ["compile-only"] (NoArg CompileOnly) undefined
+  , Option "w" ["no-warn"] (NoArg NoWarn) undefined
   , Option "t" ["terse"] (NoArg Terse) undefined
   , Option "h" ["help"] (NoArg Help) undefined
   , Option "v" ["version"] (NoArg Version) undefined
@@ -63,7 +64,7 @@ parseOrFail p t = either (fail . showParseError) return $ parse p "" t
   isUnexpMsg (UnExpect _) = True
   isUnexpMsg _ = False
 
-parse_request :: (Functor m, Monad m) => Request -> m (String {- code -}, Bool {- also run -})
+parse_request :: (Functor m, Monad m) => Request -> m EvalCxx.Request
 parse_request req = do
   (opts, rest) <- case getOpt RequireOrder optsDesc (words req) of
     (_, _, (err:_)) -> fail err
@@ -83,13 +84,13 @@ parse_request req = do
       (a, b) <- splitSemicolon . parseOrFail (Cxx.code << eof) x
       return [show b, wrapPrint (show a)]
     ()| otherwise -> return [rest]
-  return (code, also_run)
+  return $ EvalCxx.Request code also_run (opt NoWarn)
 
 evaluator :: IO (String -> IO String)
 evaluator = do
   ev <- EvalCxx.evaluator
   return $ \s -> case parse_request s of
     Left e -> return e
-    Right (code, also_run) -> filter (isPrint .||. (== '\n')) . show . ev code also_run
+    Right r -> filter (isPrint .||. (== '\n')) . show . ev r
       -- Filtering using isPrint works properly because (1) the EvalCxx evaluator returns proper Unicode Strings, not mere byte blobs; and (2) to print filtered strings we will use System.IO.UTF8's hPutStrLn which properly UTF-8-encodes the filtered String.
       -- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.

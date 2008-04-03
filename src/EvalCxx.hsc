@@ -51,7 +51,7 @@ In our code, M is close_range_end.
 
 -}
 
-module EvalCxx (evaluator, EvaluationResult(..)) where
+module EvalCxx (evaluator, EvaluationResult(..), Request(..)) where
 
 import qualified Ptrace
 import qualified Codec.Binary.UTF8.String as UTF8
@@ -230,24 +230,27 @@ readCompileConfig = do
     (words . Map.lookup "COMPILE_FLAGS" m) <*>
     (words . Map.lookup "LINK_FLAGS" m)
 
-evaluate :: CompileConfig -> String -> Bool -> IO EvaluationResult
-evaluate cfg code also_run = do
+data Request = Request { code :: String, also_run, no_warn :: Bool }
+
+evaluate :: CompileConfig -> Request -> IO EvaluationResult
+evaluate cfg req = do
   withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd -> do
   Flock.exclusive lock_fd
-  writeFile "t.cpp" code
+  writeFile "t.cpp" $ code req
   env <- filter (("LC_" `isPrefixOf`) . fst) . getEnvironment
   let
     gxx :: [String] -> Stage -> IO EvaluationResult -> IO EvaluationResult
     gxx argv stage act = do
       cr <- capture_restricted (gxxPath cfg) argv env (resources stage)
       if supervise_result cr == Exited ExitSuccess then act else return $ EvaluationResult stage cr
-  gxx (["-S", "t.cpp"] ++ compileFlags cfg) Compile $ do
-  if not also_run then return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "") else do
-  gxx (["-c", "t.s"] ++ compileFlags cfg) Assemble $ do
-  gxx (["t.o", "-o", "t"] ++ compileFlags cfg ++ linkFlags cfg) Link $ do
+  let cf = if no_warn req then "-w" : compileFlags cfg else compileFlags cfg
+  gxx (["-S", "t.cpp"] ++ cf) Compile $ do
+  if not (also_run req) then return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "") else do
+  gxx (["-c", "t.s"] ++ cf) Assemble $ do
+  gxx (["t.o", "-o", "t"] ++ cf ++ linkFlags cfg) Link $ do
   EvaluationResult Run . capture_restricted "/t" [] (env ++ prog_env) (resources Run)
 
-evaluator :: IO (String -> Bool -> IO EvaluationResult)
+evaluator :: IO (Request -> IO EvaluationResult)
 evaluator = do
   cap_fds
   cfg <- readCompileConfig
