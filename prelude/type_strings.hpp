@@ -533,6 +533,8 @@ template <typename T> std::string type_desc (bool const plural)
 
 #endif
 
+std::type_info const & demangle_typeid(std::type_info const &);
+
 } // type_strings_detail
 
 #endif // header guard
