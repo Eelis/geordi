@@ -24,6 +24,7 @@
 #include <cassert>
 
 #include <boost/shared_ptr.hpp>
+#include <boost/static_assert.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
 #include <boost/utility.hpp>
@@ -533,7 +534,14 @@ template <typename T> std::string type_desc (bool const plural)
 
 #endif
 
-std::type_info const & demangle_typeid(std::type_info const &);
+struct type_info: std::type_info
+{ std::string name() const { return cxa_demangle(std::type_info::name()); } };
+
+BOOST_STATIC_ASSERT(sizeof(type_info) == sizeof(std::type_info));
+
+template<typename Ch, typename Tr>
+std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, type_info const & t)
+{ return o << t.name(); }
 
 } // type_strings_detail
 

@@ -136,11 +136,7 @@ namespace geordi { geordi::initializer_t const initializer; }
 #undef assert
 #define assert(e) ((e) ? void() : (void(::std::cout << "Assertion `" #e "' fails."), ::geordi::abort()));
 
-template<typename Ch, typename Tr>
-std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, std::type_info const & t)
-{ return o << t.name(); }
-
-#define typeid(...) ::type_strings_detail::demangle_typeid(typeid(__VA_ARGS__))
+#define typeid(...) static_cast< ::type_strings_detail::type_info const &>(typeid(__VA_ARGS__))
 
 using namespace std;
 using namespace boost::assign;
