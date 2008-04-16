@@ -52,7 +52,7 @@ main = do
 
   test "Simple output" "<< 3" $ ExactMatch "3"
 
-  test "Stack overflow" "{ f(0); } void f(int i) { if (i % 10000 == 0) cout << '+' << flush; f(++i); }" $
+  test "Stack overflow" "<< f(3); int f(int i) { if (i % 10000 == 0) cout << '+' << flush; return -f(++i); }" $
     RegexMatch "\\++ Segmentation fault"
 
   test "close()" "{ for(int i = 0; i != 1024; ++i) assert(i == 1 || i == 2 || close(i) == -1); }" NoOutput
