@@ -22,4 +22,7 @@ namespace type_strings_detail
       default: assert(!"unexpected demangle status");
     }
   }
+
+  struct type_info: std::type_info
+  { std::string name() const { return cxa_demangle(std::type_info::name()); } };
 }

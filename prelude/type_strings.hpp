@@ -81,13 +81,6 @@ TYPEDEF_TYPE(wstring)
 
 #undef TYPEDEF_TYPE
 
-// Demangling toys
-
-std::string cxa_demangle(const char *);
-
-template <typename T> std::string typeid_name (T const & t) { return cxa_demangle(typeid(t).name()); }
-template <typename T> std::string typeid_name () { return cxa_demangle(typeid(T).name()); }
-
 // Verbose type description strings
 
 template <typename> std::string type_desc (bool plural = false);
@@ -475,7 +468,6 @@ template <typename T> std::string type_desc (bool const plural)
 // The following macros are variadic so that things like TYPE(pair<int, bool>) and ETYPE(pair<bool, int>(true, 3)) work (note the commas).
 // The E* variants are necessary because decltype does not allow type arguments, and eventually we will want to remove the __typeof__ implementation.
 
-#define TYPEID_NAME(...) (::type_strings_detail::cxa_demangle(typeid(__VA_ARGS__).name()))
 #define TYPE(...) (::type_strings_detail::type<__VA_ARGS__>())
 #define TYPE_DESC(...) (::type_strings_detail::type_desc<__VA_ARGS__>())
 
@@ -534,8 +526,7 @@ template <typename T> std::string type_desc (bool const plural)
 
 #endif
 
-struct type_info: std::type_info
-{ std::string name() const { return cxa_demangle(std::type_info::name()); } };
+struct type_info: std::type_info { std::string name() const; };
 
 BOOST_STATIC_ASSERT(sizeof(type_info) == sizeof(std::type_info));
 
