@@ -1,7 +1,7 @@
 
 -- Extremely superficial C++ "parser". It parses just enough for Request.hs to be able to use it to find the split positions in "<< ...; ..." and "{ ... } ..." requests.
 
-module CxxParse (Code(..), Chunk(..), code) where
+module CxxParse (Code(..), Chunk(..), code, charLit, stringLit, map_plain, map_chunks) where
 
 import Control.Monad.Fix
 import Text.ParserCombinators.Parsec (try, char, string, option, noneOf, (<|>), many, anyChar, manyTill, lookAhead, CharParser, many1)
@@ -19,6 +19,20 @@ data Chunk
   | Squares Code
 
 newtype Code = Code [Chunk]
+
+map_chunks :: (Chunk -> Chunk) -> Code -> Code
+map_chunks f (Code c) = Code (map f c)
+
+map_plain :: (String -> String) -> Chunk -> Chunk
+map_plain _ c@(CharLiteral _) = c
+map_plain _ s@(StringLiteral _) = s
+map_plain f (Plain s) = Plain $ f s
+map_plain _ c@(SingleComment _) = c
+map_plain _ m@(MultiComment _) = m
+map_plain f (Curlies c) = Curlies $ map_chunks (map_plain f) c
+map_plain f (Parens c) = Parens $ map_chunks (map_plain f) c
+map_plain f (Squares c) = Squares $ map_chunks (map_plain f) c
+  -- Todo: Perhaps some of this boilerplate can be scrapped.
 
 instance Show Code where show (Code l) = concat $ show . l
 

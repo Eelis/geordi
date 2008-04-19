@@ -64,12 +64,16 @@ parseOrFail p t = either (fail . showParseError) return $ parse p "" t
   isUnexpMsg (UnExpect _) = True
   isUnexpMsg _ = False
 
+newlines ::Cxx.Code -> Cxx.Code
+newlines = Cxx.map_chunks $ Cxx.map_plain $ map $ \c -> if c == '\\' then '\n' else c
+
 parse_request :: (Functor m, Monad m) => Request -> m EvalCxx.Request
 parse_request req = do
   (opts, rest) <- case getOpt RequireOrder optsDesc (words req) of
     (_, _, (err:_)) -> fail err
     (opts, non_opts, []) -> return (opts, concat $ takeBack (length non_opts) $ wordsWithWhite req)
       -- We can't use non_opts' contents, because whitespace between tokens has been lost.
+  reqCode <- newlines . parseOrFail (Cxx.code << eof) rest
   let
     opt = (`elem` opts)
     pre = ["#include \"prelude.hpp\""] ++ if opt Terse then ["#include \"terse.hpp\""] else []
@@ -77,13 +81,12 @@ parse_request req = do
   code <- unlines . (pre ++) . case () of
     ()| opt Help -> return [wrapPrint "help"]
     ()| opt Version -> return [wrapPrint $ "\"g++ (GCC) \" << __VERSION__"]
-    ()| '{':_ <- rest -> do
-      Cxx.Code (Cxx.Curlies c : b) <- parseOrFail (Cxx.code << eof) rest
+    ()| Cxx.Code (Cxx.Curlies c : b) <- reqCode ->
       return [show (Cxx.Code b), wrapStmts (show c)]
-    ()| '<':'<':x <- rest -> do
-      (a, b) <- splitSemicolon . parseOrFail (Cxx.code << eof) x
+    ()| Cxx.Code (Cxx.Plain ('<':'<':x) : y) <- reqCode -> do
+      let (a, b) = splitSemicolon $ Cxx.Code $ Cxx.Plain x : y
       return [show b, wrapPrint (show a)]
-    ()| otherwise -> return [rest]
+    ()| otherwise -> return [show reqCode]
   return $ EvalCxx.Request code also_run (opt NoWarn)
 
 evaluator :: IO (String -> IO String)
