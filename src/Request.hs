@@ -50,7 +50,8 @@ is_request txt = either (const Nothing) Just (parse p "" txt)
 
 splitSemicolon :: Cxx.Code -> (Cxx.Code, Cxx.Code)
 splitSemicolon (Cxx.Code []) = (Cxx.Code [], Cxx.Code [])
-splitSemicolon (Cxx.Code (Cxx.Plain s : r)) | last s == ';' = (Cxx.Code [Cxx.Plain s], Cxx.Code r)
+splitSemicolon (Cxx.Code (Cxx.Plain s : r)) | maybeLast s == Just ';' =
+  (Cxx.Code [Cxx.Plain s], Cxx.Code r)
 splitSemicolon (Cxx.Code (a : r)) = (Cxx.Code $ a : x, y)
   where (Cxx.Code x,y) = splitSemicolon (Cxx.Code r)
 

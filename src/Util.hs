@@ -144,3 +144,8 @@ rate_limiter bound window = do
 
 parsep :: Char
 parsep = '\x2029' -- U+2029 PARAGRAPH SEPARATOR
+
+maybeLast :: [a] -> Maybe a
+maybeLast [] = Nothing
+maybeLast [x] = Just x
+maybeLast (_:t) = maybeLast t
