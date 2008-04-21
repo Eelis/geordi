@@ -23,6 +23,6 @@ namespace type_strings_detail
     }
   }
 
-  struct type_info: std::type_info
-  { std::string name() const { return cxa_demangle(std::type_info::name()); } };
+  struct type_info: std::type_info { std::string name() const; };
+  std::string type_info::name() const { return cxa_demangle(std::type_info::name()); }
 }

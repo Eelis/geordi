@@ -75,6 +75,8 @@ main = do
 
   test "Program timeout" "{ for(;;) ; }" $ RegexMatch "Killed"
 
+  test "Demangled printable typeid" "<< typeid(int)" $ ExactMatch "int"
+
   test "Custom assert()/abort()" "{ assert(4 > 9); }" $ ExactMatch "Assertion `4 > 9' fails.\nAborted."
 
   test "File I/O" "{ { ofstream f (__FILE__); f << \"foo\"; } cout << ifstream(__FILE__).rdbuf(); }" $
