@@ -35,30 +35,41 @@ namespace geordi
   {
     bool is_prefix_of(char const * a, char const * b) { while(*a && *b == *a) { ++a; ++b; } return !*a; }
 
-    void terminate_handler ()
+    void terminate_handler(bool const unexp)
     {
-      std::type_info const * const t = abi::__cxa_current_exception_type();
-      if(!t) error()() << "terminate called without an active exception.";
-        // Happens when terminate() is called explicitly, or "throw;" is called when there is no active exception.
+      std::cout << parsep << "terminated";
 
-      int status = 0;
-      char const * const name = abi::__cxa_demangle(t->name(), 0, 0, &status);
-
-      // In OOM conditions, the above call to __cxa_demangle will fail (and name will be 0). Supplying a preallocated buffer using __cxa_demangle's second and third parameters does not help, because it performs additional internal allocations.
-
-      std::cout << parsep;
-      try { throw; }
-      catch(std::exception const & e)
+      if(std::type_info const * const t = abi::__cxa_current_exception_type())
       {
-        char const * const what = e.what();
-        if(!name) std::cout << "exception: ";
-        else if(!is_prefix_of(name, what)) std::cout << name << ": ";
-        std::cout << what;
+        int status = 0;
+        char const * const name = abi::__cxa_demangle(t->name(), 0, 0, &status);
+
+        // In OOM conditions, the above call to __cxa_demangle will fail (and name will be 0). Supplying a preallocated buffer using __cxa_demangle's second and third parameters does not help, because it performs additional internal allocations.
+
+        std::cout << " by ";
+        if(unexp) std::cout << "unexpected ";
+        try { throw; }
+        catch(std::exception const & e)
+        {
+          char const * const what = e.what();
+          if(!name) std::cout << "exception: ";
+          else if(!is_prefix_of(name, what)) std::cout << name << ": ";
+          std::cout << what;
+        }
+        catch(char const * const s) { std::cout << "exception: " << s; }
+        catch(int const i) { std::cout << "exception: " << i; }
+        catch(...)
+        {
+          std::cout << "exception";
+          if(name) std::cout << " of type " << name;
+        }
       }
-      catch(char const * const s) { std::cout << "char const* exception: " << s; }
-      catch(...) { std::cout << "uncaught exception"; if(name) std::cout << " of type " << name; }
+
       abort();
     }
+
+    void terminate_handler() { terminate_handler(false); }
+    void unexpected_handler() { terminate_handler(true); }
   }
 
   std::string advice ()
@@ -89,6 +100,7 @@ namespace geordi
       // Having this compiled separately saves more than a full second per request.
 
     std::set_terminate(terminate_handler);
+    std::set_unexpected(unexpected_handler);
 
     std::setlocale(LC_ALL, "");
   }
