@@ -35,7 +35,7 @@ type Nick = String
 type Request = String
 
 nickP :: CharParser st Nick
-nickP = many1 $ satisfy $ isAlpha .||. isDigit .||. (`elem` "[]\\`_^|}")
+nickP = many1 $ satisfy $ isAlpha .||. isDigit .||. (`elem` "[]\\`_^|}-")
   -- We don't include '{' because it messes up "geordi{...}", and no sane person would use it in a nick for a geordi bot anyway.
 
 is_request :: String -> Maybe (Nick, Request)
