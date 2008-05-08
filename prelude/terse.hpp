@@ -3,42 +3,61 @@
 #define au auto
 #define brk break
 #define cat catch
-#define cexpr constexpr
 #define cls class
 #define co const
-#define dlt delete
-#define def default
+#define cex constexpr
+#define ccast const_cast
+#define cnt continue
 #define dtp decltype
-#define dub double
+#define def default
+#define del delete
 #define dcast dynamic_cast
+#define el else
 #define expl explicit
+#define expo export
 #define ext extern
-#define ff false
-#define flt float
+#define ff false // We could define tt/ff as constants, but then they'd be lvalues.
 #define inl inline
-#define tpd typedef
-#define tpn typename
 #define mut mutable
 #define ns namespace
 #define op operator
-#define pub public
 #define pvt private
 #define prt protected
+#define pub public
 #define reg register
-#define ret return
 #define rcast reinterpret_cast
-#define st struct
-#define stc static
-#define scast static_cast
+#define ret return
+#define sgn signed
+#define szof sizeof
 #define sass static_assert
-#define tmpl template
-#define tid typeid
+#define scast static_cast
+#define stc static
+#define st struct
+#define sw switch
+#define tmp template
 #define tt true
+#define tpd typedef
+#define tpi typeid
+#define tpn typename
+#define uni union
 #define use using
-#define vol volatile
 #define vrt virtual
+#define vol volatile
 #define wh while
-// No need for #define uns unsigned, because we have uint/ulong/uchar typedefs.
+
+typedef char ch;
+typedef float flt;
+typedef double dub;
+typedef long double ldub;
+typedef unsigned char uchar;
+typedef unsigned int uint;
+typedef unsigned long ulong;
+typedef unsigned short ushort;
+// C++0x:
+  // typedef char16_t ch16
+  // typedef char32_t ch32
+  // typedef long long llong;
+  // typedef unsigned long long ullong;
 
 // Stdlib:
 #define ass assert

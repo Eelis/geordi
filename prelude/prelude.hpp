@@ -116,12 +116,6 @@
 
 char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
 
-typedef unsigned char uchar;
-typedef unsigned int uint;
-typedef unsigned long ulong;
-typedef unsigned short ushort;
-typedef long double ldouble;
-
 #define RANGE(x) (::boost::begin(x)), (::boost::end(x))
 
 #define GEORDI_STATEMENTS_PRE int main () {
