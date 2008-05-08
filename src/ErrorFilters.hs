@@ -2,168 +2,155 @@
 
 module ErrorFilters (cc1plus, as, ld, prog) where
 
-import Control.Monad (ap)
-import Text.Regex (mkRegex, subRegex, matchRegexAll, Regex)
-import Data.List (intersperse, isPrefixOf)
+import qualified CxxParse
+import Control.Monad (ap, liftM2)
+import Text.Regex (Regex, matchRegexAll, mkRegex, subRegex)
 import Data.Char (isAlphaNum, toLower)
 import Data.Maybe (mapMaybe)
+import Data.List (intersperse, isPrefixOf)
 import Text.ParserCombinators.Parsec
-  (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, anyChar, noneOf, option, count, CharParser, notFollowedBy, choice)
+  (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, many1, anyChar, noneOf, option, count, CharParser, notFollowedBy, choice, setInput, eof)
 import Text.ParserCombinators.Parsec.Prim (GenParser)
-import Text.ParserCombinators.Parsec.Language (haskell)
-import Text.ParserCombinators.Parsec.Token (charLiteral, stringLiteral)
 import Control.Applicative (Applicative(..))
-
 import Util
 import Prelude hiding (catch, (.))
 
-instance Applicative (Text.ParserCombinators.Parsec.Prim.GenParser Char st) where
-  pure = return; (<*>) = ap
+isIdChar :: Char -> Bool
+isIdChar = isAlphaNum .||. (== '_')
+
+subRegex' :: Regex -> String -> String -> String
+subRegex' = flip . subRegex
+
+instance Applicative (GenParser Char st) where pure = return; (<*>) = ap
 
 -- Using the following more general instance causes overlapping instance problems elsewhere:
 --   instance (Monad m, Functor m) => Applicative m where pure = return; (<*>) = ap
 
-as, ld, cc1plus, prog :: String -> String
+cc1plus, as, ld, prog :: String -> String
+
+cc1plus e = cleanup_stdlib_templates $ replace_withs $ hide_clutter_namespaces $
+  case mapMaybe (matchRegexAll $ mkRegex "(^|\n)[^:]+:([[:digit:]]+:)+ ") $ lines e of
+    [] -> e; l | (_, _, e', _) <- last l -> e'
+  -- Even though we use -Wfatal-errors, we may still get several "instantiated from ..." lines. Only the last of these (the one we're interested in) actually says "error"/"warning". We used to have the regex match on that, greatly simplifying the above, but that broke when a language other than English was used.
 
 as e = maybe e (\(_, (m:ms), _, _) -> toLower m : ms) $ matchRegexAll (mkRegex "\\b(Error|Warning): [^\n]*") e
 
 ld e = maybe e (\(_, m, _, _) -> "error: " ++ m) $ matchRegexAll (mkRegex "\\bundefined reference to [^\n]*") e
 
-prog = subRegex' (mkRegex "/usr/[^:]+:[[:digit:]]+:error: ") (parsep : "error: ") . cleanup_types
-  -- We apply cleanup_types even to successful output, to clean up assertion failures and {E}TYPE strings. The subRegex cleans up libstdc++ debug mode errors.
+prog = subRegex' (mkRegex "/usr/[^:]+:[[:digit:]]+:error: ") (parsep : "error: ") . cleanup_stdlib_templates . replace_withs . hide_clutter_namespaces
+  -- We also clean up successful output, because it might include dirty assertion failures and {E}TYPE strings. The subRegex cleans up libstdc++ debug mode errors.
 
 cxxArg :: CharParser st String
 cxxArg = strip . ce
  where
   ce =
-    try (show . charLiteral haskell >+> ce) <|>
-    try (show . stringLiteral haskell >+> ce) <|>
-      -- Haskell's char/string literals are much like C++'s.
+    (show . CxxParse.charLit >+> ce) <|> (show . CxxParse.stringLit >+> ce) <|>
     between '(' ')' <|> between '<' '>' <|> between '[' ']' <|>
     option [] ((:[]) . noneOf ")>],'\"" >+> ce)
   between open close =
     string [open] >+> (concat . intersperse "," . sepBy ce (string ",")) >+> string [close] >+> ce
     -- cxxArg can get confused when faced with sneaky uses of tokens like '>'.
 
-(<$) :: GenParser Char st a -> GenParser Char st b -> GenParser Char st a
-a <$ b = a << spaces << b
+hide_clutter_namespaces :: String -> String
+hide_clutter_namespaces = subRegex' (mkRegex "\\b(std|boost|__(gnu_)?(debug(_def)?|norm|cxx))::") ""
 
-($>) :: GenParser Char st a -> GenParser Char st b -> GenParser Char st b
-a $> b = a >> spaces >> b
-
-strings :: [String] -> GenParser Char st String
-strings l = choice (try . string . l)
-
-ioBasics, clutter_namespaces :: [String]
-ioBasics = ["streambuf", "ofstream", "ifstream", "fstream", "filebuf", "ostream", "istream", "ostringstream", "istringstream", "stringstream", "iostream", "ios", "string"]
-clutter_namespaces = ["std", "boost", "__debug", "__gnu_norm", "__gnu_debug_def", "__gnu_cxx", "__gnu_debug", "__norm"]
-
-isIdChar :: Char -> Bool
-isIdChar = isAlphaNum .||. (== '_')
-
-type Replacer st = CharParser st String
-
-localReplacer :: Replacer st -> Replacer st
-localReplacer x = try x <|> scan
-  where scan = anyChar >>= \c -> (c:) . if isIdChar c then scan else localReplacer x
-    -- Turns a replacer that replaces X with Y into a replacer that replaces ZX with ZY for any Z.
-
-defaulter :: [String] -> Int -> ([String] -> CharParser st a) -> Replacer st
-defaulter names idx def =
-  strings names $>> string "<" $>> (count idx (cxxArg <$ char ',' << spaces) >>= \prec -> def prec >> return (concat $ intersperse ", " prec)) $>> string ">"
-    where x $>> y = (x << spaces) >+> y
-    -- Hides default template arguments.
-
-name :: String -> CharParser st String
-name i = string i << notFollowedBy (satisfy isIdChar)
-  -- For keywords and identifiers.
-
-tmpl :: String -> [GenParser Char st a] -> GenParser Char st [a]
-tmpl n ps = string n $> char '<' $> f ps
-  where
-    f [] = error "tmpl _ []"
-    f [p] = (:[]) . (p <$ char '>' << spaces)
-    f (p:pp) = (:) . (p << char ',' << spaces) <*> (f pp)
-
-tmpi :: String -> Int -> GenParser Char st [String]
-tmpi n p = tmpl n (replicate p cxxArg)
-
-tmpls :: String -> [String] -> GenParser Char st [String]
-tmpls n u = tmpl n (string . u)
-
-replacer :: Replacer st
-replacer = (try . localReplacer . choice) (try .
-  [ strings clutter_namespaces $> string "::" $> return ""
-  , string "basic_" >> strings ioBasics <$ char '<' <$ string "char" <$ char '>'
-  , string "basic_" >> ('w':) . strings ioBasics <$ char '<' <$ string "wchar_t" <$ char '>'
-  , (\[e] -> "list<" ++ e ++ ">::iterator") . tmpi "_List_iterator" 1
-  , (\[e] -> "list<" ++ e ++ ">::const_iterator") . tmpi "_List_const_iterator" 1
-  , (\[x, y] -> y ++ "::" ++ (if "const" `isPrefixOf` x then "const_" else "") ++ "iterator") . tmpi "__normal_iterator" 2
-      -- For vector/string. Next two for (multi)set/(multi)map.
-  , (++ "::iterator") . (!!1) . tmpl "_Safe_iterator" [head . tmpi "_Rb_tree_iterator" 1, cxxArg]
-  , (++ "::const_iterator") . (!!1) . tmpl "_Safe_iterator" [head . tmpi "_Rb_tree_const_iterator" 1, cxxArg]
-  , head . tmpi "_Safe_iterator" 2 -- For vector/deque.
-  , (\[e,d,_] -> "deque<" ++ e ++ ">::" ++ (if "const " `isPrefixOf` d then "const_" else "") ++ "iterator") . tmpi "_Deque_iterator" 3
-  , tmpi "allocator" 1 >> string "::" $> ((\[e] -> "allocator<" ++ e ++ ">") . tmpi "rebind" 1) <$ string "::" <$ name "other"
-  , ((++ "&") . head . tmpi "allocator" 1) <$ string "::" <$ name "reference"
-  , ((++ " const &") . head . tmpi "allocator" 1) <$ string "::" <$ name "const_reference"
-  , ((++ "*") . head . tmpi "allocator" 1) <$ string "::" <$ name "pointer"
-  , tmpi "allocator" 1 >> string "::" $> name "size_type" >> return "size_t"
-  , name "typename " $> return ""
-      -- Shows up in assertion failures after replacements have been performed.
-  , defaulter ["list", "deque", "vector"] 1 $ tmpls "allocator"
-  , defaulter ["set", "multiset", "basic_stringstream", "basic_string", "basic_ostringstream", "basic_istringstream"] 2 $ \[k, _] -> tmpls "allocator" [k]
-  , defaulter ["map", "multimap"] 3 $ \[k, v, _] -> tmpl "allocator" [tmpl "pair" [try (string "const " $> string k) <|> (string k $> string "const"), string v]]
-  , defaulter ["set", "multiset"] 1 $ tmpls "less"
-  , defaulter ["priority_queue"] 1 $ tmpls "vector"
-  , defaulter ["queue", "stack"] 1 $ tmpls "deque"
-  , defaulter ["map", "multimap", "priority_queue"] 2 $ tmpls "less" . init
-  , defaulter ((("basic_" ++) . ioBasics) ++ ["ostreambuf_iterator", "istreambuf_iterator"])
-      1 $ tmpls "char_traits"
-  , defaulter ["istream_iterator"] 3 $ const $ option [] (string "long") $> string "int"
-      -- "int"/"long int" is what is printed for ptrdiff_t.
-  , defaulter ["istream_iterator", "ostream_iterator"] 2 $ tmpls "char_traits" . tail
-  , defaulter ["istream_iterator", "ostream_iterator"] 1 $ const $ string "char"
-  ]) <|> (try $ do
-    s <- anyChar `manyTill` try (string " [with ")
-    d <- (try $ (,) . (satisfy isIdChar `manyTill` string " = ") <*> cxxArg) `sepBy` string ", "
-    char ']'
-    return $ foldr with_subst s d)
-
--- Security note: Together, the replacers above must be strongly normalizing.
-
--- Things that go wrong but are hard to fix:
---   set<T>::iterator displayed as const version. Same for multiset.
---   vector<int*>::const_iterator displayed as nonconst version
-
-data RefKind = NoRef | LvalueRef | RvalueRef deriving Eq
-
-stripRef :: String -> (String, RefKind)
-stripRef s | Just s' <- stripSuffix "&&" s = (s', RvalueRef)
-stripRef s | Just s' <- stripSuffix "&" s = (s', LvalueRef)
-stripRef s = (s, NoRef)
-
-with_subst :: (String, String) -> String -> String
-with_subst (k, _) | or (not . isIdChar . k) = error "tried to match_subst non-name"
-  -- The with-replacer must prevent this.
-with_subst (k, v) =
-  subRegex' (mkRegex $ "\\b" ++ k ++ "\\b") v .
-  subRegex' (mkRegex $ "\\b" ++ k ++ "\\s*&") (v' ++ "&") .
-  subRegex' (mkRegex $ "\\b" ++ k ++ "\\s*&&") (v' ++ if vrk == NoRef then "&&" else "&")
-    -- Reference collapse rules are described in 7.1.3p9.
+replace_withs :: String -> String
+replace_withs s = either (const s) replace_withs $ parse (r >+> getInput) "" s
  where
-  (v', vrk) = stripRef v
-
-subRegex' :: Regex -> String -> String -> String
-subRegex' = flip . subRegex
+  r :: CharParser st String
+  r = do
+    c <- anyChar `manyTill` try (string " [with ")
+    d <- ((,) . (last . (many1 (many1 (noneOf "= ") << char ' ')) << string "= ") <*> cxxArg) `sepBy` string ", "
+    char ']'
+    -- (many1 satisfy isIdChar `manyTill` string "= ") <*> cxxArg
+    return $ foldr with_subst c d
+  with_subst :: (String, String) -> String -> String
+  with_subst (k, _) | or (not . isIdChar . k) = error "tried to with_subst non-name"
+    -- r must exclude this case.
+  with_subst (k, v) =
+    subRegex' (mkRegex $ "\\b" ++ k ++ "\\b") v .
+    subRegex' (mkRegex $ "\\b" ++ k ++ "\\s*&") (v' ++ "&") .
+    subRegex' (mkRegex $ "\\b" ++ k ++ "\\s*&&") (v' ++ if not vrk then "&&" else "&")
+      -- Reference collapse rules are described in 7.1.3p9.
+   where
+    (v', vrk) = case () of
+      ()| Just x <- stripSuffix "&&" v -> (x, True)
+      ()| Just x <- stripSuffix "&" v -> (x, True)
+      ()| otherwise -> (v, False)
 
 -- With-substitution would fail if the following occurred in an error: "... T const ... [with T = int&]" (because it would be replaced with "... int& const ...". Fortunately, g++ places cv-qualifiers on the left side in these cases. For example, see the error message for: "template <typename T> std::string f(T const &); void g() { int i = 3; !f<int&>(i); }".
 
-cleanup_types :: String -> String
-cleanup_types s = either (const s) cleanup_types $ parse (replacer >+> getInput) "" s
+class Parser p st a | p -> st, p -> a where parser :: p -> CharParser st a
+instance Parser (CharParser st a) st a where parser = id
+instance Parser String st String where parser = string
+instance Parser [String] st String where parser = choice . (try . string .)
+instance Parser Char st Char where parser = char
 
-cc1plus e =
-  case mapMaybe (matchRegexAll $ mkRegex "(^|\n)[^:]+:([[:digit:]]+:)+ ") $ lines e of
-    [] -> cleanup_types e
-    l | (_, _, e', _) <- last l -> cleanup_types e'
-  -- Even though we use -Wfatal-errors, we may still get several "instantiated from ..." lines. Only the last of these (the one we're interested in) actually says "error"/"warning". We used to have the regex match on that, greatly simplifying the above, but that broke when a language other than English was used.
+cleanup_stdlib_templates :: String -> String
+cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure") id .
+  parse (recursive_replacer $ choice cleaners) ""
+ where
+  cleaners :: [CharParser st String]
+  cleaners = try .
+    [ string "basic_" >> parser ioBasics <$ '<' <$ "char" <$ '>'
+    , string "basic_" >> ('w':) . parser ioBasics <$ '<' <$ "wchar_t" <$ '>'
+    , (\[e] -> "list<" ++ e ++ ">::iterator") . tmpi "_List_iterator" 1
+    , (\[e] -> "list<" ++ e ++ ">::const_iterator") . tmpi "_List_const_iterator" 1
+    , (++ "::iterator") . snd . tmpl "_Safe_iterator" (tmpi "_Rb_tree_iterator" 1 `comma` cxxArg)
+    , (++ "::const_iterator") . snd . tmpl "_Safe_iterator" (tmpi "_Rb_tree_const_iterator" 1 `comma` cxxArg)
+        -- Last two for (multi)set/(multi)map.
+    , head . tmpi "_Safe_iterator" 2 -- For vector/deque.
+    , (\[x, y] -> y ++ "::" ++ (if "const" `isPrefixOf` x then "const_" else "") ++ "iterator") . tmpi "__normal_iterator" 2
+        -- Last one for vector/string.
+    , (\[e,d,_] -> "deque<" ++ e ++ ">::" ++ (if "const " `isPrefixOf` d then "const_" else "") ++ "iterator") . tmpi "_Deque_iterator" 3
+        -- The ("const " `isPrefixOf ...) hack used above fails miserably for types like void(*)() where the const qualifier is not placed at the start. For those, ...::const_iterator will be displayed as ...::iterator.
+    , tmpi "allocator" 1 >> "::" $> ((\[e] -> "allocator<" ++ e ++ ">") . tmpi "rebind" 1) <$ "::" <$ "other" << noid
+    , ((++ "&") . head . tmpi "allocator" 1) <$ "::" <$ "reference" << noid
+    , ((++ " const &") . head . tmpi "allocator" 1) <$ "::" <$ "const_reference" << noid
+    , ((++ "*") . head . tmpi "allocator" 1) <$ "::" <$ "pointer" << noid
+        -- Last three only work properly for simple cases, and fail miserably for something like "allocator<void(*)()>::pointer".
+    , tmpi "allocator" 1 >> "::" $> "size_type" >> noid >> return "size_t"
+    , string "typename " >> return ""
+        -- Shows up in assertion failures after replacements have been performed.
+    , defaulter ["list", "deque", "vector"] 1 $ tmpl "allocator"
+    , defaulter ["set", "multiset", "basic_stringstream", "basic_string", "basic_ostringstream", "basic_istringstream"] 2 $ tmpl "allocator" . head
+    , defaulter ["map", "multimap"] 3 $ \[k, v, _] -> tmpl "allocator" (tmpl "pair" (try (("const " $> k) <|> (k $> "const")) `comma` v))
+    , defaulter ["set", "multiset"] 1 $ tmpl "less"
+    , defaulter ["priority_queue"] 1 $ \[e] -> tmpl "vector" (e `comma` tmpl "allocator" e)
+    , defaulter ["queue", "stack"] 1 $ \[e] -> tmpl "deque" (e `comma` tmpl "allocator" e)
+    , defaulter ["map", "multimap", "priority_queue"] 2 $ tmpl "less" . head
+    , defaulter ((("basic_" ++) . ioBasics) ++ ["ostreambuf_iterator", "istreambuf_iterator"]) 1 $ tmpl "char_traits"
+    , defaulter ["istream_iterator"] 3 $ const $ option [] (string "long") $> "int"
+        -- "int"/"long int" is what is printed for ptrdiff_t.
+    , defaulter ["istream_iterator", "ostream_iterator"] 2 $ tmpl "char_traits" . (!!1)
+    , defaulter ["istream_iterator", "ostream_iterator"] 1 $ const $ "char"
+    ] -- Together, these must be strongly normalizing.
+
+  -- Things that go wrong but are hard to fix:
+  --   set<T>::iterator displayed as const version. Same for multiset.
+  --   vector<int*>::const_iterator displayed as nonconst version
+
+  defaulter :: Parser p st a => [String] -> Int -> ([String] -> p) -> CharParser st String
+  defaulter names idx def =
+    names $>> "<" $>> (count idx (cxxArg <$ char ',' << spaces) >>= \prec -> parser (def prec) >> return (concat $ intersperse ", " prec)) $>> ">"
+      where x $>> y = (parser x << spaces) >+> parser y
+        -- Hides default template arguments.
+
+  noid = notFollowedBy (satisfy isIdChar)
+
+  a <$ b = parser a << spaces << parser b
+  a $> b = parser a >> spaces >> parser b
+
+  comma :: (Parser p st a, Parser q st b) => p -> q -> CharParser st (a, b)
+  comma x y = liftM2 (,) (x <$ char ',' << spaces) (parser y)
+
+  tmpl n p = n $> '<' $> p <$ '>'
+
+  tmpi :: String -> Int -> CharParser st [String]
+  tmpi n i = tmpl n $ (:) . cxxArg <*> (count (i - 1) (spaces >> ',' $> cxxArg))
+
+  ioBasics = ["streambuf", "ofstream", "ifstream", "fstream", "filebuf", "ostream", "istream", "ostringstream", "istringstream", "stringstream", "iostream", "ios", "string"]
+
+  recursive_replacer :: CharParser st String -> CharParser st String
+  recursive_replacer r = ((r >+> getInput) >>= setInput >> recursive_replacer r) <|> scan
+    where scan = (eof >> return "") <|> (anyChar >>= \c -> (c:) . if isIdChar c then scan else recursive_replacer r)

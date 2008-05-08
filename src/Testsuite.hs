@@ -138,12 +138,13 @@ tests "utilities" =
   ]
 
 tests "errorfilters" =
-  [ test "Error filters" "{ wistringstream is; !is.str(); }" $
+  [ test "Type cleanup" "{ wistringstream is; !is.str(); }" $
     ExactMatch "error: no match for 'operator!' in '!wistringstream::str() const()'"
   , test "Ditto" "<< ETYPE(&vector<queue<istream_iterator<int> > >::foo)" $
     ExactMatch "error: 'foo' is not a member of 'vector<queue<istream_iterator<int>>>'"
   , test "Preprocessor error" "<< 08" $ ExactMatch "error: invalid digit \"8\" in octal constant"
   , test "[with ...]-replacement" "{ cout << 1 == 1; }" $ ExactMatch "error: no match for 'operator==' in 'cout. ostream::operator<<(1) == 1'"
+  , test "Ditto" "<< \"array<double, N>::bla [with long unsigned int N = 10ul]\"" $ ExactMatch "array<double, 10ul>::bla"
   ]
 
 tests s = error $ "no such test set: " ++ s
