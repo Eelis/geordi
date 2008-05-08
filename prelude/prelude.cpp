@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <vector>
 #include <cerrno>
-#include <string.h>
+#include <cstring>
 #include <cstdlib>
 #include <cstdio>
 #include <ctime>
@@ -21,9 +21,11 @@
 
 namespace geordi
 {
+  // In abort and terminate_handler, we use printf because cout may be dead.
+
   void abort () // std::abort() causes "Disallowed system call: gettid".
   {
-    std::cout << "\nAborted." << std::flush; // The initial \n causes the message to be shown only in Local mode.
+    std::printf("\nAborted."); // The initial \n causes the message to be shown only in local mode.
     std::fclose(stdout); // Prevents things like tracked reporting leaks.
     std::exit(0);
   }
@@ -37,7 +39,7 @@ namespace geordi
 
     void terminate_handler(bool const unexp)
     {
-      std::cout << parsep << "terminated";
+      std::printf("%sterminated", parsep);
 
       if(std::type_info const * const t = abi::__cxa_current_exception_type())
       {
@@ -46,22 +48,22 @@ namespace geordi
 
         // In OOM conditions, the above call to __cxa_demangle will fail (and name will be 0). Supplying a preallocated buffer using __cxa_demangle's second and third parameters does not help, because it performs additional internal allocations.
 
-        std::cout << " by ";
-        if(unexp) std::cout << "unexpected ";
+        std::printf(" by ");
+        if(unexp) std::printf("unexpected ");
         try { throw; }
         catch(std::exception const & e)
         {
           char const * const what = e.what();
-          if(!name) std::cout << "exception: ";
-          else if(!is_prefix_of(name, what)) std::cout << name << ": ";
-          std::cout << what;
+          if(!name) std::printf("exception: ");
+          else if(!is_prefix_of(name, what)) std::printf("%s: ", name);
+          std::printf("%s", what);
         }
-        catch(char const * const s) { std::cout << "exception: " << s; }
-        catch(int const i) { std::cout << "exception: " << i; }
+        catch(char const * const s) { std::printf("exception: %s", s); }
+        catch(int const i) { std::printf("exception: %d", i); }
         catch(...)
         {
-          std::cout << "exception";
-          if(name) std::cout << " of type " << name;
+          std::printf("exception");
+          if(name) std::printf(" of type %s", name);
         }
       }
 
