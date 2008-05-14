@@ -24,7 +24,7 @@
       <li><a href='#examplelisting'>Appendix B: Example rt file listing</a></li>
     </ul>
 
-    <hr/><h2><a id='installation'/>1. Installation</h2>
+    <hr/><h2 id='installation'>1. Installation</h2>
     <p>
       Geordi is not "<kbd>./configure &amp;&amp; make &amp;&amp; make install</kbd>" software. Setting up geordi is a somewhat awkward manual task, because preparing a chroot tree containing only those files necessary for C++ compilation involves copying into the tree various system and GCC libraries and executables whose location differs wildly from system to system. Since there is no easy way to get a list of precisely those files required for C++ compilation, we'll resort to what is basically a trial and error procedure.
     </p>
@@ -96,7 +96,7 @@
       <li>A modest testsuite can now be run with <kbd>sudo ./geordi-testsuite</kbd> (recommended).</li>
     </ol>
 
-    <hr/><h2><a id='locally'>2. Running geordi locally</a></h2>
+    <hr/><h2 id='locally'>2. Running geordi locally</h2>
     <p><kbd>geordi-local</kbd> lets one test snippets locally (that is, without connecting to any IRC server).</p>
     <p>Usage:&emsp;<kbd>sudo ./geordi-local [option]... [request]...</kbd></p>
     <p>Request syntax is described in the <a href='http://www.eelis.net/geordi/#usage'>manual</a>, except that here the nickname (and colon/comma) must be omitted.</p>
@@ -108,7 +108,7 @@
     <p>If any requests are specified, they are evaluated and their results are shown. If the first request starts with a request option, interject “<kbd>--</kbd>” to prevent it from being interpreted as a command option.</p>
     <p>If no requests are specified, the program goes into a Read-Eval-Print-Loop.</p>
 
-    <hr/><h2><a id='ircbot'>3. Running a geordi bot</a></h2>
+    <hr/><h2 id='ircbot'>3. Running a geordi bot</h2>
 
     <h3>Regarding the need for root permissions</h3>
 
@@ -125,16 +125,16 @@
       <dd><p>Display help and exit.</p></dd>
     </dl>
 
-    <h4><a id='nickserv'>NickServ identification</a></h4>
+    <h4 id='nickserv'>NickServ identification</h4>
     <p>To have the bot identify to NickServ, change the following line in irc-config:</p>
     <pre>  , nick_pass = Nothing</pre>
     <p>into:</p>
     <pre>  , nick_pass = Just "mypassword"</pre>
 
-    <h4><a id='reconnect'>Auto-reconnect</a></h4>
+    <h4 id='reconnect'>Auto-reconnect</h4>
     <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./geordi-bot; sleep 120; done</kbd></p>
 
-    <h4><a id='multinetwork'>Connecting to multiple networks</a></h4>
+    <h4 id='multinetwork'>Connecting to multiple networks</h4>
     <p>Make config files for the different networks. Then run one geordi-bot instance for each network, passing -c arguments pointing to the respective config files. The rt directory will be safely shared.</p>
 
     <h4>Censoring phrases</h4>
@@ -152,7 +152,7 @@
       <dd><p>Display help and exit.</p></dd>
     </dl>
 
-    <hr/><h2><a id='localization'/>4. Localization</h2>
+    <hr/><h2 id='localization'>4. Localization</h2>
     <p>To get compiler diagnostics (and some (but not all) other geordi messages) in a locale of your choice, copy the following into rt (preserving paths, for example using <kbd>cp --parents</kbd>):</p>
     <ul>
       <li>/usr/lib/locale/foo_BAR.utf8/*</li>
@@ -164,14 +164,14 @@
     <p>Additionally, the LC_ALL environment variable must be set to foo_BAR.utf8 when geordi is started. Since sudo clears environment variables, this means you'll have to use something like:</p>
     <p><kbd>sudo env LC_ALL=foo_BAR.utf8 ./geordi-...</kbd></p>
 
-    <hr/><h2><a id='problems'/>5. Known problems</h2>
+    <hr/><h2 id='problems'>5. Known problems</h2>
     <ul>
       <li>
         Because <kbd>geordi-irc</kbd> connects as root, IRC servers that query ident may get a root response and may decide to reject the connection. (Quakenet is known to do this.)
       </li>
     </ul>
 
-    <hr/><h2><a id='exampletree'/>Appendix A: Example rt tree</h2>
+    <hr/><h2 id='exampletree'>Appendix A: Example rt tree</h2>
     <pre>
       rt
       |-- lib64
@@ -214,7 +214,7 @@
               `-- libstdc++.so.6.0.8
     </pre>
 
-    <hr/><h2><a id='examplelisting'/>Appendix B: Example rt file listing</h2>
+    <hr/><h2 id='examplelisting'>Appendix B: Example rt file listing</h2>
     <pre>
       rt:
       total 69M
