@@ -186,6 +186,7 @@ subst_parseps = f
   where
     f [] = []
     f (c:s) | c == parsep = f s
+    f ('\n':d:s) | d == parsep = '\n' : f s
     f (c:d:s) | d == parsep, s' <- f s = c : (if null s' then [] else ' ' : s')
     f (c:s) = c : f s
 
