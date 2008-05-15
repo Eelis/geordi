@@ -206,7 +206,11 @@ instance Show EvaluationResult where
     _ -> "g++: " ++ show r
 
 prog_env :: [(String, String)]
-prog_env = [("GLIBCXX_DEBUG_MESSAGE_LENGTH", "0")]
+prog_env =
+  [ ("GLIBCXX_DEBUG_MESSAGE_LENGTH", "0")
+  , ("LD_LIBRARY_PATH", ".")
+  , ("LD_PRELOAD", "libtpreload.so.0.0")
+  ]
 
 data JailConfig = JailConfig { user, group :: String, path :: FilePath } deriving Read
 

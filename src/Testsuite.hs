@@ -103,6 +103,7 @@ tests "misc" =
   , test "srand()/time()" "{ srand(time(0)); }" NoOutput
   , test "-v" "-v" $ PrefixMatch "g++ (GCC) 4"
   , test "getopt" "-monkey chicken" $ ExactMatch "unrecognized option `-m'\n"
+  , test "operator new/delete overriding" "{ cout << \"| \"; list<int> v(5); } void * operator new(std::size_t const s) throw(std::bad_alloc) { printf(\"%ld \", s); return malloc(s); } void operator delete(void * const p) throw() { free(p); }" $ RegexMatch "[^-]*\\| [[:digit:] ]+"
   ]
 
 tests "diagnostics" =
@@ -113,18 +114,18 @@ tests "diagnostics" =
   , test "Ditto" "{ int * p = new int [3]; p[-1] = 6; delete[] p; }" $
     PrefixMatch "memory clobbered before allocated block\n"
   , test "Checking global allocation/deallocation operators" "{ delete new int[3]; }" $
-    PrefixMatch "error: tried to apply non-array operator delete to pointer returned by new[].\n"
+    PrefixMatch "error: tried to apply non-array operator delete to pointer returned by new[]. Aborted"
   ,  test "Custom terminate() handler" "{ throw std::logic_error(\"It is not logical, Captain.\"); }" $
-    ExactMatch "terminated by logic_error: It is not logical, Captain.\nAborted."
+    ExactMatch "terminated by logic_error: It is not logical, Captain.\nAborted"
   ]
 
 tests "tracked" =
-  [ test "Operation on destructed B" "{ using tracked::B; B x(0), y(x); x.B::~B(); x.f(); }" $ ExactMatch "B0*(0) B1*(B0) B0~ error: tried to call B::f() on destructed B0.\nAborted."
-  , test "Re-destruction" "{ using tracked::B; B b; b.~B(); }" $ ExactMatch "B0* B0~ B0~ error: tried to re-destruct destructed B0.\nAborted."
-  , test "Stack leak" "{ using tracked::B; { union { double d; char c[sizeof(B)]; }; new (c) B; } B b; }" $ ExactMatch "B0* B1* B1~ leaked: [B0] \nAborted."
-  , test "Stack overwrite" "{ using tracked::B; B b; new (&b) B; }" $ ExactMatch "B0* error: leaked: B0\nAborted."
+  [ test "Operation on destructed B" "{ using tracked::B; B x(0), y(x); x.B::~B(); x.f(); }" $ ExactMatch "B0*(0) B1*(B0) B0~ error: tried to call B::f() on destructed B0. Aborted"
+  , test "Re-destruction" "{ using tracked::B; B b; b.~B(); }" $ ExactMatch "B0* B0~ B0~ error: tried to re-destruct destructed B0. Aborted"
+  , test "Stack leak" "{ using tracked::B; { union { double d; char c[sizeof(B)]; }; new (c) B; } B b; }" $ ExactMatch "B0* B1* B1~ leaked: [B0] Aborted"
+  , test "Stack overwrite" "{ using tracked::B; B b; new (&b) B; }" $ ExactMatch "B0* error: leaked: B0 Aborted"
   , test "new[]/delete[]." "{ boost::shared_array<tracked::B> a(new tracked::D[2]); }" $ ExactMatch "new(D[]) B0* D0* B1* D1* D1~ B1~ D0~ B0~ delete[D0, D1]"
-  , test "Operation on non-existent object" "{ tracked::B * p = 0; p->f(); }" $ ExactMatch "error: tried to call B::f() on non-existent object.\nAborted."
+  , test "Operation on non-existent object" "{ tracked::B * p = 0; p->f(); }" $ ExactMatch "error: tried to call B::f() on non-existent object. Aborted"
   ]
 
 tests "utilities" =
@@ -133,7 +134,7 @@ tests "utilities" =
   , test "ETYPE" "{ int i = 4; cout << ETYPE(++i); }" $ ExactMatch "lvalue int"
   , test "Range printing" "{ vector<int> v; v += 3, 5, 9, 4, 1; cout << v; }" $ ExactMatch "[3, 5, 9, 4, 1]"
   , test "Demangled printable typeid" "<< typeid(int)" $ ExactMatch "int"
-  , test "Custom assert()/abort()" "{ assert(4 > 9); }" $ ExactMatch "Assertion `4 > 9' fails.\nAborted."
+  , test "Custom assert()/abort()" "{ assert(4 > 9); }" $ ExactMatch "Assertion `4 > 9' fails.\nAborted"
   ,  test "bin IO manipulator" "<< showbase << uppercase << bin << setfill('_') << internal << setw(10) << 53" $ ExactMatch "0B__110101"
   ]
 

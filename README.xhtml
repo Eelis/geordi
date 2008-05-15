@@ -79,7 +79,7 @@
       <li>Edit the compile-config file to your liking. Check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</li>
       <li>On Debian and Ubuntu, replace <code>group = "nobody"</code> with <code>group = "nogroup"</code> in jail-config.</li>
       <li><kbd>scripts/mkrt</kbd> &nbsp; # Creates a directory called "rt", which will be our chroot root, and copies various files into it that GCC needs in order to function.</li>
-      <li><kbd>scripts/compile-prelude</kbd> &nbsp; # Produces rt/prelude.hpp.gch and rt/prelude.a.</li>
+      <li><kbd>scripts/compile-prelude</kbd> &nbsp; # Produces rt/prelude.hpp.gch, rt/prelude.a, and libtpreload.so.0.0.</li>
       <li><kbd>sudo scripts/trycompile</kbd> &nbsp; # This might give errors about missing .o files and libraries. Copy those into rt until rt/t is produced successfully.
         <p>The recommended way to copy files into rt is using</p>
         <kbd>cp -L --parents /some/system/file rt/</kbd>
@@ -179,6 +179,7 @@
       |   |-- libc.so.6
       |   |-- libgcc_s.so.1
       |   `-- libm.so.6
+      |-- libtpreload.so.0.0
       |-- lock
       |-- prelude.a
       |-- prelude.hpp.gch
@@ -219,6 +220,7 @@
       rt:
       total 69M
       drwxr-xr-x 2 eelis users  184 2007-12-25 01:14 lib64
+      -rwxr-xr-x 1 eelis users  50K 2008-05-15 16:39 libtpreload.so.0.0
       -rw-r--r-- 1 eelis users    0 2007-12-25 01:40 lock
       -rw-r--r-- 1 eelis users 123K 2007-12-25 01:15 prelude.a
       -rw-r--r-- 1 eelis users  68M 2007-12-25 01:15 prelude.hpp.gch

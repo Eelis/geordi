@@ -21,24 +21,14 @@
 
 namespace geordi
 {
-  // In abort and terminate_handler, we use printf because cout may be dead.
-
-  void abort () // std::abort() causes "Disallowed system call: gettid".
-  {
-    std::printf("\nAborted."); // The initial \n causes the message to be shown only in local mode.
-    std::fclose(stdout); // Prevents things like tracked reporting leaks.
-    std::exit(0);
-  }
-
-  char const parsep[] = "\342\200\251";
-    // UTF-8 encoding of PARAGRAPH SEPARATOR (U+2029). See "Output separators" in notes.txt.
-
   namespace
   {
     bool is_prefix_of(char const * a, char const * b) { while(*a && *b == *a) { ++a; ++b; } return !*a; }
 
     void terminate_handler(bool const unexp)
     {
+      // We use printf because cout may be dead.
+
       std::printf("%sterminated", parsep);
 
       if(std::type_info const * const t = abi::__cxa_current_exception_type())
@@ -67,7 +57,8 @@ namespace geordi
         }
       }
 
-      abort();
+      std::puts("");
+      std::abort();
     }
 
     void terminate_handler() { terminate_handler(false); }
@@ -107,62 +98,4 @@ namespace geordi
     std::setlocale(LC_ALL, "");
   }
 
-  typedef std::set<void *, std::less<void *>, __gnu_cxx::malloc_allocator<void *> > allocs;
-
-  allocs & prev() { static allocs * r(0); if (!r) r = new (std::malloc(sizeof(allocs))) allocs; return *r; }
-  allocs & plain_current() { static allocs * r(0); if (!r) r = new (std::malloc(sizeof(allocs))) allocs; return *r; }
-  allocs & array_current() { static allocs * r(0); if (!r) r = new (std::malloc(sizeof(allocs))) allocs; return *r; }
-    // Invariant: These three are disjoint.
-    // We can't use ordinary variables because when the construction of an earlier static-storage variable uses dynamic storage, it would cause us to operate on not-yet-constructed containers. We use malloc to avoid infinite mutual recursion with plain_new/array_new. We don't ever destruct/deallocate the prev/plain_current/array_current containers, because there is no way to ensure that that happens after all other destruction (which could involve dynamic storage) has finished.
-
-  void * plain_new(std::size_t const s) throw()
-  { void * const r = std::malloc(s); if (r) { prev().erase(r); plain_current().insert(r); } return r; }
-  void * array_new(std::size_t const s) throw()
-  { void * const r = std::malloc(s); if (r) { prev().erase(r); array_current().insert(r); } return r; }
-    // These can be called before the three allocs variables are even constructed.
-
 } // namespace geordi
-
-// Plain new:
-
-void * operator new(size_t const i, std::nothrow_t const &) throw ()
-{ return geordi::plain_new(i); }
-void * operator new(size_t const i) throw (std::bad_alloc)
-{ if (void * const r = geordi::plain_new(i)) return r; throw std::bad_alloc(); }
-void operator delete(void * const p, std::nothrow_t const &) throw () { operator delete(p); }
-void operator delete(void * const p) throw ()
-{
-  if(!p) return;
-  using namespace geordi;
-  if (prev().find(p) != prev().end()) error()() << "tried to delete already deleted pointer.";
-  if (array_current().find(p) != array_current().end())
-    error()() << "tried to apply non-array operator delete to pointer returned by new[].";
-  allocs::iterator const i = plain_current().find(p);
-  if (i == plain_current().end())
-    error()() << "tried to delete pointer not returned by previous matching new invocation.";
-  plain_current().erase(i);
-  std::free(p);
-  prev().insert(p);
-}
-
-// Array new[]:
-
-void * operator new[](size_t const i, std::nothrow_t const &) throw ()
-{ return geordi::array_new(i); }
-void * operator new[](size_t const i) throw (std::bad_alloc)
-{ if (void * const r = geordi::array_new(i)) return r; throw std::bad_alloc(); }
-void operator delete[](void * const p, std::nothrow_t const &) throw () { operator delete[](p); }
-void operator delete[](void * const p) throw ()
-{
-  if(!p) return;
-  using namespace geordi;
-  if (prev().find(p) != prev().end()) error()() << "tried to delete[] already deleted pointer.";
-  if (plain_current().find(p) != plain_current().end())
-    error()() << "tried to delete[] pointer returned by non-array operator new.";
-  allocs::iterator const i = array_current().find(p);
-  if (i == array_current().end())
-    error()() << "tried to delete[] pointer not returned by previous new[] invocation.";
-  array_current().erase(i);
-  std::free(p);
-  prev().insert(p);
-}

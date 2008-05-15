@@ -14,7 +14,6 @@ namespace tracked
   {
     using geordi::error;
     using geordi::parsep;
-    using geordi::abort;
 
     bool muted = false;
 

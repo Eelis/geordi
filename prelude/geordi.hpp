@@ -1,19 +1,21 @@
 #ifndef GEORDI_HPP
 #define GEORDI_HPP
 
-#include <iostream>
+#include <cstdio>
+#include <cstdlib>
 #include <string>
+#include <iostream>
+#include <boost/noncopyable.hpp>
 
 namespace geordi
 {
-  void abort();
-
-  extern char const parsep[];
+  namespace { char const parsep[] = "\342\200\251"; }
+    // UTF-8 encoding of PARAGRAPH SEPARATOR (U+2029). See "Output separators" in notes.txt.
 
   struct error: boost::noncopyable
   {
-    error() { std::cout << parsep << "error: "; }
-    ~error() { geordi::abort(); }
+    error() { std::printf("%serror: ", parsep); }
+    ~error() { std::abort(); }
     std::ostream & operator()() const { return std::cout; }
   };
 
