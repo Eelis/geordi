@@ -115,6 +115,7 @@ tests "diagnostics" =
     PrefixMatch "memory clobbered before allocated block\n"
   , test "Checking global allocation/deallocation operators" "{ delete new int[3]; }" $
     PrefixMatch "error: tried to apply non-array operator delete to pointer returned by new[]. Aborted"
+  , test "Ditto." "{ int * const p = new int; delete p; new int; delete p; }" $ ExactMatch "error: tried to delete already deleted pointer. Aborted"
   ,  test "Custom terminate() handler" "{ throw std::logic_error(\"It is not logical, Captain.\"); }" $
     ExactMatch "terminated by logic_error: It is not logical, Captain.\nAborted"
   ]
