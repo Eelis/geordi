@@ -118,6 +118,7 @@ tests "diagnostics" =
   , test "Ditto." "{ int * const p = new int; delete p; new int; delete p; }" $ ExactMatch "error: tried to delete already deleted pointer. Aborted"
   ,  test "Custom terminate() handler" "{ throw std::logic_error(\"It is not logical, Captain.\"); }" $
     ExactMatch "terminated by logic_error: It is not logical, Captain.\nAborted"
+  , test "libstdc++ debug mode" "{ boost::rational<int> r(2, 3); cout << r << flush; vector<int>::iterator x, y(x); }" $ PrefixMatch "2/3 error: "
   ]
 
 tests "tracked" =

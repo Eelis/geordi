@@ -1,4 +1,13 @@
 
+#include <debug/macros.h>
+
+#ifdef _GLIBCXX_DEBUG_VERIFY
+  #undef _GLIBCXX_DEBUG_VERIFY
+  #define _GLIBCXX_DEBUG_VERIFY(_Condition,_ErrorMessage) \
+    do if (! (_Condition)) ::__gnu_debug::_Error_formatter::_M_at("E7tKRJpMcGq574LY", 0)._ErrorMessage._M_error(); while (false)
+#endif
+  // "E7tKRJpMcGq574LY" is just a random string, recognized by the error filters, chosen to minimize the chance of false positives.
+
 #include "tracked.hpp"
 #include "using.hpp"
 #include "more_ostreaming.hpp"

@@ -37,8 +37,8 @@ as e = maybe e (\(_, (m:ms), _, _) -> toLower m : ms) $ matchRegexAll (mkRegex "
 
 ld e = maybe e (\(_, m, _, _) -> "error: " ++ m) $ matchRegexAll (mkRegex "\\bundefined reference to [^\n]*") e
 
-prog = subRegex' (mkRegex "/usr/[^:]+:[[:digit:]]+:error: ") (parsep : "error: ") . cleanup_stdlib_templates . replace_withs . hide_clutter_namespaces
-  -- We also clean up successful output, because it might include dirty assertion failures and {E}TYPE strings. The subRegex cleans up libstdc++ debug mode errors.
+prog = replaceInfix "E7tKRJpMcGq574LY:" [parsep] . cleanup_stdlib_templates . replace_withs . hide_clutter_namespaces
+  -- We also clean up successful output, because it might include dirty assertion failures and {E}TYPE strings. The "E7tKRJpMcGq574LY:" is for libstdc++ debug mode errors; see prelude.hpp.
 
 cxxArg :: CharParser st String
 cxxArg = strip . ce

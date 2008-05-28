@@ -7,7 +7,7 @@ import qualified Data.Sequence as Seq
 
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
-import Data.List (sortBy)
+import Data.List (sortBy, isPrefixOf)
 import Data.Char (isSpace, isAlphaNum, toLower)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Sequence (Seq, ViewL(..), (<|))
@@ -149,3 +149,8 @@ maybeLast :: [a] -> Maybe a
 maybeLast [] = Nothing
 maybeLast [x] = Just x
 maybeLast (_:t) = maybeLast t
+
+replaceInfix :: Eq a => [a] -> [a] -> [a] -> [a]
+replaceInfix what with l | what `isPrefixOf` l = with ++ drop (length what) l
+replaceInfix _ _ [] = []
+replaceInfix what with (h:t) = h : replaceInfix what with t
