@@ -84,7 +84,7 @@
         <p>The recommended way to copy files into rt is using</p>
         <kbd>cp -L --parents /some/system/file rt/</kbd>
         <p>Here, <kbd>-L</kbd> makes <kbd>cp</kbd> follow symbolic links, and <kbd>--parents</kbd> makes it copy to the same path within <kbd>rt</kbd>.</p>
-        <p>For libstdc++ and libm, both the static (.a) and shared (.so) versions work, but the latter make geordi respond significantly faster to requests that require linking.</p>
+        <p>For libstdc++ and libm, use the shared (.so) versions, not the static (.a) versions.</p>
         <p>If, while doing this step, you decide (out of sheer desperation) at some point to just copy entire gcc directories into rt (which in itself is not completely unreasonable), make sure that there is no collect2 binary in rt (it confuses geordi).</p>
       </li>
       <li><kbd>sudo chroot rt /t</kbd> &nbsp; # This may complain a bit more about missing libraries, which again should be copied into rt. Eventually, it should print "9".</li>
