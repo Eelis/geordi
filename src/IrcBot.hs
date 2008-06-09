@@ -114,12 +114,15 @@ on_msg eval cfg m = flip execStateT [] $ do
         reply s = send $ msg "PRIVMSG" [if private then fromnick else c, s]
       if private && not (serve_private_requests cfg)
        then reply "This bot does not serve private requests."
-       else case Request.is_request txt of
-        Just (n, r) | any (\(h:t) -> n == toLower h : t || n == toUpper h : t) [nick cfg, alternate_nick cfg] -> do
+       else do
+        let
+         mr = case Request.is_request txt of
+            Just (n, r) | any (\(h:t) -> n == toLower h : t || n == toUpper h : t) [nick cfg, alternate_nick cfg] -> Just r
+            _ | private -> Just txt
+            _ -> Nothing
+        maybeM mr $ \r -> do
           o <- lift $ take (max_msg_length cfg) . takeWhile (/= '\n') . eval r
           reply $ if null o then no_output_msg cfg else do_censor cfg o
-        _ | private -> reply "Not a valid request. See http://www.eelis.net/geordi/ for usage syntax."
-        _ -> return ()
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
       when (join_trigger cfg == Nothing) join_chans
