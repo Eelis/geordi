@@ -116,8 +116,8 @@ tests "diagnostics" =
   , test "Checking global allocation/deallocation operators" "{ delete new int[3]; }" $
     PrefixMatch "error: tried to apply non-array operator delete to pointer returned by new[]. Aborted"
   , test "Ditto." "{ int * const p = new int; delete p; new int; delete p; }" $ ExactMatch "error: tried to delete already deleted pointer. Aborted"
-  ,  test "Custom terminate() handler" "{ throw std::logic_error(\"It is not logical, Captain.\"); }" $
-    ExactMatch "terminated by logic_error: It is not logical, Captain.\nAborted"
+  , test "Custom terminate() handler" "{ throw std::logic_error(\"It is not logical, Captain.\"); }" $
+    ExactMatch "terminated by logic_error: It is not logical, Captain."
   , test "libstdc++ debug mode" "{ boost::rational<int> r(2, 3); cout << r << flush; vector<int>::iterator x, y(x); }" $ PrefixMatch "2/3 error: "
   ]
 
@@ -136,7 +136,7 @@ tests "utilities" =
   , test "ETYPE" "{ int i = 4; cout << ETYPE(++i); }" $ ExactMatch "lvalue int"
   , test "Range printing" "{ vector<int> v; v += 3, 5, 9, 4, 1; cout << v; }" $ ExactMatch "[3, 5, 9, 4, 1]"
   , test "Demangled printable typeid" "<< typeid(int)" $ ExactMatch "int"
-  , test "Custom assert()/abort()" "{ assert(4 > 9); }" $ ExactMatch "Assertion `4 > 9' fails.\nAborted"
+  , test "Custom assert()/abort()" "{ assert(4 > 9); }" $ ExactMatch "Assertion `4 > 9' fails."
   ,  test "bin IO manipulator" "<< showbase << uppercase << bin << setfill('_') << internal << setw(10) << 53" $ ExactMatch "0B__110101"
   ]
 

@@ -97,6 +97,10 @@ main = do
         mapM_ print r
         mapM_ send r
 
+discarded_lines_description :: Int -> String
+discarded_lines_description s =
+  " [+ " ++ show s ++ " discarded line" ++ (if s == 1 then "" else "s") ++ "]"
+
 on_msg :: (Functor m, Monad m) => (String -> m String) -> IrcBotConfig -> IRC.Message -> m [IRC.Message]
 on_msg eval cfg m = flip execStateT [] $ do
   when (join_trigger cfg == Just m) join_chans
@@ -121,8 +125,10 @@ on_msg eval cfg m = flip execStateT [] $ do
             _ | private -> Just txt
             _ -> Nothing
         maybeM mr $ \r -> do
-          o <- lift $ take (max_msg_length cfg) . takeWhile (/= '\n') . eval r
-          reply $ if null o then no_output_msg cfg else do_censor cfg o
+          l <- lift $ dropWhile null . lines . eval r
+          reply $ take (max_msg_length cfg) $ do_censor cfg $ case l of
+            [] -> no_output_msg cfg; [x] -> x
+            (x:xs) -> x ++ discarded_lines_description (length xs)
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
       when (join_trigger cfg == Nothing) join_chans

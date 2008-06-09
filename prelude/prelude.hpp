@@ -137,7 +137,7 @@ namespace geordi { geordi::initializer_t const initializer; }
   // Could theoretically be located in other TU, but our using of an .a for our .o's makes that painful.
 
 #undef assert
-#define assert(e) ((e) ? void() : (void(::std::cout << "Assertion `" #e "' fails.\n"), ::std::abort()));
+#define assert(e) ((e) ? void() : (void(::std::cout << "Assertion `" #e "' fails."), ::std::fclose(stdout), ::std::abort()));
 
 #define typeid(...) static_cast< ::type_strings_detail::type_info const &>(typeid(__VA_ARGS__))
 

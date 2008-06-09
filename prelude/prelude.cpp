@@ -57,7 +57,7 @@ namespace geordi
         }
       }
 
-      std::puts("");
+      std::fclose(stdout);
       std::abort();
     }
 
