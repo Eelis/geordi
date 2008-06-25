@@ -4,7 +4,11 @@ set -eu
 RT=`pwd`/rt # For now.
 
 rtcp () { cp -L -v --parents -- $@ "${RT}" ; }
-libs() { ldd $@ | runhaskell scripts/parse-ldd-output.hs ; }
+libs() {
+  unset TERM
+    # ghc < 6.8.3 has a bug that causes runhaskell to output console codes after the program output, at least when TERM is xterm.
+  ldd $@ | runhaskell scripts/parse-ldd-output.hs ;
+}
 
 . ./compile-config
 
