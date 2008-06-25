@@ -37,7 +37,6 @@
   #include <unordered_set>
   #include <unordered_map>
   #include <type_traits>
-  #include "unique_ptr.hpp"
   #include "tlists.hpp"
 #endif
 
@@ -439,8 +438,10 @@ namespace textual_type_descriptions
       enum { vowel = num_vowel<sizeof...(T)>::vowel };
     };
 
+    #ifdef _UNIQUE_PTR_H
     template <typename T> struct type_desc_t<unique_ptr<T>>: consonant
     { static std::string s (bool b) { return "unique " + type_desc<T*>(b); } };
+    #endif
 
     template <typename T> struct type_desc_t<std::reference_wrapper<T>>: consonant
     { static std::string s (bool b) { return "reference wrapped " + type_desc_t<T>::s(b); } };
