@@ -146,8 +146,8 @@ tests "errorfilters" =
   , test "Ditto" "<< ETYPE(&vector<queue<istream_iterator<int> > >::foo)" $
     ExactMatch "error: 'foo' is not a member of 'vector<queue<istream_iterator<int>>>'"
   , test "Preprocessor error" "<< 08" $ ExactMatch "error: invalid digit \"8\" in octal constant"
-  , test "[with ...]-replacement" "{ cout << 1 == 1; }" $ ExactMatch "error: no match for 'operator==' in 'cout. ostream::operator<<(1) == 1'"
-  , test "Ditto" "<< \"array<double, N>::bla [with long unsigned int N = 10ul]\"" $ ExactMatch "array<double, 10ul>::bla"
+  , test "[with ...]-replacement" "<< 1 == 1" $ ExactMatch "error: no match for 'operator==' in 'cout.ostream::operator<<(1) == 1'"
+  , test "Ditto" "template <typename T> void f(); template <> void f<int>() {} template <> void f<int>() {}" $ ExactMatch "error: redefinition of 'void f() [with T = int]'"
   ]
 
 tests s = error $ "no such test set: " ++ s

@@ -3,13 +3,13 @@
 module ErrorFilters (cc1plus, as, ld, prog) where
 
 import qualified CxxParse
-import Control.Monad (ap, liftM2)
+import Control.Monad (ap, liftM2, mzero)
 import Text.Regex (Regex, matchRegexAll, mkRegex, subRegex)
 import Data.Char (isAlphaNum, toLower)
 import Data.Maybe (mapMaybe)
-import Data.List (intersperse, isPrefixOf)
+import Data.List (intersperse, isPrefixOf, isSuffixOf)
 import Text.ParserCombinators.Parsec
-  (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, many1, anyChar, noneOf, option, count, CharParser, notFollowedBy, choice, setInput, eof)
+  (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, many1, anyChar, noneOf, option, count, CharParser, notFollowedBy, choice, setInput, eof, oneOf)
 import Text.ParserCombinators.Parsec.Prim (GenParser)
 import Control.Applicative (Applicative(..))
 import Util
@@ -59,26 +59,15 @@ replace_withs s = either (const s) replace_withs $ parse (r >+> getInput) "" s
  where
   r :: CharParser st String
   r = do
-    c <- anyChar `manyTill` try (string " [with ")
-    d <- ((,) . (last . (many1 (many1 (noneOf "= ") << char ' ')) << string "= ") <*> cxxArg) `sepBy` string ", "
-    char ']'
-    -- (many1 satisfy isIdChar `manyTill` string "= ") <*> cxxArg
-    return $ foldr with_subst c d
-  with_subst :: (String, String) -> String -> String
-  with_subst (k, _) | or (not . isIdChar . k) = error "tried to with_subst non-name"
-    -- r must exclude this case.
-  with_subst (k, v) =
-    subRegex' (mkRegex $ "\\b" ++ k ++ "\\b") v .
-    subRegex' (mkRegex $ "\\b" ++ k ++ "\\s*&") (v' ++ "&") .
-    subRegex' (mkRegex $ "\\b" ++ k ++ "\\s*&&") (v' ++ if not vrk then "&&" else "&")
-      -- Reference collapse rules are described in 7.1.3p9.
-   where
-    (v', vrk) = case () of
-      ()| Just x <- stripSuffix "&&" v -> (x, True)
-      ()| Just x <- stripSuffix "&" v -> (x, True)
-      ()| otherwise -> (v, False)
-
--- With-substitution would fail if the following occurred in an error: "... T const ... [with T = int&]" (because it would be replaced with "... int& const ...". Fortunately, g++ places cv-qualifiers on the left side in these cases. For example, see the error message for: "template <typename T> std::string f(T const &); void g() { int i = 3; !f<int&>(i); }".
+    before <- anyChar `manyTill` try (string " [with ")
+    k <- many1 (satisfy isIdChar)
+    string " = "
+    v <- cxxArg
+    if "&" `isSuffixOf` v then mzero else do
+      -- Replacing T in "T&" or "T&&" or even "const T&" with a reference type is too involved for now (see 14.3.1p4).
+    c <- oneOf "],"
+    let before' = subRegex (mkRegex $ "\\b" ++ k ++ "\\b") before (replaceInfix "\\" "\\\\" v)
+    if before' == before then mzero else return $ before' ++ (if c == ']' then "" else " [with")
 
 class Parser p st a | p -> st, p -> a where parser :: p -> CharParser st a
 instance Parser (CharParser st a) st a where parser = id
