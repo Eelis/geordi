@@ -123,7 +123,7 @@ char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
 
 #define RANGE(x) (::boost::begin(x)), (::boost::end(x))
 
-#define GEORDI_STATEMENTS_PRE int main () {
+#define GEORDI_STATEMENTS_PRE int main(int argc, char * argv[]) {
 #define GEORDI_STATEMENTS_POST }
 
 #define GEORDI_PRINT_PRE GEORDI_STATEMENTS_PRE std::cout <<

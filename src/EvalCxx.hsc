@@ -253,7 +253,7 @@ evaluate cfg req = do
   if not (also_run req) then return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "") else do
   gxx (["-c", "t.s"] ++ cf) Assemble $ do
   gxx (["t.o", "-o", "t"] ++ cf ++ linkFlags cfg) Link $ do
-  EvaluationResult Run . capture_restricted "/t" [] (env ++ prog_env) (resources Run)
+  EvaluationResult Run . capture_restricted "/t" ["second", "third", "fourth"] (env ++ prog_env) (resources Run)
 
 evaluator :: IO (Request -> IO EvaluationResult)
 evaluator = do
