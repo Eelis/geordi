@@ -19,10 +19,6 @@
 #include "evil_casts.hpp"
 #include "geordi.hpp"
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-  #include "unique_ptr.hpp"
-#endif
-
 #include <stdint.h>
 
 #include <algorithm>
