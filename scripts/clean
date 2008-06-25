@@ -1,2 +1,2 @@
 #!/bin/sh
-rm -f geordi-bot geordi-local geordi-testsuite prelude/*.o rt/prelude.a rt/prelude.hpp.gch src/*.o src/*.hi src/*_hsc.* src/EvalCxx.hs src/Ptrace.hs src/SysCalls.hs src/Flock.hs src/Sys.hs
+rm -f geordi-irc geordi-xmpp geordi-local geordi-testsuite prelude/*.o rt/prelude.a rt/prelude.hpp.gch src/*.o src/*.hi src/*_hsc.* src/EvalCxx.hs src/Ptrace.hs src/SysCalls.hs src/Flock.hs src/Sys.hs
