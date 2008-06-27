@@ -439,7 +439,7 @@ namespace textual_type_descriptions
     };
 
     #ifdef _UNIQUE_PTR_H
-    template <typename T> struct type_desc_t<unique_ptr<T>>: consonant
+    template <typename T> struct type_desc_t<std::unique_ptr<T>>: consonant
     { static std::string s (bool b) { return "unique " + type_desc<T*>(b); } };
     #endif
 
