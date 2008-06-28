@@ -2,7 +2,7 @@
 #define TRACKED_HPP
 
 #include <boost/noncopyable.hpp>
-#include <iostream>
+#include <iosfwd>
 #include <string>
 
 namespace tracked
@@ -28,7 +28,6 @@ namespace tracked
 
     unsigned int id(Tracked const &);
 
-    struct info: boost::noncopyable { info(); ~info(); std::ostream & operator()() const; };
   }
 
   void mute(); void unmute();
@@ -68,9 +67,9 @@ namespace tracked
     B();
     B(B const &);
 
-    explicit B(int const x) { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
-    explicit B(char const x) { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
-    explicit B(std::string const & x) { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
+    explicit B(int);
+    explicit B(char);
+    explicit B(std::string const &);
       // This used to be one ctor template, but that messed up snippets like: struct S { operator tracked::B(); }; S s; tracked::B b(s);
 
     B & operator=(B const &);
@@ -97,8 +96,7 @@ namespace tracked
     #endif
 
     template<typename C, typename Tr>
-    friend std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, B const & b)
-    { return o << "B" << detail::id(b); }
+    friend std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> &, B const &);
   };
 
   struct D: B
@@ -106,9 +104,9 @@ namespace tracked
     D();
     D(D const &);
 
-    explicit D(int const & x): B(x) { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
-    explicit D(char const & x): B(x) { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
-    explicit D(std::string const & x): B(x) { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
+    explicit D(int);
+    explicit D(char);
+    explicit D(std::string const &);
 
     D & operator=(D const &);
     ~D();
@@ -131,8 +129,7 @@ namespace tracked
     #endif
 
     template<typename C, typename Tr>
-    friend std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, D const & d)
-    { return o << "D" << detail::id(d); }
+    friend std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> &, D const &);
   };
 
   #ifdef __GXX_EXPERIMENTAL_CXX0X__

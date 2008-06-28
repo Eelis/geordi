@@ -17,13 +17,18 @@ namespace tracked
 
     bool muted = false;
 
-    std::ofstream nullstream; // We don't open this, so writes are no-ops.
+    struct info: boost::noncopyable
+    {
+      info() { if(!muted) std::cout << parsep; }
+      ~info() { if(!muted) std::cout << parsep; }
+      std::ostream & operator()() const
+      {
+        static std::ofstream s; // Kept closed, so writes are no-ops.
+        return muted ? s : std::cout;
+      }
+    };
 
     enum Status { fresh, pillaged, destructed };
-
-    info::info() { if(!muted) std::cout << parsep; }
-    info::~info() { if(!muted) std::cout << parsep; }
-    std::ostream & info::operator()() const { return muted ? nullstream : std::cout; }
 
     struct Entry {
       Tracked const * p;
@@ -123,6 +128,10 @@ namespace tracked
 
     B::B() { set_name("B"); detail::info()() << *this << "*"; }
     B::B(B const & b): Tracked(b) { set_name("B"); detail::info()() << *this << "*(" << b << ")"; }
+    B::B(int const x) { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
+    B::B(char const x) { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
+    B::B(std::string const & x) { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
+      // todo: Delegating ctors should make this cleaner.
     B & B::operator=(B const & b) { Tracked::operator=(b); detail::info()() << *this << "=" << b; return *this; }
     B::~B() { detail::info()() << *this << "~"; }
 
@@ -170,11 +179,21 @@ namespace tracked
       B const r(*this); operator++(); return r;
     }
 
+    template<typename C, typename Tr>
+    std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, B const & b)
+    { return o << "B" << detail::id(b); }
+
+    template std::ostream & operator<<<char, std::char_traits<char> >(std::ostream &, B const &);
+    template std::wostream & operator<<<wchar_t, std::char_traits<wchar_t> >(std::wostream &, B const &);
+
   // D:
 
     D::D() { set_name("D"); detail::info()() << *this << "*"; }
     D::D(D const & d): B(boost::implicit_cast<B const&>(d))
     { set_name("D"); detail::info()() << *this << "*(" << d << ")"; }
+    D::D(int const x): B(x) { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
+    D::D(char const x): B(x) { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
+    D::D(std::string const & x): B(x) { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
     D & D::operator=(D const & d) { B::operator=(d); detail::info()() << *this << "=" << d; return *this; }
     D::~D() { detail::info()() << *this << "~"; }
 
@@ -200,6 +219,13 @@ namespace tracked
       assert_status_below(this, detail::pillaged, "call D::vf() on");
       detail::info()() << *this << ".vf()";
     }
+
+    template<typename C, typename Tr>
+    std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, D const & d)
+    { return o << "D" << detail::id(d); }
+
+    template std::ostream & operator<<<char, std::char_traits<char> >(std::ostream &, D const &);
+    template std::wostream & operator<<<wchar_t, std::char_traits<wchar_t> >(std::wostream &, D const &);
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       D::D(D && d): B(std::move<B>(d)) { set_name("D"); detail::info()() << d << "=>" << *this << "*"; }
