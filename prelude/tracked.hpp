@@ -132,15 +132,6 @@ namespace tracked
     friend std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> &, D const &);
   };
 
-  #ifdef __GXX_EXPERIMENTAL_CXX0X__
-
-    // This "three moves" swap implementation is most likely identical to what libstdc++'s std::swap will be using, so once libstdc++'s std::swap has been updated, the functions below can be removed.
-
-    inline void swap(B & a, B & b) { B tmp(std::move(b)); b = std::move(a); a = std::move(tmp); }
-    inline void swap(D & a, D & b) { D tmp(std::move(b)); b = std::move(a); a = std::move(tmp); }
-
-  #endif
-
 } // namespace tracked
 
 #endif // header guard
