@@ -119,6 +119,10 @@
   #include <boost/foreach.hpp>
 #endif
 
+#ifdef GEORDI_USE_EXTERN_TEMPLATE
+  extern template class std::basic_ostream<char, std::char_traits<char>>;
+#endif
+
 char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
 
 #define RANGE(x) (::boost::begin(x)), (::boost::end(x))

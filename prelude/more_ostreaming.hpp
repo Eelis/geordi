@@ -82,6 +82,11 @@ namespace more_ostreaming_detail
     o << ']';
   }
 
+  #ifdef GEORDI_USE_EXTERN_TEMPLATE
+    extern template void print_range<char, std::char_traits<char>, std::vector<int> >(std::ostream &, std::vector<int> const &);
+      // vector<int> is the most used container for demonstrations, so it's worth making it print fast.
+  #endif
+
   template <typename, typename T> struct snd { typedef T type; };
 }
 
