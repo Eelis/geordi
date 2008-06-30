@@ -5,16 +5,19 @@ import qualified Request
 import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Sys
 
+import Data.Map (Map)
+import qualified Data.Map as Map
+
 import Network.BSD (getProtocolNumber, hostAddress, getHostByName)
 import Control.Exception (bracketOnError)
 import System.IO (hGetLine, hPutStrLn, hFlush, Handle, IOMode(..))
-import Control.Monad (when)
+import Control.Monad (forever, when)
 import Control.Monad.Error ()
-import Control.Monad.State (execStateT, lift)
+import Control.Monad.State (execStateT, lift, StateT)
 import System.IO.UTF8 (putStr, putStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Text.Regex (Regex, subRegex, mkRegex)
-import Data.Char (toUpper, toLower)
+import Data.Char (toUpper, toLower, isSpace)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Util
@@ -87,21 +90,32 @@ main = do
   let send m = limit_rate >> send_irc_msg h m
   send $ msg "NICK" [nick cfg]
   send $ msg "USER" [nick cfg, "0", "*", nick cfg]
-  forever $ do
-    l <- hGetLine h
+  flip execStateT Map.empty $ forever $ do
+    l <- lift $ hGetLine h
     case IRC.parseMessage (l ++ "\n") of
-      Nothing -> putStr "Malformed IRC message: " >> putStrLn l
+      Nothing -> lift $ putStr "Malformed IRC message: " >> putStrLn l
       Just m -> do
-        print m
+        lift $ print m
         r <- on_msg evalRequest cfg m
-        mapM_ print r
-        mapM_ send r
+        lift $ mapM_ print r >> mapM_ send r
+  return ()
 
 discarded_lines_description :: Int -> String
 discarded_lines_description s =
   " [+ " ++ show s ++ " discarded line" ++ (if s == 1 then "" else "s") ++ "]"
 
-on_msg :: (Functor m, Monad m) => (String -> m String) -> IrcBotConfig -> IRC.Message -> m [IRC.Message]
+type LastRequestMap = Map String String
+
+is_replace_request :: String -> Maybe (String, String)
+is_replace_request s = stripPrefix "replace " (dropWhile isSpace s) >>= stripInfix " with "
+
+is_request :: Bool -> [String] -> String -> Maybe String
+is_request _ botnicks s | Just (n, r) <- Request.is_request s, any (\(h:t) -> n == toLower h : t || n == toUpper h : t) botnicks = Just r
+is_request True _ s = Just s
+is_request _ _ _ = Nothing
+
+on_msg :: (Functor m, Monad m) =>
+  (String -> m String) -> IrcBotConfig -> IRC.Message -> StateT LastRequestMap m [IRC.Message]
 on_msg eval cfg m = flip execStateT [] $ do
   when (join_trigger cfg == Just m) join_chans
   case m of
@@ -111,21 +125,26 @@ on_msg eval cfg m = flip execStateT [] $ do
       send $ msg "NOTICE" [from, "\1VERSION Geordi C++ bot - http://www.eelis.net/geordi/\1"]
     IRC.Message _ "433" {- ERR_NICKNAMEINUSE -} _ -> send $ msg "NICK" [alternate_nick cfg]
     IRC.Message _ "PING" a -> msapp [msg "PONG" a]
-    IRC.Message (Just (IRC.NickName fromnick _ _)) "PRIVMSG" [c, txt] ->
-      when (not (fromnick `elem` blacklist cfg)) $ do
-      let
-        private = elemBy caselessStringEq c [nick cfg, alternate_nick cfg]
-        reply s = send $ msg "PRIVMSG" [if private then fromnick else c, s]
+    IRC.Message (Just (IRC.NickName who _ _)) "PRIVMSG" [to, txt] ->
+      when (not (who `elem` blacklist cfg)) $ do
+      let private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
+      let wher = if private then who else to
+      let reply s = send $ msg "PRIVMSG" [wher, s]
       if private && not (serve_private_requests cfg)
        then reply "This bot does not serve private requests."
        else do
-        let
-         mr = case Request.is_request txt of
-            Just (n, r) | any (\(h:t) -> n == toLower h : t || n == toUpper h : t) [nick cfg, alternate_nick cfg] -> Just r
-            _ | private -> Just txt
-            _ -> Nothing
-        maybeM mr $ \r -> do
-          l <- lift $ dropWhile null . lines . eval r
+        maybeM (is_request private [nick cfg, alternate_nick cfg] txt) $ \r -> do
+        u <- lift $ readState
+        mr <- case is_replace_request r of
+          Nothing -> return $ Just r
+          Just (x, y) -> case Map.lookup wher u of
+            Nothing -> reply "There is no previous request to replace in." >> return Nothing
+            Just z -> case replaceInfixM x y z of
+              Just r' -> return $ Just r'
+              Nothing -> reply "String does not occur in previous request." >> return Nothing
+        maybeM mr $ \r' -> do
+          lift $ mapState' (Map.insert wher r')
+          l <- lift $ lift $ dropWhile null . lines . eval r'
           reply $ take (max_msg_length cfg) $ do_censor cfg $ case l of
             [] -> no_output_msg cfg; [x] -> x
             (x:xs) -> x ++ discarded_lines_description (length xs)

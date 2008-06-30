@@ -14,9 +14,10 @@ import Data.Sequence (Seq, ViewL(..), (<|))
 import Control.Exception (catch, bracket, evaluate)
 import Control.Monad (liftM2)
 import Control.Monad.Fix (fix)
-import Control.Monad.State (MonadState, modify)
+import Control.Monad.State (MonadState, modify, StateT(..))
 import Control.Monad.Instances ()
 import Control.Parallel.Strategies (NFData, rnf)
+import Control.Arrow (first)
 import System.Posix.Types (Fd(..))
 import System.Posix.Time (epochTime)
 import System.IO (Handle, hClose)
@@ -34,10 +35,6 @@ readFileNow f = readFile f >>= full_evaluate
 
 (.) :: Functor f => (a -> b) -> f a -> f b
 (.) = fmap
-
-forever :: Monad m => m a -> m b
-forever x = x >> forever x
-  -- ExtDep: GHC 6.8.2 has this in Control.Monad.
 
 noThrow :: IO () -> IO ()
 noThrow x = x `catch` const (return ())
@@ -150,7 +147,21 @@ maybeLast [] = Nothing
 maybeLast [x] = Just x
 maybeLast (_:t) = maybeLast t
 
+replaceInfixM :: Eq a => [a] -> [a] -> [a] -> Maybe [a]
+replaceInfixM what with l | what `isPrefixOf` l = Just (with ++ drop (length what) l)
+replaceInfixM _ _ [] = Nothing
+replaceInfixM what with (h:t) = (h :) . replaceInfixM what with t
+
 replaceInfix :: Eq a => [a] -> [a] -> [a] -> [a]
-replaceInfix what with l | what `isPrefixOf` l = with ++ drop (length what) l
-replaceInfix _ _ [] = []
-replaceInfix what with (h:t) = h : replaceInfix what with t
+replaceInfix what with l = maybe l id (replaceInfixM what with l)
+
+stripInfix :: Eq a => [a] -> [a] -> Maybe ([a], [a])
+stripInfix p s | Just r <- stripPrefix p s = Just ([], r)
+stripInfix p (h:t) = first (h:) . stripInfix p t
+stripInfix _ _  = Nothing
+
+readState :: Monad y => StateT x y x
+readState = StateT $ \x -> return (x, x)
+
+mapState' :: Monad y => (x -> x) -> StateT x y ()
+mapState' f = StateT $ \s -> return ((), f s)
