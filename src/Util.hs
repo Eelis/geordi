@@ -4,10 +4,12 @@ import qualified System.Posix.IO
 import qualified GHC.Read
 import qualified Data.Monoid
 import qualified Data.Sequence as Seq
+import qualified Text.ParserCombinators.Parsec as PS
+import qualified Text.ParserCombinators.Parsec.Error as PSE
 
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
-import Data.List (sortBy, isPrefixOf)
+import Data.List (sortBy)
 import Data.Char (isSpace, isAlphaNum, toLower)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Sequence (Seq, ViewL(..), (<|))
@@ -148,12 +150,16 @@ maybeLast [x] = Just x
 maybeLast (_:t) = maybeLast t
 
 replaceInfixM :: Eq a => [a] -> [a] -> [a] -> Maybe [a]
-replaceInfixM what with l | what `isPrefixOf` l = Just (with ++ drop (length what) l)
-replaceInfixM _ _ [] = Nothing
-replaceInfixM what with (h:t) = (h :) . replaceInfixM what with t
+replaceInfixM what with l = (\(pre, post) -> pre ++ with ++ post) . stripInfix what l
+
+replaceInfixesM :: Eq a => [a] -> [a] -> [a] -> Maybe [a]
+replaceInfixesM what with l = (\(pre, post) -> pre ++ with ++ replaceInfixes what with post) . stripInfix what l
 
 replaceInfix :: Eq a => [a] -> [a] -> [a] -> [a]
 replaceInfix what with l = maybe l id (replaceInfixM what with l)
+
+replaceInfixes :: Eq a => [a] -> [a] -> [a] -> [a]
+replaceInfixes what with l = maybe l id (replaceInfixesM what with l)
 
 stripInfix :: Eq a => [a] -> [a] -> Maybe ([a], [a])
 stripInfix p s | Just r <- stripPrefix p s = Just ([], r)
@@ -165,3 +171,13 @@ readState = StateT $ \x -> return (x, x)
 
 mapState' :: Monad y => (x -> x) -> StateT x y ()
 mapState' f = StateT $ \s -> return ((), f s)
+
+parseOrFail :: Monad m => PS.GenParser tok () a -> [tok] -> m a
+parseOrFail p t = either (fail . showParseError) return $ PS.parse p "" t
+ where
+  showParseError e =
+    "column " ++ show (PS.sourceColumn $ PS.errorPos e) ++ ": " ++
+    concatMap (++ ". ") (tail $ lines $ PSE.showErrorMessages "or" undefined undefined "unexpected" "end of request" $ filter isUnexpMsg $ PSE.errorMessages e)
+  isUnexpMsg (PSE.SysUnExpect _) = True
+  isUnexpMsg (PSE.UnExpect _) = True
+  isUnexpMsg _ = False

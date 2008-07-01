@@ -6,8 +6,7 @@ import qualified CxxParse as Cxx
 import Control.Exception ()
 import Data.Char (isPrint, isAlpha, isDigit)
 import Control.Monad.Error ()
-import Text.ParserCombinators.Parsec (parse, getInput, (<|>), oneOf, lookAhead, spaces, satisfy, sourceColumn, eof, GenParser, CharParser, many1)
-import Text.ParserCombinators.Parsec.Error (errorMessages, Message(..), errorPos, showErrorMessages)
+import Text.ParserCombinators.Parsec (parse, getInput, (<|>), oneOf, lookAhead, spaces, satisfy, eof, CharParser, many1)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt)
 
 import Prelude hiding (catch, (.))
@@ -54,16 +53,6 @@ splitSemicolon (Cxx.Code (Cxx.Plain s : r)) | maybeLast s == Just ';' =
   (Cxx.Code [Cxx.Plain s], Cxx.Code r)
 splitSemicolon (Cxx.Code (a : r)) = (Cxx.Code $ a : x, y)
   where (Cxx.Code x,y) = splitSemicolon (Cxx.Code r)
-
-parseOrFail :: Monad m => GenParser tok () a -> [tok] -> m a
-parseOrFail p t = either (fail . showParseError) return $ parse p "" t
- where
-  showParseError e =
-    "column " ++ show (sourceColumn $ errorPos e) ++ ": " ++
-    concatMap (++ ". ") (tail $ lines $ showErrorMessages "or" undefined undefined "unexpected" "end of request" $ filter isUnexpMsg $ errorMessages e)
-  isUnexpMsg (SysUnExpect _) = True
-  isUnexpMsg (UnExpect _) = True
-  isUnexpMsg _ = False
 
 newlines ::Cxx.Code -> Cxx.Code
 newlines = Cxx.map_chunks $ Cxx.map_plain $ map $ \c -> if c == '\\' then '\n' else c

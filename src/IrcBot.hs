@@ -4,8 +4,6 @@ import qualified System.Environment
 import qualified Request
 import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Sys
-
-import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Network.BSD (getProtocolNumber, hostAddress, getHostByName)
@@ -18,6 +16,9 @@ import System.IO.UTF8 (putStr, putStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Text.Regex (Regex, subRegex, mkRegex)
 import Data.Char (toUpper, toLower, isSpace)
+import Data.Map (Map)
+import Data.List (isPrefixOf)
+import Text.ParserCombinators.Parsec (GenParser, CharParser, string, try, (<|>), manyTill, eof, anyChar)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Util
@@ -106,13 +107,28 @@ discarded_lines_description s =
 
 type LastRequestMap = Map String String
 
-is_replace_request :: String -> Maybe (String, String)
-is_replace_request s = stripPrefix "replace " (dropWhile isSpace s) >>= stripInfix " with "
-
 is_request :: Bool -> [String] -> String -> Maybe String
 is_request _ botnicks s | Just (n, r) <- Request.is_request s, any (\(h:t) -> n == toLower h : t || n == toUpper h : t) botnicks = Just r
 is_request True _ s = Just s
 is_request _ _ _ = Nothing
+
+manyTill' :: GenParser tok st a -> GenParser tok st end -> GenParser tok st ([a], end)
+manyTill' p end = scan
+  where scan = ((\r -> ([], r)) . end) <|> do{ x <- p; (xs, e) <- scan; return (x:xs, e) }
+
+replaceCmd :: Monad m => String -> String -> String -> m String
+replaceCmd x y z = case replaceInfixesM x y z of
+  Just r -> return r
+  Nothing -> fail $ "String " ++ x ++ " does not occur in previous request."
+
+editCmds :: Monad m => CharParser st (String -> m String)
+editCmds = do
+  c <- (string "prepend " >> return (\x y -> return (x ++ y)))
+     <|> (string "append " >> return (\x y -> return (y ++ x)))
+     <|> (string "erase " >> return (\x -> replaceCmd x ""))
+     <|> (string "replace " >> manyTill anyChar (try $ string " with ") >>= (return . replaceCmd))
+  (s, r) <- manyTill' anyChar ((eof >> return return) <|> (try (string " and ") >> editCmds))
+  return $ \j -> c s j >>= r
 
 on_msg :: (Functor m, Monad m) =>
   (String -> m String) -> IrcBotConfig -> IRC.Message -> StateT LastRequestMap m [IRC.Message]
@@ -129,23 +145,25 @@ on_msg eval cfg m = flip execStateT [] $ do
       when (not (who `elem` blacklist cfg)) $ do
       let private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
       let wher = if private then who else to
-      let reply s = send $ msg "PRIVMSG" [wher, s]
+      let reply s = send $ msg "PRIVMSG" [wher, do_censor cfg s]
       if private && not (serve_private_requests cfg)
        then reply "This bot does not serve private requests."
        else do
-        maybeM (is_request private [nick cfg, alternate_nick cfg] txt) $ \r -> do
+        maybeM (dropWhile isSpace . is_request private [nick cfg, alternate_nick cfg] txt) $ \r -> do
         u <- lift $ readState
-        mr <- case is_replace_request r of
-          Nothing -> return $ Just r
-          Just (x, y) -> case Map.lookup wher u of
-            Nothing -> reply "There is no previous request to replace in." >> return Nothing
-            Just z -> case replaceInfixM x y z of
-              Just r' -> return $ Just r'
-              Nothing -> reply "String does not occur in previous request." >> return Nothing
+        let lastreq = Map.lookup wher u
+        if r == "show" then reply (lastreq `orElse` "<none>") else do
+        mr <- if any (`isPrefixOf` r) ["append ", "prepend ", "erase ", "replace "]
+          then case lastreq of
+            Nothing -> reply "There is no previous request to modify." >> return Nothing
+            Just p -> case parseOrFail editCmds r >>= ($ p) of
+              Left e -> reply e >> return Nothing
+              Right r' -> return $ Just r'
+          else return $ Just r
         maybeM mr $ \r' -> do
           lift $ mapState' (Map.insert wher r')
           l <- lift $ lift $ dropWhile null . lines . eval r'
-          reply $ take (max_msg_length cfg) $ do_censor cfg $ case l of
+          reply $ take (max_msg_length cfg) $ case l of
             [] -> no_output_msg cfg; [x] -> x
             (x:xs) -> x ++ discarded_lines_description (length xs)
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
