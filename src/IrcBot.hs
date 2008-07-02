@@ -18,7 +18,7 @@ import Text.Regex (Regex, subRegex, mkRegex)
 import Data.Char (toUpper, toLower, isSpace)
 import Data.Map (Map)
 import Data.List (isPrefixOf)
-import Text.ParserCombinators.Parsec (GenParser, CharParser, string, try, (<|>), manyTill, eof, anyChar)
+import Text.ParserCombinators.Parsec (GenParser, CharParser, char, string, try, (<|>), manyTill, eof, anyChar)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Util
@@ -125,8 +125,9 @@ editCmds :: Monad m => CharParser st (String -> m String)
 editCmds = do
   c <- (string "prepend " >> return (\x y -> return (x ++ y)))
      <|> (string "append " >> return (\x y -> return (y ++ x)))
-     <|> (string "erase " >> return (\x -> replaceCmd x ""))
-     <|> (string "replace " >> manyTill anyChar (try $ string " with ") >>= (return . replaceCmd))
+     <|> (try (string "erase " <|> string "remove ") >> return (\x -> replaceCmd x ""))
+     <|> (string "replace " >> manyTill anyChar
+      (try $ char ' ' >> (string "with " <|> string "by ")) >>= (return . replaceCmd))
   (s, r) <- manyTill' anyChar ((eof >> return return) <|> (try (string " and ") >> editCmds))
   return $ \j -> c s j >>= r
 
@@ -153,7 +154,7 @@ on_msg eval cfg m = flip execStateT [] $ do
         u <- lift $ readState
         let lastreq = Map.lookup wher u
         if r == "show" then reply (lastreq `orElse` "<none>") else do
-        mr <- if any (`isPrefixOf` r) ["append ", "prepend ", "erase ", "replace "]
+        mr <- if any (`isPrefixOf` r) ["append ", "prepend ", "erase ", "replace ", "remove "]
           then case lastreq of
             Nothing -> reply "There is no previous request to modify." >> return Nothing
             Just p -> case parseOrFail editCmds r >>= ($ p) of
