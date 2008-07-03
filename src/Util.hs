@@ -152,14 +152,8 @@ maybeLast (_:t) = maybeLast t
 replaceInfixM :: Eq a => [a] -> [a] -> [a] -> Maybe [a]
 replaceInfixM what with l = (\(pre, post) -> pre ++ with ++ post) . stripInfix what l
 
-replaceInfixesM :: Eq a => [a] -> [a] -> [a] -> Maybe [a]
-replaceInfixesM what with l = (\(pre, post) -> pre ++ with ++ replaceInfixes what with post) . stripInfix what l
-
 replaceInfix :: Eq a => [a] -> [a] -> [a] -> [a]
 replaceInfix what with l = maybe l id (replaceInfixM what with l)
-
-replaceInfixes :: Eq a => [a] -> [a] -> [a] -> [a]
-replaceInfixes what with l = maybe l id (replaceInfixesM what with l)
 
 stripInfix :: Eq a => [a] -> [a] -> Maybe ([a], [a])
 stripInfix p s | Just r <- stripPrefix p s = Just ([], r)
@@ -181,3 +175,7 @@ parseOrFail p t = either (fail . showParseError) return $ PS.parse p "" t
   isUnexpMsg (PSE.SysUnExpect _) = True
   isUnexpMsg (PSE.UnExpect _) = True
   isUnexpMsg _ = False
+
+manyTill' :: PS.GenParser tok st a -> PS.GenParser tok st end -> PS.GenParser tok st ([a], end)
+manyTill' p end = scan
+  where scan = (PS.<|>) ((\r -> ([], r)) . end) (do { x <- p; (xs, e) <- scan; return (x:xs, e) })

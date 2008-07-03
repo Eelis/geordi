@@ -5,6 +5,7 @@ import qualified Request
 import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Sys
 import qualified Data.Map as Map
+import qualified EditCmds
 
 import Network.BSD (getProtocolNumber, hostAddress, getHostByName)
 import Control.Exception (bracketOnError)
@@ -18,7 +19,6 @@ import Text.Regex (Regex, subRegex, mkRegex)
 import Data.Char (toUpper, toLower, isSpace)
 import Data.Map (Map)
 import Data.List (isPrefixOf)
-import Text.ParserCombinators.Parsec (GenParser, CharParser, char, string, try, (<|>), manyTill, eof, anyChar)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Util
@@ -112,25 +112,6 @@ is_request _ botnicks s | Just (n, r) <- Request.is_request s, any (\(h:t) -> n 
 is_request True _ s = Just s
 is_request _ _ _ = Nothing
 
-manyTill' :: GenParser tok st a -> GenParser tok st end -> GenParser tok st ([a], end)
-manyTill' p end = scan
-  where scan = ((\r -> ([], r)) . end) <|> do{ x <- p; (xs, e) <- scan; return (x:xs, e) }
-
-replaceCmd :: Monad m => String -> String -> String -> m String
-replaceCmd x y z = case replaceInfixesM x y z of
-  Just r -> return r
-  Nothing -> fail $ "String " ++ x ++ " does not occur in previous request."
-
-editCmds :: Monad m => CharParser st (String -> m String)
-editCmds = do
-  c <- (string "prepend " >> return (\x y -> return (x ++ y)))
-     <|> (string "append " >> return (\x y -> return (y ++ x)))
-     <|> (try (string "erase " <|> string "remove ") >> return (\x -> replaceCmd x ""))
-     <|> (string "replace " >> manyTill anyChar
-      (try $ char ' ' >> (string "with " <|> string "by ")) >>= (return . replaceCmd))
-  (s, r) <- manyTill' anyChar ((eof >> return return) <|> (try (string " and ") >> editCmds))
-  return $ \j -> c s j >>= r
-
 on_msg :: (Functor m, Monad m) =>
   (String -> m String) -> IrcBotConfig -> IRC.Message -> StateT LastRequestMap m [IRC.Message]
 on_msg eval cfg m = flip execStateT [] $ do
@@ -154,10 +135,10 @@ on_msg eval cfg m = flip execStateT [] $ do
         u <- lift $ readState
         let lastreq = Map.lookup wher u
         if r == "show" then reply (lastreq `orElse` "<none>") else do
-        mr <- if any (`isPrefixOf` r) ["append ", "prepend ", "erase ", "replace ", "remove "]
+        mr <- if any (`isPrefixOf` r) ["append ", "prepend ", "erase ", "replace ", "remove ", "insert "]
           then case lastreq of
             Nothing -> reply "There is no previous request to modify." >> return Nothing
-            Just p -> case parseOrFail editCmds r >>= ($ p) of
+            Just p -> case EditCmds.exec r p of
               Left e -> reply e >> return Nothing
               Right r' -> return $ Just r'
           else return $ Just r
