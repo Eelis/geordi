@@ -176,6 +176,6 @@ parseOrFail p t = either (fail . showParseError) return $ PS.parse p "" t
   isUnexpMsg (PSE.UnExpect _) = True
   isUnexpMsg _ = False
 
-manyTill' :: PS.GenParser tok st a -> PS.GenParser tok st end -> PS.GenParser tok st ([a], end)
-manyTill' p end = scan
+many1Till' :: PS.GenParser tok st a -> PS.GenParser tok st end -> PS.GenParser tok st ([a], end)
+many1Till' p end = p >>= \v -> first (v:) . scan
   where scan = (PS.<|>) ((\r -> ([], r)) . end) (do { x <- p; (xs, e) <- scan; return (x:xs, e) })
