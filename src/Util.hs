@@ -3,6 +3,7 @@ module Util where
 import qualified System.Posix.IO
 import qualified GHC.Read
 import qualified Data.Monoid
+import qualified Prelude
 import qualified Data.Sequence as Seq
 import qualified Text.ParserCombinators.Parsec as PS
 import qualified Text.ParserCombinators.Parsec.Error as PSE
@@ -19,13 +20,13 @@ import Control.Monad.Fix (fix)
 import Control.Monad.State (MonadState, modify, StateT(..))
 import Control.Monad.Instances ()
 import Control.Parallel.Strategies (NFData, rnf)
-import Control.Arrow (first)
+import Control.Arrow (first, second)
 import System.Posix.Types (Fd(..))
 import System.Posix.Time (epochTime)
 import System.IO (Handle, hClose)
 import Sys (sleep)
 
-import Prelude hiding (catch, (.))
+import Prelude hiding (catch, (.), (!!))
 
 full_evaluate :: NFData a => a -> IO a
 full_evaluate x = do () <- evaluate (rnf x); return x
@@ -179,3 +180,11 @@ parseOrFail p t = either (fail . showParseError) return $ PS.parse p "" t
 many1Till' :: PS.GenParser tok st a -> PS.GenParser tok st end -> PS.GenParser tok st ([a], end)
 many1Till' p end = p >>= \v -> first (v:) . scan
   where scan = (PS.<|>) ((\r -> ([], r)) . end) (do { x <- p; (xs, e) <- scan; return (x:xs, e) })
+
+either_part :: [Either a b] -> ([a], [b])
+either_part [] = ([], [])
+either_part (h : t) = either (first . (:)) (second . (:)) h (either_part t)
+
+(!!) :: [a] -> Int -> a
+l !! i | i < 0 = (Prelude.!!) (reverse l) (-i - 1)
+l !! i = (Prelude.!!) l i

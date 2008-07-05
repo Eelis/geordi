@@ -13,7 +13,7 @@ import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Prim (GenParser)
 import Control.Applicative (Applicative(..))
 import Util
-import Prelude hiding (catch, (.))
+import Prelude hiding (catch, (.), (!!))
 
 isIdChar :: Char -> Bool
 isIdChar = isAlphaNum .||. (== '_')

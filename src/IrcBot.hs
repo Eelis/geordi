@@ -135,7 +135,7 @@ on_msg eval cfg m = flip execStateT [] $ do
         u <- lift $ readState
         let lastreq = Map.lookup wher u
         if r == "show" then reply (lastreq `orElse` "<none>") else do
-        mr <- if any (`isPrefixOf` r) (words "append prepend erase remove cut omit kill replace remove add insert")
+        mr <- if any (`isPrefixOf` r) (words "append prepend erase remove cut omit kill replace remove add insert move")
           then case lastreq of
             Nothing -> reply "There is no previous request to modify." >> return Nothing
             Just p -> case EditCmds.exec r p of
