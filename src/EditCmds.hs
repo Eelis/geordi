@@ -148,9 +148,10 @@ data Terminators = Terminators { term_eof :: Bool, term_keywords :: [String] }
 type AndCont = String
 
 strarg :: Terminators -> CharParser st String
-strarg t = (<?> "verbatim string") $ (fst .) $ many1Till' anyChar $ try $
-  (if term_eof t then (eof <|>) else id) $
-    lookAhead (choice (try . string . (" "++) . term_keywords t)) >> char ' ' >> return ()
+strarg t = try (select_act cs << x) <|> fst . many1Till' anyChar (try x) <?> "verbatim string"
+ where
+  x = (if term_eof t then (eof <|>) else id) $ lookAhead (choice (try . string . (" "++) . term_keywords t)) >> char ' ' >> return ()
+  cs = [(["comma"], ","), (["space"], " "), (["colon"], ":"), (["semicolon"], ";"), (["ampersand"], "&"), (["tilde"], "~")]
 
 select_act :: [([String], a)] -> CharParser st a
 select_act = choice . map (\(s, r) -> choice (try . string . s) >> return r)
@@ -274,6 +275,7 @@ test = do
   t "move 4 5 to before 1 and erase after second 2" $ Right "4 51 2 3 2"
   t "cut before first 2 and first and second 3 and after 4 and prepend x" $ Right "x2  2  4"
   t "replace all 2 with 3 and erase all 3 and add x after second 2" $ Right "1 3  3x  4 5"
+  t "insert spacer before 4 and insert semicolon after 1 and erase last space" $ Right "1; 2 3 2 3 spacer45"
   t "erase first and second last  " $ Right "12 3 2 34 5"
   -- Edit errors:
   t "replace alligators with chickens" $ Left "String \"alligators\" does not occur."
