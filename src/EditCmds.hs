@@ -16,7 +16,7 @@ import Util
 -- Positions/ranges:
 
 type Pos = Int
-data Range = Range { start :: Pos, size :: Int } deriving Show
+data Range = Range { start :: Pos, size :: Int } deriving Eq
 
 selectRange :: Range -> String -> String
 selectRange (Range st si) = take si . drop st
@@ -51,7 +51,7 @@ last x _ = fail $ "String " ++ show x ++ " does not occur."
 
 -- Edits:
 
-data Edit = Edit { range :: Range, replacement :: String }
+data Edit = Edit { range :: Range, replacement :: String } deriving Eq
 
 showEdit :: String -> Edit -> String
 showEdit _ (Edit (Range 0 0) r) = "prepend " ++ show r
@@ -60,19 +60,12 @@ showEdit _ (Edit (Range _ 0) r) = "insert " ++ show r
 showEdit s (Edit r "") = "erase " ++ show (selectRange r s)
 showEdit s (Edit r s') = "replace " ++ show (selectRange r s) ++ " with " ++ show s'
 
-adjustStart :: Edit -> Range -> Maybe Pos
-adjustStart (Edit (Range st si) repl) (Range st' si') =
-  case () of
-    ()| st + si <= st' -> Just $ (st' - si + length repl)
-    ()| st' + si' <= st -> Just $ st'
-    ()| otherwise -> Nothing
-
 adjustRange :: Edit -> Edit -> Maybe Range
   -- Returns an adjusted Range, or Nothing if the edits conflict.
-adjustRange (Edit r@(Range st si) repl) (Edit r'@(Range st' si') repl') =
+adjustRange e@(Edit r@(Range st si) repl) e'@(Edit r'@(Range st' si') repl') =
   case () of
     ()| st + si <= st' -> Just $ Range (st' - si + length repl) si'
-    ()| st' + si' <= st -> Just $ Range st' si'
+    ()| st' + si' <= st || e == e' -> Just $ Range st' si'
     ()| null repl && null repl' -> -- Overlapping erase-edits do not conflict.
       if st <= st' then Just $ Range st (max 0 $ (st' + si') - (st + si))
       else Just $ Range st' (si' - overlap r r')
@@ -112,18 +105,18 @@ rank n = case n of
 -- Edit command structure:
 
 type Rank = Int -- 0 = first, 1 = second, -1 = last, -2 = second last, etc
-data Occ = RankedOcc Rank String | SoleOcc String deriving Show
-data Occs = Occs { allsOccs :: [String], singleOccs :: [Occ] } deriving Show
-data Substrs = Substrs { substr_occs :: Occs, substrs_before, substrs_after :: [Occ] } deriving Show
-data Positions = Positions { pos_bef, pos_aft :: Occs } deriving Show
+data Occ = RankedOcc Rank String | SoleOcc String
+data Occs = Occs { allsOccs :: [String], singleOccs :: [Occ] }
+data Substrs = Substrs { substr_occs :: Occs, substrs_before, substrs_after :: [Occ] }
+data Positions = Positions { pos_bef, pos_aft :: Occs }
+data Replacer = Replacer { replace_what :: Substrs, replace_with :: String }
 
 data Command
   = Insert String Positions
   | Append String
   | Prepend String
-  | Replace Substrs String
+  | Replace [Replacer]
   | Move Occ Positions
-  deriving Show
 
 instance Monoid Occs where
   mempty = Occs [] []
@@ -189,6 +182,11 @@ substrsP k a = mconcat . (f  `sepBy1` try (string "and " >> nfbk a))
 positionsP :: [AndCont] -> CharParser st Positions
 positionsP a = (\(x, y) -> Positions (mconcat x) (mconcat y)) . either_part . ((select_act [(["before "], Left), (["after "], Right)] >>= (. occsP (Terminators True []) ("before " : "after " : a))) `sepBy1` try (string "and " >> nfbk a))
 
+replacerP :: [AndCont] -> CharParser st Replacer
+replacerP pr = liftM2 Replacer
+  (substrsP (Terminators False ["with ", "by "]) [])
+  ((string "with " <|> string "by ") >> strarg (Terminators True pr))
+
 commandsP :: CharParser st [Command]
 commandsP = (select_act l >>= id) `sepBy1` try (string "and ")
  where
@@ -196,8 +194,10 @@ commandsP = (select_act l >>= id) `sepBy1` try (string "and ")
     [ (["insert ", "add "], liftM2 Insert (strarg (Terminators False ["after ", "before "])) (positionsP pr))
     , (["append "], Append . strarg (Terminators True pr))
     , (["prepend "], Prepend . strarg (Terminators True pr))
-    , (["erase ", "remove ", "kill ", "cut ", "omit "], flip Replace "" . substrsP (Terminators True []) pr)
-    , (["replace "], liftM2 Replace (substrsP (Terminators False ["with ", "by "]) pr) ((string "with " <|> string "by ") >> strarg (Terminators True pr)))
+    , (["erase ", "remove ", "kill ", "cut ", "omit "], do
+        s <- substrsP (Terminators True []) pr
+        return $ Replace [Replacer s ""])
+    , (["replace "], Replace . (replacerP pr `sepBy1` try (string "and " >> nfbk pr)))
     , (["move "], liftM2 Move (occP $ Terminators False ["to "]) (string "to " >> positionsP pr))
     ]
   pr = "and " : concat (fst . l)
@@ -227,16 +227,17 @@ instance FindInStr Positions [Pos] where
     ((start .) . findInStr s befores)
     (((\(Range x y) -> x + y) .) . findInStr s afters)
 
+instance FindInStr Replacer [Edit] where
+  findInStr s (Replacer p r) = (flip Edit r .) . findInStr s p
+
 instance FindInStr Command [Edit] where
   findInStr s (Append x) = return [Edit (Range (length s) 0) x]
   findInStr _ (Prepend x) = return [Edit (Range 0 0) x]
-  findInStr s (Replace p r) = (flip Edit r .) . findInStr s p
+  findInStr s (Replace l) = concat . sequence (findInStr s . l)
   findInStr s (Insert r p) = ((\x -> Edit (Range x 0) r) .) . findInStr s p
   findInStr s (Move o p) = do
-    r <- findInStr s o
-    let w = selectRange r s
-    i <- findInStr s p
-    return $ Edit r "" : map (\x -> Edit (Range x 0) w) i
+    r <- findInStr s o; i <- findInStr s p
+    return $ Edit r "" : (\x -> Edit (Range x 0) (selectRange r s)) . i
 
 -- Main:
 
@@ -273,13 +274,16 @@ test = do
   t "move 4 5 to before first 2 and after first 3" $ Right "1 4 52 34 5 2 3 "
   t "erase first 2 3 and 3 2 and 4 5 and last  " $ Right "1  3 "
   t "move 4 5 to before 1 and erase after second 2" $ Right "4 51 2 3 2"
+  t "replace first 2 with x and replace all 2 with x" $ Right "1 x 3 x 3 4 5"
   t "cut before first 2 and first and second 3 and after 4 and prepend x" $ Right "x2  2  4"
   t "replace all 2 with 3 and erase all 3 and add x after second 2" $ Right "1 3  3x  4 5"
   t "insert spacer before 4 and insert semicolon after 1 and erase last space" $ Right "1; 2 3 2 3 spacer45"
   t "erase first and second last  " $ Right "12 3 2 34 5"
+  t "replace 1 with x and all 2 with y and erase second 3" $ Right "x y 3 y  4 5"
   -- Edit errors:
   t "replace alligators with chickens" $ Left "String \"alligators\" does not occur."
   t "erase 2" $ Left "String \"2\" occurs multiple times."
+  t "replace 1 and erase with 4" $ Left "String \"erase\" does not occur."
   t "replace tenth last 2 by x" $ Left "String \"2\" does not occur 10 times."
   t "erase second 9" $ Left "String \"9\" does not occur."
   t "replace all 2 with 3 and replace second 2 with x" $ Left "Overlapping edits: replace \"2\" with \"3\" and replace \"2\" with \"x\"."
@@ -306,9 +310,10 @@ Command grammar:
   append = "append" ...
   prepend = "prepend" ...
   erase = ("erase" | "remove" | "cut" | "omit" | "kill") substrings
-  replace = "replace" substrings ("with" | "by") ...
+  replace = "replace" replacers
   move = "move" occurrence "to" positions
 
+  replacers = substrings ("with" | "by") ... ["and" replacers]
   positions = (("after" | "before") occurrences) ["and" positions]
   substrings = (("after" | "before") occurrence | occurrences) ["and" substrings]
   occurrences = (("all" | "any" | "every" | "each") ... | ranks ... | ...) ["and" occurrences]
@@ -331,7 +336,7 @@ Design decisions:
 
 Todo:
 
-  "erase block at second {" (using CxxParse)
+  "erase block/statement at second {/;" (using CxxParse)
   "erase from first 2 to last 3"
   "wrap ( and ) around x", "wrap { and } around everything"
 
