@@ -276,6 +276,8 @@ allowed_syscalls =
 
   -- On x86_64, SYS_times is necessary for clock().
 
+  , SYS_getdents64, SYS_pread64, SYS_readv -- for gold
+
   #ifdef __x86_64__
     , SYS_stat, SYS_fstat, SYS_arch_prctl, SYS_getrlimit, SYS_fcntl, SYS_lseek, SYS_lstat, SYS_dup
   #else
