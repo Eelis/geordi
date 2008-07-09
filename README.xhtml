@@ -132,10 +132,10 @@
     <pre>  , nick_pass = Just "mypassword"</pre>
 
     <h4 id='reconnect'>Auto-reconnect</h4>
-    <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./geordi-bot; sleep 120; done</kbd></p>
+    <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./geordi-irc; sleep 120; done</kbd></p>
 
     <h4 id='multinetwork'>Connecting to multiple networks</h4>
-    <p>Make config files for the different networks. Then run one geordi-bot instance for each network, passing -c arguments pointing to the respective config files. The rt directory will be safely shared.</p>
+    <p>Make config files for the different networks. Then run one geordi-irc instance for each network, passing -c arguments pointing to the respective config files. The rt directory will be safely shared.</p>
 
     <h4>Censoring phrases</h4>
     <p>Some networks automatically kick or ban clients that utter certain phrases (like botnet commands). To prevent a geordi bot from uttering these, list regexes for them in irc-config. E.g.:</p>
