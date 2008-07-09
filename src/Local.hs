@@ -1,7 +1,9 @@
 import qualified System.Environment
 import qualified Request
 import qualified System.Console.Readline as RL
+import qualified EditCmds
 import qualified Sys
+import qualified Data.List
 
 import Control.Monad (forM_, when)
 import Control.Monad.Fix (fix)
@@ -34,12 +36,14 @@ main = do
   if Help `elem` opts then putStrLn help else do
   evalRequest <- Request.evaluator
   forM_ rest $ (>>= putStrLn) . evalRequest
-  when (rest == []) $ fix $ \loop -> do
+  when (rest == []) $ flip fix "" $ \loop prev -> do
     ml <- RL.readline "geordi: "
     case ml of
       Nothing -> putNewLn
+      Just "" -> loop prev
       Just l -> do
-        when (l /= "") $ do
-          evalRequest l >>= putStrLn
-          RL.addHistory l
-        loop
+        if any (`Data.List.isPrefixOf` l) EditCmds.commands
+          then case EditCmds.exec l prev of
+            Left e -> do putStrLn e; RL.addHistory l; loop prev
+            Right x -> do evalRequest x >>= putStrLn; RL.addHistory x; loop x
+          else do evalRequest l >>= putStrLn; RL.addHistory l; loop l

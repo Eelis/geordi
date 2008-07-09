@@ -1,4 +1,4 @@
-module EditCmds (exec) where
+module EditCmds (exec, commands) where
 
 import Control.Monad.Error
 
@@ -365,6 +365,9 @@ instance FindInStr Command [Edit] where
     return [Edit (Range a 0) x, Edit (Range (a + b) 0) y]
 
 -- Main:
+
+commands :: [String]
+commands = words "append prepend erase remove cut omit kill delete replace remove add insert move wrap"
 
 exec :: (Functor m, Monad m) => String -> String -> m String
 exec cmd_str str = do
