@@ -26,6 +26,7 @@ import Util
 data IrcBotConfig = IrcBotConfig
   { server :: Net.HostName, port :: Net.PortNumber, max_msg_length :: Int
   , chans :: [String], nick :: String, nick_pass :: Maybe String, alternate_nick :: String
+  , also_respond_to :: [String]
   , blacklist :: [String]
   , no_output_msg :: String
   , join_trigger :: Maybe IRC.Message
@@ -131,7 +132,7 @@ on_msg eval cfg m = flip execStateT [] $ do
       if private && not (serve_private_requests cfg)
        then reply "This bot does not serve private requests."
        else do
-        maybeM (dropWhile isSpace . is_request private [nick cfg, alternate_nick cfg] txt) $ \r -> do
+        maybeM (dropWhile isSpace . is_request private (nick cfg : alternate_nick cfg : also_respond_to cfg) txt) $ \r -> do
         u <- lift $ readState
         let lastreq = Map.lookup wher u
         if r == "show" then reply (lastreq `orElse` "<none>") else do
