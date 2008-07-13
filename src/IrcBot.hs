@@ -128,7 +128,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
       when (not (who `elem` blacklist cfg)) $ do
       let private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
       let wher = if private then who else to
-      let reply s = send $ msg "PRIVMSG" [wher, do_censor cfg s]
+      let reply s = send $ msg "PRIVMSG" [wher, if null s then no_output_msg cfg else do_censor cfg s]
       if private && not (serve_private_requests cfg)
        then reply "This bot does not serve private requests."
        else do
@@ -150,7 +150,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
           lift $ mapState' (Map.insert wher r')
           l <- lift $ lift $ dropWhile null . lines . eval r'
           reply $ take (max_msg_length cfg) $ case l of
-            [] -> no_output_msg cfg; [x] -> x
+            [] -> ""; [x] -> x
             (x:xs) -> x ++ discarded_lines_description (length xs)
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
