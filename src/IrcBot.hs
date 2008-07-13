@@ -98,7 +98,7 @@ main = do
       Nothing -> lift $ putStr "Malformed IRC message: " >> putStrLn l
       Just m -> do
         lift $ print m
-        r <- on_msg evalRequest cfg m
+        r <- on_msg evalRequest cfg (length l == 511) m
         lift $ mapM_ print r >> mapM_ send r
   return ()
 
@@ -114,8 +114,8 @@ is_request True _ s = Just s
 is_request _ _ _ = Nothing
 
 on_msg :: (Functor m, Monad m) =>
-  (String -> m String) -> IrcBotConfig -> IRC.Message -> StateT LastRequestMap m [IRC.Message]
-on_msg eval cfg m = flip execStateT [] $ do
+  (String -> m String) -> IrcBotConfig -> Bool -> IRC.Message -> StateT LastRequestMap m [IRC.Message]
+on_msg eval cfg full_size m = flip execStateT [] $ do
   when (join_trigger cfg == Just m) join_chans
   case m of
     IRC.Message (Just (IRC.NickName who _ _)) "QUIT" _ | who == nick cfg ->
@@ -133,6 +133,8 @@ on_msg eval cfg m = flip execStateT [] $ do
        then reply "This bot does not serve private requests."
        else do
         maybeM (dropWhile isSpace . is_request private (nick cfg : alternate_nick cfg : also_respond_to cfg) txt) $ \r -> do
+        if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after " ++ show (reverse $ take 15 $ reverse r) ++ "." else do
+          -- The `elem` "};" condition gains a reduction in false positives at the cost of an increase in false negatives.
         u <- lift $ readState
         let lastreq = Map.lookup wher u
         if r == "show" then reply (lastreq `orElse` "<none>") else do
