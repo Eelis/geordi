@@ -188,3 +188,13 @@ either_part (h : t) = either (first . (:)) (second . (:)) h (either_part t)
 (!!) :: [a] -> Int -> a
 l !! i | i < 0 = (Prelude.!!) (reverse l) (-i - 1)
 l !! i = (Prelude.!!) l i
+
+data NElist a = NElist a [a] -- non-empty list
+
+instance Functor NElist where fmap f (NElist x l) = NElist (f x) (f . l)
+
+unne :: NElist a -> [a]
+unne (NElist x l) = x : l
+
+sepBy1' :: PS.CharParser st a -> PS.CharParser st b -> PS.CharParser st (NElist a)
+sepBy1' x y = (\(h:t) -> NElist h t) . PS.sepBy1 x y
