@@ -7,7 +7,7 @@ import Control.Monad (ap, liftM2, mzero)
 import Text.Regex (Regex, matchRegexAll, mkRegex, subRegex)
 import Data.Char (isAlphaNum, toLower)
 import Data.Maybe (mapMaybe)
-import Data.List (intersperse, isPrefixOf, isSuffixOf)
+import Data.List (intersperse, isPrefixOf, isSuffixOf, tails)
 import Text.ParserCombinators.Parsec
   (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, many1, anyChar, noneOf, option, count, CharParser, notFollowedBy, choice, setInput, eof, oneOf)
 import Text.ParserCombinators.Parsec.Prim (GenParser)
@@ -75,6 +75,9 @@ instance Parser String st String where parser = string
 instance Parser [String] st String where parser = choice . (try . string .)
 instance Parser Char st Char where parser = char
 
+count_occs :: Eq a => [a] -> [a] -> Int
+count_occs x = length . filter (isPrefixOf x) . tails
+
 cleanup_stdlib_templates :: String -> String
 cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure") id .
   parse (recursive_replacer $ choice cleaners) ""
@@ -89,10 +92,9 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
     , (++ "::const_iterator") . snd . tmpl "_Safe_iterator" (tmpi "_Rb_tree_const_iterator" 1 `comma` cxxArg)
         -- Last two for (multi)set/(multi)map.
     , head . tmpi "_Safe_iterator" 2 -- For vector/deque.
-    , (\[x, y] -> y ++ "::" ++ (if "const" `isPrefixOf` x then "const_" else "") ++ "iterator") . tmpi "__normal_iterator" 2
+    , (\[x, y] -> y ++ "::" ++ (if count_occs "const" x > (count_occs "const" y `div` 2) then "const_" else "") ++ "iterator") . tmpi "__normal_iterator" 2
         -- Last one for vector/string.
-    , (\[e,d,_] -> "deque<" ++ e ++ ">::" ++ (if "const " `isPrefixOf` d then "const_" else "") ++ "iterator") . tmpi "_Deque_iterator" 3
-        -- The ("const " `isPrefixOf ...) hack used above fails miserably for types like void(*)() where the const qualifier is not placed at the start. For those, ...::const_iterator will be displayed as ...::iterator.
+    , (\[e,d,_] -> "deque<" ++ e ++ ">::" ++ (if count_occs "const" d > count_occs "const" e then "const_" else "") ++ "iterator") . tmpi "_Deque_iterator" 3
     , tmpi "allocator" 1 >> "::" $> ((\[e] -> "allocator<" ++ e ++ ">") . tmpi "rebind" 1) <$ "::" <$ "other" << noid
     , ((++ "&") . head . tmpi "allocator" 1) <$ "::" <$ "reference" << noid
     , ((++ " const &") . head . tmpi "allocator" 1) <$ "::" <$ "const_reference" << noid
@@ -117,7 +119,6 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
 
   -- Things that go wrong but are hard to fix:
   --   set<T>::iterator displayed as const version. Same for multiset.
-  --   vector<int*>::const_iterator displayed as nonconst version
 
   defaulter :: Parser p st a => [String] -> Int -> ([String] -> p) -> CharParser st String
   defaulter names idx def =
