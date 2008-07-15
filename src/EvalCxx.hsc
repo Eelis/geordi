@@ -51,7 +51,7 @@ In our code, M is close_range_end.
 
 -}
 
-module EvalCxx (evaluator, EvaluationResult(..), Request(..)) where
+module EvalCxx (evaluator, EvaluationResult(..), Request(..), CompileConfig(..)) where
 
 import qualified Ptrace
 import qualified Codec.Binary.UTF8.String as UTF8
@@ -255,12 +255,12 @@ evaluate cfg req = do
   gxx (["t.o", "-o", "t"] ++ cf ++ linkFlags cfg) Link $ do
   EvaluationResult Run . capture_restricted "/t" ["second", "third", "fourth"] (env ++ prog_env) (resources Run)
 
-evaluator :: IO (Request -> IO EvaluationResult)
+evaluator :: IO (Request -> IO EvaluationResult, CompileConfig)
 evaluator = do
   cap_fds
   cfg <- readCompileConfig
   jail
-  return $ evaluate cfg
+  return (evaluate cfg, cfg)
 
 ------------- Config (or at least things that are likely more prone to per-site modification):
 
