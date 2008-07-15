@@ -112,8 +112,8 @@ data Around = Around (AndList (Relative (EverythingOr (Rankeds String))))
 
 data Command
   = Insert String Positions
-  | Append String
-  | Prepend String
+  | Append String (Maybe Positions)
+  | Prepend String (Maybe Positions)
   | Replace (AndList Replacer)
   | Move (AndList Mover)
   | Wrap String String (AndList Around)
@@ -267,8 +267,8 @@ instance Parse Command where
    where
     l =
       [ (["insert ", "add "], liftM2 Insert (verbatim (Terminators False ["after ", "before ", "at "])) (parse t a'))
-      , (["append "], Append . verbatim t)
-      , (["prepend "], Prepend . verbatim t)
+      , (["append "], liftM2 Append (verbatim (add_terms ["before ", "after "] t)) (Just . parse t a' <|> return Nothing))
+      , (["prepend "], liftM2 Prepend (verbatim (add_terms ["before ", "after "] t)) (Just . parse t a' <|> return Nothing))
       , (["erase ", "remove ", "kill ", "cut ", "omit ", "delete "], do
           s <- parse t a'; return $ Replace $ AndList (NElist (Replacer s "") []))
       , (["replace "], Replace . parse t a')
@@ -393,8 +393,10 @@ instance FindInStr Position Pos where
     return $ case ba of Before -> x; After -> x + y
 
 instance FindInStr Command [Edit] where
-  findInStr s (Append x) = return [Edit (Range (length s) 0) x]
-  findInStr _ (Prepend x) = return [Edit (Range 0 0) x]
+  findInStr s (Append x Nothing) = return [Edit (Range (length s) 0) x]
+  findInStr _ (Prepend x Nothing) = return [Edit (Range 0 0) x]
+  findInStr s (Append x (Just y)) = findInStr s (Insert x y)
+  findInStr s (Prepend x (Just y)) = findInStr s (Insert x y)
   findInStr s (Replace (AndList l)) = concat . sequence (findInStr s . unne l)
   findInStr s (Insert r p) = ((\x -> Edit (Range x 0) r) .) . concat . findInStr s p
   findInStr s (Move (AndList movers)) = concat . sequence (findInStr s . unne movers)
@@ -486,6 +488,7 @@ test = do
   t "add x after all space before first 3" $ Right "1 x2 x3 2 3 4 5"
   t "erase all space before last 3" $ Right "12323 4 5"
   t "erase second 2 till end" $ Right "1 2 3 "
+  t "append x before 5 and prepend y before all 2 between first 3 and 5" $ Right "1 2 3 y2 3 4 x5"
   t "move everything after second 3 to begin" $ Right " 4 51 2 3 2 3"
   t "replace first 2 with x and replace all 2 with x" $ Right "1 x 3 x 3 4 5"
   t "erase everything until 4 and 5" $ Right "4 "
@@ -528,8 +531,8 @@ test = do
   command = (insert | append | prepend | erase | replace | move | wrap)*
 
   insert = ("insert" | "add") ... positions*
-  append = "append" ...
-  prepend = "prepend" ...
+  append = "append" ... [positions*]
+  prepend = "prepend" ... [positions*]
   erase = ("erase" | "remove" | "delete" | "cut" | "omit" | "kill") substrs*
   replace = "replace" (substrs* ("with" | "by") ...)*
   move = "move" (substr "to" position)*
