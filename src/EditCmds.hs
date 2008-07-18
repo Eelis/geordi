@@ -39,43 +39,60 @@ nth n x _ = fail $ "String " ++ show x ++ " does not occur " ++ once_twice_thric
 
 -- Edits:
 
-data Edit = Edit { range :: Range, replacement :: String } deriving Eq
+data Anchor = Anchor BefAft Pos deriving Eq
+  -- This BefAft will probably need to be generalized to Before|After|Both for "insert x between 3 and 4".
+data Edit = RangeReplaceEdit Range String | InsertEdit Anchor String deriving Eq
+  -- We don't just use a RangeReplaceEdit with range length 0 for insertions, because it is not expressive enough. For instance, given "xy", insertions at the positions "after x" and "before y" would both designate position 1, but a prior "add z after x" edit should increment the latter position but not the former. InsertEdit's BefAft argument expresses this difference.
 
 showEdit :: String -> Edit -> String
-showEdit _ (Edit (Range 0 0) r) = "prepend " ++ show r
-showEdit s (Edit (Range t _) r) | t == length s = "append " ++ show r
-showEdit _ (Edit (Range _ 0) r) = "insert " ++ show r
-showEdit s (Edit r "") = "erase " ++ show (selectRange r s)
-showEdit s (Edit r s') = "replace " ++ show (selectRange r s) ++ " with " ++ show s'
+showEdit _ (RangeReplaceEdit (Range 0 0) r) = "prepend " ++ show r
+showEdit s (RangeReplaceEdit (Range t _) r) | t == length s = "append " ++ show r
+showEdit _ (RangeReplaceEdit (Range _ 0) r) = "insert " ++ show r
+showEdit _ (InsertEdit _ r) = "insert " ++ show r
+showEdit s (RangeReplaceEdit r "") = "erase " ++ show (selectRange r s)
+showEdit s (RangeReplaceEdit r s') = "replace " ++ show (selectRange r s) ++ " with " ++ show s'
 
-adjustRange :: Edit -> Edit -> Maybe Range
-  -- Returns an adjusted Range, or Nothing if the edits conflict.
-adjustRange e@(Edit r@(Range st si) repl) e'@(Edit r'@(Range st' si') repl') =
+adjustEdit :: Edit -> Edit -> Maybe Edit
+  -- Returns an adjusted Edit, or Nothing if the edits conflict.
+adjustEdit (InsertEdit (Anchor _ p) s) e@(RangeReplaceEdit _ _) =
+  adjustEdit (RangeReplaceEdit (Range p 0) s) e
+adjustEdit (RangeReplaceEdit (Range st si) repl) e@(InsertEdit (Anchor ba p) s) =
   case () of
-    ()| st + si <= st' -> Just $ Range (st' - si + length repl) si'
-    ()| st' + si' <= st || e == e' -> Just $ Range st' si'
+    ()| st + si <= p -> Just $ InsertEdit (Anchor ba (p - si + length repl)) s
+    ()| p <= st -> Just e
+    ()| otherwise -> Nothing
+adjustEdit (InsertEdit (Anchor _ p) s) e@(InsertEdit (Anchor ba p') s') =
+  Just $ if (ba == After && p == p') || p < p' then InsertEdit (Anchor ba (p' + length s)) s' else e
+adjustEdit e@(RangeReplaceEdit r@(Range st si) repl) e'@(RangeReplaceEdit r'@(Range st' si') repl') =
+  case () of
+    ()| st + si <= st' -> Just $ RangeReplaceEdit (Range (st' - si + length repl) si') repl'
+    ()| st' + si' <= st || e == e' -> Just e'
     ()| null repl && null repl' -> -- Overlapping erase-edits do not conflict.
-      if st <= st' then Just $ Range st (max 0 $ (st' + si') - (st + si))
-      else Just $ Range st' (si' - overlap r r')
+      if st <= st' then Just $ RangeReplaceEdit (Range st (max 0 $ (st' + si') - (st + si))) repl'
+      else Just $ RangeReplaceEdit (Range st' (si' - overlap r r')) repl'
     ()| otherwise -> Nothing
 
 adjustEdits :: Edit -> [Edit] -> Either Edit [Edit]
   -- Returns either a conflicting Edit or the list of adjusted Edits.
 adjustEdits _ [] = Right []
-adjustEdits e (e'@(Edit _ repl) : t) =
-  case adjustRange e e' of
-    Just r -> (Edit r repl :) . adjustEdits e t
+adjustEdits e (e' : t) =
+  case adjustEdit e e' of
+    Just r -> (r :) . adjustEdits e t
     Nothing -> Left e'
 
 exec_edits :: Monad m => [Edit] -> String -> m String
 exec_edits [] s = return s
-exec_edits (e@(Edit (Range st si) repl) : t) s =
+exec_edits (e : t) s =
   case adjustEdits e t of
     Left e' -> fail $ "Overlapping edits: " ++ showEdit s e ++ " and " ++ showEdit s e' ++ "."
-    Right t' -> do
-      let (x, y) = splitAt st s
-      let (_, b) = splitAt si y
-      exec_edits t' $ x ++ repl ++ b
+    Right t' -> case e of
+      RangeReplaceEdit (Range st si) repl -> do
+        let (x, y) = splitAt st s
+        let (_, b) = splitAt si y
+        exec_edits t' $ x ++ repl ++ b
+      InsertEdit (Anchor _ p) repl -> do
+        let (x, y) = splitAt p s
+        exec_edits t' $ x ++ repl ++ y
 
 -- English:
 
@@ -107,7 +124,7 @@ data Position = Position BefAft (EverythingOr (Ranked String))
 type Positions = AndList PositionsClause
 data Replacer = Replacer (AndList (Relative (EverythingOr (Rankeds String)))) String
 data Mover = Mover (Relative (EverythingOr (Ranked String))) Position
-data BefAft = Before | After
+data BefAft = Before | After deriving Eq
 data Around = Around (AndList (Relative (EverythingOr (Rankeds String))))
 
 data Command
@@ -286,19 +303,33 @@ commandsP = unne . andList . parse (Terminators True []) []
 
 -- Resolving positions/occurrences/edits in the subject string:
 
+type ARange = BefAft -> Anchor
+
+arange :: Anchor -> Anchor -> ARange
+arange x _ Before = x
+arange _ x After = x
+
+anchor_range :: Range -> ARange
+anchor_range (Range x y) = arange (Anchor After x) (Anchor Before (x + y))
+
+unanchor_range :: ARange -> Range
+unanchor_range r | Anchor _ x <- r Before, Anchor _ y <- r After = Range x (y - x)
+
 class Offsettable a where offset :: Int -> a -> a
 
 instance Offsettable Range where offset x (Range y z) = Range (y + x) z
-instance Offsettable [Range] where offset x l = offset x . l
+instance Offsettable Anchor where offset x (Anchor y z) = Anchor y (z + x)
+instance Offsettable ARange where offset x r = offset x . r
+instance Offsettable a => Offsettable [a] where offset x = (offset x .)
 
 class FindInStr a b | a -> b where findInStr :: (Functor m, Monad m) => String -> a -> m b
 
-instance FindInStr Around [[Range]] where findInStr s (Around x) = findInStr s x
+instance FindInStr Around [ARange] where findInStr s (Around x) = concat . findInStr s x
 
-instance FindInStr (Ranked String) Range where
-  findInStr t (Ranked (Ordinal o) s) = nth o s t
+instance FindInStr (Ranked String) ARange where
+  findInStr t (Ranked (Ordinal o) s) = anchor_range . nth o s t
   findInStr y (Sole x) = case find_occs x y of
-    [z] -> return $ Range z (length x)
+    [z] -> return $ anchor_range $ Range z (length x)
     [] -> fail $ "String " ++ show x ++ " does not occur."
     _ -> fail $ "String " ++ show x ++ " occurs multiple times."
 
@@ -322,87 +353,85 @@ instance Invertible (Rankeds String) where
 
 instance (Offsettable b, Invertible a, FindInStr a b) => FindInStr (Relative a) b where
   findInStr s (Relative o ba w) = do
-    Range st si <- findInStr s w
+    Range st si <- unanchor_range . findInStr s w
     case ba of
       Before -> findInStr (take st s) (invert o)
       After -> offset (st + si) . findInStr (drop (st + si) s) o
   findInStr s (Between o b e) = do
-    x <- findInStr s b
-    y <- findInStr s e
+    x <- h . findInStr s b
+    y <- h . findInStr s e
     let (p, q) = if either start id x <= either start id y then (x, y) else (y, x)
     let p' = either end id p; q' = either start id q
     offset p' . findInStr (take (q' - p') $ drop p' s) o
+   where
+    h (Left r) = Left $ unanchor_range r
+    h (Right (Anchor _ p)) = Right p
 
-class FromRange a where fromRange :: Range -> a
-instance FromRange Range where fromRange = id
-instance FromRange [Range] where fromRange = (:[])
+everything_arange :: String -> ARange
+everything_arange _ Before = Anchor Before 0
+everything_arange s After = Anchor After (length s)
 
-instance (FromRange b, FindInStr a b) => FindInStr (EverythingOr a) b where
-  findInStr s Everything = return $ fromRange $ Range 0 (length s)
+instance FindInStr (EverythingOr (Ranked String)) ARange where
+  findInStr s Everything = return $ everything_arange s
   findInStr s (NotEverything x) = findInStr s x
 
-instance FindInStr (Rankeds String) [Range] where
+instance FindInStr (EverythingOr (Rankeds String)) [ARange] where
+  findInStr s Everything = return [everything_arange s]
+  findInStr s (NotEverything x) = findInStr s x
+
+instance FindInStr (Rankeds String) [ARange] where
   findInStr y (All x) = case find_occs x y of
     [] -> fail $ "String " ++ show x ++ " does not occur."
-    l -> return $ (flip Range (length x)) . l
+    l -> return $ (anchor_range . flip Range (length x)) . l
   findInStr y (Sole' x) = case find_occs x y of
-    [z] -> return [Range z (length x)]
+    [z] -> return [anchor_range $ Range z (length x)]
     [] -> fail $ "String " ++ show x ++ " does not occur."
     _ -> fail $ "String " ++ show x ++ " occurs multiple times."
   findInStr x (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x (Ranked r s)) . unne rs
 
-instance FindInStr PositionsClause [Pos] where
-  findInStr s (PositionsClause Before (AndList o)) = (start .) . concat . sequence (findInStr s . unne o)
-  findInStr s (PositionsClause After (AndList o)) = ((\(Range x y) -> x + y) .) . concat . sequence (findInStr s . unne o)
+instance FindInStr PositionsClause [Anchor] where
+  findInStr s (PositionsClause Before (AndList o)) = (($ Before) .) . concat . sequence (findInStr s . unne o)
+  findInStr s (PositionsClause After (AndList o)) = (($ After) .) . concat . sequence (findInStr s . unne o)
 
 instance FindInStr a b => FindInStr (AndList a) [b] where
   findInStr s (AndList l) = sequence (findInStr s . unne l)
 
 instance FindInStr Replacer [Edit] where
-  findInStr s (Replacer p r) = (flip Edit r .) . concat . findInStr s p
+  findInStr s (Replacer p r) = (flip RangeReplaceEdit r .) . concat . ((unanchor_range .) .) . findInStr s p
 
-instance FindInStr Bound (Either Range Pos) where
-  findInStr s (Bound ba p) = do
-    r@(Range x y) <- findInStr s p
-    case ba of
-      Nothing -> return $ Left r
-      Just Before -> return $ Right x
-      Just After -> return $ Right (x + y)
-
-instance FindInStr RelativeBound (Either Range Int) where
-  findInStr _ Front = return $ Right 0
-  findInStr s Back = return $ Right $ length s
-  findInStr s (RelativeBound ba p) = do
-    r@(Range x y) <- findInStr s p
+instance FindInStr Bound (Either ARange Anchor) where
+  findInStr s (Bound ba Everything) =
     return $ case ba of
-      Just After -> Right (x + y)
-      Just Before -> Right x
-      Nothing -> Left r
+      Nothing -> Left $ everything_arange s
+      Just Before -> Right $ Anchor Before 0
+      Just After -> Right $ Anchor After (length s)
+  findInStr s (Bound mba p) = maybe Left (\ba -> Right . ($ ba)) mba . findInStr s p
+
+instance FindInStr RelativeBound (Either ARange Anchor) where
+  findInStr _ Front = return $ Right $ Anchor Before 0
+  findInStr s Back = return $ Right $ Anchor After (length s)
+  findInStr s (RelativeBound mba p) = maybe Left (\ba -> Right . ($ ba)) mba . findInStr s p
 
 instance FindInStr Mover [Edit] where
   findInStr s (Mover o p) = do
-    r <- findInStr s o
-    i <- findInStr s p
-    return [Edit r "", Edit (Range i 0) (selectRange r s)]
+    r <- unanchor_range . findInStr s o
+    a <- findInStr s p
+    return [RangeReplaceEdit r "", InsertEdit a (selectRange r s)]
 
-instance FindInStr Position Pos where
-  findInStr _ (Position Before Everything) = return 0
-  findInStr s (Position After Everything) = return (length s)
-  findInStr s (Position ba (NotEverything p)) = do
-    Range x y <- findInStr s p
-    return $ case ba of Before -> x; After -> x + y
+instance FindInStr Position Anchor where
+  findInStr _ (Position Before Everything) = return $ Anchor Before 0
+  findInStr s (Position After Everything) = return $ Anchor After (length s)
+  findInStr s (Position ba (NotEverything p)) = ($ ba) . findInStr s p
 
 instance FindInStr Command [Edit] where
-  findInStr s (Append x Nothing) = return [Edit (Range (length s) 0) x]
-  findInStr _ (Prepend x Nothing) = return [Edit (Range 0 0) x]
+  findInStr s (Append x Nothing) = return [InsertEdit (Anchor After (length s)) x]
+  findInStr _ (Prepend x Nothing) = return [InsertEdit (Anchor Before 0) x]
   findInStr s (Append x (Just y)) = findInStr s (Insert x y)
   findInStr s (Prepend x (Just y)) = findInStr s (Insert x y)
   findInStr s (Replace (AndList l)) = concat . sequence (findInStr s . unne l)
-  findInStr s (Insert r p) = ((\x -> Edit (Range x 0) r) .) . concat . findInStr s p
+  findInStr s (Insert r p) = (flip InsertEdit r .) . concat . findInStr s p
   findInStr s (Move (AndList movers)) = concat . sequence (findInStr s . unne movers)
-  findInStr s (Wrap x y z) = do
-    rs <- concat . concat . findInStr s z
-    return $ concat $ map (\(Range a b) -> [Edit (Range a 0) x, Edit (Range (a + b) 0) y]) rs
+  findInStr s (Wrap x y z) = concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . concat . findInStr s z
 
 -- Main:
 
@@ -499,6 +528,16 @@ test = do
   t "insert spacer before 4 and insert semicolon after 1 and erase last space" $ Right "1; 2 3 2 3 spacer45"
   t "erase first and second last  " $ Right "12 3 2 34 5"
   t "replace 1 with x and all 2 with y and erase second 3" $ Right "x y 3 y  4 5"
+  -- Order-sensitive edits:
+  t "wrap parentheses around everything and append x" $ Right "(1 2 3 2 3 4 5)x"
+  t "append x and wrap parentheses around everything" $ Right "(1 2 3 2 3 4 5x)"
+  t "append x after everything before 4 and add y before 4" $ Right "1 2 3 2 3 xy4 5"
+  t "insert y before 4 and insert z after second 3 " $ Right "1 2 3 2 3 zy4 5"
+  t "prepend x and move 5 to begin and insert y before 1 and insert z before everything" $ Right "z5xy1 2 3 2 3 4 "
+  t "wrap parentheses around everything and prepend x" $ Right "x(1 2 3 2 3 4 5)"
+  t "prepend x and wrap parentheses around everything" $ Right "(x1 2 3 2 3 4 5)"
+  t "prepend x before everything after 4 and add y after 4" $ Right "1 2 3 2 3 4yx 5"
+  t "add y after 4 and prepend x before everything after 4" $ Right "1 2 3 2 3 4xy 5"
   -- Edit errors:
   t "move second 2 to x" $ Left "column 18: unexpected \"x\". expected: \"begin\", \"front\", \"end\", \"back\", \"before \" or \"after \". "
   t "replace alligators with chickens" $ Left "String \"alligators\" does not occur."
