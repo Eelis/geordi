@@ -160,7 +160,7 @@ cap_fds = do
   high_fds <- filter (>= cre) . (read .) . (\\ [".", ".."]) . (System.Directory.getDirectoryContents =<< (\s -> "/proc/" ++ s ++ "/fd") . show . System.Posix.Process.getProcessID)
   when (high_fds /= []) $ fail $ "fd(s) open >= " ++ show cre ++ ": " ++ show high_fds
 
-data CaptureResult = CaptureResult { supervise_result :: SuperviseResult, output :: String }
+data CaptureResult = CaptureResult { supervise_result :: SuperviseResult, output :: String } deriving Eq
 
 capture_restricted :: FilePath -> [String] -> [(String,String)] -> Resources -> IO CaptureResult
   -- We assume the program produces UTF-8 encoded text and return it as a proper Unicode String.
@@ -197,10 +197,10 @@ data EvaluationResult = EvaluationResult Stage CaptureResult
 
 instance Show EvaluationResult where
   show (EvaluationResult stage (CaptureResult r o)) = subst_parseps $ case (stage, r, o) of
-    (Compile, Exited ExitSuccess, _) -> strerror eOK
+    (Compile, Exited ExitSuccess, "") -> strerror eOK
     (Run, Exited ExitSuccess, _) -> ErrorFilters.prog o
     (Run, _, _) -> ErrorFilters.prog $ o ++ parsep : show r
-    (Compile, Exited (ExitFailure _), _) -> ErrorFilters.cc1plus o
+    (Compile, _, _) -> ErrorFilters.cc1plus o
     (Assemble, Exited (ExitFailure _), _) -> ErrorFilters.as o
     (Link, Exited (ExitFailure _), _) -> ErrorFilters.ld o
     _ -> "g++: " ++ show r
@@ -247,7 +247,7 @@ evaluate cfg req = do
     gxx :: [String] -> Stage -> IO EvaluationResult -> IO EvaluationResult
     gxx argv stage act = do
       cr <- capture_restricted (gxxPath cfg) argv env (resources stage)
-      if supervise_result cr == Exited ExitSuccess then act else return $ EvaluationResult stage cr
+      if cr == CaptureResult (Exited ExitSuccess) "" then act else return $ EvaluationResult stage cr
   let cf = if no_warn req then "-w" : compileFlags cfg else compileFlags cfg
   gxx (["-S", "t.cpp"] ++ cf) Compile $ do
   if not (also_run req) then return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "") else do
