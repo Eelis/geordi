@@ -198,3 +198,15 @@ unne (NElist x l) = x : l
 
 sepBy1' :: PS.CharParser st a -> PS.CharParser st b -> PS.CharParser st (NElist a)
 sepBy1' x y = (\(h:t) -> NElist h t) . PS.sepBy1 x y
+
+class Convert a b where convert :: a -> b
+
+instance (Convert x x', Convert y y') => Convert (Either x y) (Either x' y') where
+  convert = either (Left . convert) (Right . convert)
+
+erase_indexed :: [Int] -> [a] -> [a]
+erase_indexed i l = f 0 l
+ where
+  f _ [] = []
+  f n (_:t) | n `elem` i || (n - length l) `elem` i = f (n + 1) t
+  f n (h:t) = h : f (n + 1) t

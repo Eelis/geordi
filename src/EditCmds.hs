@@ -101,7 +101,7 @@ once_twice_thrice i = case i of
   1 -> "once"; 2 -> "twice"; 3 -> "thrice"
   n -> show n ++ " times"
 
-newtype Ordinal = Ordinal Int -- 0 = first, 1 = second, -1 = last, -2 = second last, etc
+newtype Ordinal = Ordinal { ordinal_carrier :: Int } -- 0 = first, 1 = second, -1 = last, -2 = second last, etc
 
 instance Show Ordinal where
   show (Ordinal n) = case n of
@@ -115,10 +115,11 @@ data EverythingOr a = Everything | NotEverything a
 newtype AndList a = AndList { andList :: NElist a }
 
 data Ranked a = Ranked Ordinal a | Sole a
-data Rankeds a = Rankeds (AndList Ordinal) a | Sole' a | All a
+data Rankeds a = Rankeds (AndList Ordinal) a | Sole' a | All a | AllBut (AndList Ordinal) a
 data Bound = Bound (Maybe BefAft) (EverythingOr (Ranked String))
 data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative (EverythingOr (Ranked String)))
-data Relative a = Relative a BefAft (Ranked String) | Between a Bound RelativeBound
+data Relative a = Relative a BefAft (Ranked String) | Between a Bound RelativeBound | FromTill Bound RelativeBound
+  -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
 data PositionsClause = PositionsClause BefAft (AndList (Relative (EverythingOr (Rankeds String))))
 data Position = Position BefAft (EverythingOr (Ranked String))
 type Positions = AndList PositionsClause
@@ -223,7 +224,8 @@ betweenP t a = do
 
 relative_everything_or :: Terminators -> [AndCont] -> CharParser st (Relative (EverythingOr a))
 relative_everything_or t a =
-    (try (string "from ") >> liftM2 (Between Everything) (parse (add_terms till t) a) (kwd till >> parse t a))
+    (kwd till >> Between Everything front . parse t a)
+  <|> (try (string "from ") >> liftM2 (FromTill) (parse (add_terms till t) a) ((kwd till >> parse t a) <|> return Back))
   <|> do
     everything t
     (try (string "from ") >> liftM2 (Between Everything) (parse (add_terms till t) a) (kwd till >> parse t a))
@@ -258,7 +260,10 @@ instance Parse Position where
   parse t a = (flip Position Everything . select_act [(["begin", "front"], Before), (["end", "back"], After)] << eof_or_space True) <|> liftM2 Position befAftP (parse t a)
 
 instance Parse (Rankeds String) where
-  parse k _ = (kwd ["all ", "any ", "every ", "each "] >> All . verbatim k)
+  parse k _ = do
+      try (string "all ")
+      (kwd ["except ", "but "] >> liftM2 AllBut (parse k []) (verbatim $ add_terms till k)) <|> All . verbatim k
+    <|> (kwd ["any ", "every ", "each "] >> All . verbatim k)
     <|> liftM2 Rankeds (parse k []) (verbatim $ add_terms till k)
     <|> Sole' . verbatim k
 
@@ -293,6 +298,9 @@ instance Parse Command where
       , (,) ["wrap "] $ do
           f <- (kwd ["curlies ", "braces ", "curly brackets "] >> return (Wrap "{" "}"))
             <|> (kwd ["parentheses ", "parens ", "round brackets "] >> return (Wrap "(" ")"))
+            <|> (kwd ["square brackets "] >> return (Wrap "[" "]"))
+            <|> (kwd ["single quotes "] >> return (Wrap "'" "'"))
+            <|> (kwd ["double quotes "] >> return (Wrap "\"" "\""))
             <|> (liftM2 Wrap (verbatim (Terminators False ["and "]) << string "and ") (verbatim (Terminators False ["around "])))
           f . parse t a'
       ]
@@ -351,21 +359,29 @@ instance Invertible (Rankeds String) where
   invert (Rankeds (AndList r) s) = Rankeds (AndList $ invert . r) s
   invert x = x
 
-instance (Offsettable b, Invertible a, FindInStr a b) => FindInStr (Relative a) b where
+instance Convert Range [ARange] where convert a = [anchor_range a]
+instance Convert Range ARange where convert = anchor_range
+
+instance Convert ARange Range where convert = unanchor_range
+instance Convert Anchor Pos where convert (Anchor _ p) = p
+
+instance (Offsettable b, Invertible a, FindInStr a b, Convert Range b) => FindInStr (Relative a) b where
   findInStr s (Relative o ba w) = do
     Range st si <- unanchor_range . findInStr s w
     case ba of
       Before -> findInStr (take st s) (invert o)
       After -> offset (st + si) . findInStr (drop (st + si) s) o
   findInStr s (Between o b e) = do
-    x <- h . findInStr s b
-    y <- h . findInStr s e
+    x <- convert . findInStr s b
+    y <- convert . findInStr s e
     let (p, q) = if either start id x <= either start id y then (x, y) else (y, x)
     let p' = either end id p; q' = either start id q
     offset p' . findInStr (take (q' - p') $ drop p' s) o
-   where
-    h (Left r) = Left $ unanchor_range r
-    h (Right (Anchor _ p)) = Right p
+  findInStr s (FromTill b e) = do
+    x <- convert . findInStr s b
+    let p = either start id x
+    y <- convert . findInStr (drop p s) e
+    return $ convert $ Range p (either start id y)
 
 everything_arange :: String -> ARange
 everything_arange _ Before = Anchor Before 0
@@ -388,6 +404,8 @@ instance FindInStr (Rankeds String) [ARange] where
     [] -> fail $ "String " ++ show x ++ " does not occur."
     _ -> fail $ "String " ++ show x ++ " occurs multiple times."
   findInStr x (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x (Ranked r s)) . unne rs
+  findInStr x (AllBut (AndList rs) s) =
+    return $ (anchor_range . flip Range (length s)) . erase_indexed (ordinal_carrier . unne rs) (find_occs s x)
 
 instance FindInStr PositionsClause [Anchor] where
   findInStr s (PositionsClause Before (AndList o)) = (($ Before) .) . concat . sequence (findInStr s . unne o)
@@ -490,22 +508,26 @@ test = do
   t "erase everything between last and first 2" $ Right "1 22 3 4 5"
   t "erase everything between second 2 and begin" $ Right "2 3 4 5"
   t "erase all space between second 2 and 4" $ Right "1 2 3 234 5"
-  t "erase from first 3 until after everything" $ Right "1 2 3"
+  t "erase from first 3 until after everything" $ Right "1 2 "
   t "move before second 3 until 4 to begin" $ Right "3 1 2 3 2 4 5"
   t "erase everything between begin and end" $ Right ""
   t "move everything between first 3 and 4 to begin" $ Right " 2 3 1 2 34 5"
   t "erase before second 3 until 4" $ Right "1 2 3 2 4 5"
   t "insert x before second 3 and at end" $ Right "1 2 3 2 x3 4 5x"
+  t "erase until after second 3" $ Right " 4 5"
+  t "erase from before second 3" $ Right "1 2 3 2 "
+  t "replace all but first and second last space with x" $ Right "1 2x3x2x3 4x5"
   t "erase between second and fourth space and 1" $ Right " 2  3 4 5"
   t "erase between first and third space and prepend x" $ Right "x1  2 3 4 5"
   t "wrap parentheses around every space between first 2 and 4 and around 5 and erase second last 3" $ Right "1 2( )( )2( )3( )4 (5)"
-  t "move from first 3 until 4 to begin" $ Right " 2 3 1 2 34 5"
+  t "move from first 3 until 4 to begin" $ Right "3 2 3 1 2 4 5"
   t "erase everything from before everything until second 3" $ Right "3 4 5"
   t "wrap parentheses around first 2 and 5" $ Right "1 (2) 3 2 3 4 (5)"
   t "erase everything between first space and last space" $ Right "1  5"
   t "erase all 3 and all 2 between begin and end" $ Right "1     4 5"
   t "erase everything between second and first 2 " $ Right "1 2 2 3 4 5"
-  t "erase from second 2 till last space" $ Right "1 2 3 2 5"
+  t "erase from second 2 till last space" $ Right "1 2 3  5"
+  t "erase from second 2 until after 3 and add x before 4" $ Right "1 2 3  x4 5"
   t "erase between 1 and second 2 and between 4 and 5" $ Right "12 3 45"
   t "erase from before 4 until end" $ Right "1 2 3 2 3 "
   t "erase everything from after 1 until second last space" $ Right "1 4 5"
@@ -554,12 +576,12 @@ test = do
   t "erase first and " $ Left "column 17: unexpected end of command. expected: ordinal. "
   t "erase between second " $ Left "column 22: unexpected end of command. expected: \"last \", \"and \" or verbatim string. "
   t "insert kung fu" $ Left "column 15: unexpected end of command. expected: \" after \", \" before \" or \" at \". "
-  t "move " $ Left "column 6: unexpected end of command. expected: \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", ordinal or verbatim string. "
+  t "move " $ Left "column 6: unexpected end of command. expected: \"till \", \"until \", \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", ordinal or verbatim string. "
   t "move x " $ Left "column 8: unexpected end of command. expected: \" before \", \" after \", \" between\", \" till \", \" until \" or \" to \". "
   t "move x to "$ Left "column 11: unexpected end of command. expected: \"begin\", \"front\", \"end\", \"back\", \"before \" or \"after \". "
   t "wrap x and y" $ Left $ "column 13: unexpected end of command. expected: \" around \". "
   t "append x and erase first " $ Left "column 26: unexpected end of command. expected: \"and \" or verbatim string. "
-  t "erase all 2 and " $ Left "column 17: unexpected end of command. expected: \"insert \", \"add \", \"append \", \"prepend \", \"erase \", \"remove \", \"kill \", \"cut \", \"omit \", \"delete \", \"replace \", \"move \", \"wrap \", \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", \"all \", \"any \", \"every \", \"each \", ordinal or verbatim string. "
+  t "erase all 2 and " $ Left "column 17: unexpected end of command. expected: \"insert \", \"add \", \"append \", \"prepend \", \"erase \", \"remove \", \"kill \", \"cut \", \"omit \", \"delete \", \"replace \", \"move \", \"wrap \", \"till \", \"until \", \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", \"all \", \"any \", \"every \", \"each \", ordinal or verbatim string. "
   putStrLn "No test failures."
  where
   t :: String -> Either String String -> IO ()
