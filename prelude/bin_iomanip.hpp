@@ -64,7 +64,18 @@ class bin_num_put: public std::num_put<Ch, Out>
 
   typedef std::ios_base IB;
 
-  virtual Out do_put(Out i, IB & io, Ch const fill, unsigned long const v) const
+  #ifdef __GXX_EXPERIMENTAL_CXX0X__
+    typedef unsigned long long I;
+
+    virtual Out do_put(Out i, IB & io, Ch const fill, unsigned long const v) const
+    { return io.flags() & IB::basefield ? base::do_put(i, io, fill, v) : do_put(i, io, fill, I(v)); }
+    virtual Out do_put(Out const i, IB & io, Ch const fill, long long const v) const
+    { return io.flags() & IB::basefield ? base::do_put(i, io, fill, v) : do_put(i, io, fill, I(v)); }
+  #else
+    typedef unsigned long I;
+  #endif
+
+  virtual Out do_put(Out i, IB & io, Ch const fill, I const v) const
   {
     IB::fmtflags const f = io.flags();
     if (f & IB::basefield) return base::do_put(i, io, fill, v);
@@ -74,7 +85,7 @@ class bin_num_put: public std::num_put<Ch, Out>
     {
       std::numpunct<char> const & numpunct = std::use_facet<std::numpunct<char> >(io.getloc());
 
-      unsigned long m = 1ul;
+      I m = 1ul;
       std::streamsize group_len = 0;
       std::string const & grouping = numpunct.grouping();
       std::string::const_iterator g = grouping.begin();
@@ -104,10 +115,8 @@ class bin_num_put: public std::num_put<Ch, Out>
 
   virtual Out do_put(Out const i, IB & io, Ch const fill, long const v) const
   {
-    IB::fmtflags const f = io.flags();
-    if (f & IB::basefield) return base::do_put(i, io, fill, v);
     unsigned long const w = v;
-    return do_put(i, io, fill, w);
+    return io.flags() & IB::basefield ? base::do_put(i, io, fill, v) : do_put(i, io, fill, w);
   }
 
   // The "proper" thing to do is to add a static std::locale::id const id, but that way bin_num_put does not replace the std::num_put facet in the locale.
