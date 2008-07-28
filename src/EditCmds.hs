@@ -127,6 +127,7 @@ data Replacer = Replacer (AndList (Relative (EverythingOr (Rankeds String)))) St
 data Mover = Mover (Relative (EverythingOr (Ranked String))) Position
 data BefAft = Before | After deriving Eq
 data Around = Around (AndList (Relative (EverythingOr (Rankeds String))))
+data Wrapping = Wrapping String String
 
 data Command
   = Insert String Positions
@@ -134,7 +135,8 @@ data Command
   | Prepend String (Maybe Positions)
   | Replace (AndList Replacer)
   | Move (AndList Mover)
-  | Wrap String String (AndList Around)
+  | WrapAround Wrapping (AndList Around)
+  | WrapIn (AndList (Relative (EverythingOr (Rankeds String)))) Wrapping
 
 front, back :: Bound
 front = Bound (Just Before) Everything
@@ -147,6 +149,9 @@ notFollowedBy p = ((try p >>= return . unexpected . show) <|> return (return ())
 
 kwd :: [String] -> CharParser st String
 kwd s = choice $ try . string . s
+
+kwd' :: [String] -> Bool -> CharParser st String
+kwd' s b = choice (try . string . s) << eof_or_space b
 
 select_act :: [([String], a)] -> CharParser st a
 select_act = choice . map (\(s, r) -> choice (try . string . s) >> return r)
@@ -185,8 +190,8 @@ instance Parse (Maybe BefAft) where
 
 instance Parse RelativeBound where
   parse t a =
-    (try (kwd ["end", "back"] >> eof_or_space (term_eof t)) >> return Back) <|>
-    (try (kwd ["begin", "front"] >> eof_or_space (term_eof t)) >> return Front) <|>
+    (try (kwd' ["end", "back"] (term_eof t)) >> return Back) <|>
+    (try (kwd' ["begin", "front"] (term_eof t)) >> return Front) <|>
     liftM2 RelativeBound (parse t a) (parse t a)
 
 instance Parse Ordinal where
@@ -284,6 +289,16 @@ instance Parse Mover where
 
 instance Parse Around where parse t a = try (string "around ") >> Around . parse t ("around ": a)
 
+instance Parse Wrapping where
+  parse t@(Terminators b _) _ =
+    (kwd' ["curlies", "braces", "curly brackets"] b >> return (Wrapping "{" "}"))
+    <|> (kwd' ["parentheses", "parens", "round brackets"] b >> return (Wrapping "(" ")"))
+    <|> (kwd' ["square brackets"] b >> return (Wrapping "[" "]"))
+    <|> (kwd' ["angle brackets"] b >> return (Wrapping "<" ">"))
+    <|> (kwd' ["single quotes"] b >> return (Wrapping "'" "'"))
+    <|> (kwd' ["double quotes"] b >> return (Wrapping "\"" "\""))
+    <|> liftM2 Wrapping (verbatim (Terminators False ["and "]) << string "and ") (verbatim t)
+
 instance Parse Command where
   parse t a = select_act l >>= id
    where
@@ -296,13 +311,14 @@ instance Parse Command where
       , (["replace "], Replace . parse t a')
       , (["move "], Move . parse t a')
       , (,) ["wrap "] $ do
-          f <- (kwd ["curlies ", "braces ", "curly brackets "] >> return (Wrap "{" "}"))
-            <|> (kwd ["parentheses ", "parens ", "round brackets "] >> return (Wrap "(" ")"))
-            <|> (kwd ["square brackets "] >> return (Wrap "[" "]"))
-            <|> (kwd ["single quotes "] >> return (Wrap "'" "'"))
-            <|> (kwd ["double quotes "] >> return (Wrap "\"" "\""))
-            <|> (liftM2 Wrap (verbatim (Terminators False ["and "]) << string "and ") (verbatim (Terminators False ["around "])))
-          f . parse t a'
+        b <- snd . (lookAhead $ many1Till' anyChar $ (try (string " around ") >> return False) <|> (try (string " in ") >> return True))
+        if b
+          then liftM2 WrapIn
+            (parse (add_terms ["in "] t) a')
+            (string "in " >> parse t a')
+          else liftM2 WrapAround
+            (parse (Terminators False ["around "]) a')
+            (parse t a')
       ]
     a' = concat (fst . l) ++ a
 
@@ -381,7 +397,7 @@ instance (Offsettable b, Invertible a, FindInStr a b, Convert Range b) => FindIn
     x <- convert . findInStr s b
     let p = either start id x
     y <- convert . findInStr (drop p s) e
-    return $ convert $ Range p (either start id y)
+    return $ convert $ Range p (either end id y)
 
 everything_arange :: String -> ARange
 everything_arange _ Before = Anchor Before 0
@@ -449,7 +465,8 @@ instance FindInStr Command [Edit] where
   findInStr s (Replace (AndList l)) = concat . sequence (findInStr s . unne l)
   findInStr s (Insert r p) = (flip InsertEdit r .) . concat . findInStr s p
   findInStr s (Move (AndList movers)) = concat . sequence (findInStr s . unne movers)
-  findInStr s (Wrap x y z) = concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . concat . findInStr s z
+  findInStr s (WrapAround (Wrapping x y) z) = concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . concat . findInStr s z
+  findInStr s (WrapIn z (Wrapping x y)) = findInStr s (WrapAround (Wrapping x y) (AndList (NElist (Around z) [])))
 
 -- Main:
 
@@ -520,18 +537,19 @@ test = do
   t "erase between second and fourth space and 1" $ Right " 2  3 4 5"
   t "erase between first and third space and prepend x" $ Right "x1  2 3 4 5"
   t "wrap parentheses around every space between first 2 and 4 and around 5 and erase second last 3" $ Right "1 2( )( )2( )3( )4 (5)"
-  t "move from first 3 until 4 to begin" $ Right "3 2 3 1 2 4 5"
+  t "move from first 3 until 4 to begin" $ Right "3 2 3 41 2  5"
   t "erase everything from before everything until second 3" $ Right "3 4 5"
   t "wrap parentheses around first 2 and 5" $ Right "1 (2) 3 2 3 4 (5)"
   t "erase everything between first space and last space" $ Right "1  5"
   t "erase all 3 and all 2 between begin and end" $ Right "1     4 5"
   t "erase everything between second and first 2 " $ Right "1 2 2 3 4 5"
-  t "erase from second 2 till last space" $ Right "1 2 3  5"
+  t "erase from second 2 till last space" $ Right "1 2 3 5"
   t "erase from second 2 until after 3 and add x before 4" $ Right "1 2 3  x4 5"
   t "erase between 1 and second 2 and between 4 and 5" $ Right "12 3 45"
   t "erase from before 4 until end" $ Right "1 2 3 2 3 "
   t "erase everything from after 1 until second last space" $ Right "1 4 5"
   t "wrap parentheses around everything between 1 and second space before 4" $ Right "1( 2 3 2) 3 4 5"
+  t "wrap all 3 and second 2 in + and - and prepend x" $ Right "x1 2 +3- +2- +3- 4 5"
   t "move 4 till end to front" $ Right "4 51 2 3 2 3 "
   t "erase all space after first 2" $ Right "1 232345"
   t "add x before first 3 after second 2" $ Right "1 2 3 2 x3 4 5"
@@ -579,7 +597,7 @@ test = do
   t "move " $ Left "column 6: unexpected end of command. expected: \"till \", \"until \", \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", ordinal or verbatim string. "
   t "move x " $ Left "column 8: unexpected end of command. expected: \" before \", \" after \", \" between\", \" till \", \" until \" or \" to \". "
   t "move x to "$ Left "column 11: unexpected end of command. expected: \"begin\", \"front\", \"end\", \"back\", \"before \" or \"after \". "
-  t "wrap x and y" $ Left $ "column 13: unexpected end of command. expected: \" around \". "
+  t "wrap x and y" $ Left $ "column 13: unexpected end of command. expected: \" around \" or \" in \". "
   t "append x and erase first " $ Left "column 26: unexpected end of command. expected: \"and \" or verbatim string. "
   t "erase all 2 and " $ Left "column 17: unexpected end of command. expected: \"insert \", \"add \", \"append \", \"prepend \", \"erase \", \"remove \", \"kill \", \"cut \", \"omit \", \"delete \", \"replace \", \"move \", \"wrap \", \"till \", \"until \", \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", \"all \", \"any \", \"every \", \"each \", ordinal or verbatim string. "
   putStrLn "No test failures."
@@ -597,8 +615,10 @@ test = do
   erase = ("erase" | "remove" | "delete" | "cut" | "omit" | "kill") substrs*
   replace = "replace" (substrs* ("with" | "by") ...)*
   move = "move" (substr "to" position)*
-  wrap = "wrap" (... "and" ... | "parentheses" | "curlies") ("around" substrs*)*
+  wrap = "wrap" wrapping ("around" substrs*)* | "wrap" substrs* "in" wrapping
 
+  wrapping = ... "and" ... | "parentheses" | "parens" | "braces" | "curlies"
+    | ("square" | "angle" | "curly" | "round") "brackets" | ("single" | "double") "quotes"
   relative = between | befaft ranked
   substrs = range | ("everything" | rankeds) [relative]
   substr = range | ("everything" | ranked) [relative]
@@ -607,7 +627,7 @@ test = do
   positions = "at" limit | befaft (("everything" | rankeds) [befaft ranked])*
   ordinal = "first" | ("second" | "third" | etc) ["last"] | "last"
   ranked = [ordinal] ...
-  rankeds = ["all" | "each" | "every" | "any" | ordinal*] ...
+  rankeds = "all" [("except" | "but") ordinal*] ... | ["each" | "every" | "any" | ordinal*] ...
   between = "between" (bound "and" relative-bound | ordinal "and" ordinal ...)
   range = ([["everything"] "from"] bound | "everything") ("till" | "until") relative-bound
   limit = "begin" | "front" | "end" | "back"
@@ -636,6 +656,10 @@ Design notes:
 
     I have no strong feelings on the matter. Currently it is interpreted to mean the second.
 
+  Should "from ..." / "until ..." bounds be inclusive or exclusive?
+
+    We choose the former, for no particular reason. Note that this default can be overridden by by saying "from after ..." / "until before ...".
+
   Grammar guidelines:
 
     - Ranges are never relative (but their bounds may be).
@@ -644,21 +668,5 @@ Design notes:
   Semantic choices:
 
     - Ordinal specifications are always relative to the full string, so "erase from x until second b" in "bxabcb" produces "bxbcb", not "bxb".
-
-Todo:
-
-  Allow "to" as a synonym for "till/until" in erase commands, because there, there is no ambiguity with move's "to".
-
-  bad error: "erase from third space until fourth space"
-  "prepend z and wrap parens around everything" -- currently produces "z(...)", should produce "(z...)"
-  bad error: "wrap x and y around first space a"
-  bad error: "move second 3 to end "
-  "move 1 after 4" sounds nice, but probably too ambiguous
-  "add a semicolon before foo"
-  "erase spaces before foo"
-  "wrap parentheses around 5 and curlies around first 2"
-  "replace first two x with y"
-  "insert x between x and y"
-  "erase block/statement at second {/;" (using CxxParse)
 
 -}
