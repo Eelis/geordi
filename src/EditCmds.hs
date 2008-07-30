@@ -2,7 +2,7 @@ module EditCmds (exec, commands) where
 
 import Control.Monad.Error
 
-import Data.Char (isSpace)
+import Data.Char (isSpace, isAlpha, isDigit)
 import Text.ParserCombinators.Parsec
   (choice, CharParser, char, string, try, (<?>), (<|>), eof, anyChar, errorPos, sourceColumn, lookAhead, unexpected)
 import qualified Text.ParserCombinators.Parsec as PS
@@ -128,6 +128,7 @@ data Mover = Mover (Relative (EverythingOr (Ranked String))) Position
 data BefAft = Before | After deriving Eq
 data Around = Around (AndList (Relative (EverythingOr (Rankeds String))))
 data Wrapping = Wrapping String String
+newtype UseClause = UseClause String
 
 data Command
   = Insert String Positions
@@ -137,6 +138,7 @@ data Command
   | Move (AndList Mover)
   | WrapAround Wrapping (AndList Around)
   | WrapIn (AndList (Relative (EverythingOr (Rankeds String)))) Wrapping
+  | Use (AndList UseClause)
 
 front, back :: Bound
 front = Bound (Just Before) Everything
@@ -289,6 +291,8 @@ instance Parse Mover where
 
 instance Parse Around where parse t a = try (string "around ") >> Around . parse t ("around ": a)
 
+instance Parse UseClause where parse t _ = UseClause. verbatim t
+
 instance Parse Wrapping where
   parse t@(Terminators b _) _ =
     (kwd' ["curlies", "braces", "curly brackets"] b >> return (Wrapping "{" "}"))
@@ -309,6 +313,7 @@ instance Parse Command where
       , (["erase ", "remove ", "kill ", "cut ", "omit ", "delete "], do
           s <- parse t a'; return $ Replace $ AndList (NElist (Replacer s "") []))
       , (["replace "], Replace . parse t a')
+      , (["use "], Use . parse t a')
       , (["move "], Move . parse t a')
       , (,) ["wrap "] $ do
         b <- snd . (lookAhead $ many1Till' anyChar $ (try (string " around ") >> return False) <|> (try (string " in ") >> return True))
@@ -457,7 +462,26 @@ instance FindInStr Position Anchor where
   findInStr s (Position After Everything) = return $ Anchor After (length s)
   findInStr s (Position ba (NotEverything p)) = ($ ba) . findInStr s p
 
+instance FindInStr UseClause Edit where
+  findInStr s (UseClause z) = do
+    let (cost, x, y) = approx_match insert_cost erase_cost replace_cost z s
+    if cost > fromIntegral (length z) / 1.5 then fail "No match."
+      else return $ RangeReplaceEdit (Range x y) z
+   where
+    replace_cost :: Char -> Char -> Cost
+    replace_cost c d | (isAlpha c && isAlpha d) || (isDigit c && isDigit d) = 0.9
+    replace_cost c d | not (isAlpha c || isAlpha d) = 1.2
+    replace_cost c d | (isAlpha c && isDigit d) || (isDigit c && isAlpha d) = 1.2
+    replace_cost _ _ = 10
+    insert_cost, erase_cost :: Char -> Cost
+    insert_cost ' ' = 0.2
+    insert_cost _ = 1
+    erase_cost ' ' = 0.2
+    erase_cost c | isAlpha c = 0.5
+    erase_cost _ = 1
+
 instance FindInStr Command [Edit] where
+  findInStr s (Use (AndList l)) = sequence $ findInStr s . unne l
   findInStr s (Append x Nothing) = return [InsertEdit (Anchor After (length s)) x]
   findInStr _ (Prepend x Nothing) = return [InsertEdit (Anchor Before 0) x]
   findInStr s (Append x (Just y)) = findInStr s (Insert x y)
@@ -471,7 +495,7 @@ instance FindInStr Command [Edit] where
 -- Main:
 
 commands :: [String]
-commands = words "append prepend erase remove cut omit kill delete replace remove add insert move wrap"
+commands = words "append prepend erase remove cut omit kill delete replace remove add insert move wrap use"
 
 exec :: (Functor m, Monad m) => String -> String -> m String
 exec cmd_str str = do
@@ -547,6 +571,7 @@ test = do
   t "erase from second 2 until after 3 and add x before 4" $ Right "1 2 3  x4 5"
   t "erase between 1 and second 2 and between 4 and 5" $ Right "12 3 45"
   t "erase from before 4 until end" $ Right "1 2 3 2 3 "
+  t "use 5x and y4" $ Right "1 2 3 2 3 y4 5x"
   t "erase everything from after 1 until second last space" $ Right "1 4 5"
   t "wrap parentheses around everything between 1 and second space before 4" $ Right "1( 2 3 2) 3 4 5"
   t "wrap all 3 and second 2 in + and - and prepend x" $ Right "x1 2 +3- +2- +3- 4 5"
@@ -581,6 +606,7 @@ test = do
   -- Edit errors:
   t "move second 2 to x" $ Left "column 18: unexpected \"x\". expected: \"begin\", \"front\", \"end\", \"back\", \"before \" or \"after \". "
   t "replace alligators with chickens" $ Left "String \"alligators\" does not occur."
+  t "use banana" $ Left "No match."
   t "erase 2" $ Left "String \"2\" occurs multiple times."
   t "replace 1 and erase with 4" $ Left "String \"erase\" does not occur."
   t "replace tenth last 2 by x" $ Left "String \"2\" does not occur 10 times."
@@ -589,7 +615,7 @@ test = do
   t "erase everything before first 3 and replace first 2 with x" $ Left "Overlapping edits: erase \"1 2 \" and replace \"2\" with \"x\"."
   -- Syntax errors:
   t "move 4 to back " $ Left "column 16: unexpected end of command. "
-  t "isnert 3 before 4" $ Left "column 1: unexpected \"s\". expected: \"insert \", \"add \", \"append \", \"prepend \", \"erase \", \"remove \", \"kill \", \"cut \", \"omit \", \"delete \", \"replace \", \"move \" or \"wrap \". "
+  t "isnert 3 before 4" $ Left "column 1: unexpected \"s\". expected: \"insert \", \"add \", \"append \", \"prepend \", \"erase \", \"remove \", \"kill \", \"cut \", \"omit \", \"delete \", \"replace \", \"use \", \"move \" or \"wrap \". "
   t "insert " $ Left "column 8: unexpected end of command. expected: verbatim string. "
   t "erase first and " $ Left "column 17: unexpected end of command. expected: ordinal. "
   t "erase between second " $ Left "column 22: unexpected end of command. expected: \"last \", \"and \" or verbatim string. "
@@ -599,15 +625,34 @@ test = do
   t "move x to "$ Left "column 11: unexpected end of command. expected: \"begin\", \"front\", \"end\", \"back\", \"before \" or \"after \". "
   t "wrap x and y" $ Left $ "column 13: unexpected end of command. expected: \" around \" or \" in \". "
   t "append x and erase first " $ Left "column 26: unexpected end of command. expected: \"and \" or verbatim string. "
-  t "erase all 2 and " $ Left "column 17: unexpected end of command. expected: \"insert \", \"add \", \"append \", \"prepend \", \"erase \", \"remove \", \"kill \", \"cut \", \"omit \", \"delete \", \"replace \", \"move \", \"wrap \", \"till \", \"until \", \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", \"all \", \"any \", \"every \", \"each \", ordinal or verbatim string. "
+  t "erase all 2 and " $ Left "column 17: unexpected end of command. expected: \"insert \", \"add \", \"append \", \"prepend \", \"erase \", \"remove \", \"kill \", \"cut \", \"omit \", \"delete \", \"replace \", \"use \", \"move \", \"wrap \", \"till \", \"until \", \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", \"all \", \"any \", \"every \", \"each \", ordinal or verbatim string. "
+  -- "use" tests:
+  ut "size_type" "size_t"
+  ut "size = 9" "siz = 2"
+  ut "TYPE" "TPYE"
+  ut "ETYPE" "ETPYE"
+  ut "std::string" "string"
+  ut "float x" "int x"
+  ut "x-" "x -"
+  ut "= 2; do{(something * complic - ated)}; c" "= 2; int x = 3; c"
+  ut "; cin <<" "; cout <<"
+  ut "x = 4" "x = 3"
+  ut "x - 8);" "x - size);"
+
   putStrLn "No test failures."
  where
   t :: String -> Either String String -> IO ()
   t c o = let o' = exec c "1 2 3 2 3 4 5" in when (o' /= o) $ fail $ "test failed: " ++ show (c, o, o')
+  ut :: String -> String -> IO ()
+  ut pattern match = do
+    let txt = "{ string::size_t- siz = 2; int x = 3; cout << ETPYE(x - size); }"
+    RangeReplaceEdit rng _ <- findInStr txt (UseClause pattern)
+    let s = selectRange rng txt
+    when (s /= match) $ fail $ "\"use\" test \"" ++ pattern ++ "\" failed, got \"" ++ s ++ "\" instead of \"" ++ match ++ "\"."
 
 {- Command grammar:
 
-  command = (insert | append | prepend | erase | replace | move | wrap)*
+  command = (insert | append | prepend | erase | replace | move | wrap | use)*
 
   insert = ("insert" | "add") ... positions*
   append = "append" ... [positions*]
@@ -616,6 +661,7 @@ test = do
   replace = "replace" (substrs* ("with" | "by") ...)*
   move = "move" (substr "to" position)*
   wrap = "wrap" wrapping ("around" substrs*)* | "wrap" substrs* "in" wrapping
+  use = "use" verbatim*
 
   wrapping = ... "and" ... | "parentheses" | "parens" | "braces" | "curlies"
     | ("square" | "angle" | "curly" | "round") "brackets" | ("single" | "double") "quotes"

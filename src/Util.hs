@@ -10,7 +10,7 @@ import qualified Text.ParserCombinators.Parsec.Error as PSE
 
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
-import Data.List (sortBy)
+import Data.List (sortBy, minimumBy)
 import Data.Char (isSpace, isAlphaNum, toLower)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Sequence (Seq, ViewL(..), (<|))
@@ -210,3 +210,24 @@ erase_indexed i l = f 0 l
   f _ [] = []
   f n (_:t) | n `elem` i || (n - length l) `elem` i = f (n + 1) t
   f n (h:t) = h : f (n + 1) t
+
+type Cost = Float
+
+approx_match :: Eq a => (a -> Cost) -> (a -> Cost) -> (a -> a -> Cost) -> [a] -> [a] -> (Cost, Int, Int)
+approx_match insert erase replace pattern text = (k, b, a)
+ where
+  ((k, a), b) = minimumBy (\x y -> compare (fst $ fst x) (fst $ fst y)) $ zip r [0 .. length r - 1]
+  r = foldl f (replicate (length text + 1) (0, 0)) [1..length pattern]
+  f :: [(Float, Int)] -> Int -> [(Float, Int)]
+  f v n = foldl g [(fromIntegral n, 0)] [length text, length text - 1 .. 1]
+   where
+    c = pattern !! (length pattern - n)
+    g :: [(Float, Int)] -> Int -> [(Float, Int)]
+    g w m = minimumBy (\x y -> compare (fst x) (fst y)) candidates : w
+     where
+      d = text !! (m - 1)
+      candidates =
+        [ let (x, y) = v!!m in (x + if c == d then 0 else replace c d, y + 1)
+        , let (x, y) = v!!(m - 1) in (x + insert c, y)
+        , let (x, y) = head w in (x + erase d, y + 1)
+        ]
