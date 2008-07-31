@@ -479,6 +479,7 @@ token_replace_cost x@(c:_) y@(d:_) | isAlphaNum c && isAlphaNum d =
   fromIntegral (levenshtein x y) * 0.8
 token_replace_cost _ _ = 10
 token_skip_cost, token_insert_cost, token_erase_cost :: String -> Cost
+token_skip_cost (' ':_) = 0
 token_skip_cost _ = -2.5
 token_insert_cost t | t `elem` keywords = 2
 token_insert_cost (' ':_) = 0.2
@@ -662,9 +663,10 @@ test = do
   ut "> * r = v" "> & r = v"
   ut "v.cbegin()" "v.begin()"
   ut "void foo" "voidfoo"
-  ut "char foo(T a)" " voidfoo(T a)" -- Todo: Get rid of this initial space.
+  ut "char foo(T a)" "voidfoo(T a)"
   ut "x - sizeof(y))" "x - size)"
   ut "int a(2);" "int a;"
+  ut "int const * w" "int * w"
   ut "int main(int argc) {" "int main() {"
   ut "operator-(" "operator+("
     -- Note: While at first sight it seems reasonable to expect this to work without the (, this is only so because we humans have special knowledge about "operator". The situation is equivalent to searching for "bla()" in "bla;*x", which we don't want to yield "bla;*" either. Hence, inserting is cheaper than replacing.
@@ -675,6 +677,12 @@ test = do
   ut "vector<int>::iterator i" "vector<int> i"
   ut "runtime_error(" "runtime_exception(" -- Without the (, this fails, but that should be fixable by adding a bias against insertions causing concatenated alpha tokens.
   ut "~T();" "~T;"
+  ut "int const * w" "int * w"
+  ut "(T & a)" "(T a)"
+  ut "& r(v);" "& r = v;"
+  ut "ios_base::end_t" "ios::end"
+  ut "95" "94"
+  ut "vector<int> const v { 3, 2 };" "vector<int> v; v = { 3, 2 };"
 
   putStrLn "No test failures."
  where
@@ -682,7 +690,7 @@ test = do
   t c o = let o' = exec c "1 2 3 2 3 4 5" in when (o' /= o) $ fail $ "test failed: " ++ show (c, o, o')
   ut :: String -> String -> IO ()
   ut pattern match = do
-    let txt = "{ string::size_t- siz = 2; int x = 3; if(i == 0) cout << ETPYE(x - size); vector<int> v; vector<int> i = reinterpret_cat<fish>(v.begin()); } vector<unsigned char> & r = v; struct C { C & operator+(C const &) }; template<typename T> voidfoo(T a) { a.~T; } int main() { int a; a.seek(10, ios::end); foo(a++); if(x) throw runtime_exception(y); }"
+    let txt = "{ string::size_t- siz = 2; int x = 3; if(i == 0) cout << ETPYE(x - size); vector<int> v; v = { 3, 2 }; vector<int> i = reinterpret_cat<fish>(v.begin()); } int const u = 94; int * w = &u; vector<unsigned char> & r = v; struct C { C & operator+(C const &) }; template<typename T> voidfoo(T a) { a.~T; } int main() { int a; a.seek(10, ios::end); foo(a++); if(x) throw runtime_exception(y); }"
     RangeReplaceEdit rng _ <- findInStr txt (UseClause pattern)
     let s = selectRange rng txt
     when (s /= match) $ fail $ "\"use\" test \"" ++ pattern ++ "\" failed, got \"" ++ s ++ "\" instead of \"" ++ match ++ "\"."
