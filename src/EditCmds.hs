@@ -2,7 +2,7 @@ module EditCmds (exec, commands) where
 
 import Control.Monad.Error
 
-import Data.Char (isSpace, isAlpha, isDigit)
+import Data.Char (isSpace, isAlpha, isDigit, isAlphaNum)
 import Text.ParserCombinators.Parsec
   (choice, CharParser, char, string, try, (<?>), (<|>), eof, anyChar, errorPos, sourceColumn, lookAhead, unexpected)
 import qualified Text.ParserCombinators.Parsec as PS
@@ -464,21 +464,39 @@ instance FindInStr Position Anchor where
 
 instance FindInStr UseClause Edit where
   findInStr s (UseClause z) = do
-    let (cost, x, y) = approx_match insert_cost erase_cost replace_cost z s
     if cost > fromIntegral (length z) / 1.5 then fail "No match."
       else return $ RangeReplaceEdit (Range x y) z
    where
-    replace_cost :: Char -> Char -> Cost
-    replace_cost c d | (isAlpha c && isAlpha d) || (isDigit c && isDigit d) = 0.9
-    replace_cost c d | not (isAlpha c || isAlpha d) = 1.2
-    replace_cost c d | (isAlpha c && isDigit d) || (isDigit c && isAlpha d) = 1.2
-    replace_cost _ _ = 10
-    insert_cost, erase_cost :: Char -> Cost
-    insert_cost ' ' = 0.2
-    insert_cost _ = 1
-    erase_cost ' ' = 0.2
-    erase_cost c | isAlpha c = 0.5
-    erase_cost _ = 1
+    (x, y) = (sum $ length . take stt txt_toks, sum $ length . take siz (drop stt txt_toks))
+    txt_toks = tokenize s
+    (cost, stt, siz) = approx_match token_skip_cost token_insert_cost token_erase_cost token_replace_cost (tokenize z) txt_toks
+
+token_replace_cost :: String -> String -> Cost
+token_replace_cost (c:_) (d:_) | not (isAlphaNum c || isAlphaNum d) = 1.1
+token_replace_cost x@(c:_) y@(d:_) | isAlpha c && isAlpha d =
+  fromIntegral (levenshtein x y) * 0.4
+token_replace_cost x@(c:_) y@(d:_) | isAlphaNum c && isAlphaNum d =
+  fromIntegral (levenshtein x y) * 0.8
+token_replace_cost _ _ = 10
+token_skip_cost, token_insert_cost, token_erase_cost :: String -> Cost
+token_skip_cost _ = -2.5
+token_insert_cost t | t `elem` keywords = 2
+token_insert_cost (' ':_) = 0.2
+token_insert_cost x@(y:_) | isAlpha y = fromIntegral (length x) * 0.7
+token_insert_cost _ = 1
+token_erase_cost = token_insert_cost
+
+keywords, long_tokens :: [String]
+keywords = words "alignas continue friend reinterpret_cast typedef alignof decltype goto return typeid asm default if short typename auto delete inline signed union bool double int sizeof unsigned break do long static_assert using case dynamic_cast mutable static_cast virtual catch else namespace static void char enum new struct volatile char16_t explicit nullptr switch wchar_t char32_t export operator template while class extern private this const false protected throw constexpr float public true const_cast for register try"
+long_tokens = keywords ++ words "<<= >>= &&= ||= ++ -- -> .* += *= /= -= :: == << >> && ||"
+
+tokenize :: String -> [String]
+tokenize [] = []
+tokenize s | Just (o, s') <- findMaybe (\p -> (\x -> (p, x)). stripPrefix p s) long_tokens = o : tokenize s'
+tokenize (' ':s) = let (x, s') = span isSpace s in (' ':x) : tokenize s'
+tokenize (h:s) | isAlpha h = let (x, s') = span isAlpha s in (h:x) : tokenize s'
+tokenize (h:s) | isDigit h = let (x, s') = span isDigit s in (h:x) : tokenize s'
+tokenize (h:s) = [h] : tokenize s
 
 instance FindInStr Command [Edit] where
   findInStr s (Use (AndList l)) = sequence $ findInStr s . unne l
@@ -629,15 +647,34 @@ test = do
   -- "use" tests:
   ut "size_type" "size_t"
   ut "size = 9" "siz = 2"
-  ut "TYPE" "TPYE"
   ut "ETYPE" "ETPYE"
   ut "std::string" "string"
-  ut "float x" "int x"
+  ut "; float x" "; int x"
   ut "x-" "x -"
-  ut "= 2; do{(something * complic - ated)}; c" "= 2; int x = 3; c"
-  ut "; cin <<" "; cout <<"
+  ut ") cin <<" ") cout <<"
   ut "x = 4" "x = 3"
   ut "x - 8);" "x - size);"
+  ut "(!i)" "(i == 0)"
+  ut "seekp" "seek"
+  ut "<char>" "<unsigned char>"
+  ut "<const fish>" "<fish>"
+  ut "&); };" "&) };"
+  ut "> * r = v" "> & r = v"
+  ut "v.cbegin()" "v.begin()"
+  ut "void foo" "voidfoo"
+  ut "char foo(T a)" " voidfoo(T a)" -- Todo: Get rid of this initial space.
+  ut "x - sizeof(y))" "x - size)"
+  ut "int a(2);" "int a;"
+  ut "int main(int argc) {" "int main() {"
+  ut "operator-(" "operator+("
+    -- Note: While at first sight it seems reasonable to expect this to work without the (, this is only so because we humans have special knowledge about "operator". The situation is equivalent to searching for "bla()" in "bla;*x", which we don't want to yield "bla;*" either. Hence, inserting is cheaper than replacing.
+  ut "_cast" "_cat"
+  ut "(++a)" "(a++)"
+  ut "list<int>" "vector<int>"
+  ut "a->seekp" "a.seek"
+  ut "vector<int>::iterator i" "vector<int> i"
+  ut "runtime_error(" "runtime_exception(" -- Without the (, this fails, but that should be fixable by adding a bias against insertions causing concatenated alpha tokens.
+  ut "~T();" "~T;"
 
   putStrLn "No test failures."
  where
@@ -645,7 +682,7 @@ test = do
   t c o = let o' = exec c "1 2 3 2 3 4 5" in when (o' /= o) $ fail $ "test failed: " ++ show (c, o, o')
   ut :: String -> String -> IO ()
   ut pattern match = do
-    let txt = "{ string::size_t- siz = 2; int x = 3; cout << ETPYE(x - size); }"
+    let txt = "{ string::size_t- siz = 2; int x = 3; if(i == 0) cout << ETPYE(x - size); vector<int> v; vector<int> i = reinterpret_cat<fish>(v.begin()); } vector<unsigned char> & r = v; struct C { C & operator+(C const &) }; template<typename T> voidfoo(T a) { a.~T; } int main() { int a; a.seek(10, ios::end); foo(a++); if(x) throw runtime_exception(y); }"
     RangeReplaceEdit rng _ <- findInStr txt (UseClause pattern)
     let s = selectRange rng txt
     when (s /= match) $ fail $ "\"use\" test \"" ++ pattern ++ "\" failed, got \"" ++ s ++ "\" instead of \"" ++ match ++ "\"."
@@ -685,6 +722,8 @@ test = do
   This is an idealized grammar with LOTS of ambiguity. The parsers do their best to choose the most sensible interpretation of ambiguous commands.
 
 Design notes:
+
+  "use" is heavily biased toward whole-token edits, so users are encouraged to use those. This will not only produce better edits, it is also more readable.
 
   Giving moves a single target makes "move 4 to end and 5 to begin" work, because otherwise it would be parsed as a move with two targets, the second of which, 5, is not a valid target.
 

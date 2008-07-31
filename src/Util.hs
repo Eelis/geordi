@@ -213,13 +213,13 @@ erase_indexed i l = f 0 l
 
 type Cost = Float
 
-approx_match :: Eq a => (a -> Cost) -> (a -> Cost) -> (a -> a -> Cost) -> [a] -> [a] -> (Cost, Int, Int)
-approx_match insert erase replace pattern text = (k, b, a)
+approx_match :: Eq a => (a -> Cost) -> (a -> Cost) -> (a -> Cost) -> (a -> a -> Cost) -> [a] -> [a] -> (Cost, Int, Int)
+approx_match skip insert erase replace pattern text = (k, b, a)
  where
   ((k, a), b) = minimumBy (\x y -> compare (fst $ fst x) (fst $ fst y)) $ zip r [0 .. length r - 1]
   r = foldl f (replicate (length text + 1) (0, 0)) [1..length pattern]
   f :: [(Float, Int)] -> Int -> [(Float, Int)]
-  f v n = foldl g [(fromIntegral n, 0)] [length text, length text - 1 .. 1]
+  f v n = foldl g [(sum $ map insert $ take n $ reverse pattern, 0)] [length text, length text - 1 .. 1]
    where
     c = pattern !! (length pattern - n)
     g :: [(Float, Int)] -> Int -> [(Float, Int)]
@@ -227,7 +227,15 @@ approx_match insert erase replace pattern text = (k, b, a)
      where
       d = text !! (m - 1)
       candidates =
-        [ let (x, y) = v!!m in (x + if c == d then 0 else replace c d, y + 1)
+        [ let (x, y) = v!!m in (x + if c == d then skip c else replace c d, y + 1)
         , let (x, y) = v!!(m - 1) in (x + insert c, y)
         , let (x, y) = head w in (x + erase d, y + 1)
         ]
+
+levenshtein :: String -> String -> Int
+levenshtein s t = d !! length s !! length t
+  where
+    d = [[ distance m n | n <- [0 .. length t]] | m <- [0 .. length s]]
+    distance i 0 = i
+    distance 0 j = j
+    distance i j = minimum [d!!(i-1)!!j+1, d!!i!!(j-1)+1, d!!(i-1)!!(j-1) + (if s!!(i-1)==t!!(j-1) then 0 else 1)]
