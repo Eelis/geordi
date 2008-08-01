@@ -464,7 +464,7 @@ instance FindInStr Position Anchor where
 
 instance FindInStr UseClause Edit where
   findInStr s (UseClause z) = do
-    if cost > fromIntegral (length z) / 1.5 then fail "No match."
+    if y == 0 || cost > fromIntegral (length z) / 1.5 then fail "No match."
       else return $ RangeReplaceEdit (Range x y) z
    where
     (x, y) = (sum $ length . take stt txt_toks, sum $ length . take siz (drop stt txt_toks))
@@ -627,6 +627,7 @@ test = do
   t "move second 2 to x" $ Left "column 18: unexpected \"x\". expected: \"begin\", \"front\", \"end\", \"back\", \"before \" or \"after \". "
   t "replace alligators with chickens" $ Left "String \"alligators\" does not occur."
   t "use banana" $ Left "No match."
+  t "use 5426" $ Left "No match."
   t "erase 2" $ Left "String \"2\" occurs multiple times."
   t "replace 1 and erase with 4" $ Left "String \"erase\" does not occur."
   t "replace tenth last 2 by x" $ Left "String \"2\" does not occur 10 times."
