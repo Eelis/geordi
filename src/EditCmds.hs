@@ -473,22 +473,23 @@ instance FindInStr UseClause Edit where
 
 token_replace_cost :: String -> String -> Cost
 token_replace_cost (c:_) (d:_) | not (isAlphaNum c || isAlphaNum d) = 1.1
-token_replace_cost x@(c:_) y@(d:_) | isAlpha c && isAlpha d =
-  fromIntegral (levenshtein x y) * 0.4
-token_replace_cost x@(c:_) y@(d:_) | isAlphaNum c && isAlphaNum d =
-  fromIntegral (levenshtein x y) * 0.8
+token_replace_cost x@(c:_) y@(d:_) | isAlpha c && isAlpha d = levenshtein x y * 0.4
+token_replace_cost x@(c:_) y@(d:_) | isAlphaNum c && isAlphaNum d = levenshtein x y * 0.8
 token_replace_cost _ _ = 10
 token_skip_cost, token_insert_cost, token_erase_cost :: String -> Cost
 token_skip_cost (' ':_) = 0
+token_skip_cost (h:t) | isAlpha h = -2.5 - fromIntegral (length t) * 0.2
 token_skip_cost _ = -2.5
 token_insert_cost t | t `elem` keywords = 2
-token_insert_cost (' ':_) = 0.2
+token_insert_cost (' ':_) = -0.02
 token_insert_cost x@(y:_) | isAlpha y = fromIntegral (length x) * 0.7
+token_insert_cost (x:y) | isDigit x = 1 + fromIntegral (length y) * 0.3
 token_insert_cost _ = 1
-token_erase_cost = token_insert_cost
+token_erase_cost (' ':_) = 0.02
+token_erase_cost x = token_insert_cost x
 
 keywords, long_tokens :: [String]
-keywords = words "alignas continue friend reinterpret_cast typedef alignof decltype goto return typeid asm default if short typename auto delete inline signed union bool double int sizeof unsigned break do long static_assert using case dynamic_cast mutable static_cast virtual catch else namespace static void char enum new struct volatile char16_t explicit nullptr switch wchar_t char32_t export operator template while class extern private this const false protected throw constexpr float public true const_cast for register try"
+keywords = words "alignas continue friend reinterpret_cast typedef alignof decltype goto return typeid asm default if short typename auto delete inline signed union bool double int sizeof unsigned break do long static_assert using case dynamic_cast mutable static_cast virtual catch else namespace static void char enum new struct volatile char16_t explicit nullptr switch wchar_t char32_t export operator template while class extern private this const false protected throw constexpr float public true const_cast for register try define elif include defined"
 long_tokens = keywords ++ words "<<= >>= &&= ||= ++ -- -> .* += *= /= -= :: == << >> && ||"
 
 tokenize :: String -> [String]
@@ -669,7 +670,7 @@ test = do
   ut "int const * w" "int * w"
   ut "int main(int argc) {" "int main() {"
   ut "operator-(" "operator+("
-    -- Note: While at first sight it seems reasonable to expect this to work without the (, this is only so because we humans have special knowledge about "operator". The situation is equivalent to searching for "bla()" in "bla;*x", which we don't want to yield "bla;*" either. Hence, inserting is cheaper than replacing.
+    -- Note: While at first sight it seems reasonable to expect this to work without the (, this is only so because we humans have special knowledge about "operator". The situation is equivalent to searching for "bla()" in "bla;*x", which we don't want to yield "bla;*" either. Hence, inserting operators is cheaper than replacing them.
   ut "_cast" "_cat"
   ut "(++a)" "(a++)"
   ut "list<int>" "vector<int>"
@@ -683,6 +684,15 @@ test = do
   ut "ios_base::end_t" "ios::end"
   ut "95" "94"
   ut "vector<int> const v { 3, 2 };" "vector<int> v; v = { 3, 2 };"
+  ut "; class C" "; struct C" -- Without the semicolon, this matches " C". Todo: This should be fixed by making "struct" -> "class" cheaper than inserting "class".
+  ut "struct C{" "struct C(){"
+  ut "B z{p};" "B z = B{p};"
+  ut "friend C & operator+" "C & operator+"
+  ut "char const(&here)[N]" "char(const&here)[N]"
+  ut "z = shared_ptr<B>{new p}" "z = B{p}"
+  ut "(X(y));" "X(y);"
+  ut "2000" "1800"
+  ut "8000100808" "10000000000"
 
   putStrLn "No test failures."
  where
@@ -690,7 +700,7 @@ test = do
   t c o = let o' = exec c "1 2 3 2 3 4 5" in when (o' /= o) $ fail $ "test failed: " ++ show (c, o, o')
   ut :: String -> String -> IO ()
   ut pattern match = do
-    let txt = "{ string::size_t- siz = 2; int x = 3; if(i == 0) cout << ETPYE(x - size); vector<int> v; v = { 3, 2 }; vector<int> i = reinterpret_cat<fish>(v.begin()); } int const u = 94; int * w = &u; vector<unsigned char> & r = v; struct C { C & operator+(C const &) }; template<typename T> voidfoo(T a) { a.~T; } int main() { int a; a.seek(10, ios::end); foo(a++); if(x) throw runtime_exception(y); }"
+    let txt = "{ string::size_t- siz = 2; int x = 3; if(i == 0) cout << ETPYE(x - size); vector<int> v; v = { 3, 2 }; vector<int> i = reinterpret_cat<fish>(10000000000, v.begin()); } X(y); using tracked::B; B z = B{p}; int const u = 94; int * w = &u; vector<unsigned char> & r = v; struct C(){ C & operator+(ostream &, char(const&here)[N], C const &) }; template<typename T> voidfoo(T a) { a.~T; } int main() { int a; a.seek(1800, ios::end); foo(a++); if(x) throw runtime_exception(y); }"
     RangeReplaceEdit rng _ <- findInStr txt (UseClause pattern)
     let s = selectRange rng txt
     when (s /= match) $ fail $ "\"use\" test \"" ++ pattern ++ "\" failed, got \"" ++ s ++ "\" instead of \"" ++ match ++ "\"."

@@ -232,10 +232,11 @@ approx_match skip insert erase replace pattern text = (k, b, a)
         , let (x, y) = head w in (x + erase d, y + 1)
         ]
 
-levenshtein :: String -> String -> Int
+levenshtein :: String -> String -> Float
 levenshtein s t = d !! length s !! length t
   where
     d = [[ distance m n | n <- [0 .. length t]] | m <- [0 .. length s]]
-    distance i 0 = i
-    distance 0 j = j
-    distance i j = minimum [d!!(i-1)!!j+1, d!!i!!(j-1)+1, d!!(i-1)!!(j-1) + (if s!!(i-1)==t!!(j-1) then 0 else 1)]
+    distance :: Int -> Int -> Float
+    distance i 0 = fromIntegral i
+    distance 0 j = fromIntegral j
+    distance i j = minimum [d!!(i-1)!!j+1, d!!i!!(j-1)+1, d!!(i-1)!!(j-1) + (if s!!(i-1)==t!!(j-1) then -0.4 else 1)]
