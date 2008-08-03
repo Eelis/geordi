@@ -113,6 +113,16 @@ is_request _ botnicks s | Just (n, r) <- Request.is_request s, any (\(h:t) -> n 
 is_request True _ s = Just s
 is_request _ _ _ = Nothing
 
+type Reason = String
+data Permission = Allow | Deny (Maybe Reason)
+data Where = Private | InChannel String
+
+request_allowed :: IrcBotConfig -> String -> Maybe IRC.UserName -> Maybe IRC.ServerName -> Where -> Permission
+request_allowed cfg _ _ _ Private | not (serve_private_requests cfg) =
+  Deny $ Just "This bot does not serve private requests."
+request_allowed cfg nickname _ _ _ | nickname `elem` blacklist cfg = Deny Nothing
+request_allowed _ _ _ _ _ = Allow
+
 on_msg :: (Functor m, Monad m) =>
   (String -> m String) -> IrcBotConfig -> Bool -> IRC.Message -> StateT LastRequestMap m [IRC.Message]
 on_msg eval cfg full_size m = flip execStateT [] $ do
@@ -124,34 +134,34 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
       send $ msg "NOTICE" [from, "\1VERSION Geordi C++ bot - http://www.eelis.net/geordi/\1"]
     IRC.Message _ "433" {- ERR_NICKNAMEINUSE -} _ -> send $ msg "NICK" [alternate_nick cfg]
     IRC.Message _ "PING" a -> msapp [msg "PONG" a]
-    IRC.Message (Just (IRC.NickName who _ _)) "PRIVMSG" [to, txt] ->
+    IRC.Message (Just (IRC.NickName who muser mserver)) "PRIVMSG" [to, txt] ->
       when (not (who `elem` blacklist cfg)) $ do
       let private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
       let wher = if private then who else to
       let reply s = send $ msg "PRIVMSG" [wher, if null s then no_output_msg cfg else do_censor cfg s]
-      if private && not (serve_private_requests cfg)
-       then reply "This bot does not serve private requests."
-       else do
-        maybeM (dropWhile isSpace . is_request private (nick cfg : alternate_nick cfg : also_respond_to cfg) txt) $ \r -> do
-        if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after " ++ show (reverse $ take 15 $ reverse r) ++ "." else do
-          -- The `elem` "};" condition gains a reduction in false positives at the cost of an increase in false negatives.
-        u <- lift $ readState
-        let lastreq = Map.lookup wher u
-        if r == "show" then reply (lastreq `orElse` "<none>") else do
-        mr <- if any (`isPrefixOf` r) EditCmds.commands
-          then case lastreq of
-            Nothing -> reply "There is no previous request to modify." >> return Nothing
-            Just p -> case EditCmds.exec r p of
-              Left e -> reply e >> return Nothing
-              Right r' | length r' > 450 -> reply "Request would become too large." >> return Nothing
-              Right r' -> return $ Just $ r'
-          else return $ Just r
-        maybeM mr $ \r' -> do
-          lift $ mapState' (Map.insert wher r')
-          l <- lift $ lift $ dropWhile null . lines . eval r'
-          reply $ take (max_msg_length cfg) $ case l of
-            [] -> ""; [x] -> x
-            (x:xs) -> x ++ discarded_lines_description (length xs)
+      maybeM (dropWhile isSpace . is_request private (nick cfg : alternate_nick cfg : also_respond_to cfg) txt) $ \r -> do
+      case request_allowed cfg who muser mserver (if private then Private else InChannel to) of
+        Deny reason -> maybeM reason reply
+        Allow -> do
+          if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after " ++ show (reverse $ take 15 $ reverse r) ++ "." else do
+            -- The `elem` "};" condition gains a reduction in false positives at the cost of an increase in false negatives.
+          u <- lift $ readState
+          let lastreq = Map.lookup wher u
+          if r == "show" then reply (lastreq `orElse` "<none>") else do
+          mr <- if any (`isPrefixOf` r) EditCmds.commands
+            then case lastreq of
+              Nothing -> reply "There is no previous request to modify." >> return Nothing
+              Just p -> case EditCmds.exec r p of
+                Left e -> reply e >> return Nothing
+                Right r' | length r' > 450 -> reply "Request would become too large." >> return Nothing
+                Right r' -> return $ Just $ r'
+            else return $ Just r
+          maybeM mr $ \r' -> do
+            lift $ mapState' (Map.insert wher r')
+            l <- lift $ lift $ dropWhile null . lines . eval r'
+            reply $ take (max_msg_length cfg) $ case l of
+              [] -> ""; [x] -> x
+              (x:xs) -> x ++ discarded_lines_description (length xs)
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
       when (join_trigger cfg == Nothing) join_chans
