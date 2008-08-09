@@ -50,7 +50,7 @@ namespace tracked
     }
 
     void make_entry(Tracked const * const r) {
-      if (Entry * const e = entry(r)) if (e->status != destructed) error()() << "leaked: " << *e;
+      if (Entry * const e = entry(r)) if (e->status != destructed) error()() << "leaked: " << *e << '.';
       Entry const e = { r, "?", fresh };
       entries.push_back(e);
     }
@@ -75,7 +75,7 @@ namespace tracked
       for (Entries::const_iterator j = entries.begin(); j != entries.end(); ++j)
         if (p <= j->p && boost::implicit_cast<void const *>(j->p) <= static_cast<char *>(p) + s)
           v.push_back(boost::cref(*j));
-      if (array) info()() << "delete" << v;
+      if (array) { info i; i() << "delete["; more_ostreaming::delimit(i(), v); i() << ']'; }
       else { assert(v.size() == 1); info()() << "delete(" << v.front() << ")"; }
     }
 
@@ -113,7 +113,8 @@ namespace tracked
         std::vector<boost::reference_wrapper<Entry const> > v;
         for (Entries::const_iterator i = entries.begin(); i != entries.end(); ++i)
           if (i->status != destructed) v.push_back(boost::cref(*i));
-        if (!v.empty()) { info()() << "leaked: " << v; abort(); }
+        if (!v.empty())
+        { info i; i() << "leaked: "; more_ostreaming::delimit(i(), v); i() << '.'; abort(); }
       }
     } leakReporter; // Must come after entries, so it will be destructed first.
 
