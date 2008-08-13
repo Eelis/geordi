@@ -13,6 +13,7 @@
 #include <boost/utility/enable_if.hpp>
 #include <boost/ref.hpp>
 #include <boost/optional.hpp>
+#include "geordi.hpp"
 
 namespace boost
 {
@@ -148,6 +149,36 @@ namespace std
     operator<<(std::basic_ostream<Ch, Tr> & o, std::priority_queue<T, C, P> const & q)
   { return o << reinterpret_cast<C const &>(q); }
 }
+
+#ifdef GEORDI_USE_CHRONO
+
+  #include <chrono>
+
+  template <typename Ch, typename Tr, typename K, typename D>
+  std::basic_ostream<Ch, Tr> &
+    operator<<(std::basic_ostream<Ch, Tr> & o, std::chrono::time_point<K, D> const & t)
+  { return o << "epoch + " << t.time_since_epoch(); }
+
+  template<typename Ch, typename Tr, typename R, typename F>
+  std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, std::chrono::duration<R, F> const & d)
+  { return o << d.count(); }
+
+  #define T(r, s) \
+    template <typename Ch, typename Tr, typename R> std::basic_ostream<Ch, Tr> & \
+      operator<<(std::basic_ostream<Ch, Tr> & o, std::chrono::duration<R, std::r> const & d) \
+    { return o << d.count() << s; }
+
+  T(ratio<86400>, " d")
+  T(ratio<3600>, " h")
+  T(ratio<60>, " min")
+  T(ratio<1>, " s")
+  T(milli, " ms")
+  T(micro, " µs")
+  T(nano, " ns")
+
+  #undef T
+
+#endif
 
 #endif // header guard
 

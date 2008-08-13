@@ -7,6 +7,15 @@
 #include <iostream>
 #include <boost/noncopyable.hpp>
 
+#define GNUC_GE(major, minor, patchlevel) \
+  ((__GNUC__ * 100 + __GNUC_MINOR__) * 100 + __GNUC_PATCHLEVEL__ >= \
+  (major * 100 + minor) * 100 + patchlevel)
+
+#if GNUC_GE(4,4,0) && defined(__GXX_EXPERIMENTAL_CXX0X__)
+  #define GEORDI_USE_EXTERN_TEMPLATE
+  #define GEORDI_USE_CHRONO
+#endif
+
 namespace geordi
 {
   namespace { char const parsep[] = "\342\200\251"; }

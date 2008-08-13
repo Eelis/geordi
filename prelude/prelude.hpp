@@ -55,6 +55,10 @@
 #include <valarray>
 #include <vector>
 
+#ifdef GEORDI_USE_CHRONO
+  #include <chrono>
+#endif
+
 #include <cassert>
 #include <cctype>
 #include <cerrno>
