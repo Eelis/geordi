@@ -198,10 +198,10 @@ data EvaluationResult = EvaluationResult Stage CaptureResult
 instance Show EvaluationResult where
   show (EvaluationResult stage (CaptureResult r o)) = subst_parseps $ case (stage, r, o) of
     (Compile, Exited ExitSuccess, "") -> strerror eOK
+    (Compile, Exited _, _) -> ErrorFilters.cc1plus o
+    (Assemble, Exited (ExitFailure _), _) -> ErrorFilters.as o
     (Run, Exited ExitSuccess, _) -> ErrorFilters.prog o
     (Run, _, _) -> ErrorFilters.prog $ o ++ parsep : show r
-    (Compile, _, _) -> ErrorFilters.cc1plus o
-    (Assemble, Exited (ExitFailure _), _) -> ErrorFilters.as o
     (Link, Exited (ExitFailure _), _) -> ErrorFilters.ld o
     _ -> "g++: " ++ show r
 
