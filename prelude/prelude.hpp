@@ -131,6 +131,26 @@ char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
 
 #define RANGE(x) (::boost::begin(x)), (::boost::end(x))
 
+#define T(n) \
+  namespace std \
+  { template <typename C> \
+    std::istreambuf_iterator<C> boost_range_begin(n<C> & i) { return std::istreambuf_iterator<C>(i); } \
+    template <typename C> \
+    std::istreambuf_iterator<C> boost_range_end(n<C> &) { return std::istreambuf_iterator<C>(); } \
+  } \
+  namespace boost \
+  { template<typename C> \
+    struct range_iterator<std::n<C> > { typedef std::istreambuf_iterator<C> type; }; \
+    template<typename C> \
+    struct range_const_iterator<std::n<C> >; \
+  }
+
+T(basic_istream)
+T(basic_ifstream)
+T(basic_istringstream)
+
+#undef T
+
 #define GEORDI_STATEMENTS_PRE int main(int argc, char * argv[]) {
 #define GEORDI_STATEMENTS_POST }
 
