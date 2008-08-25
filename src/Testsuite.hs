@@ -149,6 +149,7 @@ tests "errorfilters" =
   , test "Preprocessor error" "<< 08" $ ExactMatch "error: invalid digit \"8\" in octal constant"
   , test "[with ...]-replacement" "<< 1 == 1" $ ExactMatch "error: no match for 'operator==' in 'cout.ostream::operator<<(1) == 1'"
   , test "Ditto" "template <typename T> void f(); template <> void f<int>() {} template <> void f<int>() {}" $ ExactMatch "error: redefinition of 'void f() [with T = int]'"
+  , test "Don't show notes" "{ X x; } struct X { int i; X() { cout << i; } };" $ PrefixMatch "warning: "
   ]
 
 tests s = error $ "no such test set: " ++ s
