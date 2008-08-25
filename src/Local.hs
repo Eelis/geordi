@@ -9,6 +9,7 @@ import Control.Monad (forM_, when)
 import Control.Monad.Fix (fix)
 import System.IO.UTF8 (putStrLn)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
+import Data.IORef (newIORef, readIORef, writeIORef)
 
 import Prelude hiding ((.), readFile, putStrLn)
 import Util
@@ -28,6 +29,15 @@ getArgs = do
     (_, _, err:_) -> fail $ init err
     (opts, rest, []) -> return (opts, rest)
 
+make_history_adder :: IO (String -> IO ())
+make_history_adder = do
+  r <- newIORef Nothing
+  return $ \s -> do
+    prev <- readIORef r
+    when (Just s /= prev) $ do
+      RL.addHistory s
+      writeIORef r (Just s)
+
 main :: IO ()
 main = do
   Sys.setlocale_ALL_env
@@ -36,6 +46,7 @@ main = do
   if Help `elem` opts then putStrLn help else do
   evalRequest <- Request.evaluator
   forM_ rest $ (>>= putStrLn) . evalRequest
+  addHistory <- make_history_adder
   when (rest == []) $ flip fix "" $ \loop prev -> do
     ml <- RL.readline "geordi: "
     case ml of
@@ -44,6 +55,6 @@ main = do
       Just l -> do
         if any (`Data.List.isPrefixOf` l) EditCmds.commands
           then case EditCmds.exec l prev of
-            Left e -> do putStrLn e; RL.addHistory l; loop prev
-            Right x -> do evalRequest x >>= putStrLn; RL.addHistory x; loop x
-          else do evalRequest l >>= putStrLn; RL.addHistory l; loop l
+            Left e -> do putStrLn e; addHistory l; loop prev
+            Right x -> do evalRequest x >>= putStrLn; addHistory x; loop x
+          else do evalRequest l >>= putStrLn; addHistory l; loop l
