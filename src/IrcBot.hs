@@ -106,7 +106,8 @@ discarded_lines_description :: Int -> String
 discarded_lines_description s =
   " [+ " ++ show s ++ " discarded line" ++ (if s == 1 then "" else "s") ++ "]"
 
-type LastRequestMap = Map String String
+data ChannelMemory = ChannelMemory { last_request, last_output :: String }
+type ChannelMemoryMap = Map String ChannelMemory
 
 is_request :: Bool -> [String] -> String -> Maybe String
 is_request _ botnicks s | Just (n, r) <- Request.is_request s, any (\(h:t) -> n == toLower h : t || n == toUpper h : t) botnicks = Just r
@@ -124,7 +125,7 @@ request_allowed cfg nickname _ _ _ | nickname `elem` blacklist cfg = Deny Nothin
 request_allowed _ _ _ _ _ = Allow
 
 on_msg :: (Functor m, Monad m) =>
-  (String -> m String) -> IrcBotConfig -> Bool -> IRC.Message -> StateT LastRequestMap m [IRC.Message]
+  (String -> m String) -> IrcBotConfig -> Bool -> IRC.Message -> StateT ChannelMemoryMap m [IRC.Message]
 on_msg eval cfg full_size m = flip execStateT [] $ do
   when (join_trigger cfg == Just m) join_chans
   case m of
@@ -146,22 +147,27 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
           if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after " ++ show (reverse $ take 15 $ reverse r) ++ "." else do
             -- The `elem` "};" condition gains a reduction in false positives at the cost of an increase in false negatives.
           u <- lift $ readState
-          let lastreq = Map.lookup wher u
-          if r == "show" then reply (lastreq `orElse` "<none>") else do
+          let mmem = Map.lookup wher u
+          if r == "show" then reply (maybe "<none>" last_request mmem) else do
           mr <- if any (`isPrefixOf` r) EditCmds.commands
-            then case lastreq of
+            then case mmem of
               Nothing -> reply "There is no previous request to modify." >> return Nothing
-              Just p -> case EditCmds.exec r p of
+              Just mem -> case EditCmds.exec r (last_request mem) of
                 Left e -> reply e >> return Nothing
                 Right r' | length r' > 450 -> reply "Request would become too large." >> return Nothing
                 Right r' -> return $ Just $ r'
             else return $ Just r
           maybeM mr $ \r' -> do
-            lift $ mapState' (Map.insert wher r')
             l <- lift $ lift $ dropWhile null . lines . eval r'
-            reply $ take (max_msg_length cfg) $ case l of
+            let
+             output = take (max_msg_length cfg) $ case l of
               [] -> ""; [x] -> x
               (x:xs) -> x ++ discarded_lines_description (length xs)
+            lift $ mapState' $ Map.insert wher $ ChannelMemory { last_request = r', last_output = output }
+            reply $ case mmem of
+              Just mem | last_output mem == output -> "No change in output."
+              _ -> output
+
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
       when (join_trigger cfg == Nothing) join_chans
