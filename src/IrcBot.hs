@@ -165,9 +165,12 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
               (x:xs) -> x ++ discarded_lines_description (length xs)
             lift $ mapState' $ Map.insert wher $ ChannelMemory { last_request = r', last_output = output }
             reply $ case mmem of
-              Just mem | last_output mem == output -> "No change in output."
+              Just mem | last_output mem == output -> case () of
+                ()| "error:" `isPrefixOf` output -> "Same error."
+                ()| "warning:" `isPrefixOf` output -> "Same warning."
+                ()| length output > 20 -> "No change in output."
+                () -> output
               _ -> output
-
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
       when (join_trigger cfg == Nothing) join_chans
