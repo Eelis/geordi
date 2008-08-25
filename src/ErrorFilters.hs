@@ -106,7 +106,7 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
     , string "typename " >> return ""
         -- Shows up in assertion failures after replacements have been performed.
     , defaulter ["list", "deque", "vector"] 1 $ tmpl "allocator"
-    , defaulter ["set", "multiset", "basic_stringstream", "basic_string", "basic_ostringstream", "basic_istringstream"] 2 $ tmpl "allocator" . head
+    , defaulter ["set", "multiset", "basic_stringstream", "basic_stringbuf", "basic_string", "basic_ostringstream", "basic_istringstream"] 2 $ tmpl "allocator" . head
     , defaulter ["map", "multimap"] 3 $ \[k, v, _] -> tmpl "allocator" (tmpl "pair" (try (("const " $> k) <|> (k $> "const")) `comma` v))
     , defaulter ["set", "multiset"] 1 $ tmpl "less"
     , defaulter ["priority_queue"] 1 $ \[e] -> tmpl "vector" (e `comma` tmpl "allocator" e)
@@ -141,7 +141,7 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
   tmpi :: String -> Int -> CharParser st [String]
   tmpi n i = tmpl n $ (:) . cxxArg <*> (count (i - 1) (spaces >> ',' $> cxxArg))
 
-  ioBasics = ["streambuf", "ofstream", "ifstream", "fstream", "filebuf", "ostream", "istream", "ostringstream", "istringstream", "stringstream", "iostream", "ios", "string"]
+  ioBasics = ["streambuf", "ofstream", "ifstream", "fstream", "filebuf", "stringbuf", "ostream", "istream", "ostringstream", "istringstream", "stringstream", "iostream", "ios", "string"]
 
   recursive_replacer :: CharParser st String -> CharParser st String
   recursive_replacer r = ((r >+> getInput) >>= setInput >> recursive_replacer r) <|> scan
