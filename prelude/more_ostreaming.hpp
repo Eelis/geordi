@@ -8,6 +8,7 @@
 #include <stack>
 #include <queue>
 #include <cstdlib>
+#include <algorithm>
 #include <boost/range.hpp>
 #include <boost/type_traits/is_same.hpp>
 #include <boost/utility/enable_if.hpp>
@@ -46,6 +47,16 @@ std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::ldiv_
   template <typename C, typename Tr>
   std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::lldiv_t const d)
   { print_div_t(o, d); return o; }
+
+  template <typename C, typename T, typename R, typename... A>
+  std::basic_ostream<C, T> & operator<<(std::basic_ostream<C, T> & o, R (* const p) (A...))
+  {
+    void * q;
+    static_assert(sizeof(p) == sizeof(q), "void- and function-pointer differ in size");
+    std::copy(reinterpret_cast<char const *>(&p),
+      reinterpret_cast<char const *>(&p) + sizeof(p), reinterpret_cast<char *>(&q));
+    return o << q;
+  }
 
   #include <tr1/tuple>
   #include <tuple>
