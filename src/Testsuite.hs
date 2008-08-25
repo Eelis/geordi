@@ -73,7 +73,7 @@ main = do
 tests :: String -> [Test]
 
 tests "resources" =
-  [ test "Program timeout" "{ for(;;) ; }" $ RegexMatch "Killed"
+  [ test "Program timeout" "{ for(;;) ; }" $ ExactMatch "Killed"
   , test "Stack overflow" "<< f(3); int f(int i) { if (i % 10000 == 0) cout << '+' << flush; return -f(++i); }" $
     RegexMatch "\\++ Segmentation fault"
   , test "Open FDs" "{ for(int i = 0; i != 1024; ++i) assert(i == 1 || i == 2 || close(i) == -1); }" NoOutput
@@ -103,11 +103,11 @@ tests "misc" =
   , test "srand()/time()" "{ srand(time(0)); }" NoOutput
   , test "-v" "-v" $ PrefixMatch "g++ (GCC) 4"
   , test "getopt" "-monkey chicken" $ ExactMatch "unrecognized option `-m'\n"
-  , test "operator new/delete overriding" "{ cout << \"| \"; list<int> v(5); } void * operator new(std::size_t const s) throw(std::bad_alloc) { printf(\"%ld \", s); return malloc(s); } void operator delete(void * const p) throw() { free(p); }" $ RegexMatch "[^-]*\\| [[:digit:] ]+"
+  , test "operator new/delete overriding" "{ cerr << \"| \"; list<int> v(5); } void * operator new(size_t const s) throw(bad_alloc) { cerr << s << ' '; return malloc(s); } void operator delete(void * const p) throw() { free(p); }" $ RegexMatch "[^-]*\\| [[:digit:] ]+"
   ]
 
 tests "diagnostics" =
-  [ test "-fstack-protector-all" "{ char buf [10]; fill(buf, buf+30, 'x'); }" $
+  [ test "-fstack-protector-all" "-w { char buf [10]; fill(buf, buf+30, 'x'); }" $
     PrefixMatch "*** stack smashing detected ***: /t terminated\n"
   , test "-mcheck diagnostic" "{ int * p = new int [3]; p[3] = 6; delete[] p; }" $
     PrefixMatch "memory clobbered past end of allocated block\n"
@@ -125,8 +125,8 @@ tests "diagnostics" =
 tests "tracked" =
   [ test "Operation on destructed B" "{ using tracked::B; B x(0), y(x); x.B::~B(); x.f(); }" $ ExactMatch "B0*(0) B1*(B0) B0~ error: tried to call B::f() on destructed B0. Aborted"
   , test "Re-destruction" "{ using tracked::B; B b; b.~B(); }" $ ExactMatch "B0* B0~ B0~ error: tried to re-destruct destructed B0. Aborted"
-  , test "Stack leak" "{ using tracked::B; { union { double d; char c[sizeof(B)]; }; new (c) B; } B b; }" $ ExactMatch "B0* B1* B1~ leaked: [B0] Aborted"
-  , test "Stack overwrite" "{ using tracked::B; B b; new (&b) B; }" $ ExactMatch "B0* error: leaked: B0 Aborted"
+  , test "Stack leak" "{ using tracked::B; { union { double d; char c[sizeof(B)]; }; new (c) B; } B b; }" $ ExactMatch "B0* B1* B1~ leaked: B0. Aborted"
+  , test "Stack overwrite" "{ using tracked::B; B b; new (&b) B; }" $ ExactMatch "B0* error: leaked: B0. Aborted"
   , test "new[]/delete[]." "{ boost::shared_array<tracked::B> a(new tracked::D[2]); }" $ ExactMatch "new(D[]) B0* D0* B1* D1* D1~ B1~ D0~ B0~ delete[D0, D1]"
   , test "Operation on non-existent object" "{ tracked::B * p = 0; p->f(); }" $ ExactMatch "error: tried to call B::f() on non-existent object. Aborted"
   ]
@@ -135,7 +135,7 @@ tests "utilities" =
   [ test "-t/-c" "-tc use ns boost; tmp <tpn T> cls C { expl C (C co &); pvt: stc dub d; pub: void op() (); };" $
     ExactMatch "Success"
   , test "ETYPE" "{ int i = 4; cout << ETYPE(++i); }" $ ExactMatch "lvalue int"
-  , test "Range printing" "{ vector<int> v; v += 3, 5, 9, 4, 1; cout << v; }" $ ExactMatch "[3, 5, 9, 4, 1]"
+  , test "Range printing" "{ vector<int> v; v += 3, 5, 9, 4, 1; cout << v; }" $ ExactMatch "{3, 5, 9, 4, 1}"
   , test "Demangled printable typeid" "<< typeid(int)" $ ExactMatch "int"
   , test "Custom assert()/abort()" "{ assert(4 > 9); }" $ ExactMatch "Assertion `4 > 9' fails."
   ,  test "bin IO manipulator" "<< showbase << uppercase << bin << setfill('_') << internal << setw(10) << 53" $ ExactMatch "0B__110101"
