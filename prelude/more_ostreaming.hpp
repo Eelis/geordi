@@ -16,6 +16,10 @@
 #include <boost/optional.hpp>
 #include "geordi.hpp"
 
+template <typename C, typename Tr>
+std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, utsname const & u)
+{ return o << u.sysname << ' ' << u.release << ' ' << u.version, u.machine; }
+
 namespace boost
 {
   template <typename C, typename Tr, typename T>

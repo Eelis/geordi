@@ -6,6 +6,7 @@
 #include <string>
 #include <iostream>
 #include <boost/noncopyable.hpp>
+#include <sys/utsname.h>
 
 #define GNUC_GE(major, minor, patchlevel) \
   ((__GNUC__ * 100 + __GNUC_MINOR__) * 100 + __GNUC_PATCHLEVEL__ >= \
@@ -31,6 +32,8 @@ namespace geordi
   struct initializer_t { initializer_t (); };
 
   std::string advice();
+
+  utsname uname();
 }
 
 #endif // header guard

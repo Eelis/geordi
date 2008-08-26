@@ -98,4 +98,10 @@ namespace geordi
     std::setlocale(LC_ALL, "");
   }
 
+  utsname uname()
+  {
+    utsname r;
+    if (uname(&r)) throw std::runtime_error(std::strerror(errno));
+    return r;
+  }
 } // namespace geordi
