@@ -135,6 +135,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
       send $ msg "NOTICE" [from, "\1VERSION Geordi C++ bot - http://www.eelis.net/geordi/\1"]
     IRC.Message _ "433" {- ERR_NICKNAMEINUSE -} _ -> send $ msg "NICK" [alternate_nick cfg]
     IRC.Message _ "PING" a -> msapp [msg "PONG" a]
+    IRC.Message _ "PRIVMSG" [_, '\1':_] -> return ()
     IRC.Message (Just (IRC.NickName who muser mserver)) "PRIVMSG" [to, txt] ->
       when (not (who `elem` blacklist cfg)) $ do
       let private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
