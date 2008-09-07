@@ -2,6 +2,7 @@ module Request (is_request, evaluator) where
 
 import qualified EvalCxx
 import qualified CxxParse as Cxx
+import qualified MakeType
 
 import Control.Exception ()
 import Data.Char (isPrint, isAlpha, isDigit)
@@ -12,7 +13,7 @@ import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt)
 import Prelude hiding (catch, (.))
 import Util
 
-data Opt = CompileOnly | Terse | Help | Version | NoWarn | CompileFlags deriving Eq
+data Opt = CompileOnly | Terse | Help | Version | NoWarn | CompileFlags | MakeType deriving Eq
 
 optsDesc :: [OptDescr Opt]
 optsDesc =
@@ -22,6 +23,7 @@ optsDesc =
   , Option "h" ["help"] (NoArg Help) undefined
   , Option "v" ["version"] (NoArg Version) undefined
   , Option "" ["show-compile-flags"] (NoArg CompileFlags) undefined
+  , Option "" ["make-type"] (NoArg MakeType) undefined
   ]
 
 wrapPrePost :: String -> String -> String
@@ -57,7 +59,7 @@ splitSemicolon (Cxx.Code (a : r)) = (Cxx.Code $ a : x, y)
 newlines ::Cxx.Code -> Cxx.Code
 newlines = Cxx.map_chunks $ Cxx.map_plain $ map $ \c -> if c == '\\' then '\n' else c
 
-data Request = EvalRequest EvalCxx.Request | ShowCompileFlags
+data Request = EvalRequest EvalCxx.Request | ShowCompileFlags | MakeTypeReq String
 
 parse_request :: (Functor m, Monad m) => String -> m Request
 parse_request req = do
@@ -73,6 +75,7 @@ parse_request req = do
     er code = EvalRequest $ EvalCxx.Request (unlines $ pre ++ code) also_run (opt NoWarn)
   return $ case () of
     ()| opt Help -> er [wrapPrint "help"]
+    ()| opt MakeType -> MakeTypeReq rest
     ()| opt CompileFlags -> ShowCompileFlags
     ()| opt Version -> er [wrapPrint $ "\"g++ (GCC) \" << __VERSION__"]
     ()| Cxx.Code (Cxx.Curlies c : b) <- reqCode ->
@@ -88,6 +91,7 @@ evaluator = do
   return $ \s -> case parse_request s of
     Left e -> return e
     Right ShowCompileFlags -> return $ unwords $ EvalCxx.compileFlags compile_cfg
+    Right (MakeTypeReq d) -> return $ either ("error: " ++) show $ MakeType.makeType d
     Right (EvalRequest r) -> filter (isPrint .||. (== '\n')) . show . ev r
       -- Filtering using isPrint works properly because (1) the EvalCxx evaluator returns proper Unicode Strings, not mere byte blobs; and (2) to print filtered strings we will use System.IO.UTF8's hPutStrLn which properly UTF-8-encodes the filtered String.
       -- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.
