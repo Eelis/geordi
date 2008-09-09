@@ -109,6 +109,7 @@ unraw ('s':'i':'g':'n':'e':'d':' ':s) = "signed " ++ unraw s
 unraw ('u':'n':'s':'i':'g':'n':'e':'d':' ':s) = "unsigned " ++ unraw s
 unraw "integer" = "int"
 unraw "integers" = "int"
+unraw "chars" = "char"
 unraw "character" = "char"
 unraw "characters" = "char"
 unraw "floats" = "float"
@@ -116,6 +117,7 @@ unraw "doubles" = "double"
 unraw "shorts" = "short"
 unraw "longs" = "long"
 unraw "ints" = "int"
+unraw "bools" = "bool"
 unraw "boolean" = "bool"
 unraw "booleans" = "bool"
 unraw s = s
@@ -146,33 +148,31 @@ lrP = (try (string "lvalue ") >> return Lvalue)
   <|> return Lvalue
 
 pointerP :: CV -> CharParser st Type
-pointerP cv = do
-  pluralP "pointer"
-  string "to "
-  liftM (Pointer cv) $ an
+pointerP cv = liftM (Pointer cv) $ pluralP "pointer" >> ((try (string " to ") >> an) <|> return (nocv "T"))
 
 delim :: CharParser st ()
 delim = (char ',' >> optional (char ' ') >> optional (try $ string "and ")) <|> (string " and " >> return ())
 
 pluralP :: String -> CharParser st ()
-pluralP s = try (string s) >> optional (char 's') >> char ' ' >> return ()
+pluralP s = try (string s) >> optional (char 's') >> return ()
 
 an :: CharParser st Type
 an = (<?> "type") $ (try (char 'a' >> optional (char 'n') >> char ' ') >> typeP False) <|> typeP True
 
 -- The plural arguments mean "plural is permitted". We always permit singular, even in cases like "array of 4 int".
 
+nocv :: String -> Type
+nocv = Other (CV False False)
+
 referenceP :: CharParser st Type
 referenceP = do
   lr <- lrP
-  pluralP "reference"
-  string "to "
-  liftM (Reference lr) an
+  liftM (Reference lr) $ pluralP "reference" >> ((try (string " to ") >> an) <|> return (nocv "T"))
 
-returningP :: CharParser st Type
-returningP = do
-  try $ string "returning "
-  (try (string "nothing") >> return (Other (CV False False) "void")) <|> an
+returningP :: Bool -> CharParser st Type
+returningP sp = do
+  try $ string $ (if sp then " " else "") ++ "returning "
+  (try (string "nothing") >> return (nocv "void")) <|> an
 
 takingClause :: CharParser st [Type]
 takingClause = (do
@@ -181,24 +181,24 @@ takingClause = (do
   replicate (fromInteger n) . typeP True)
     <|> (:[]) . an
 
-takingP :: CharParser st [Type]
-takingP = do
-  try $ string "taking "
+takingP :: Bool -> CharParser st [Type]
+takingP sp = do
+  try $ string $ (if sp then " " else "") ++ "taking "
   try (string "nothing" >> return []) <|>
    try (string "no arguments" >> return []) <|>
    concat . sepBy1 takingClause (try $ delim >> ((try (string "returning ") >> pzero) <|> return ()))
 
 functionP :: CharParser st Type
 functionP = do
-  nullary <- (try (string "nullary ") >> return True) <|> return False
   pluralP "function"
-  (if nullary then pzero else liftM2 (\x y -> Function y [x]) (try (string "from ") >> an) (string " to " >> an)) <|> do
-    if nullary then liftM (flip Function []) returningP else do
-    liftM2 Function returningP (delim >> takingP) <|>
-      liftM2 (flip Function) takingP (delim >> returningP)
+  liftM2 (\x y -> Function y [x]) (try (string " from ") >> an) (string " to " >> an) <|>
+   liftM2 Function (returningP True) (option [] (delim >> takingP False)) <|>
+   liftM2 (flip Function) (takingP True) (option (nocv "void") (delim >> returningP False)) <|>
+   return (Function (nocv "void") [])
 
 predicateP :: CharParser st Type
-predicateP = pluralP "predicate" >> liftM (Function $ Other (CV False False) "bool") takingP
+predicateP =
+  pluralP "predicate" >> char ' ' >> liftM (Function $ nocv "bool") (takingP False)
 
 arraySizeP :: CharParser st Integer
 arraySizeP = (<?> "array size") $ PST.natural PSL.haskell <|>
@@ -207,8 +207,9 @@ arraySizeP = (<?> "array size") $ PST.natural PSL.haskell <|>
 
 arrayP :: CharParser st Type
 arrayP = do
-  pluralP "array" >> string "of "
-  liftM2 Array (optionMaybe arraySizeP) (typeP True)
+  pluralP "array"
+  (try (string " of ") >> liftM2 Array (optionMaybe arraySizeP) (typeP True)) <|>
+    return (Array Nothing (nocv "T"))
 
 -- Exported interface
 
@@ -234,16 +235,17 @@ test = do
   t "pointer to a constant pointer to an array of 3 ints" $ Right "int(* const *)[3]"
   t "function returning nothing and taking a reference to an array of three pointers to void" $ Right "void(void*(&)[3])"
   t "pointer to reference to void" $ Left "cannot have pointer to reference"
-  t "pointer to nullary function returning reference to array of pointers to nullary functions returning arrays of six booleans" $ Left "cannot have function returning array by value"
+  t "pointer to function returning reference to array of pointers to functions returning arrays of six booleans" $ Left "cannot have function returning array by value"
   t "function taking void and returning void" $ Left "cannot have function taking a void"
   t "function taking two integers, three doubles, and returning a boolean" $ Right "bool(int, int, double, double, double)"
   t "function taking two pointers to integers and a pointer to a predicate taking two integers, and returning nothing" $ Right "void(int*, int*, bool(*)(int, int))"
-  t "rvalue reference to nullary function returning nothing" $ Right "void(&&)()"
+  t "rvalue reference to function" $ Right "void(&&)()"
   t "pointer to a function from string to int" $ Right "int(*)(string)"
   t "pointer to " $ Left "column 12: unexpected end of type description. expected: type. "
-  t "function " $ Left "column 10: unexpected end of type description. expected: \"from \", \"returning \" or \"taking \". "
+  t "pointer to function taking pointer to function" $ Right "void(*)(void(*)())"
   t "pointer to int and double" $ Left "column 19: unexpected \" \". expected: end of input. " -- Todo: How come we don't get "end of type description" here?
   t "function returning " $ Left "column 20: unexpected end of type description. expected: \"nothing\" or type. "
+  t "function taking a pointer and a reference and returning a reference to an array" $ Right "T(&(T*, T&))[]"
   t "array of " $ Left "column 10: unexpected end of type description. expected: array size or type. "
   t "array of seven characters" $ Right "char[7]"
  where
