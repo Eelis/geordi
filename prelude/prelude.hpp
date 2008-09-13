@@ -167,4 +167,3 @@ namespace geordi { geordi::initializer_t const initializer; }
 
 using namespace std;
 using namespace boost::assign;
-using geordi::advice;
