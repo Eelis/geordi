@@ -159,7 +159,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
                 Right r' -> return $ Just $ r'
             else return $ Just r
           maybeM mr $ \r' -> do
-            l <- lift $ lift $ dropWhile null . lines . eval r'
+            l <- lift $ lift $ lines . eval r'
             let
              output = take (max_msg_length cfg) $ case l of
               [] -> ""; [x] -> x
