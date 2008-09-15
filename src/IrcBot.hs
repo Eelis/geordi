@@ -155,7 +155,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
               Nothing -> reply "There is no previous request to modify." >> return Nothing
               Just mem -> case EditCmds.exec r (last_request mem) of
                 Left e -> reply e >> return Nothing
-                Right r' | length r' > 450 -> reply "Request would become too large." >> return Nothing
+                Right r' | length r' > max_msg_length cfg -> reply "Request would become too large." >> return Nothing
                 Right r' -> return $ Just $ r'
             else return $ Just r
           maybeM mr $ \r' -> do
