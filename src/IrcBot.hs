@@ -27,6 +27,7 @@ data IrcBotConfig = IrcBotConfig
   { server :: Net.HostName, port :: Net.PortNumber, max_msg_length :: Int
   , chans :: [String], nick :: String, nick_pass :: Maybe String, alternate_nick :: String
   , also_respond_to :: [String]
+  , allow_short_request_syntax_in :: [String]
   , blacklist :: [String]
   , no_output_msg :: String
   , join_trigger :: Maybe IRC.Message
@@ -109,9 +110,10 @@ discarded_lines_description s =
 data ChannelMemory = ChannelMemory { last_request, last_output :: String }
 type ChannelMemoryMap = Map String ChannelMemory
 
-is_request :: Bool -> [String] -> String -> Maybe String
-is_request _ botnicks s | Just (n, r) <- Request.is_request s, any (\(h:t) -> n == toLower h : t || n == toUpper h : t) botnicks = Just r
-is_request True _ s = Just s
+is_request :: IrcBotConfig -> Where -> String -> Maybe String
+is_request cfg _ s | Just (n, r) <- Request.is_addressed_request s, any (\(h:t) -> n == toLower h : t || n == toUpper h : t) (nick cfg : alternate_nick cfg : also_respond_to cfg) = Just r
+is_request cfg (InChannel c) s | c `elem` allow_short_request_syntax_in cfg, Just r <- Request.is_short_request s = Just r
+is_request _ Private s = Just s
 is_request _ _ _ = Nothing
 
 type Reason = String
@@ -140,9 +142,10 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
       when (not (who `elem` blacklist cfg)) $ do
       let private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
       let wher = if private then who else to
+      let w = if private then Private else InChannel to
       let reply s = send $ msg "PRIVMSG" [wher, if null s then no_output_msg cfg else do_censor cfg s]
-      maybeM (dropWhile isSpace . is_request private (nick cfg : alternate_nick cfg : also_respond_to cfg) txt) $ \r -> do
-      case request_allowed cfg who muser mserver (if private then Private else InChannel to) of
+      maybeM (dropWhile isSpace . is_request cfg w txt) $ \r -> do
+      case request_allowed cfg who muser mserver w of
         Deny reason -> maybeM reason reply
         Allow -> do
           if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after " ++ show (reverse $ take 15 $ reverse r) ++ "." else do

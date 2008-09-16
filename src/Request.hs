@@ -1,4 +1,4 @@
-module Request (is_request, evaluator) where
+module Request (is_addressed_request, is_short_request, evaluator) where
 
 import qualified EvalCxx
 import qualified CxxParse as Cxx
@@ -7,7 +7,7 @@ import qualified MakeType
 import Control.Exception ()
 import Data.Char (isPrint, isAlpha, isDigit)
 import Control.Monad.Error ()
-import Text.ParserCombinators.Parsec (parse, getInput, (<|>), oneOf, lookAhead, spaces, satisfy, eof, CharParser, many1)
+import Text.ParserCombinators.Parsec (parse, getInput, (<|>), oneOf, lookAhead, spaces, satisfy, eof, CharParser, many1, string)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt)
 
 import Prelude hiding (catch, (.))
@@ -39,8 +39,12 @@ nickP :: CharParser st Nick
 nickP = many1 $ satisfy $ isAlpha .||. isDigit .||. (`elem` "[]\\`_^|}-")
   -- We don't include '{' because it messes up "geordi{...}", and no sane person would use it in a nick for a geordi bot anyway.
 
-is_request :: String -> Maybe (Nick, String)
-is_request txt = either (const Nothing) Just (parse p "" txt)
+is_short_request :: String -> Maybe String
+is_short_request txt =
+  either (const Nothing) Just (parse (spaces >> lookAhead (string "{" <|> string "<<") >> getInput) "" txt)
+
+is_addressed_request :: String -> Maybe (Nick, String)
+is_addressed_request txt = either (const Nothing) Just (parse p "" txt)
   where
    p = do
     spaces
