@@ -5,7 +5,6 @@ import qualified Request
 import qualified System.Console.Readline as RL
 import qualified EditCmds
 import qualified Sys
-import qualified Data.List
 
 import Control.Monad (forM_, when)
 import Control.Monad.Fix (fix)
@@ -40,6 +39,11 @@ make_history_adder = do
       RL.addHistory s
       writeIORef r (Just s)
 
+data Memory = Memory { last_editable_request, last_output :: Maybe String }
+
+blankMemory :: Memory
+blankMemory = Memory Nothing Nothing
+
 main :: IO ()
 main = do
   Sys.setlocale_ALL_env
@@ -50,15 +54,16 @@ main = do
   let eval = either return evalRequest . Request.parse
   forM_ rest $ (>>= putStrLn) . eval
   addHistory <- make_history_adder
-  when (rest == []) $ flip fix "" $ \loop prev -> RL.readline "geordi: " >>= case_of
+  when (rest == []) $ flip fix blankMemory $ \loop mem -> RL.readline "geordi: " >>= case_of
     Nothing -> putNewLn
-    Just "" -> loop prev
-    Just l -> if any (`Data.List.isPrefixOf` l) EditCmds.commands
-      then case EditCmds.exec l prev of
-        Left e -> do putStrLn e; addHistory l; loop prev
-        Right x -> do eval x >>= putStrLn; addHistory x; loop x
-      else addHistory l >> case Request.parse l of
-        Left e -> putStrLn e >> loop prev
+    Just "" -> loop mem
+    Just l -> case EditCmds.new_or_edited (last_editable_request mem) l of
+      Left e -> addHistory l >> putStrLn e >> loop (mem { last_output = Nothing })
+      Right l' -> addHistory l' >> case Request.parse l' of
+        Left e -> putStrLn e >> loop (mem { last_output = Nothing })
         Right r -> do
-          evalRequest r >>= putStrLn
-          loop $ if Request.is_editable r then l else prev
+          o <- evalRequest r
+          putStrLn $ describe_new_output (last_output mem) o
+          loop $ Memory
+            { last_editable_request = if Request.is_editable r then Just l' else last_editable_request mem
+            , last_output = Just o }

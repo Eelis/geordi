@@ -18,7 +18,6 @@ import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, 
 import Text.Regex (Regex, subRegex, mkRegex)
 import Data.Char (toUpper, toLower, isSpace)
 import Data.Map (Map)
-import Data.List (isPrefixOf)
 import Request (Request)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
@@ -108,7 +107,12 @@ discarded_lines_description :: Int -> String
 discarded_lines_description s =
   " [+ " ++ show s ++ " discarded line" ++ (if s == 1 then "" else "s") ++ "]"
 
-data ChannelMemory = ChannelMemory { last_request, last_output :: String }
+describe_lines :: [String] -> String
+describe_lines [] = ""
+describe_lines [x] = x
+describe_lines (x:xs) = x ++ discarded_lines_description (length xs)
+
+data ChannelMemory = ChannelMemory { last_editable_request, last_output :: String }
 type ChannelMemoryMap = Map String ChannelMemory
 
 is_request :: IrcBotConfig -> Where -> String -> Maybe String
@@ -151,35 +155,19 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
         Allow -> do
           if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after " ++ show (reverse $ take 15 $ reverse r) ++ "." else do
             -- The `elem` "};" condition gains a reduction in false positives at the cost of an increase in false negatives.
-          u <- lift $ readState
-          let mmem = Map.lookup wher u
-          if r == "show" then reply (maybe "<none>" last_request mmem) else do
-          mr <- if any (`isPrefixOf` r) EditCmds.commands
-            then case mmem of
-              Nothing -> reply "There is no previous request to modify." >> return Nothing
-              Just mem -> case EditCmds.exec r (last_request mem) of
-                Left e -> reply e >> return Nothing
-                Right r' | length r' > max_msg_length cfg -> reply "Request would become too large." >> return Nothing
-                Right r' -> return $ Just $ r'
-            else return $ Just r
-          maybeM mr $ \r' -> do
-            let q = Request.parse r'
-            l <- lines . either return (lift . lift . eval) q
-            let
-             output = take (max_msg_length cfg) $ case l of
-              [] -> ""; [x] -> x
-              (x:xs) -> x ++ discarded_lines_description (length xs)
-            case q of
-              Right q' | Request.is_editable q' ->
-                lift $ mapState' $ Map.insert wher $ ChannelMemory { last_request = r', last_output = output }
-              _ -> return ()
-            reply $ case mmem of
-              Just mem | last_output mem == output -> case () of
-                ()| "error:" `isPrefixOf` output -> "Same error."
-                ()| "warning:" `isPrefixOf` output -> "Same warning."
-                ()| length output > 20 -> "No change in output."
-                () -> output
-              _ -> output
+          mmem <- Map.lookup wher . lift readState
+          if r == "show" then reply (maybe "<none>" last_editable_request mmem) else do
+          case EditCmds.new_or_edited (last_editable_request . mmem) r of
+            Left e -> reply e
+            Right r' | length r' > max_msg_length cfg -> reply "Request would become too large."
+            Right r' -> do
+              let q = Request.parse r'
+              output <- take (max_msg_length cfg) . describe_lines . lines . either return (lift . lift . eval) q
+              case q of
+                Right q' | Request.is_editable q' ->
+                  lift $ mapState' $ Map.insert wher $ ChannelMemory { last_editable_request = r', last_output = output }
+                _ -> return ()
+              reply $ describe_new_output (last_output . mmem) output
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
       when (join_trigger cfg == Nothing) join_chans

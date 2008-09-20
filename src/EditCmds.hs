@@ -1,4 +1,4 @@
-module EditCmds (exec, commands) where
+module EditCmds (exec, new_or_edited) where
 
 import Control.Monad.Error
 
@@ -534,6 +534,11 @@ exec cmd_str str = do
     Right x -> return x
   edits <- concat . sequence (findInStr str . cmds)
   exec_edits edits str
+
+new_or_edited :: (Functor m, Monad m) => Maybe String -> String -> m String
+new_or_edited _ s | none (`List.isPrefixOf` s) commands = return s
+new_or_edited Nothing _ = fail "There is no previous request to modify."
+new_or_edited (Just prev) s = exec s prev
 
 -- Testing:
 

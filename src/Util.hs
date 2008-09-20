@@ -10,7 +10,7 @@ import qualified Text.ParserCombinators.Parsec.Error as PSE
 
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
-import Data.List (sortBy, minimumBy)
+import Data.List (sortBy, minimumBy, isPrefixOf)
 import Data.Char (isSpace, isAlphaNum, toLower)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Sequence (Seq, ViewL(..), (<|))
@@ -116,6 +116,9 @@ caselessStringEq a b = (toLower . a) == (toLower . b)
 elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy f x = or . (f x .)
 
+none :: (a -> Bool) -> [a] -> Bool
+none p = all (not . p)
+
 class Queue q e | q -> e where
   qpush :: e -> q -> q
   qpop :: q -> Maybe (e, q)
@@ -144,6 +147,14 @@ rate_limiter bound window = do
 
 parsep :: Char
 parsep = '\x2029' -- U+2029 PARAGRAPH SEPARATOR
+
+describe_new_output :: Maybe String -> String -> String
+describe_new_output Nothing new = new
+describe_new_output (Just prev) new =
+  if prev /= new || length new <= 20 then new
+  else if "error:" `isPrefixOf` new then "Same error."
+  else if "warning:" `isPrefixOf` new then "Same warning."
+  else "No change in output."
 
 maybeLast :: [a] -> Maybe a
 maybeLast [] = Nothing
