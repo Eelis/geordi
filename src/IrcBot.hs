@@ -19,6 +19,7 @@ import Text.Regex (Regex, subRegex, mkRegex)
 import Data.Char (toUpper, toLower, isSpace)
 import Data.Map (Map)
 import Data.List (isPrefixOf)
+import Request (Request)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Util
@@ -127,7 +128,7 @@ request_allowed cfg nickname _ _ _ | nickname `elem` blacklist cfg = Deny Nothin
 request_allowed _ _ _ _ _ = Allow
 
 on_msg :: (Functor m, Monad m) =>
-  (String -> m String) -> IrcBotConfig -> Bool -> IRC.Message -> StateT ChannelMemoryMap m [IRC.Message]
+  (Request -> m String) -> IrcBotConfig -> Bool -> IRC.Message -> StateT ChannelMemoryMap m [IRC.Message]
 on_msg eval cfg full_size m = flip execStateT [] $ do
   when (join_trigger cfg == Just m) join_chans
   case m of
@@ -162,12 +163,16 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
                 Right r' -> return $ Just $ r'
             else return $ Just r
           maybeM mr $ \r' -> do
-            l <- lift $ lift $ lines . eval r'
+            let q = Request.parse r'
+            l <- lines . either return (lift . lift . eval) q
             let
              output = take (max_msg_length cfg) $ case l of
               [] -> ""; [x] -> x
               (x:xs) -> x ++ discarded_lines_description (length xs)
-            lift $ mapState' $ Map.insert wher $ ChannelMemory { last_request = r', last_output = output }
+            case q of
+              Right q' | Request.is_editable q' ->
+                lift $ mapState' $ Map.insert wher $ ChannelMemory { last_request = r', last_output = output }
+              _ -> return ()
             reply $ case mmem of
               Just mem | last_output mem == output -> case () of
                 ()| "error:" `isPrefixOf` output -> "Same error."

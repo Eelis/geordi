@@ -62,7 +62,7 @@ main = do
     forM_ (tests set) $ \(Test n r p pn) -> do
       putStrLn $ "\nTest: " ++ yellow n
       putStrLn $ "Request: " ++ cyan r
-      out <- evalRequest r
+      out <- case Request.parse r of Left e -> return e; Right r' -> evalRequest r'
       let success = p out
       putStrLn $ "Output: " ++ (if success then green else red) (if out == "" then "<none>" else out)
       when (not success) $ putStrLn $ "Expected: " ++ pn
