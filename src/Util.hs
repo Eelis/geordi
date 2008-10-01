@@ -251,3 +251,7 @@ levenshtein s t = d !! length s !! length t
     distance i 0 = fromIntegral i
     distance 0 j = fromIntegral j
     distance i j = minimum [d!!(i-1)!!j+1, d!!i!!(j-1)+1, d!!(i-1)!!(j-1) + (if s!!(i-1)==t!!(j-1) then -0.4 else 1)]
+
+prefixError :: String -> Either String a -> Either String a
+prefixError _ (Right x) = Right x
+prefixError s (Left s') = Left (s ++ s')
