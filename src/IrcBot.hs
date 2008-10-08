@@ -24,7 +24,7 @@ import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Util
 
 data IrcBotConfig = IrcBotConfig
-  { server :: Net.HostName, port :: Net.PortNumber, max_msg_length :: Int
+  { server :: Net.HostName, port :: Net.PortNumber, max_response_length :: Int
   , chans :: [String], nick :: String, nick_pass :: Maybe String, alternate_nick :: String
   , also_respond_to :: [String]
   , allow_short_request_syntax_in :: [String]
@@ -68,15 +68,13 @@ msg = IRC.Message Nothing
 do_censor :: IrcBotConfig -> String -> String
 do_censor cfg s = foldr (\r t -> subRegex r t "<censored>") s (censor cfg)
 
-utf8_encode_upto :: Int -> String -> String
-utf8_encode_upto n (c:s) | c' <- UTF8.encodeString [c], n' <- n - length c', n' >= 0 =
-  c' ++ utf8_encode_upto n' s
-utf8_encode_upto _ _ = ""
-  -- Only encodes as much characters as can fit in the allotted number of bytes.
-
 send_irc_msg :: Handle -> IRC.Message -> IO ()
-send_irc_msg h m = hPutStrLn h (utf8_encode_upto 450 $ IRC.render m) >> hFlush h
-  -- If we use (System.IO.UTF8.hPutStrLn $ IRC.render m), we risk sending a message longer than allowed by the IRC spec. If we use (System.IO.hPutStrLn $ take 510 $ UTF8.encodeString $ IRC.render m) to fix this, take might cut the last UTF-8 encoded character in half if its encoding consists of multiple bytes. We want to avoid this because it causes some IRC clients (like irssi) to conclude that the encoding must be something other than UTF-8. If we use (System.IO.hPutStrLn $ utf8_encode_upto 510 $ IRC.render m) to fix this, we still risk the aforementioned character cutting because even if the message fit when we sent it to the server, it might not fit in the message sent to the client (because that message might include a longer prefix). Hence our limit of 450 bytes.
+send_irc_msg h m = hPutStrLn h (take 510 $ enc 450 $ IRC.render m) >> hFlush h
+  where
+    enc :: Int -> String -> String
+    enc n (c:s) | c' <- UTF8.encodeString [c], n' <- n - length c', (n' >= 0 || length c' == 1) = c' ++ enc n' s
+    enc _ _ = ""
+  -- If we simply used (System.IO.hPutStrLn $ take 510 $ UTF8.encodeString $ IRC.render m), the last UTF-8 encoded character might get cut in half if its encoding consists of multiple bytes. We want to avoid this because it causes some IRC clients (like irssi) to conclude that the encoding must be something other than UTF-8. As a further complication, while we can be sure that the server will receive messages up to 512 bytes long, it may drop anything after 450 bytes or so as it prepends our prefix when relaying messages to other clients. Hence, we can only reliably encode UTF-8 characters until a message is 450 bytes long. We don't need to immediately truncate after 450 bytes, though; after that limit, we don't truncate until an actual multi-byte character is encountered.
 
 main :: IO ()
 main = do
@@ -143,13 +141,12 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
     IRC.Message _ "433" {- ERR_NICKNAMEINUSE -} _ -> send $ msg "NICK" [alternate_nick cfg]
     IRC.Message _ "PING" a -> msapp [msg "PONG" a]
     IRC.Message _ "PRIVMSG" [_, '\1':_] -> return ()
-    IRC.Message (Just (IRC.NickName who muser mserver)) "PRIVMSG" [to, txt] ->
-      when (not (who `elem` blacklist cfg)) $ do
+    IRC.Message (Just (IRC.NickName who muser mserver)) "PRIVMSG" [to, txt] -> do
       let private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
-      let wher = if private then who else to
       let w = if private then Private else InChannel to
-      let reply s = send $ msg "PRIVMSG" [wher, if null s then no_output_msg cfg else do_censor cfg s]
       maybeM (dropWhile isSpace . is_request cfg w txt) $ \r -> do
+      let wher = if private then who else to
+      let reply s = send $ msg "PRIVMSG" [wher, take (max_response_length cfg) $ if null s then no_output_msg cfg else do_censor cfg s]
       case request_allowed cfg who muser mserver w of
         Deny reason -> maybeM reason reply
         Allow -> do
@@ -159,10 +156,10 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
           if r == "show" then reply (maybe "<none>" last_editable_request mmem) else do
           case EditCmds.new_or_edited (last_editable_request . mmem) r of
             Left e -> reply e
-            Right r' | length r' > max_msg_length cfg -> reply "Request would become too large."
+            Right r' | length_ge 1000 r' -> reply "Request would become too large."
             Right r' -> do
               let q = Request.parse r'
-              output <- take (max_msg_length cfg) . describe_lines . lines . either return (lift . lift . eval) q
+              output <- describe_lines . lines . either return (lift . lift . eval) q
               case q of
                 Right q' | Request.is_editable q' ->
                   lift $ mapState' $ Map.insert wher $ ChannelMemory { last_editable_request = r', last_output = output }

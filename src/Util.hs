@@ -255,3 +255,9 @@ levenshtein s t = d !! length s !! length t
 prefixError :: String -> Either String a -> Either String a
 prefixError _ (Right x) = Right x
 prefixError s (Left s') = Left (s ++ s')
+
+length_ge :: Int -> [a] -> Bool
+length_ge 0 _ = True
+length_ge (n+1) (_:t) = length_ge n t
+length_ge _ _ = False
+  -- length_ge is lazy in its list argument, which   length l >= n   is not.
