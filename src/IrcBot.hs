@@ -159,11 +159,11 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
             Right r' | length_ge 1000 r' -> reply "Request would become too large."
             Right r' -> do
               let q = Request.parse r'
-              output <- describe_lines . lines . either return (lift . lift . eval) q
+              output <- describe_lines . lines . either (return . ("error: " ++)) (lift . lift . eval) q
               case q of
-                Right q' | Request.is_editable q' ->
-                  lift $ mapState' $ Map.insert wher $ ChannelMemory { last_editable_request = r', last_output = output }
-                _ -> return ()
+                Right q' | not (Request.is_editable q') -> return ()
+                _ -> lift $ mapState' $ Map.insert wher $ ChannelMemory
+                  { last_editable_request = r', last_output = output }
               reply $ describe_new_output (last_output . mmem) output
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
