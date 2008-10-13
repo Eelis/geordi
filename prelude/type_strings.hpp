@@ -233,12 +233,21 @@ namespace textual_type_descriptions
   template <typename T> struct type_desc_t<T ()>: consonant
   { static std::string s (bool b) { return pl("nullary function", b) + " " + returning<T>(b); } };
 
+  template <typename T> struct type_desc_t<T (...)>: consonant
+  { static std::string s (bool b) { return pl("variadic function", b) + " " + returning<T>(b); } };
+
   #ifdef __GXX_EXPERIMENTAL_CXX0X__
 
   template <typename T, typename... U> struct type_desc_t<T (U...)>: consonant {
     static std::string s (bool b) {
       std::vector<std::string> v; list_desc<U...>::s(v); v.push_back(returning<T>(b));
       return pl("function", b) + " taking " + commas_and(v.begin(), v.end());
+  } };
+
+  template <typename T, typename... U> struct type_desc_t<T (U..., ...)>: consonant {
+    static std::string s (bool b) {
+      std::vector<std::string> v; list_desc<U...>::s(v); v.push_back(returning<T>(b));
+      return pl("variadic function", b) + " taking at least " + commas_and(v.begin(), v.end());
   } };
 
   #else
@@ -283,6 +292,18 @@ namespace textual_type_descriptions
   template <typename T, typename U>
   struct type_desc_t<T (U:: *) () const volatile>: type_desc_t_mem0<T, U, cv_cv> {};
 
+  template <typename T, typename U, char const * e> struct type_desc_t_mem_vari: consonant
+  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "variadic member " + pl("function", b) + " of class " + type<U>() + " " + returning<T>(b); } };
+
+  template <typename T, typename U>
+  struct type_desc_t<T (U:: *) (...)>: type_desc_t_mem_vari<T, U, cv_> {};
+  template <typename T, typename U>
+  struct type_desc_t<T (U:: *) (...) const>: type_desc_t_mem_vari<T, U, cv_c> {};
+  template <typename T, typename U>
+  struct type_desc_t<T (U:: *) (...) volatile>: type_desc_t_mem_vari<T, U, cv_v> {};
+  template <typename T, typename U>
+  struct type_desc_t<T (U:: *) (...) const volatile>: type_desc_t_mem_vari<T, U, cv_cv> {};
+
   #ifdef __GXX_EXPERIMENTAL_CXX0X__
 
   template <typename T, typename U, char const * e, typename... P>
@@ -301,6 +322,23 @@ namespace textual_type_descriptions
   struct type_desc_t<T (U:: *) (P...) volatile>: type_desc_t_memN<T, U, cv_v, P...> {};
   template <typename T, typename U, typename... P>
   struct type_desc_t<T (U:: *) (P...) const volatile>: type_desc_t_memN<T, U, cv_cv, P...> {};
+
+  template <typename T, typename U, char const * e, typename... P>
+  struct type_desc_t_memN_vari: consonant {
+    static std::string s (bool b) {
+      std::vector<std::string> v; list_desc<P...>::s(v); v.push_back(returning<T>(b));
+      return pl("pointer", b) + " to" + e + "variadic member " + pl("function", b) + " of class " + type<U>() + " taking at least " + commas_and(v.begin(), v.end());
+    }
+  };
+
+  template <typename T, typename U, typename... P>
+  struct type_desc_t<T (U:: *) (P..., ...)>: type_desc_t_memN_vari<T, U, cv_, P...> {};
+  template <typename T, typename U, typename... P>
+  struct type_desc_t<T (U:: *) (P..., ...) const>: type_desc_t_memN_vari<T, U, cv_c, P...> {};
+  template <typename T, typename U, typename... P>
+  struct type_desc_t<T (U:: *) (P..., ...) volatile>: type_desc_t_memN_vari<T, U, cv_v, P...> {};
+  template <typename T, typename U, typename... P>
+  struct type_desc_t<T (U:: *) (P..., ...) const volatile>: type_desc_t_memN_vari<T, U, cv_cv, P...> {};
 
   #else
 
