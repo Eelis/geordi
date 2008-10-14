@@ -42,10 +42,11 @@
         <p>Some distributions package GHC libraries separately. If, when compiling, you get errors like “Could not find module "Control.Monad.State"”, look for separate mtl and network packages.</p>
       </li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/utf8-string'>utf8-string</a> &ge; 0.2</li>
+      <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/Diff'>Diff</a> &ge; 0.1.2</li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/irc'>irc</a> &ge; 0.2.3 (Only needed if you want to run an IRC bot.)</li>
       <li><a href='http://www.dtek.chalmers.se/~henoch/hsxmpp-doc/index.html'>XMPP</a> &ge; 0.0.1 (Only needed if you want to run an XMPP bot.)</li>
     </ul>
-    <p>These last three are GHC packages. For those of us not familiar with GHC packages, to install these do:</p>
+    <p>These last four are GHC packages. For those of us not familiar with GHC packages, to install these do:</p>
     <p>
       <kbd>
         tar xf utf8-string-0.2.tar.gz<br/>
@@ -55,7 +56,7 @@
         su -c "runhaskell Setup.lhs install"
       </kbd>
     </p>
-    <p>(And likewise for the irc package.)</p>
+    <p>(And likewise for the others.)</p>
 
     <h3>Optional step for improved error messages</h3>
     <p>
