@@ -1,4 +1,4 @@
 scripts/getsyscalls > src/SysCalls.hs
 cd src
 hsc2hs *.hsc
-GHC="ghc -cpp -ffi -Wall -fno-warn-unused-binds -fno-warn-orphans -XFunctionalDependencies -XFlexibleInstances -XRank2Types -XPatternGuards -XTypeSynonymInstances -fallow-undecidable-instances -XMultiParamTypeClasses -XTypeSynonymInstances -O"
+GHC="ghc -cpp -ffi -Wall -fno-warn-unused-binds -fno-warn-orphans -XFunctionalDependencies -XFlexibleInstances -XRank2Types -XPatternGuards -XTypeSynonymInstances -fallow-undecidable-instances -XOverlappingInstances -XMultiParamTypeClasses -XTypeSynonymInstances -O"
