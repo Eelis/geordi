@@ -10,10 +10,11 @@ import qualified Text.ParserCombinators.Parsec.Error as PSE
 
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
-import Data.List (sortBy, minimumBy, isPrefixOf)
+import Data.List (sortBy, minimumBy, isPrefixOf, tails)
 import Data.Char (isSpace, isAlphaNum, toLower)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Sequence (Seq, ViewL(..), (<|))
+import Data.Function (on)
 import Control.Exception (catch, bracket, evaluate)
 import Control.Monad (liftM2)
 import Control.Monad.Fix (fix)
@@ -167,6 +168,11 @@ replaceInfixM what with l = (\(pre, post) -> pre ++ with ++ post) . stripInfix w
 replaceInfix :: Eq a => [a] -> [a] -> [a] -> [a]
 replaceInfix what with l = maybe l id (replaceInfixM what with l)
 
+replaceAllInfix :: Eq a => [a] -> [a] -> [a] -> [a]
+replaceAllInfix what with l | Just r <- stripPrefix what l = with ++ replaceAllInfix what with r
+replaceAllInfix what with (h:t) = h : replaceAllInfix what with t
+replaceAllInfix _ _ [] = []
+
 stripInfix :: Eq a => [a] -> [a] -> Maybe ([a], [a])
 stripInfix p s | Just r <- stripPrefix p s = Just ([], r)
 stripInfix p (h:t) = first (h:) . stripInfix p t
@@ -202,6 +208,8 @@ l !! i = (Prelude.!!) l i
 
 data NElist a = NElist a [a] -- non-empty list
 
+instance Convert (NElist a) [a] where convert (NElist x l) = x : l
+
 instance Functor NElist where fmap f (NElist x l) = NElist (f x) (f . l)
 
 unne :: NElist a -> [a]
@@ -222,25 +230,48 @@ erase_indexed i l = f 0 l
   f n (_:t) | n `elem` i || (n - length l) `elem` i = f (n + 1) t
   f n (h:t) = h : f (n + 1) t
 
-type Cost = Float
+count :: (a -> Bool) -> [a] -> Int
+count p = length . filter p
 
-approx_match :: Eq a => (a -> Cost) -> (a -> Cost) -> (a -> Cost) -> (a -> a -> Cost) -> [a] -> [a] -> (Cost, Int, Int)
-approx_match skip insert erase replace pattern text = (k, b, a)
+type Cost = Float
+data Op a = SkipOp a | InsertOp a | EraseOp a | ReplaceOp a a
+data OpsWithCost a = OpsWithCost [Op a] Cost
+
+instance Monoid (OpsWithCost a) where
+  mempty = OpsWithCost [] 0
+  mappend (OpsWithCost l c) (OpsWithCost l' c') = OpsWithCost (l ++ l') (c + c')
+
+ops_cost :: OpsWithCost a -> Cost
+ops_cost (OpsWithCost _ c) = c
+
+opsWithCost :: (Op a -> Cost) -> [Op a] -> OpsWithCost a
+opsWithCost co ops = OpsWithCost ops (sum $ map co ops)
+
+addOp :: (Op a -> Cost) -> Op a -> OpsWithCost a -> OpsWithCost a
+addOp co op (OpsWithCost ops c) = OpsWithCost (op : ops) (c + co op)
+
+is_insertOp :: Op a -> Bool
+is_insertOp (InsertOp _) = True
+is_insertOp _ = False
+
+approx_match :: Eq a => (Op a -> Cost) -> [a] -> [a] -> [(OpsWithCost a, Int, Int)]
+approx_match co pattern text =
+  sortBy (\(x,_,_) (y,_,_) -> compare (ops_cost x) (ops_cost y)) $
+    zipWith (\owc@(OpsWithCost o _) z -> (owc, z, count (not . is_insertOp) o)) r [0..]
  where
-  ((k, a), b) = minimumBy (\x y -> compare (fst $ fst x) (fst $ fst y)) $ zip r [0 .. length r - 1]
-  r = foldl f (replicate (length text + 1) (0, 0)) [1..length pattern]
-  f :: [(Float, Int)] -> Int -> [(Float, Int)]
-  f v n = foldl g [(sum $ map insert $ take n $ reverse pattern, 0)] [length text, length text - 1 .. 1]
+  r = foldl f (replicate (length text + 1) mempty) (tail $ reverse $ tails pattern)
+    -- r!!n contains the cheapest cost and corresponding replace-length of replacing the pattern at position n in the text.
+    -- the nth intermediate list in r's fold stores at position p the cheapest cost and corresponding replace-length of matching the the last n elements of the pattern at position p in the text.
+  f v pattern_tail = foldl g [opsWithCost co (map InsertOp pattern_tail)] [length text, length text - 1 .. 1]
    where
-    c = pattern !! (length pattern - n)
-    g :: [(Float, Int)] -> Int -> [(Float, Int)]
-    g w m = minimumBy (\x y -> compare (fst x) (fst y)) candidates : w
+    c = head pattern_tail
+    g w m = minimumBy (compare `on` ops_cost) candidates : w
      where
       d = text !! (m - 1)
       candidates =
-        [ let (x, y) = v!!m in (x + if c == d then skip c else replace c d, y + 1)
-        , let (x, y) = v!!(m - 1) in (x + insert c, y)
-        , let (x, y) = head w in (x + erase d, y + 1)
+        [ addOp co (if c == d then SkipOp c else ReplaceOp c d) (v!!m)
+        , addOp co (InsertOp c) (v!!(m - 1))
+        , addOp co (EraseOp d) (head w)
         ]
 
 levenshtein :: String -> String -> Float
@@ -261,3 +292,6 @@ length_ge 0 _ = True
 length_ge (n+1) (_:t) = length_ge n t
 length_ge _ _ = False
   -- length_ge is lazy in its list argument, which   length l >= n   is not.
+
+isIdChar :: Char -> Bool
+isIdChar = isAlphaNum .||. (== '_')

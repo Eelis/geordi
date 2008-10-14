@@ -11,6 +11,7 @@ import Control.Monad.Fix (fix)
 import System.IO.UTF8 (putStrLn)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Data.IORef (newIORef, readIORef, writeIORef)
+import Data.Maybe (listToMaybe)
 
 import Prelude hiding ((.), readFile, putStrLn)
 import Util
@@ -39,10 +40,10 @@ make_history_adder = do
       RL.addHistory s
       writeIORef r (Just s)
 
-data Memory = Memory { last_editable_request, last_output :: Maybe String }
+data Memory = Memory { editable_requests :: [String], last_output :: Maybe String }
 
 blankMemory :: Memory
-blankMemory = Memory Nothing Nothing
+blankMemory = Memory [] Nothing
 
 main :: IO ()
 main = do
@@ -57,7 +58,12 @@ main = do
   when (rest == []) $ flip fix blankMemory $ \loop mem -> RL.readline "geordi: " >>= case_of
     Nothing -> putNewLn
     Just "" -> loop mem
-    Just l -> case EditCmds.new_or_edited (last_editable_request mem) l of
+    Just "diff" -> do
+      case editable_requests mem of
+        y : x : _ -> putStrLn $ either id show $ EditCmds.diff x y
+        _ -> putStrLn "Need at least two editable requests to compare."
+      loop mem
+    Just l -> case EditCmds.new_or_edited (listToMaybe $ editable_requests mem) l of
       Left e -> addHistory l >> putStrLn e >> loop (mem { last_output = Nothing })
       Right l' -> addHistory l' >> case Request.parse l' of
         Left e -> putStrLn e >> loop (mem { last_output = Nothing })
@@ -65,5 +71,5 @@ main = do
           o <- evalRequest r
           putStrLn $ describe_new_output (last_output mem) o
           loop $ Memory
-            { last_editable_request = if Request.is_editable r then Just l' else last_editable_request mem
+            { editable_requests = (if Request.is_editable r then (l':) else id) (editable_requests mem)
             , last_output = Just o }

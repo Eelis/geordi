@@ -17,6 +17,7 @@ import System.IO.UTF8 (putStr, putStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Text.Regex (Regex, subRegex, mkRegex)
 import Data.Char (toUpper, toLower, isSpace)
+import Data.Maybe (listToMaybe)
 import Data.Map (Map)
 import Request (Request)
 
@@ -110,7 +111,7 @@ describe_lines [] = ""
 describe_lines [x] = x
 describe_lines (x:xs) = x ++ discarded_lines_description (length xs)
 
-data ChannelMemory = ChannelMemory { last_editable_request, last_output :: String }
+data ChannelMemory = ChannelMemory { editable_requests :: [String], last_output :: String }
 type ChannelMemoryMap = Map String ChannelMemory
 
 is_request :: IrcBotConfig -> Where -> String -> Maybe String
@@ -153,8 +154,9 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
           if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after " ++ show (reverse $ take 15 $ reverse r) ++ "." else do
             -- The `elem` "};" condition gains a reduction in false positives at the cost of an increase in false negatives.
           mmem <- Map.lookup wher . lift readState
-          if r == "show" then reply (maybe "<none>" last_editable_request mmem) else do
-          case EditCmds.new_or_edited (last_editable_request . mmem) r of
+          if r == "show" then reply ((editable_requests . mmem >>= listToMaybe) `orElse` "<none>") else do
+          if r `elem` ["diff", "changes"] then (case editable_requests . mmem of Just (y : x : _) -> reply (either id show $ EditCmds.diff x y); _ -> reply "Need at least two editable requests to compare.") else do
+          case EditCmds.new_or_edited (editable_requests . mmem >>= listToMaybe) r of
             Left e -> reply e
             Right r' | length_ge 1000 r' -> reply "Request would become too large."
             Right r' -> do
@@ -163,7 +165,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
               case q of
                 Right q' | not (Request.is_editable q') -> return ()
                 _ -> lift $ mapState' $ Map.insert wher $ ChannelMemory
-                  { last_editable_request = r', last_output = output }
+                  { editable_requests = r' : (editable_requests . mmem `orElse` []), last_output = output }
               reply $ describe_new_output (last_output . mmem) output
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]

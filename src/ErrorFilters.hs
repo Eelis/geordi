@@ -12,11 +12,8 @@ import Text.ParserCombinators.Parsec
   (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, many1, anyChar, noneOf, option, count, CharParser, notFollowedBy, choice, setInput, eof, oneOf)
 import Text.ParserCombinators.Parsec.Prim (GenParser)
 import Control.Applicative (Applicative(..))
-import Util
+import Util hiding (count)
 import Prelude hiding (catch, (.), (!!))
-
-isIdChar :: Char -> Bool
-isIdChar = isAlphaNum .||. (== '_')
 
 subRegex' :: Regex -> String -> String -> String
 subRegex' = flip . subRegex
