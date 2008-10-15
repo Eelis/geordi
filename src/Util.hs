@@ -10,7 +10,7 @@ import qualified Text.ParserCombinators.Parsec.Error as PSE
 
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
-import Data.List (sortBy, minimumBy, isPrefixOf, tails)
+import Data.List (sortBy, minimumBy, isPrefixOf, tails, all)
 import Data.Char (isSpace, isAlphaNum, toLower)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Sequence (Seq, ViewL(..), (<|))
@@ -184,19 +184,19 @@ readState = StateT $ \x -> return (x, x)
 mapState' :: Monad y => (x -> x) -> StateT x y ()
 mapState' f = StateT $ \s -> return ((), f s)
 
-parseOrFail :: Monad m => PS.GenParser tok () a -> [tok] -> m a
-parseOrFail p t = either (fail . showParseError) return $ PS.parse p "" t
- where
-  showParseError e =
-    "column " ++ show (PS.sourceColumn $ PS.errorPos e) ++ ": " ++
-    concatMap (++ ". ") (tail $ lines $ PSE.showErrorMessages "or" undefined undefined "unexpected" "end of request" $ filter isUnexpMsg $ PSE.errorMessages e)
-  isUnexpMsg (PSE.SysUnExpect _) = True
-  isUnexpMsg (PSE.UnExpect _) = True
-  isUnexpMsg _ = False
-
 many1Till' :: PS.GenParser tok st a -> PS.GenParser tok st end -> PS.GenParser tok st ([a], end)
 many1Till' p end = p >>= \v -> first (v:) . scan
   where scan = (PS.<|>) ((\r -> ([], r)) . end) (do { x <- p; (xs, e) <- scan; return (x:xs, e) })
+
+isUnexpMsg :: PSE.Message -> Bool
+isUnexpMsg (PSE.SysUnExpect _) = True
+isUnexpMsg (PSE.UnExpect _) = True
+isUnexpMsg _ = False
+
+showParseError :: Bool -> PSE.ParseError -> String
+showParseError unexpecteds_only e =
+  "column " ++ show (PS.sourceColumn $ PS.errorPos e) ++ ": " ++
+  (concatMap (++ ". ") $ filter (not . all isSpace) $ lines $ PSE.showErrorMessages "or" "unknown parse error" "expected:" "unexpected" "end of command" $ (if unexpecteds_only then filter isUnexpMsg else id) $ PSE.errorMessages e)
 
 either_part :: [Either a b] -> ([a], [b])
 either_part [] = ([], [])

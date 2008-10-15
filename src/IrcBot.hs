@@ -5,7 +5,6 @@ import qualified Request
 import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Sys
 import qualified Data.Map as Map
-import qualified EditCmds
 import qualified Network.BSD
 
 import Control.Exception (bracketOnError)
@@ -17,9 +16,7 @@ import System.IO.UTF8 (putStr, putStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Text.Regex (Regex, subRegex, mkRegex)
 import Data.Char (toUpper, toLower, isSpace)
-import Data.Maybe (listToMaybe)
 import Data.Map (Map)
-import Request (Request)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 import Util
@@ -131,7 +128,7 @@ request_allowed cfg nickname _ _ _ | nickname `elem` blacklist cfg = Deny Nothin
 request_allowed _ _ _ _ _ = Allow
 
 on_msg :: (Functor m, Monad m) =>
-  (Request -> m String) -> IrcBotConfig -> Bool -> IRC.Message -> StateT ChannelMemoryMap m [IRC.Message]
+  (String -> Request.Context -> m Request.Response) -> IrcBotConfig -> Bool -> IRC.Message -> StateT ChannelMemoryMap m [IRC.Message]
 on_msg eval cfg full_size m = flip execStateT [] $ do
   when (join_trigger cfg == Just m) join_chans
   case m of
@@ -154,19 +151,12 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
           if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after " ++ show (reverse $ take 15 $ reverse r) ++ "." else do
             -- The `elem` "};" condition gains a reduction in false positives at the cost of an increase in false negatives.
           mmem <- Map.lookup wher . lift readState
-          if r == "show" then reply ((editable_requests . mmem >>= listToMaybe) `orElse` "<none>") else do
-          if r `elem` ["diff", "changes"] then (case editable_requests . mmem of Just (y : x : _) -> reply (either id show $ EditCmds.diff x y); _ -> reply "Need at least two editable requests to compare.") else do
-          case EditCmds.new_or_edited (editable_requests . mmem >>= listToMaybe) r of
-            Left e -> reply e
-            Right r' | length_ge 1000 r' -> reply "Request would become too large."
-            Right r' -> do
-              let q = Request.parse r'
-              output <- describe_lines . lines . either (return . ("error: " ++)) (lift . lift . eval) q
-              case q of
-                Right q' | not (Request.is_editable q') -> return ()
-                _ -> lift $ mapState' $ Map.insert wher $ ChannelMemory
-                  { editable_requests = r' : (editable_requests . mmem `orElse` []), last_output = output }
-              reply $ describe_new_output (last_output . mmem) output
+          Request.Response output history_addition <- lift $ lift $ eval r $ Request.Context (editable_requests . mmem `orElse` [])
+          let output' = describe_lines $ lines output
+          lift $ mapState' $ Map.insert wher $ ChannelMemory
+            { editable_requests = (maybe id (:) history_addition) (maybe [] editable_requests mmem)
+            , last_output = output' }
+          reply $ describe_new_output (last_output . mmem) output'
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
       when (join_trigger cfg == Nothing) join_chans

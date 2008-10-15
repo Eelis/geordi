@@ -62,7 +62,7 @@ main = do
     forM_ (tests set) $ \(Test n r p pn) -> do
       putStrLn $ "\nTest: " ++ yellow n
       putStrLn $ "Request: " ++ cyan r
-      out <- case Request.parse r of Left e -> return e; Right r' -> evalRequest r'
+      out <- fmap Request.response_output $ evalRequest r (Request.Context [])
       let success = p out
       putStrLn $ "Output: " ++ (if success then green else red) (if out == "" then "<none>" else out)
       when (not success) $ putStrLn $ "Expected: " ++ pn
@@ -101,8 +101,9 @@ tests "misc" =
   , let s = "dicekjhbagfl" in
     test "Nontrivial program (Brainfuck interpreter)" ("{b(program);}char program[]=\">>,[>>,]<<[[-<+<]>[>[>>]<[.[-]<[[>>+<<-]<]>>]>]<<]\",input[]=\"" ++ s ++ "\", *i=input,m[512]={},*p=m;void b(char*c){for(;*c&&*c!=']';++c){(*((p+=*c=='>')-=*c=='<')+=*c=='+') -=*c=='-';*c=='.'&&cout<<*p;if(*c==',')*p=*i++;if(*c=='['){for(++c;*p;)b(c);for(int d=0;*c!=']'||d--;++c)d+=*c=='[';}}}") $ ExactMatch (sort s)
   , test "srand()/time()" "{ srand(time(0)); }" NoOutput
+  , test "line breaks" "#define X \"\\\\\" \\ #define Y X \\ int main() { cout \\ << Y Y; }" $ ExactMatch "\\\\"
   , test "-v" "-v" $ PrefixMatch "g++ (GCC) 4"
-  , test "getopt" "-monkey chicken" $ ExactMatch "unrecognized option `-m'\n"
+  , test "getopt" "-monkey chicken" $ ExactMatch "error: unrecognized option `-m'\n"
   , test "operator new/delete overriding" "{ cerr << \"| \"; list<int> v(5); } void * operator new(size_t const s) throw(bad_alloc) { cerr << s << ' '; return malloc(s); } void operator delete(void * const p) throw() { free(p); }" $ RegexMatch "[^-]*\\| [[:digit:] ]+"
   ]
 

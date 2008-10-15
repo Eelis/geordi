@@ -1,13 +1,12 @@
-module EditCmds (exec, new_or_edited, diff) where
+module EditCmds (diff, commandsP, Command, execute, test) where
 
 import Control.Monad.Error ()
 import Control.Monad (liftM2, when)
 import Data.Algorithm.Diff (getGroupedDiff, DI(..))
 import Data.Char (isSpace, isAlpha, isDigit, isAlphaNum)
 import Text.ParserCombinators.Parsec
-  (choice, CharParser, char, string, try, (<?>), (<|>), eof, anyChar, errorPos, sourceColumn, lookAhead, unexpected)
+  (choice, CharParser, char, string, try, (<?>), (<|>), eof, anyChar, lookAhead, unexpected)
 import qualified Text.ParserCombinators.Parsec as PS
-import qualified Text.ParserCombinators.Parsec.Error as PSE
 import qualified Prelude
 import Prelude hiding (last, (.), all, (!!))
 import qualified Data.List as List
@@ -700,31 +699,12 @@ diff pre post =
   map (atomize_simpleEdit pre_toks) $
   merge_nearby_edits pre_toks $ diffsAsSimpleEdits $ getGroupedDiff pre_toks (tokenize isIdChar post)
 
-commands :: [String]
-commands = words "append prepend erase remove cut omit kill delete replace remove add insert move wrap use"
-
-exec :: (Functor m, Monad m) => String -> String -> m String
-exec cmd_str str = do
-  cmds <- case PS.parse (commandsP << eof) "" cmd_str of
-    Left e -> fail $ "column " ++ show (sourceColumn $ errorPos e) ++ ": " ++
-      (concatMap (++ ". ") $ filter (not . List.all isSpace) $ lines $ PSE.showErrorMessages "or" "unknown parse error" "expected:" "unexpected" "end of command" $ PSE.errorMessages e)
-    Right x -> return x
+execute :: (Functor m, Monad m) => [Command] -> String -> m String
+execute cmds str = do
   edits <- concat . sequence (findInStr str . cmds)
   exec_edits edits str
 
-new_or_edited :: (Functor m, Monad m) => Maybe String -> String -> m String
-new_or_edited _ s | none (`List.isPrefixOf` s) commands = return s
-new_or_edited Nothing _ = fail "There is no previous request to modify."
-new_or_edited (Just prev) s = exec s prev
-
 -- Testing:
-
-itest :: IO ()
-itest = do
-  l <- getLine
-  case (exec l "1 2 3 2 3 4 5" :: Either String String) of
-    Left x -> putStr "syntax error: " >> putStrLn x
-    Right x -> putStrLn x
 
 test :: IO ()
 test = do
@@ -896,7 +876,12 @@ test = do
   putStrLn "No test failures."
  where
   t :: String -> Either String String -> IO ()
-  t c o = let o' = exec c "1 2 3 2 3 4 5" in when (o' /= o) $ fail $ "test failed: " ++ show (c, o, o')
+  t c o = do
+    let
+     o' = case PS.parse (commandsP << eof) "" c of
+      Left e -> Left $ showParseError False e
+      Right cmds -> execute cmds "1 2 3 2 3 4 5"
+    when (o' /= o) $ fail $ "test failed: " ++ show (c, o, o')
     -- todo: Verify that showing the parsed command produces c.
   ut :: String -> String -> IO ()
   ut pattern match = do
