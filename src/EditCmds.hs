@@ -1,8 +1,10 @@
-module EditCmds (diff, commandsP, Command, execute, test) where
+module EditCmds (diff, commandsP, Command, execute, test, pretty_commands) where
 
 import Control.Monad.Error ()
 import Control.Monad (liftM2, when)
-import Data.Algorithm.Diff (getGroupedDiff, DI(..))
+import Data.Algorithm.Diff (DI(..), getDiff)
+import Data.Monoid (Monoid(..))
+import Data.Maybe (listToMaybe)
 import Data.Char (isSpace, isAlpha, isDigit, isAlphaNum)
 import Text.ParserCombinators.Parsec
   (choice, CharParser, char, string, try, (<?>), (<|>), eof, anyChar, lookAhead, unexpected)
@@ -15,18 +17,19 @@ import Util
 -- Positions/ranges:
 
 type Pos = Int
-data Range = Range { start :: Pos, size :: Int } deriving Eq
+data Range a = Range { start :: Pos, size :: Int } deriving Eq
+  -- The 'a' phantom parameter denotes the element type for the range. With appropriately annotated functions operating on ranges, this prevents us from accidentally mixing up different kinds of ranges.
 
-end :: Range -> Pos
+end :: Range a -> Pos
 end (Range x y) = x + y
 
-selectRange :: Range -> String -> String
+selectRange :: Range a -> [a] -> [a]
 selectRange (Range st si) = take si . drop st
 
-replaceRange :: Range -> String -> String -> String
+replaceRange :: Range a -> [a] -> [a] -> [a]
 replaceRange (Range p l) r s = take p s ++ r ++ drop (p + l) s
 
-overlap :: Range -> Range -> Int
+overlap :: Range a -> Range a -> Int
 overlap (Range x s) (Range x' s') = max 0 $ min (x + s) (x' + s') - max x x'
 
 find_occs :: Eq a => [a] -> [a] -> [Pos]
@@ -34,7 +37,7 @@ find_occs _ [] = []
 find_occs x y | Just z <- stripPrefix x y = 0 : (+ length x) . find_occs x z
 find_occs x (_:ys) = (+ 1) . find_occs x ys
 
-nth :: (Monad m, Show a, Eq a) => Int -> [a] -> [a] -> m Range
+nth :: (Monad m, Show a, Eq a) => Int -> [a] -> [a] -> m (Range a)
 nth _ x y | [] <- find_occs x y = fail $ "String " ++ show x ++ " does not occur."
 nth n x y | l <- find_occs x y, (- length l) <= n, n < length l = return $ Range (l !! n) (length x)
 nth n x _ = fail $ "String " ++ show x ++ " does not occur " ++ once_twice_thrice (if n < 0 then -n else (n+1)) ++ "."
@@ -43,7 +46,7 @@ nth n x _ = fail $ "String " ++ show x ++ " does not occur " ++ once_twice_thric
 
 data Anchor = Anchor { anchor_befAft :: BefAft, anchor_pos :: Pos } deriving Eq
   -- This BefAft will probably need to be generalized to Before|After|Both for "insert x between 3 and 4".
-data Edit = RangeReplaceEdit Range String | InsertEdit Anchor String deriving Eq
+data Edit = RangeReplaceEdit (Range Char) String | InsertEdit Anchor String deriving Eq
   -- We don't just use a RangeReplaceEdit with range length 0 for insertions, because it is not expressive enough. For instance, given "xy", insertions at the positions "after x" and "before y" would both designate position 1, but a prior "add z after x" edit should increment the latter position but not the former. InsertEdit's BefAft argument expresses this difference.
 
 showEdit :: String -> Edit -> String
@@ -364,15 +367,15 @@ arange :: Anchor -> Anchor -> ARange
 arange x _ Before = x
 arange _ x After = x
 
-anchor_range :: Range -> ARange
+anchor_range :: Range a -> ARange
 anchor_range (Range x y) = arange (Anchor After x) (Anchor Before (x + y))
 
-unanchor_range :: ARange -> Range
+unanchor_range :: ARange -> Range a
 unanchor_range r | Anchor _ x <- r Before, Anchor _ y <- r After = Range x (y - x)
 
 class Offsettable a where offset :: Int -> a -> a
 
-instance Offsettable Range where offset x (Range y z) = Range (y + x) z
+instance Offsettable (Range Char) where offset x (Range y z) = Range (y + x) z
 instance Offsettable Anchor where offset x (Anchor y z) = Anchor y (z + x)
 instance Offsettable ARange where offset x r = offset x . r
 instance Offsettable a => Offsettable [a] where offset x = (offset x .)
@@ -390,6 +393,8 @@ instance FindInStr (Ranked String) ARange where
 
 class Invertible a where invert :: a -> a
 
+instance Invertible BefAft where invert Before = After; invert After = Before
+
 instance Invertible Ordinal where
   invert (Ordinal r) | r >= 0 = Ordinal (-r - 1)
   invert o = o
@@ -406,13 +411,13 @@ instance Invertible (Rankeds String) where
   invert (Rankeds (AndList r) s) = Rankeds (AndList $ invert . r) s
   invert x = x
 
-instance Convert Range [ARange] where convert = (:[]) . anchor_range
-instance Convert Range ARange where convert = anchor_range
+instance Convert (Range Char) [ARange] where convert = (:[]) . anchor_range
+instance Convert (Range Char) ARange where convert = anchor_range
 
-instance Convert ARange Range where convert = unanchor_range
+instance Convert ARange (Range Char) where convert = unanchor_range
 instance Convert Anchor Pos where convert = anchor_pos
 
-instance (Offsettable b, Invertible a, FindInStr a b, Convert Range b) => FindInStr (Relative a) b where
+instance (Offsettable b, Invertible a, FindInStr a b, Convert (Range Char) b) => FindInStr (Relative a) b where
   findInStr s (Relative o ba w) = do
     Range st si <- unanchor_range . findInStr s w
     case ba of
@@ -421,14 +426,14 @@ instance (Offsettable b, Invertible a, FindInStr a b, Convert Range b) => FindIn
   findInStr s (Between o b e) = do
     x <- convert . findInStr s b
     y <- convert . findInStr s e
-    let (p, q) = if either start id x <= either start id y then (x, y) else (y, x)
+    let (p, q) = if either start id x <= either start id (y :: Either (Range Char) Pos)  then (x, y) else (y, x)
     let p' = either end id p; q' = either start id q
     offset p' . findInStr (take (q' - p') $ drop p' s) o
   findInStr s (FromTill b e) = do
     x <- convert . findInStr s b
-    let p = either start id x
+    let p = either start id (x :: Either (Range Char) Pos)
     y <- convert . findInStr (drop p s) e
-    return $ convert $ Range p (either end id y)
+    return $ convert $ (Range p (either end id (y :: Either (Range Char) Pos)) :: Range Char)
 
 everything_arange :: String -> ARange
 everything_arange _ Before = Anchor Before 0
@@ -521,30 +526,6 @@ token_edit_cost (ReplaceOp x@(c:_) y@(d:_)) | isAlphaNum c && isAlphaNum d = lev
 token_edit_cost (ReplaceOp _ _) = 10
   -- The precise values of these costs are fine-tuned to make the tests pass, and that is their only justification. We're trying to approximate the human intuition for what substring should be replaced, as codified in the tests.
 
-relational_ops, accessSpecifiers, classKeys, types, casts, keywords, arithmetic_ops, ops, long_ops :: [String]
-relational_ops = words "< > <= >= == !="
-arithmetic_ops = concatMap (\x -> [x, x ++ "="]) $ words "+ - * / << >> | & ^"
-ops = relational_ops ++ arithmetic_ops ++ words "++ -- -> .* :: && || ! = ~"
-long_ops = filter ((>1) . length) ops
-
-accessSpecifiers = words "public private protected"
-classKeys = words "class struct union"
-types = words "short auto bool double int signed unsigned void char wchar_t char32_t float long char16_t"
-casts = words "reinterpret_cast dynamic_cast static_cast const_cast"
-keywords = accessSpecifiers ++ classKeys ++ types ++ casts ++ words "alignas continue friend typedef alignof decltype goto return typeid asm default if typename delete inline sizeof break do static_assert using case mutable virtual catch else namespace static enum new volatile explicit nullptr switch export operator template while extern this const false throw constexpr true for register try define elif include defined"
-
-tokenize :: (Char -> Bool) -> String -> [String]
-  -- First parameter is the "is identifier character?" test: sometimes we want "foo_bar" to be ["foo", "_", "bar"], but sometimes we want it to be ["foo_bar"].
-  -- Literals are not parsed as single tokens. A sequence of spaces is parsed as a single token.
-tokenize p = work
-  where
-    work [] = []
-    work s | Just (o, s') <- findMaybe (\q -> (\x -> (q, x)) . stripPrefix q s) long_ops = o : work s'
-    work (' ':s) = let (x, s') = span isSpace s in (' ':x) : work s'
-    work (h:s) | isDigit h = let (x, s') = span isDigit s in (h:x) : work s'
-    work (h:s) | p h = let (x, s') = span p s in (h:x) : work s'
-    work (h:s) = [h] : work s
-
 instance FindInStr Command [Edit] where
   findInStr s (Use (AndList l)) = sequence $ findInStr s . unne l
   findInStr s (Append x Nothing) = return [InsertEdit (Anchor After (length s)) x]
@@ -556,6 +537,68 @@ instance FindInStr Command [Edit] where
   findInStr s (Move (AndList movers)) = concat . sequence (findInStr s . unne movers)
   findInStr s (WrapAround (Wrapping x y) z) = concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . concat . findInStr s z
   findInStr s (WrapIn z (Wrapping x y)) = findInStr s (WrapAround (Wrapping x y) (AndList (NElist (Around z) [])))
+
+-- Known tokens:
+
+relational_ops, accessSpecifiers, classKeys, types, casts, keywords, arithmetic_ops, ops, long_ops :: [String]
+relational_ops = words "< > <= >= == !="
+arithmetic_ops = concatMap (\x -> [x, x ++ "="]) $ words "+ - * / << >> | & ^"
+ops = relational_ops ++ arithmetic_ops ++ words "++ -- -> .* :: && || ! = ~ [ ] ( ) { } :"
+long_ops = filter ((>1) . length) ops
+
+accessSpecifiers = words "public private protected"
+classKeys = words "class struct union"
+types = words "short auto bool double int signed unsigned void char wchar_t char32_t float long char16_t"
+casts = words "reinterpret_cast dynamic_cast static_cast const_cast"
+keywords = accessSpecifiers ++ classKeys ++ types ++ casts ++ words "alignas continue friend typedef alignof decltype goto return typeid asm default if typename delete inline sizeof break do static_assert using case mutable virtual catch else namespace static enum new volatile explicit nullptr switch export operator template while extern this const false throw constexpr true for register try define elif include defined"
+
+-- Tokenization:
+
+tokenize :: (Char -> Bool) -> String -> [String]
+  -- First parameter is a predicate for identifier characters; sometimes we want "foo_bar" to be ["foo", "_", "bar"], but sometimes we want it to be ["foo_bar"].
+  -- Literals are not parsed as single tokens. A sequence of spaces is parsed as a single token.
+tokenize p = work
+  where
+    work [] = []
+    work s | Just (o, s') <- findMaybe (\q -> (\x -> (q, x)) . stripPrefix q s) long_ops = o : work s'
+    work (' ':s) = let (x, s') = span isSpace s in (' ':x) : work s'
+    work (h:s) | isDigit h = let (x, s') = span isDigit s in (h:x) : work s'
+    work (h:s) | p h = let (x, s') = span p s in (h:x) : work s'
+    work (h:s) = [h] : work s
+
+data Token = Token { tok_text, tok_white :: String }
+
+instance Eq Token where t == t' = tok_text t == tok_text t'
+
+tok_len :: Token -> Int
+tok_len (Token x y) = length x + length y
+
+toks_len :: [Token] -> Int
+toks_len = sum . (tok_len .)
+
+instance Monoid Token where
+  mappend (Token x y) (Token "" y') = Token x (y ++ y')
+  mappend (Token x y) (Token x' y') = Token (x ++ y ++ x') y'
+  mempty = Token "" ""
+
+toks_text :: [Token] -> String
+toks_text = tok_text . mconcat
+
+diff_tokenize :: String -> [Token]
+diff_tokenize = g . f . tokenize isIdChar
+  where
+    separator = (`elem` words ", { } ( ) ; = friend")
+    f :: [String] -> [Token]
+    f [] = []
+    f (s : t@(' ':_) : m) = Token s t : f m
+    f (s : m) = Token s "" : f m
+    g :: [Token] -> [Token]
+    g [] = []
+    g (t : r) | separator (tok_text t) = t : g r
+    g a =
+      let (b, c) = span (not . separator . tok_text) a in
+      let (d, e) = splitAt 5 b in
+      mconcat d : g (e ++ c)
 
 -- Showing commands:
 
@@ -607,8 +650,9 @@ instance Show a => RawShow a where raw_show = show
 
 instance RawShow String where
   raw_show " " = "space"
+  raw_show s | List.all isSpace s = "spaces"
   raw_show "," = "comma"
-  raw_show x = x
+  raw_show x = show x
 
 instance Show Wrapping where
   show (Wrapping "<" ">") = "angle brackets"
@@ -636,7 +680,7 @@ tense Present s = s
 tense Past s = past s
 
 show_command :: Tense -> Command -> String
-show_command t (Insert s p) = tense t "insert" ++ " " ++ s ++ " " ++ show p
+show_command t (Insert s p) = tense t "insert" ++ " " ++ raw_show s ++ " " ++ show p
 show_command t (Replace (AndList (NElist (Replacer x "") []))) = tense t "erase" ++ " " ++ show x
   -- Hm, this is an odd special case. Perhaps erase deserves its own Command constructor.
 show_command t (Replace l) = tense t "replace" ++ " " ++ show l
@@ -651,53 +695,66 @@ instance Show Command where show = show_command Past
 
 -- Diff:
 
-data SimpleEdit replacement = SimpleEdit Range replacement
+data SimpleEdit a = SimpleEdit { se_range :: Range a, se_repl :: [a] }
 
-describe_simpleEdit :: SimpleEdit String -> String -> Command
-describe_simpleEdit (SimpleEdit (Range p 0) s) t =
-  let (Position ba r) = describe_position_in t p in
-  Insert s $ and_one $ PositionsClause ba $ and_one $ Between (convert r) front Back
-describe_simpleEdit (SimpleEdit r s) t =
-  Replace $ and_one $ Replacer (and_one $ Between (pluralize . describe_range_in t r) front Back) s
+describe_simpleEdit :: SimpleEdit Token -> [Token] -> Command
+describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
+  if siz == 0 then case () of -- insert
+    ()| repl_elem ["{", "("] || alpha After -> ins Before
+    ()| repl_elem ["}", ")", ";"] || alpha Before -> ins After
+    ()| toks_len s <= 4 && size (se_range expanded_edit) > siz -> describe_simpleEdit expanded_edit t
+    () -> ins $ if toks_len (context After) > toks_len (context Before) then Before else After
+  else if List.all ((`elem` ops) . tok_text) sr && s /= [] && not (source_elem ["{", "}", "(", ")"]) && size (se_range expanded_edit) > siz then
+    describe_simpleEdit expanded_edit t
+  else
+    Replace $ and_one $ Replacer (and_one describe_range) (toks_text s)
+  where
+    repl_elem x = case s of [Token u _] -> elem u x; _ -> False
+    source_elem x = sr' `elem` x
+    sr' = tok_text (mconcat sr)
+    expanded_edit = SimpleEdit (Range (pos - length (context Before)) (siz + length (context Before) + length (context After))) (inorder_context Before ++ s ++ context After)
+    toks Before = reverse $ take pos t
+    toks After = drop (pos + siz) t
+    context = take_atleast 7 tok_len . takeWhile ((/= ";") . tok_text) . toks
+    inorder_context After = context After
+    inorder_context Before = reverse $ context Before
+    furthest Before = listToMaybe; furthest After = listToMaybe . reverse
+    alpha ba = isAlpha . (tok_text . listToMaybe (toks ba) >>= furthest (invert ba)) `orElse` False
+    ins ba = Insert (toks_text s) $ and_one $ PositionsClause ba $ and_one $ Between (convert $ NotEverything $ Sole $ toks_text $ inorder_context $ invert ba) front Back
+    sr = selectRange r t
+    sole = pluralize . NotEverything (Sole sr')
+    rel ba = Relative sole ba (Sole $ toks_text $ inorder_context (invert ba))
+    describe_range :: Relative (EverythingOr (Rankeds String))
+    describe_range =
+      case () of
+        ()| source_elem ["{", "(", "friend"] || (toks_len sr <= 4 && alpha After) -> rel Before
+        ()| source_elem ["}", ")", ";"] || (toks_len sr <= 4 && alpha Before) -> rel After
+        () -> Between sole front Back
 
-describe_range_in :: String -> Range -> EverythingOr (Ranked String)
-describe_range_in s r = NotEverything $ Sole $ selectRange r s
-
-describe_position_in :: String -> Pos -> Position
-describe_position_in s p = Position Before $ NotEverything $ Sole $ concat $ take 5 $ tokenize isIdChar $ drop p s
-
-diffsAsSimpleEdits :: [(DI, [a])] -> [SimpleEdit [a]]
+diffsAsSimpleEdits :: [(DI, a)] -> [SimpleEdit a]
 diffsAsSimpleEdits = work 0 where
   work _ [] = []
-  work n ((F, x) : r) = SimpleEdit (Range n (length x)) [] : work (n + length x) r
-  work n ((S, x) : r) = SimpleEdit (Range n 0) x : work n r
-  work n ((B, x) : r) = work (n + length x) r
+  work n ((F, _) : r) = SimpleEdit (Range n 1) [] : work (n + 1) r
+  work n ((S, x) : r) = SimpleEdit (Range n 0) [x] : work n r
+  work n ((B, _) : r) = work (n + 1) r
 
-merge_nearby_edits :: [a] -> [SimpleEdit [a]] -> [SimpleEdit [a]]
+merge_nearby_edits :: [a] -> [SimpleEdit a] -> [SimpleEdit a]
   -- Also produces replace edits from insert+erase edits.
 merge_nearby_edits _ [] = []
 merge_nearby_edits _ [x] = [x]
-merge_nearby_edits s (SimpleEdit (Range b e) r : SimpleEdit (Range b' e') r' : m) | b' - e - b < 3 =
+merge_nearby_edits s (SimpleEdit (Range b e) r : SimpleEdit (Range b' e') r' : m) | b' - e - b <= 1 =
   merge_nearby_edits s $ SimpleEdit (Range b (b' - b + e')) (r ++ (take (max 0 $ b' - e - b) $ drop (b + e) s) ++ r') : m
 merge_nearby_edits s (e : m) = e : merge_nearby_edits s m
-
-atomize_range :: [[a]] -> Range -> Range
-  -- Converts a range denoting a subsequence of token into a range denoting the same subsequence in atoms.
-atomize_range toks (Range x y) = let (p, q) = splitAt x toks in
-  Range (length $ concat p) (length $ concat $ take y q)
-
-atomize_simpleEdit :: [[a]] -> SimpleEdit [[a]] -> SimpleEdit [a]
-atomize_simpleEdit pre_toks (SimpleEdit x y) = SimpleEdit (atomize_range pre_toks x) (concat y)
 
 -- Main:
 
 diff :: String -> String -> Either String (AndList Command)
 diff pre post =
   (\r -> case r of [] -> Left "Strings are identical."; (h:t) -> Right $ AndList $ NElist h t) $
-  map (flip describe_simpleEdit pre) $
-  let pre_toks = tokenize isIdChar pre in
-  map (atomize_simpleEdit pre_toks) $
-  merge_nearby_edits pre_toks $ diffsAsSimpleEdits $ getGroupedDiff pre_toks (tokenize isIdChar post)
+  let pre_toks = diff_tokenize pre in
+  map (flip describe_simpleEdit pre_toks) $
+  merge_nearby_edits pre_toks $
+  diffsAsSimpleEdits $ getDiff pre_toks (diff_tokenize post)
 
 execute :: (Functor m, Monad m) => [Command] -> String -> m String
 execute cmds str = do
@@ -705,6 +762,18 @@ execute cmds str = do
   exec_edits edits str
 
 -- Testing:
+
+cmp :: (Eq a, Show a) => String -> a -> a -> IO ()
+cmp n x y = do
+  when (x /= y) $ do
+    putStr "Test failed: "; putStrLn n
+    putStr "Expected: "; print x
+    putStr "Actual:   "; print y
+    putStrLn ""
+    fail "test failure"
+
+pretty_commands :: AndList Command -> String
+pretty_commands = capitalize . (++ ".") . commas_and . map show . unne . andList
 
 test :: IO ()
 test = do
@@ -819,77 +888,127 @@ test = do
   t "append x and erase first " $ Left "column 26: unexpected end of command. expected: \"and \" or verbatim string. "
   t "erase all 2 and " $ Left "column 17: unexpected end of command. expected: \"insert \", \"add \", \"append \", \"prepend \", \"erase \", \"remove \", \"kill \", \"cut \", \"omit \", \"delete \", \"replace \", \"use \", \"move \", \"wrap \", \"till \", \"until \", \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", \"all \", \"any \", \"every \", \"each \", ordinal or verbatim string. "
   -- "use" tests:
-  ut "ETYPE_DESC" "ETPYE"
-  ut "kip(a.~T)" "a.~T"
+  ut "ETYPE_DESC" "ETPYE" "Replaced \"cout << ETPYE\" with \"cout << ETYPE_DESC\"." "Replaced \"cout << ETYPE_DESC\" with \"cout << ETPYE\"."
+  ut "kip(a.~T)" "a.~T" "Replaced \"a.~T\" with \"kip(a.~T)\"." "Replaced \"kip(a.~T)\" with \"a.~T\"."
   -- ut "cos(a.~T)" "a.~T" -- Fails, but can probably be made to work by rewarding successive skips.
-  ut "size_type" "size_t"
-  ut "size = 9" "siz = 2"
-  ut "ETYPE" "ETPYE"
-  ut "std::string" "string"
-  ut "; float x" "; int x"
-  ut "x-" "x -"
-  ut ") cin <<" ") cout <<"
-  ut "x = 4" "x = 3"
-  ut "x - 8);" "x - size);"
-  ut "(!i)" "(i == 0)"
-  ut "seekp" "seek"
-  ut "<char>" "<unsigned char>"
-  ut "<const fish>" "<fish>"
-  ut "&); };" "&) };"
-  ut "> * r = v" "> & r = v"
-  ut "v.cbegin()" "v.begin()"
-  -- ut "void foo" "voidfoo"
-  ut "x - sizeof(y))" "x - size)"
-  ut "int a(2);" "int a;"
-  ut "int const * w" "int * w"
-  ut "main(int argc) {" "main() {"
-  ut "operator-" "operator+"
-  ut "_cast" "_cat"
-  ut "(++a)" "(a++)"
-  ut "list<int>" "vector<int>"
-  ut "a->seekp" "a.seek"
-  ut "vector<int>::iterator i" "vector<int> i"
-  ut "runtime_error(" "runtime_exception("
-  ut "~T();" "~T;"
-  ut "int const * w" "int * w"
-  ut "(T & a)" "(T a)"
-  ut "& r(v);" "& r = v;"
-  ut "ios_base::end_t" "ios::end"
-  ut "95" "94"
-  ut "vector<int> const v { 3, 2 };" "vector<int> v; v = { 3, 2 };"
-  ut "class C" "struct C"
-  ut "struct C{" "struct C(){"
-  ut "B z{p};" "B z = B{p};"
-  ut "friend C & operator+" "C & operator+"
-  ut "char const(&here)[N]" "char(const&here)[N]"
-  ut "z = shared_ptr<B>{new p}" "z = B{p}"
-  ut "(X(y));" "X(y);"
-  ut "2000" "1800"
-  ut "8000100808" "10000000000"
-  ut "> 7" ">= 7"
-  ut "private: fstream" "public: fstream"
-  ut "int main" "void main"
-  ut "<char>" "<unsigned char>"
-  ut "int const u =" "int x ="
-  ut "u - -j" "u--j"
+  ut "size_type" "size_t" "Replaced \"string::size_t- siz\" with \"string::size_type- siz\"." "Replaced \"string::size_type- siz\" with \"string::size_t- siz\"."
+  ut "size = 9" "siz = 2" "Replaced \"string::size_t- siz = 2\" with \"string::size_t- size = 9\"." "Replaced \"string::size_t- size = 9\" with \"string::size_t- siz = 2\"."
+  ut "ETYPE" "ETPYE" "Replaced \"cout << ETPYE\" with \"cout << ETYPE\"." "Replaced \"cout << ETYPE\" with \"cout << ETPYE\"."
+  ut "std::string" "string" "Replaced \"string::size_t- siz\" with \"std::string::size_t- siz\"." "Replaced \"std::string::size_t- siz\" with \"string::size_t- siz\"."
+  ut "; float x" "; int x" "Replaced \"int x\" with \"float x\"." "Replaced \"float x\" with \"int x\"."
+  ut "x-" "x -" "Replaced \"x - size\" with \"x- size\"." "Replaced \"x- size\" with \"x - size\"."
+  ut ") cin <<" ") cout <<" "Replaced \"cout << ETPYE\" with \"cin << ETPYE\"." "Replaced \"cin << ETPYE\" with \"cout << ETPYE\"."
+  ut "x = 4" "x = 3" "Replaced \"3\" with \"4\"." "Replaced \"4\" with \"3\"."
+  ut "x - 8);" "x - size);" "Replaced \"x - size\" with \"x - 8\"." "Replaced \"x - 8\" with \"x - size\"."
+  ut "(!i)" "(i == 0)" "Replaced \"i == 0\" with \"!i\"."  "Replaced \"!i\" with \"i == 0\"."
+  ut "seekp" "seek" "Replaced \"a.seek\" with \"a.seekp\"." "Replaced \"a.seekp\" with \"a.seek\"."
+  ut "<char>" "<unsigned char>" "Replaced \"vector<unsigned char> & r\" with \"vector<char> & r\"." "Replaced \"vector<char> & r\" with \"vector<unsigned char> & r\"."
+  ut "<const fish>" "<fish>" "Replaced \"reinterpret_cat<fish>\" with \"reinterpret_cat<const fish>\"." "Replaced \"reinterpret_cat<const fish>\" with \"reinterpret_cat<fish>\"."
+  ut "&); };" "&) };" "Inserted \";\" after \"C const &)\"." "Erased \";\" after \"C const &)\"."
+  -- ut "> * r = v" "> & r = v" "Replaced \"& r\" with \"* r\"." "Replaced \"* r\" with \"& r\"."
+  ut "v.cbegin()" "v.begin()" "Replaced \"v.begin\" with \"v.cbegin\"." "Replaced \"v.cbegin\" with \"v.begin\"."
+  -- ut "void foo" "voidfoo" ""  ""
+  ut "x - sizeof(y))" "x - size)" "Replaced \"x - size\" with \"x - sizeof(y)\"." "Replaced \"x - sizeof(y))\" with \"x - size)\"."
+  ut "int a(2);" "int a;" "Inserted \"(2)\" after \"{ int a\"." "Erased \"(2)\" after \"{ int a\"."
+  ut "int const * w" "int * w" "Replaced \"int * w\" with \"int const * w\"." "Replaced \"int const * w\" with \"int * w\"."
+  ut "main(int argc) {" "main() {" "Inserted \"int argc\" after \"void main(\"." "Erased \"int argc\"."
+  ut "operator-" "operator+" "Replaced \"C & operator+\" with \"C & operator-\"." "Replaced \"C & operator-\" with \"C & operator+\"."
+  ut "_cast" "_cat" "Replaced \"reinterpret_cat<fish>\" with \"reinterpret_cast<fish>\"." "Replaced \"reinterpret_cast<fish>\" with \"reinterpret_cat<fish>\"."
+  ut "(++a)" "(a++)" "Replaced \"a++\" with \"++a\"." "Replaced \"++a\" with \"a++\"."
+  ut "list<int>" "vector<int>" "Replaced \"vector<int> v\" with \"list<int> v\"." "Replaced \"list<int> v\" with \"vector<int> v\"."
+  ut "a->seekp" "a.seek" "Replaced \"a.seek\" with \"a->seekp\"." "Replaced \"a->seekp\" with \"a.seek\"."
+  ut "vector<int>::iterator i" "vector<int> i" "Replaced \"vector<int> i\" with \"vector<int>::iterator i\"." "Replaced \"vector<int>::iterator i\" with \"vector<int> i\"."
+  ut "runtime_error(" "runtime_exception(" "Replaced \"throw runtime_exception\" with \"throw runtime_error\"." "Replaced \"throw runtime_error\" with \"throw runtime_exception\"."
+  -- ut "~T();" "~T;" "Inserted \"()\" after \") { a.~T\"." "Replaced \") { a.~T()\" with \") { a.~T\"."
+  ut "int const * w" "int * w" "Replaced \"int * w\" with \"int const * w\"." "Replaced \"int const * w\" with \"int * w\"."
+  ut "(T & a)" "(T a)" "Replaced \"T a\" with \"T & a\"." "Replaced \"T & a\" with \"T a\"."
+  ut "& r(v);" "& r = v;" "Replaced \"= v\" after \"vector<unsigned char> & r\" with \"(v)\"." "Replaced \"(v)\" after \"vector<unsigned char> & r\" with \"= v\"."
+  ut "ios_base::end_t" "ios::end" "Replaced \"ios::end\" with \"ios_base::end_t\".""Replaced \"ios_base::end_t\" with \"ios::end\"."
+  ut "95" "94" "Replaced \"94\" with \"95\"." "Replaced \"95\" with \"94\"."
+  ut "vector<int> const v { 3, 2 };" "vector<int> v; v = { 3, 2 };" "Replaced \"vector<int> v; v =\" with \"vector<int> const v\"." "Replaced \"vector<int> const v\" with \"vector<int> v; v =\"."
+  ut "class C" "struct C" "Replaced \"struct C\" with \"class C\"." "Replaced \"class C\" with \"struct C\"."
+  ut "B z{p};" "B z = B{p};" "Erased \"= B\" after \"B z\"." "Inserted \"= B\" after \"B z\"."
+  ut "friend C & operator+" "C & operator+" "Inserted \"friend\" before \"C & operator+\"." "Erased \"friend\" before \"C & operator+\"."
+  ut "char const(&here)[N]" "char(const&here)[N]" "Replaced \"char(const&here\" with \"char const(&here\"." "Replaced \"char const(&here\" with \"char(const&here\"."
+  ut "z = shared_ptr<B>{new p}" "z = B{p}" "Replaced \"B{p\" with \"shared_ptr<B>{new p\"." "Replaced \"shared_ptr<B>{new p\" with \"B{p\"." -- hmm
+--  ut "(X(y));" "X(y);" "Replaced \"X\" with \"(X\", and inserted \")\" after \"} X(y)\"."
+  ut "2000" "1800" "Replaced \"1800\" with \"2000\"." "Replaced \"2000\" with \"1800\"."
+  ut "8000100808" "10000000000" "Replaced \"10000000000\" with \"8000100808\"." "Replaced \"8000100808\" with \"10000000000\"."
+  ut "> 7" ">= 7" "Replaced \"x >= 7\" with \"x > 7\"." "Replaced \"x > 7\" with \"x >= 7\"."
+  ut "private: fstream" "public: fstream" "Replaced \"public: fstream p\" with \"private: fstream p\"." "Replaced \"private: fstream p\" with \"public: fstream p\"." -- Todo: "replaced public: with private: before fstream p".
+  ut "int main" "void main" "Replaced \"void main\" with \"int main\"." "Replaced \"int main\" with \"void main\"."
+  ut "<char>" "<unsigned char>" "Replaced \"vector<unsigned char> & r\" with \"vector<char> & r\"." "Replaced \"vector<char> & r\" with \"vector<unsigned char> & r\"."
+  ut "int const u =" "int x =" "Replaced \"int x\" with \"int const u\"." "Replaced \"int const u\" with \"int x\"."
+  ut "u - -j" "u--j" "Replaced \"&u--j\" with \"&u - -j\"." "Replaced \"&u - -j\" with \"&u--j\"."
+  ut "struct C{" "struct C(){" "Erased \"()\" after \"struct C\"." "Inserted \"()\" after \"struct C\"."
+
+  dt' "{ fstream f(\"t.cpp\"); string s(istreambuf_iterator<char>(f), istreambuf_iterator<char>()); }"
+    "{ fstream f(\"t.cpp\"); string s((istreambuf_iterator<char>(f)), istreambuf_iterator<char>()); }"
+    "Inserted \"(\" before \"istreambuf_iterator<char>\", and inserted \")\" after \"istreambuf_iterator<char>(f)\"."
+    "Erased \"(\" before \"istreambuf_iterator<char>\", and erased \")\" after \"istreambuf_iterator<char>(f)\"."
+        -- Todo: One day, the former should say "wrapped ...".
+
+  dt' "int f(int & i) { i = 4; return i;} int g(int && i){return f(i);} int main() { cout << g(2); }"
+    "int & f(int & i) { i = 4; return i;} int & g(int && i){return f(i);} int & g(int & i){return f(i);} int main() { cout << g(2); }"
+    "Replaced \"int f\" with \"int & f\", replaced \"int g\" with \"int & g\", and inserted \"int & g(int & i){return f(i);}\" before \"int main\"."
+    "Replaced \"int & f\" with \"int f\", replaced \"int & g\" with \"int g\", and erased \"int & g(int & i){return f(i);}\"."
+
+  dt' "{string foo = \"kangaroo\"; auto m = foo.find_first_of('m'); cout << *m;}"
+    "{string foo = \"kangaroo\"; size_t m = foo.find_first_of('m'); cout << foo[m];}"
+    "Replaced \"auto m\" with \"size_t m\", and replaced \"cout << *m\" with \"cout << foo[m]\"."
+    "Replaced \"size_t m\" with \"auto m\", and replaced \"cout << foo[m]\" with \"cout << *m\"."
+
+  dt "{int i=0,t=time(0);for(;i<5000000;i++)asm(\".org 0xffff\");cout << time(0)-t; }"
+    "{int i=0,t=time(0);for(;i<5000;i++)int tmp=1*88+71/4000^66;cout << time(8)-t; }"
+    "Replaced \"i<5000000\" with \"i<5000\", replaced \"asm(\\\".org 0xffff\\\")\" with \"int tmp=1*88+71/4000^66\", and replaced \"0\" with \"8\"."
+
+  dt' "struct curr_func { string name; cf(string n):name(n){} }; \\ #define DEFUN(name) name try { throw curr_func(#name); } catch(curr_func& cfun) \\ DEFUN(void haha(int a)) { cout << cfun.name; } int main() { cout << haha; }"
+    "struct curr_func { string name; curr_func(string n):name(n){} }; \\ #define DEFUN(name) name try { throw curr_func(#name); } catch(curr_func& cfun) \\ DEFUN(void haha(int a)) { cout << cfun.name << \": \" << a; } int main() { haha(42); }"
+    "Replaced \"cf\" with \"curr_func\", inserted \"<< \\\": \\\" << a\" after \"cout << cfun.name\", and replaced \"cout << haha\" with \"haha(42)\"."
+    "Replaced \"curr_func\" with \"cf\", erased \"<< \\\": \\\" << a\", and replaced \"haha(42)\" with \"cout << haha\"."
+
+  dt "{float i=0,t=time(0);for(;i<5000000;i++) { if(x == 3) f(reinterpret_cast<long>(x)); } }"
+    "{int i=0,t=time(null);for(;i<5000000;++i) { if(x != 3) f(static_cast<long>(x)); } }"
+    "Replaced \"float i\" with \"int i\", replaced \"0\" with \"null\", replaced \"i++\" with \"++i\", replaced \"x == 3\" with \"x != 3\", and replaced \"reinterpret_cast<long>\" with \"static_cast<long>\"."
+{-
+  dt' "struct a { int b; a():b([]{ return 1 + 2 + 3; }){}}a_; int main() { cout << a_.b }"
+    "struct a { int b; a({}):b([]{ return 1 + 2 + 3; }()){}}a_; int main() { cout << a_.b; }"
+    "Replaced \"a():b([]{\" with \"a({}):b([]{\", replaced \")\" after \"return 1 + 2 + 3; }\" with \"())\", and inserted \";\" after \"cout << a_.b\"."
+    "Replaced \"a({}):b([]{\" with \"a():b([]{\", replaced \"}()){}}a_\" with \"}){}}a_\", and erased \";\" after \"cout << a_.b\"."
+-}
+  dt "struct curr_func { string name; cf(string n):name(n){} }; \\ #define DEFUN(name) name try { throw curr_func(#name); } catch(curr_func& cfun) \\ DEFUN(void haha(int a)) { cout << cfun.name; } int main() { cout << haha; }"
+    "struct { string name; cf(string n){} }; \\ #define DEFUN(name) name try { } catch(curr_func& cfun) \\ DEFUN(void haha(int a) { cout << \"tortoise\"; } ) { cout << ETYPE(cfun.name); } int main() { do_something(complicated); cout << haha; }"
+    "Replaced \"struct curr_func\" with \"struct\", erased \":name(n)\", erased \"throw curr_func(#name);\", inserted \"{ cout << \\\"tortoise\\\"; }\" before \") { cout << cfun.name\", replaced \"cout << cfun.name\" with \"cout << ETYPE(cfun.name)\", and inserted \"do_something(complicated);\" before \"cout << haha\"."
+
+  dt "{ char str[] = \"giraffe\"; char * pch; pch=(char*) memchr(str, 'y', (int)strlen(str)); if (pch!=NULL) { printf(\"'y' was found at position #%d\", pch-str+1); } }"
+    "{ char * str = \"giraffe\"; char * pch; pch=(char*) memchr(str, 'v', (size_t)strlen(str)); if (pch!=NULL) { printf(\"'v' was found at position #%d\", pch-str-1); memset(str, '*', 6); puts(str); printf(\"%s\", str); } }"
+    "Replaced \"char str[]\" with \"char * str\", replaced \"'y'\" with \"'v'\", replaced \"int\" with \"size_t\", replaced \"\\\"'y' was\" with \"\\\"'v' was\", and replaced \"pch-str+1\" with \"pch-str-1); memset(str, '*', 6); puts(str); printf(\\\"%s\\\", str\"."
 
   putStrLn "No test failures."
  where
   t :: String -> Either String String -> IO ()
-  t c o = do
-    let
-     o' = case PS.parse (commandsP << eof) "" c of
-      Left e -> Left $ showParseError False e
-      Right cmds -> execute cmds "1 2 3 2 3 4 5"
-    when (o' /= o) $ fail $ "test failed: " ++ show (c, o, o')
-    -- todo: Verify that showing the parsed command produces c.
-  ut :: String -> String -> IO ()
-  ut pattern match = do
+  t c o = cmp c o $ case PS.parse (commandsP << eof) "" c of
+    Left e -> Left $ showParseError False e
+    Right cmds -> execute cmds "1 2 3 2 3 4 5"
+  ut :: String -> String -> String -> String -> IO ()
+  ut pattern match d rd = do
     let txt = "{ string::size_t- siz = 2; int x = 3; if(i == 0) cout << ETPYE(x - size); vector<int> v; v = { 3, 2 }; vector<int> i = reinterpret_cat<fish>(10000000000, v.begin()); } X(y); using tracked::B; B z = B{p}; int const u = 94; int * w = &u--j; !B && !D; vector<unsigned char> & r = v; struct C(){ C & operator+(ostream &, char(const&here)[N], C const &) }; template<typename T> voidfoo(T a) { a.~T; } void main() { int a; a.seek(1800, ios::end); foo(a++); if(x >= 7) throw runtime_exception(y); } class Qbla { public: fstream p; };"
     RangeReplaceEdit rng _ <- findInStr txt (UseClause pattern)
-    let s = selectRange rng txt
-    when (s /= match) $ fail $ "\"use\" test \"" ++ pattern ++ "\" failed, got \"" ++ s ++ "\" instead of \"" ++ match ++ "\"."
-    -- putStrLn $ diff txt $ replaceRange rng pattern txt
+    cmp pattern match (selectRange rng txt)
+    let r = replaceRange rng pattern txt
+    cmp pattern d $ either id pretty_commands $ diff txt r
+    cmp pattern rd $ either id pretty_commands $ diff r txt
+  dt :: String -> String -> String -> IO ()
+  dt x y r = cmp x r $ either id (capitalize . (++ ".") . commas_and . map show . unne . andList) $ diff x y
+  dt' :: String -> String -> String -> String -> IO ()
+  dt' x y xy yx = do
+    let xy' = either id (capitalize . (++ ".") . commas_and . map show . unne . andList) $ diff x y
+    let yx' = either id (capitalize . (++ ".") . commas_and . map show . unne . andList) $ diff y x
+    cmp x xy xy'
+    cmp y yx yx'
+  dts :: String -> [(String, String)] -> IO ()
+  dts _ [] = return ()
+  dts s ((s', d) : r) = dt s s' d >> dts s' r
 
 {- Command grammar:
 

@@ -130,7 +130,7 @@ evaluator = do
         Right h' | length_ge 1000 h' -> return $ Response "Request would become too large." Nothing
         Right h' -> f h' (Context prevs)
     Right DiffRequest -> return $ Response (case prevs of
-        y : x : _ -> either id show $ EditCmds.diff x y
+        y : x : _ -> either id EditCmds.pretty_commands $ EditCmds.diff x y
         _ -> "Need at least two editable requests to compare.") Nothing
     Right (EvalRequest code also_run nowarn terse) -> do
       case PS.parse (Cxx.code << eof) "" code of

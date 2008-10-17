@@ -11,7 +11,7 @@ import qualified Text.ParserCombinators.Parsec.Error as PSE
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
 import Data.List (sortBy, minimumBy, isPrefixOf, tails, all)
-import Data.Char (isSpace, isAlphaNum, toLower)
+import Data.Char (isSpace, isAlphaNum, toLower, toUpper)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Sequence (Seq, ViewL(..), (<|))
 import Data.Function (on)
@@ -295,3 +295,18 @@ length_ge _ _ = False
 
 isIdChar :: Char -> Bool
 isIdChar = isAlphaNum .||. (== '_')
+
+commas_and :: [String] -> String
+commas_and [] = ""
+commas_and [x] = x
+commas_and [x, y] = x ++ ", and " ++ y
+commas_and (x : y) = x ++ ", " ++ commas_and y
+
+capitalize :: String -> String
+capitalize (h:t) = toUpper h : t
+capitalize [] = []
+
+take_atleast :: Int -> (a -> Int) -> [a] -> [a]
+take_atleast _ _ [] = []
+take_atleast n _ _ | n <= 0 = []
+take_atleast n m (h:t) = h : take_atleast (n - m h) m t
