@@ -76,7 +76,7 @@ import Data.List ((\\), isPrefixOf)
 import System.Posix.User
   (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
 import System.Posix
-  (Signal, sigALRM, sigSTOP, sigTRAP, sigKILL, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
+  (Signal, sigALRM, sigSTOP, sigTRAP, sigKILL, sigSEGV, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
 
 #ifdef __x86_64__
 import Foreign ((.&.))
@@ -93,6 +93,7 @@ data SuperviseResult = Exited ExitCode | DisallowedSyscall SysCall | Signaled Si
 instance Show SuperviseResult where
   show (Exited c) = "Exited: " ++ show c
   show (DisallowedSyscall c) = show c ++ ": " ++ strerror ePERM
+  show (Signaled s) | s == sigSEGV = "Undefined behavior detected."
   show (Signaled s) = strsignal $ if s == sigALRM then sigKILL else s
     -- We replace sigALRM with sigKILL because the two are caused by two geordi measures with the same function: killing the process if it takes too long. In that sense, sigALRM and sigKILL are both implementation details, but sigKILL has a much nicer strsignal message.
   show ChildVanished = "Child vanished"
