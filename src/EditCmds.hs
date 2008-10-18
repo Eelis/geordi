@@ -2,6 +2,7 @@ module EditCmds (diff, commandsP, Command, execute, test, pretty_commands) where
 
 import Control.Monad.Error ()
 import Control.Monad (liftM2, when)
+import Control.Arrow (first)
 import Data.Algorithm.Diff (DI(..), getDiff)
 import Data.Monoid (Monoid(..))
 import Data.Maybe (listToMaybe)
@@ -209,7 +210,10 @@ verbatim :: Terminators -> CharParser st String
 verbatim t = try (select_act cs << x) <|> fst . many1Till' anyChar (try x) <?> "verbatim string"
  where
   x = (if term_eof t then (eof <|>) else id) $ lookAhead (choice (try . string . (" " ++) . term_keywords t)) >> char ' ' >> return ()
-  cs = [(["comma"], ","), (["space"], " "), (["colon"], ":"), (["semicolon"], ";"), (["ampersand"], "&"), (["tilde"], "~")]
+  cs = first opt_an . [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~")]
+  opt_an :: String -> [String]
+  opt_an (c:s) | isVowel c = [s, "an " ++ s]
+  opt_an s = [s, "a " ++ s]
 
 class Parse t where parse :: Terminators -> [AndCont] -> CharParser st t
 
@@ -226,7 +230,7 @@ instance Parse RelativeBound where
     liftM2 RelativeBound (parse t a) (parse t a)
 
 instance Parse Ordinal where
-  parse _ _ = (Ordinal .) $ (<?> "ordinal") $ (try (string "last ") >> return (-1)) <|> do
+  parse _ _ = (Ordinal .) $ (<?> "ordinal") $ (PS.optional (try $ string "the ") >>) $ (try (string "last ") >> return (-1)) <|> do
     n <- select_act ((\n -> ([show (Ordinal $ n)], n)) . [0..9]) << char ' '
     if n /= 0 then (try (string "last ") >> return (- n - 1)) <|> return n else return n
 
@@ -819,17 +823,17 @@ test = do
   t "erase from before second 3" $ Right "1 2 3 2 "
   t "replace all but first and second last space with x" $ Right "1 2x3x2x3 4x5"
   t "erase between second and fourth space and 1" $ Right " 2  3 4 5"
-  t "erase between first and third space and prepend x" $ Right "x1  2 3 4 5"
+  t "erase between the first and third space and prepend x" $ Right "x1  2 3 4 5"
   t "wrap parentheses around every space between first 2 and 4 and around 5 and erase second last 3" $ Right "1 2( )( )2( )3( )4 (5)"
   t "move from first 3 until 4 to begin" $ Right "3 2 3 41 2  5"
-  t "erase everything from before everything until second 3" $ Right "3 4 5"
+  t "erase everything from before everything until the second 3" $ Right "3 4 5"
   t "wrap parentheses around first 2 and 5" $ Right "1 (2) 3 2 3 4 (5)"
   t "erase everything between first space and last space" $ Right "1  5"
   t "erase all 3 and all 2 between begin and end" $ Right "1     4 5"
   t "erase everything between second and first 2 " $ Right "1 2 2 3 4 5"
   t "erase from second 2 till last space" $ Right "1 2 3 5"
   t "erase from second 2 until after 3 and add x before 4" $ Right "1 2 3  x4 5"
-  t "erase between 1 and second 2 and between 4 and 5" $ Right "12 3 45"
+  t "erase between 1 and the second 2 and between 4 and 5" $ Right "12 3 45"
   t "erase from before 4 until end" $ Right "1 2 3 2 3 "
   t "use 5x and y4" $ Right "1 2 3 2 3 y4 5x"
   t "erase everything from after 1 until second last space" $ Right "1 4 5"
@@ -850,7 +854,7 @@ test = do
   t "move second 2 to back and prepend x" $ Right "x1 2 3  3 4 52"
   t "cut everything before first 2 and first and second 3 and everything after 4 and prepend x" $ Right "x2  2  4"
   t "replace all 2 with 3 and erase all 3 and add x after second 2" $ Right "1 3  3x  4 5"
-  t "insert spacer before 4 and insert semicolon after 1 and erase last space" $ Right "1; 2 3 2 3 spacer45"
+  t "insert spacer before 4 and insert a semicolon after 1 and erase last space" $ Right "1; 2 3 2 3 spacer45"
   t "erase first and second last  " $ Right "12 3 2 34 5"
   t "replace 1 with x and all 2 with y and erase second 3" $ Right "x y 3 y  4 5"
   -- Order-sensitive edits:
