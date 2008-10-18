@@ -17,7 +17,7 @@ import qualified Text.ParserCombinators.Parsec.Token as PST
 import qualified Text.ParserCombinators.Parsec.Error as PSE
 import qualified Data.List as List
 
-import Data.Char (isSpace, isAlphaNum)
+import Data.Char (isSpace)
 import Control.Monad.Error ()
 import Control.Monad (liftM, liftM2, when)
 import Control.Arrow (first, second)
@@ -26,7 +26,7 @@ import Text.ParserCombinators.Parsec
   (CharParser, char, string, try, (<?>), (<|>), eof, optional, sepBy1, pzero, option, sepBy, sourceColumn, errorPos, choice, optionMaybe, many1, satisfy, spaces, oneOf, notFollowedBy)
 
 import Prelude hiding ((.))
-import Util ((<<), (.), prefixError)
+import Util ((<<), (.), prefixError, isIdChar)
 
 data CV = CV Bool Bool deriving Eq
 
@@ -279,13 +279,13 @@ unraw "booleans" = "bool"
 unraw s = s
 
 class_name_p :: CharParser st String
-class_name_p = many1 (satisfy isAlphaNum) << spaces
+class_name_p = many1 (satisfy isIdChar) << spaces
 
 typeP :: CharParser st UnconstrainedType
 typeP = liftM2 (flip ($)) (referenceP <|> pointerP <|> arrayP <|> liftM2 UnconstrainedCVQ cv_qualifier_p typeP <|> functionP <|> predicateP <|> (op "(" >> typeP << op ")") <|> UnconstrainedAtomicType . simple_type_specifier_p) opt_type_adornment_p <?> "type"
 
 kwd :: String -> CharParser st ()
-kwd s = try (string s >> notFollowedBy (satisfy isAlphaNum)) >> spaces
+kwd s = try (string s >> notFollowedBy (satisfy isIdChar)) >> spaces
 
 constP :: CharParser st ()
 constP = kwd "constant" <|> kwd "const"
@@ -363,7 +363,7 @@ simple_type_specifier_p = try $ do
 
 nested_name_specifier_p :: CharParser st String
 nested_name_specifier_p = try $ do
-  s <- many1 $ satisfy isAlphaNum
+  s <- many1 $ satisfy isIdChar
   op "::"
   t <- option "" nested_name_specifier_p
   return (s ++ "::" ++ t)
