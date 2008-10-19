@@ -127,6 +127,10 @@ request_allowed cfg _ _ _ Private | not (serve_private_requests cfg) =
 request_allowed cfg nickname _ _ _ | nickname `elem` blacklist cfg = Deny Nothing
 request_allowed _ _ _ _ _ = Allow
 
+strip_utf8_bom :: String -> String
+strip_utf8_bom ('\239':'\187':'\191':s) = s
+strip_utf8_bom s = s
+
 on_msg :: (Functor m, Monad m) =>
   (String -> Request.Context -> m Request.Response) -> IrcBotConfig -> Bool -> IRC.Message -> StateT ChannelMemoryMap m [IRC.Message]
 on_msg eval cfg full_size m = flip execStateT [] $ do
@@ -139,7 +143,8 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
     IRC.Message _ "433" {- ERR_NICKNAMEINUSE -} _ -> send $ msg "NICK" [alternate_nick cfg]
     IRC.Message _ "PING" a -> msapp [msg "PONG" a]
     IRC.Message _ "PRIVMSG" [_, '\1':_] -> return ()
-    IRC.Message (Just (IRC.NickName who muser mserver)) "PRIVMSG" [to, txt] -> do
+    IRC.Message (Just (IRC.NickName who muser mserver)) "PRIVMSG" [to, txt'] -> do
+      let txt = strip_utf8_bom txt'
       let private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
       let w = if private then Private else InChannel to
       maybeM (dropWhile isSpace . is_request cfg w txt) $ \r -> do
