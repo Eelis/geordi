@@ -3,6 +3,7 @@
 import qualified System.Environment
 import qualified Request
 import qualified System.Console.Readline as RL
+import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Sys
 
 import Control.Monad (forM_, when)
@@ -52,12 +53,12 @@ main = do
   eval <- Request.evaluator
   forM_ rest $ \l -> do Request.Response output _ <- eval l (Request.Context []); putStrLn output
   addHistory <- make_history_adder
-  when (rest == []) $ flip fix blankMemory $ \loop mem -> RL.readline "geordi: " >>= case_of
+  when (rest == []) $ flip fix blankMemory $ \loop mem -> (UTF8.decodeString .) . RL.readline "geordi: " >>= case_of
     Nothing -> putNewLn
     Just "" -> loop mem
     Just l -> do
       Request.Response output history_addition <- eval l $ Request.Context $ editable_requests mem
-      maybeM history_addition addHistory
+      maybeM history_addition $ addHistory . UTF8.encodeString
       putStrLn $ describe_new_output (last_output mem) output
       loop $ Memory
         { editable_requests = (maybe id (:) history_addition) (editable_requests mem)

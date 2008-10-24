@@ -162,6 +162,9 @@ maybeLast [] = Nothing
 maybeLast [x] = Just x
 maybeLast (_:t) = maybeLast t
 
+replace :: Eq a => a -> a -> [a] -> [a]
+replace x y = map (\c -> if c == x then y else c)
+
 replaceInfixM :: Eq a => [a] -> [a] -> [a] -> Maybe [a]
 replaceInfixM what with l = (\(pre, post) -> pre ++ with ++ post) . stripInfix what l
 

@@ -90,12 +90,13 @@ main = do
   send $ msg "NICK" [nick cfg]
   send $ msg "USER" [nick cfg, "0", "*", nick cfg]
   flip execStateT Map.empty $ forever $ do
-    l <- lift $ hGetLine h
+    raw <- lift $ hGetLine h
+    let l = UTF8.decodeString raw
     case IRC.parseMessage (l ++ "\n") of
       Nothing -> lift $ putStr "Malformed IRC message: " >> putStrLn l
       Just m -> do
         lift $ print m
-        r <- on_msg evalRequest cfg (length l == 511) m
+        r <- on_msg evalRequest cfg (length raw == 511) m
         lift $ mapM_ print r >> mapM_ send r
   return ()
 

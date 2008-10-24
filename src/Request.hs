@@ -105,6 +105,9 @@ data Response = Response
   { response_output :: String
   , response_add_history :: Maybe String }
 
+no_break_space :: Char
+no_break_space = '\x00A0' -- NO-BREAK SPACE
+
 evaluator :: IO (String -> Context -> IO Response)
 evaluator = do
   (ev, compile_cfg) <- EvalCxx.evaluator
@@ -112,7 +115,7 @@ evaluator = do
     -- Filtering using isPrint works properly because (1) the EvalCxx evaluator returns proper Unicode Strings, not mere byte blobs; and (2) to print filtered strings we will use System.IO.UTF8's hPutStrLn which properly UTF-8-encodes the filtered String.
     -- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.
   let prel = "#include \"prelude.hpp\"\n"
-  return $ fix $ \f r (Context prevs) -> case parse r of
+  return $ fix $ \f r (Context prevs) -> case parse (replace no_break_space ' ' r) of
     Left e -> return $ Response ("error: " ++ e) Nothing
     Right HelpRequest -> do
       ou <- evf $ EvalCxx.Request (prel ++ wrapPrint "help") True False
