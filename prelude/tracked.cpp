@@ -1,7 +1,9 @@
 #include "tracked.hpp"
 #include <vector>
 #include <cassert>
+#include <cstdlib>
 #include <fstream>
+#include <sstream>
 #include <boost/implicit_cast.hpp>
 #include <boost/ref.hpp>
 #include <boost/noncopyable.hpp>
@@ -83,7 +85,7 @@ namespace tracked
 
     Tracked::Tracked() { make_entry(this); }
 
-    Tracked::Tracked(Tracked const & i) { make_entry(this); assert_status_below(&i, pillaged, "copy"); }
+    Tracked::Tracked(Tracked const & i) { assert_status_below(&i, pillaged, "copy"); make_entry(this); }
 
     void Tracked::operator=(Tracked const & r) {
       assert_status_below(this, destructed, "assign to");
@@ -94,7 +96,7 @@ namespace tracked
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
 
       Tracked::Tracked(Tracked && r)
-      { make_entry(this); assert_status_below(&r, pillaged, "move"); entry(&r)->status = pillaged; }
+      { assert_status_below(&r, pillaged, "move"); make_entry(this); entry(&r)->status = pillaged; }
 
       void Tracked::operator=(Tracked && r) {
         assert_status_below(this, destructed, "move-assign to");
@@ -113,8 +115,14 @@ namespace tracked
         std::vector<boost::reference_wrapper<Entry const> > v;
         for (Entries::const_iterator i = entries.begin(); i != entries.end(); ++i)
           if (i->status != destructed) v.push_back(boost::cref(*i));
-        if (!v.empty())
-        { info i; i() << "leaked: "; more_ostreaming::delimit(i(), v); i() << '.'; abort(); }
+        if (!v.empty() && !muted)
+        {
+          std::ostringstream oss;
+            // We don't use cout here because apparently it can be unavailable by the time this code runs (judging by the segfaults I observed when this code used cout).
+          more_ostreaming::delimit(oss, v);
+          std::printf("%sleaked: %s.", parsep, oss.str().c_str());
+          abort();
+        }
       }
     } leakReporter; // Must come after entries, so it will be destructed first.
 
