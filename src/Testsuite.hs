@@ -75,7 +75,7 @@ tests :: String -> [Test]
 tests "resources" =
   [ test "Program timeout" "{ for(;;) ; }" $ ExactMatch "Killed"
   , test "Stack overflow" "<< f(3); int f(int i) { if (i % 10000 == 0) cout << '+' << flush; return -f(++i); }" $
-    RegexMatch "\\++ Segmentation fault"
+    RegexMatch "\\++ Undefined behavior detected."
   , test "Open FDs" "{ for(int i = 0; i != 1024; ++i) assert(i == 1 || i == 2 || close(i) == -1); }" NoOutput
   , test "File creation" "{ ofstream f (\"bla\"); assert(errno == EACCES); }" $ NoOutput
   , test "Working directory" "<< get_current_dir_name()" $ ExactMatch "/"

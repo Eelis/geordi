@@ -93,7 +93,6 @@ data SuperviseResult = Exited ExitCode | DisallowedSyscall SysCall | Signaled Si
 instance Show SuperviseResult where
   show (Exited c) = "Exited: " ++ show c
   show (DisallowedSyscall c) = show c ++ ": " ++ strerror ePERM
-  show (Signaled s) | s == sigSEGV = "Undefined behavior detected."
   show (Signaled s) = strsignal $ if s == sigALRM then sigKILL else s
     -- We replace sigALRM with sigKILL because the two are caused by two geordi measures with the same function: killing the process if it takes too long. In that sense, sigALRM and sigKILL are both implementation details, but sigKILL has a much nicer strsignal message.
   show ChildVanished = "Child vanished"
@@ -202,6 +201,7 @@ instance Show EvaluationResult where
     (Compile, Exited _, _) -> ErrorFilters.cc1plus o
     (Assemble, Exited (ExitFailure _), _) -> ErrorFilters.as o
     (Run, Exited ExitSuccess, _) -> ErrorFilters.prog o
+    (Run, Signaled s, _) | s == sigSEGV -> o ++ parsep : "Undefined behavior detected."
     (Run, _, _) -> ErrorFilters.prog $ o ++ parsep : show r
     (Link, Exited (ExitFailure _), _) -> ErrorFilters.ld o
     _ -> "g++: " ++ show r
