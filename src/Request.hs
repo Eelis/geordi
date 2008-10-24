@@ -124,7 +124,7 @@ evaluator = do
       ou <- evf $ EvalCxx.Request (prel ++ wrapPrint "\"g++ (GCC) \" << __VERSION__") True False
       return $ Response ou Nothing
     Right ShowCompileFlags -> return $ Response (unwords $ EvalCxx.compileFlags compile_cfg) Nothing
-    Right (MakeTypeReq d) -> return $ Response (either ("error: " ++) show $ MakeType.makeType d) Nothing
+    Right (MakeTypeReq d) -> return $ Response (either ("error: " ++) show $ MakeType.makeType d) (Just $ "--make-type " ++ d)
     Right ShowRequest -> return $ Response (listToMaybe prevs `orElse` "<none>") Nothing
     Right (EditRequest editcmd) -> case prevs of
       [] -> return $ Response "There is no previous request to modify." Nothing
