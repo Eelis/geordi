@@ -8,6 +8,7 @@
 #include <stack>
 #include <queue>
 #include <cstdlib>
+#include <ctime>
 #include <algorithm>
 #include <boost/range.hpp>
 #include <boost/type_traits/is_same.hpp>
@@ -136,6 +137,13 @@ template <typename C, typename Tr, typename T, size_t N>
 typename boost::disable_if<boost::is_same<T, char>, std::basic_ostream<C, Tr> &>::type
   operator<<(std::basic_ostream<C, Tr> & o, T const (& a) [N])
 { o << '{'; more_ostreaming::delimit(o, a); return o << '}'; }
+
+template <typename C, typename Tr>
+std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::tm const * const t)
+{
+  o.write(std::asctime(t), 24); // Omit the final \n.
+  return o;
+}
 
 namespace std
 {
