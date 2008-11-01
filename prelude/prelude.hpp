@@ -9,6 +9,7 @@
   // "E7tKRJpMcGq574LY" is just a random string, recognized by the error filters, chosen to minimize the chance of false positives.
 
 #include "tracked.hpp"
+#include "precedence.hpp"
 #include "using.hpp"
 #include "more_ostreaming.hpp"
 #include "type_strings.hpp"
