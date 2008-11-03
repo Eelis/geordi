@@ -6,7 +6,6 @@ import qualified Data.Monoid
 import qualified Prelude
 import qualified Data.Sequence as Seq
 import qualified Text.ParserCombinators.Parsec as PS
-import qualified Text.ParserCombinators.Parsec.Error as PSE
 
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
@@ -16,7 +15,7 @@ import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Sequence (Seq, ViewL(..), (<|))
 import Data.Function (on)
 import Control.Exception (catch, bracket, evaluate)
-import Control.Monad (liftM2)
+import Control.Monad (liftM2, when)
 import Control.Monad.Fix (fix)
 import Control.Monad.State (MonadState, modify, StateT(..))
 import Control.Monad.Instances ()
@@ -191,16 +190,6 @@ many1Till' :: PS.GenParser tok st a -> PS.GenParser tok st end -> PS.GenParser t
 many1Till' p end = p >>= \v -> first (v:) . scan
   where scan = (PS.<|>) ((\r -> ([], r)) . end) (do { x <- p; (xs, e) <- scan; return (x:xs, e) })
 
-isUnexpMsg :: PSE.Message -> Bool
-isUnexpMsg (PSE.SysUnExpect _) = True
-isUnexpMsg (PSE.UnExpect _) = True
-isUnexpMsg _ = False
-
-showParseError :: Bool -> PSE.ParseError -> String
-showParseError unexpecteds_only e =
-  "column " ++ show (PS.sourceColumn $ PS.errorPos e) ++ ": " ++
-  (concatMap (++ ". ") $ filter (not . all isSpace) $ lines $ PSE.showErrorMessages "or" "unknown parse error" "expected:" "unexpected" "end of command" $ (if unexpecteds_only then filter isUnexpMsg else id) $ PSE.errorMessages e)
-
 either_part :: [Either a b] -> ([a], [b])
 either_part [] = ([], [])
 either_part (h : t) = either (first . (:)) (second . (:)) h (either_part t)
@@ -299,11 +288,16 @@ length_ge _ _ = False
 isIdChar :: Char -> Bool
 isIdChar = isAlphaNum .||. (== '_')
 
-commas_and :: [String] -> String
-commas_and [] = ""
-commas_and [x] = x
-commas_and [x, y] = x ++ ", and " ++ y
-commas_and (x : y) = x ++ ", " ++ commas_and y
+comma_enum :: String -> [String] -> String
+comma_enum _ [] = ""
+comma_enum _ [x] = x
+comma_enum a [x, y] = x ++ " " ++ a ++ " " ++ y
+comma_enum a [x, y, z] = x ++ ", " ++ y ++ ", " ++ a ++ " " ++ z
+comma_enum z (x : y) = x ++ ", " ++ comma_enum z y
+
+commas_and, commas_or :: [String] -> String
+commas_and = comma_enum "and"
+commas_or = comma_enum "or"
 
 capitalize :: String -> String
 capitalize (h:t) = toUpper h : t
@@ -313,3 +307,17 @@ take_atleast :: Int -> (a -> Int) -> [a] -> [a]
 take_atleast _ _ [] = []
 take_atleast n _ _ | n <= 0 = []
 take_atleast n m (h:t) = h : take_atleast (n - m h) m t
+
+fail_test :: (Show a, Show b) => String -> a -> b -> IO ()
+fail_test n x y = do
+  putStr "Test failed: "; putStrLn n
+  putStr "Expected: "; print x
+  putStr "Actual:   "; print y
+  putNewLn
+  fail "test failure"
+
+test_cmp :: (Eq a, Show a) => String -> a -> a -> IO ()
+test_cmp n x y = when (x /= y) $ fail_test n x y
+
+enumAll :: (Enum e, Bounded e) => [e]
+enumAll = enumFrom minBound

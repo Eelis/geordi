@@ -17,7 +17,7 @@ import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt)
 import Prelude hiding (catch, (.))
 import Util
 
-data Opt = CompileOnly | Terse | Help | Version | NoWarn | CompileFlags | MakeType deriving Eq
+data Opt = CompileOnly | Terse | Help | Version | NoWarn | CompileFlags | MakeType | Precedence deriving Eq
 
 optsDesc :: [OptDescr Opt]
 optsDesc =
@@ -28,6 +28,7 @@ optsDesc =
   , Option "v" ["version"] (NoArg Version) undefined
   , Option "" ["show-compile-flags"] (NoArg CompileFlags) undefined
   , Option "" ["make-type"] (NoArg MakeType) undefined
+  , Option "" ["precedence"] (NoArg Precedence) undefined
   ]
 
 wrapPrePost :: String -> String -> String
@@ -71,6 +72,7 @@ data Request
   = EvalRequest { er_code :: String, er_also_run, er_nowarn, er_terse :: Bool }
   | ShowCompileFlags
   | MakeTypeReq String
+  | PrecedenceReq String
   | HelpRequest
   | CompilerVersionRequest
   | EditRequest [EditCmds.Command]
@@ -93,11 +95,12 @@ parse req = do
   let opt = (`elem` opts)
   if opt Help then return HelpRequest else do
   if opt MakeType then return $ MakeTypeReq rest else do
+  if opt Precedence then return $ PrecedenceReq rest else do
   if opt CompileFlags then return ShowCompileFlags else do
   if opt Version then return CompilerVersionRequest else do
   if rest == "show" then return ShowRequest else do
   if rest `elem` ["diff", "diffs", "differences", "change", "changes"] then return DiffRequest else do
-  either (fail . showParseError False) return $ PS.parse ((EditRequest . EditCmds.commandsP << eof) <|> return (EvalRequest rest (not $ opt CompileOnly) (opt NoWarn) (opt Terse))) "" rest
+  either (fail . EditCmds.showParseError "request" rest True) return $ PS.parse ((EditRequest . EditCmds.commandsP << eof) <|> return (EvalRequest rest (not $ opt CompileOnly) (opt NoWarn) (opt Terse))) "" rest
 
 data Context = Context { request_history :: [String] }
 
@@ -125,6 +128,7 @@ evaluator = do
       return $ Response ou Nothing
     Right ShowCompileFlags -> return $ Response (unwords $ EvalCxx.compileFlags compile_cfg) Nothing
     Right (MakeTypeReq d) -> return $ Response (either ("error: " ++) show $ MakeType.makeType d) (Just $ "--make-type " ++ d)
+    Right (PrecedenceReq t) -> return $ Response (either ("error: " ++) show $ Cxx.parseExpr t) (Just $ "--precedence " ++ t)
     Right ShowRequest -> return $ Response (listToMaybe prevs `orElse` "<none>") Nothing
     Right (EditRequest editcmd) -> case prevs of
       [] -> return $ Response "There is no previous request to modify." Nothing
@@ -140,4 +144,4 @@ evaluator = do
         Right sc -> do
           ou <- evf $ EvalCxx.Request (prel ++ (if terse then "#include \"terse.hpp\"\n" else "") ++ shortcut_syntaxes (line_breaks sc)) also_run nowarn
           return $ Response ou (Just r)
-        Left e -> return $ Response (showParseError True e) (Just r)
+        Left e -> return $ Response (EditCmds.showParseError "request" code False e) (Just r)

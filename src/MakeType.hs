@@ -4,8 +4,8 @@
   "pointer to anything" / "pointer to any object" / "pointer to object(s) of unspecified type" / "taking any object pointer" etc.
   new "->" syntax
   "function taking and returning int"
-  "int(void)"
-  textual description of member pointers
+  allow "member pointer" instead of "pointer to member"
+  allow naming the class in member pointer types (e.g. "pointer to string member function ...")
   variadic functions
 -}
 
@@ -14,19 +14,18 @@ module MakeType (makeType, test) where
 import qualified Text.ParserCombinators.Parsec as PS
 import qualified Text.ParserCombinators.Parsec.Language as PSL
 import qualified Text.ParserCombinators.Parsec.Token as PST
-import qualified Text.ParserCombinators.Parsec.Error as PSE
 import qualified Data.List as List
+import qualified EditCmds
 
-import Data.Char (isSpace)
 import Control.Monad.Error ()
-import Control.Monad (liftM, liftM2, when)
+import Control.Monad (liftM, liftM2)
 import Control.Arrow (first, second)
 import Data.Monoid (Monoid(..))
 import Text.ParserCombinators.Parsec
-  (CharParser, char, string, try, (<?>), (<|>), eof, optional, sepBy1, pzero, option, sepBy, sourceColumn, errorPos, choice, optionMaybe, many1, satisfy, spaces, oneOf, notFollowedBy)
+  (CharParser, char, string, try, (<?>), (<|>), eof, optional, sepBy1, pzero, option, sepBy, choice, optionMaybe, many1, satisfy, oneOf, notFollowedBy)
 
 import Prelude hiding ((.))
-import Util ((<<), (.), prefixError, isIdChar)
+import Util ((<<), (.), prefixError, isIdChar, test_cmp)
 
 data CV = CV Bool Bool deriving Eq
 
@@ -59,7 +58,6 @@ data Reference = Reference LR Referee deriving Eq
 data IndetArray = IndetArray ArrayElem deriving Eq
 data DetArray = DetArray Integer ArrayElem deriving Eq
 data Function = Function { funcRet :: FuncRet, funcVariadic :: Bool, funcArgs :: [FuncArg] } deriving Eq
-  -- Todo: Stronger: a variadic function has at least one parameter (I think).
 data Atomic = Atomic CV String deriving Eq
 
 data Referee
@@ -157,7 +155,7 @@ checkConstraints (UnconstrainedArray ms ut) =
     T_Atomic o -> return $ ArrayElem_Atomic o
 checkConstraints (UnconstrainedAtomicType s) = return $ T_Atomic (Atomic (CV False False) s)
 checkConstraints (UnconstrainedFunction r v args) =
-   T_Function . liftM2 (\x y -> Function x v y) checkRet (mapM checkArg args)
+   T_Function . liftM2 (\x y -> Function x v y) checkRet (checkArgs args)
   where
     checkRet :: Either String FuncRet
     checkRet = checkConstraints r >>= \vt -> prefixError "cannot have function returning " $ case vt of
@@ -167,6 +165,9 @@ checkConstraints (UnconstrainedFunction r v args) =
       T_Reference x -> return $ FuncRet_Reference x
       T_Pointer p -> return $ FuncRet_Pointer p
       T_Atomic o -> return $ FuncRet_Atomic o
+    checkArgs :: [UnconstrainedType] -> Either String [FuncArg]
+    checkArgs [UnconstrainedAtomicType "void"] | not v = return []
+    checkArgs x = mapM checkArg x
     checkArg :: UnconstrainedType -> Either String FuncArg
     checkArg t = checkConstraints t >>= \vt -> prefixError "cannot have function taking " $ case vt of
       T_Function _ -> fail "function"
@@ -258,6 +259,9 @@ instance NestShow Type where
 
 -- Parsers
 
+spaces :: CharParser st ()
+spaces = ((char ' ' >> spaces) <|> return ()) `PS.labels` []
+
 unraw :: String -> String
 unraw ('l':'o':'n':'g':' ':s) = "long " ++ unraw s
 unraw ('s':'h':'o':'r':'t':' ':s) = "signed " ++ unraw s
@@ -294,7 +298,12 @@ lrP :: CharParser st LR
 lrP = (kwd "rvalue" >> return Rvalue) <|> (optional (kwd "lvalue") >> return Lvalue)
 
 pointerP :: CharParser st UnconstrainedType
-pointerP = liftM UnconstrainedPointer $ pluralP "pointer" >> ((kwd "to" >> an) <|> return (nocv "T"))
+pointerP = (pluralP "pointer" >>) $
+  (do
+    kwd "to"
+    optional (kwd "an" <|> kwd "a")
+    (kwd "member" >> liftM (UnconstrainedMemPointer "T::") (typeP <|> return (nocv "T"))) <|> liftM UnconstrainedPointer typeP
+  ) <|> return (UnconstrainedPointer $ nocv "T")
 
 delim :: CharParser st ()
 delim = (op "," >> optional (kwd "and")) <|> kwd "and"
@@ -334,8 +343,8 @@ functionP :: CharParser st UnconstrainedType
 functionP = do
   pluralP "function"
   liftM2 (\x y -> UnconstrainedFunction y False [x]) (kwd "from" >> an) (kwd "to" >> an) <|>
-   liftM2 (\x y -> UnconstrainedFunction x False y) returningP (option [] (delim >> takingP)) <|>
-   liftM2 (\x y -> UnconstrainedFunction y False x) takingP (option (nocv "void") (delim >> returningP)) <|>
+   liftM2 (\x y -> UnconstrainedFunction x False y) returningP (option [] (optional delim >> takingP)) <|>
+   liftM2 (\x y -> UnconstrainedFunction y False x) takingP (option (nocv "void") (optional delim >> returningP)) <|>
    return (UnconstrainedFunction (nocv "void") False [])
 
 predicateP :: CharParser st UnconstrainedType
@@ -416,16 +425,10 @@ type_adornment_p =
 -- Exported interface
 
 makeType :: String -> Either String Type
-makeType d = do
-  case PS.parse (typeP << eotd) "" d of
-    Left e -> fail $ "column " ++ show (sourceColumn $ errorPos e) ++ ": " ++
-      (concatMap (++ ". ") $ filter (not . List.all isSpace) $ lines $ PSE.showErrorMessages "or" "unknown parse error" "expected:" "unexpected" eof_desc $ filter (not . isSpaceExpectation) $ PSE.errorMessages e)
-    Right x -> checkConstraints x
- where
-  eof_desc = "end of type description"
-  eotd = eof <?> eof_desc
-  isSpaceExpectation (PSE.Expect "space") = True
-  isSpaceExpectation _ = False
+makeType d = either
+  (fail . EditCmds.showParseError "type description" d True)
+  checkConstraints
+  (PS.parse (typeP << (eof <?> "end of type description")) "" d)
 
 -- Testing
 
@@ -446,21 +449,22 @@ test = do
   t "pointer to reference to int" $ Left "cannot have pointer to reference"
   t "pointer to constant function" $ Left "cannot cv-qualify function"
   t "pointer to function returning reference to array of pointers to functions returning arrays of six booleans" $ Left "cannot have function returning array"
-  t "function taking void and returning void" $ Left "cannot have function taking void"
+  t "function taking an int and a void" $ Left "cannot have function taking void"
+  t "pointer to void(void)" $ Right "void(*)()"
   t "reference to pointer to const array" $ Right "T const(* &)[]"
   t "function taking two integers, three doubles, and returning a boolean" $ Right "bool(int, int, double, double, double)"
   t "function taking two pointers to integers and a pointer to a predicate taking two integers, and returning nothing" $ Right "void(int*, int*, bool(*)(int, int))"
   t "rvalue reference to function" $ Right "void(&&)()"
   t "constant constant constant pointer to volatile volatile volatile int" $ Right "int volatile* const"
-  t "pointer to a function from string to int" $ Right "int(*)(string)"
-  t "pointer to " $ Left "column 12: unexpected end of type description. expected: type. "
+  t "pointer to a function from string_bla to int" $ Right "int(*)(string_bla)"
+  t "pointer to " $ Left "Unexpected end of type description. Expected \"an\", \"a\", \"member\", or type."
   t "pointer to function taking pointer to function" $ Right "void(*)(void(*)())"
-  t "pointer to int and double" $ Left "column 16: unexpected \"a\". expected: ptr-operator, cv-qualifier, \"[\", \"(\" or end of type description. "
-  t "function returning " $ Left "column 20: unexpected end of type description. expected: \"nothing\" or type. "
+  t "pointer to int and double" $ Left "Unexpected \"a\" after \"to int \". Expected ptr-operator, cv-qualifier, \"[\", \"(\", or end of type description."
+  t "function returning " $ Left "Unexpected end of type description. Expected \"nothing\" or type."
   t "function taking a pointer and a reference and returning a reference to a constant array" $ Right "T const(&(T*, T&))[]"
-  t "array of " $ Left "column 10: unexpected end of type description. expected: array size or type. "
+  t "array of " $ Left "Unexpected end of type description. Expected array size or type."
   t "array of seven characters" $ Right "char[7]"
-  t "function taking a pointer to void() and returning a reference to an int[3]" $ Right "int(&(void(*)()))[3]"
+  t "function taking a pointer to void() returning a reference to an int[3]" $ Right "int(&(void(*)()))[3]"
   t "void(pointer to function)" $ Right "void(void(*)())"
   t "function*(const int)" $ Right "void(*(int const))()"
   t "(function taking an int[3] )*" $ Right "void(*)(int*)"
@@ -470,15 +474,20 @@ test = do
   t "int(const*)()" $ Left "cannot cv-qualify function"
   t "int(X::*)()const volatile" $ Right "int(X::*)() const volatile"
   t "int volatile X::* Y::* const Z::*" $ Right "int volatile X::* Y::* const Z::*"
+  t "pointer to a member function" $ Right "void(T::*)()"
+  t "pointer to member integer" $ Right "int T::*"
+  t "pointer to member" $ Right "T T::*"
+  t "pointer to member pointer to member pointer to member array" $ Right "T(T::* T::* T::*)[]"
+  t "function taking (pointer to function returning int taking int) returning int" $ Right "int(int(*)(int))"
+  t "function+" $ Left "Unexpected \"+\" after \"function\". Expected \"from\", \"returning\", \"taking\", ptr-operator, cv-qualifier, \"[\", \"(\", or end of type description."
+  putStrLn "No test failures."
  where
   t :: String -> Either String String -> IO ()
   t d o = do
     let dt = makeType d
-    let o' = show . dt
-    when (o' /= o) $ fail $ "test failed: " ++ show (d, o, o')
+    test_cmp d o (show . dt)
     case dt of
-      Right r -> do
-        when (makeType (show r) /= dt) $ fail $ "secondary test failed for " ++ show r
+      Right r -> test_cmp d dt (makeType (show r))
       Left _ -> return ()
 
 itest :: IO ()

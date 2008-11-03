@@ -1,19 +1,20 @@
-module EditCmds (diff, commandsP, Command, execute, test, pretty_commands) where
+module EditCmds (diff, commandsP, Command, execute, test, pretty_commands, showParseError) where
 
 import Control.Monad.Error ()
-import Control.Monad (liftM2, when)
+import Control.Monad (liftM2)
 import Control.Arrow (first)
 import Data.Algorithm.Diff (DI(..), getDiff)
 import Data.Monoid (Monoid(..))
-import Data.Maybe (listToMaybe)
+import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Char (isSpace, isAlpha, isDigit, isAlphaNum)
 import Text.ParserCombinators.Parsec
   (choice, CharParser, char, string, try, (<?>), (<|>), eof, anyChar, lookAhead, unexpected)
 import qualified Text.ParserCombinators.Parsec as PS
+import qualified Text.ParserCombinators.Parsec.Error as PSE
 import qualified Prelude
 import Prelude hiding (last, (.), all, (!!))
 import qualified Data.List as List
-import Util
+import Util (test_cmp, capitalize, (.), commas_and, unne, Convert(..), (<<), (!!), Op(..), NElist(..), levenshtein, findMaybe, stripPrefix, isIdChar, take_atleast, orElse, approx_match, ops_cost, sepBy1', many1Till', replaceAllInfix, erase_indexed, Cost, commas_or)
 
 -- Positions/ranges:
 
@@ -591,13 +592,14 @@ toks_text = tok_text . mconcat
 diff_tokenize :: String -> [Token]
 diff_tokenize = g . f . tokenize isIdChar
   where
-    separator = (`elem` words ", { } ( ) ; = friend")
+    separator = (`elem` words ", { } ( ) ; = friend <<")
     f :: [String] -> [Token]
     f [] = []
     f (s : t@(' ':_) : m) = Token s t : f m
     f (s : m) = Token s "" : f m
     g :: [Token] -> [Token]
     g [] = []
+    g (t@(Token "<<" _) : r) = case g r of [] -> [t]; (u : m) -> mappend t u : m
     g (t : r) | separator (tok_text t) = t : g r
     g a =
       let (b, c) = span (not . separator . tok_text) a in
@@ -616,7 +618,10 @@ instance RawShow a => Show (Ranked a) where
   show (Sole s) = raw_show s
   show (Ranked r s) = show r ++ " " ++ raw_show s
 
-instance Show Position where show (Position a x) = show a ++ " " ++ show x
+instance Show Position where
+  show (Position Before Everything) = "at start"
+  show (Position After Everything) = "at end"
+  show (Position a x) = show a ++ " " ++ show x
 
 instance Show a => Show (AndList a) where
   show (AndList l) = concat $ List.intersperse " and " $ map show $ unne l
@@ -701,7 +706,24 @@ instance Show Command where show = show_command Past
 
 data SimpleEdit a = SimpleEdit { se_range :: Range a, se_repl :: [a] }
 
+and_and :: AndList a -> AndList a -> AndList a
+and_and (AndList (NElist x y)) (AndList (NElist a b)) = AndList $ NElist x (y ++ a : b)
+
+merge_commands :: [Command] -> [Command]
+merge_commands [] = []
+merge_commands (Replace (AndList (NElist (Replacer x []) [])) : Replace (AndList (NElist (Replacer y []) [])) : r) =
+  merge_commands $ Replace (AndList (NElist (Replacer (x `and_and` y) []) [])) : r
+merge_commands (h:t) = h : merge_commands t
+
+describe_position_after :: Pos -> String -> Position
+describe_position_after 0 _ = Position Before Everything
+describe_position_after n s | n == length s = Position After Everything
+describe_position_after n s =
+  Position After $ NotEverything $ Sole $ concat $ reverse $ take_atleast 7 length $ reverse $ tokenize isIdChar $ take n s
+
 describe_simpleEdit :: SimpleEdit Token -> [Token] -> Command
+describe_simpleEdit (SimpleEdit (Range p 0) s) t | p == length t = Append (raw_show $ toks_text s) Nothing
+describe_simpleEdit (SimpleEdit (Range 0 0) s) _ = Prepend (raw_show $ toks_text s) Nothing
 describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
   if siz == 0 then case () of -- insert
     ()| repl_elem ["{", "("] || alpha After -> ins Before
@@ -756,6 +778,7 @@ diff :: String -> String -> Either String (AndList Command)
 diff pre post =
   (\r -> case r of [] -> Left "Strings are identical."; (h:t) -> Right $ AndList $ NElist h t) $
   let pre_toks = diff_tokenize pre in
+  merge_commands $
   map (flip describe_simpleEdit pre_toks) $
   merge_nearby_edits pre_toks $
   diffsAsSimpleEdits $ getDiff pre_toks (diff_tokenize post)
@@ -765,19 +788,32 @@ execute cmds str = do
   edits <- concat . sequence (findInStr str . cmds)
   exec_edits edits str
 
--- Testing:
-
-cmp :: (Eq a, Show a) => String -> a -> a -> IO ()
-cmp n x y = do
-  when (x /= y) $ do
-    putStr "Test failed: "; putStrLn n
-    putStr "Expected: "; print x
-    putStr "Actual:   "; print y
-    putStrLn ""
-    fail "test failure"
-
 pretty_commands :: AndList Command -> String
 pretty_commands = capitalize . (++ ".") . commas_and . map show . unne . andList
+
+isUnexpectation, isExpectation :: PSE.Message -> Maybe String
+
+isUnexpectation (PSE.SysUnExpect s) = Just s
+isUnexpectation (PSE.UnExpect s) = Just s
+isUnexpectation _ = Nothing
+
+isExpectation (PSE.Expect s@(_:_)) = Just s
+isExpectation _ = Nothing
+
+showParseError :: String -> String -> Bool -> PSE.ParseError -> String
+showParseError n d show_expectation e =
+  let
+    pos = show (describe_position_after (PS.sourceColumn (PS.errorPos e) - 1) d)
+    expectation = if not show_expectation then Nothing else
+      case List.nub $ mapMaybe isExpectation $ PSE.errorMessages e of
+        [] -> Nothing
+        l -> Just $ commas_or l ++ "."
+  in if null d then maybe "Parse error." ("Expected " ++) expectation else
+   case findMaybe isUnexpectation (PSE.errorMessages e) of
+    Just u -> "Unexpected " ++ (if null u then "end of " ++ n else u ++ " " ++ pos) ++ "." ++ maybe "" (" Expected " ++) expectation
+    Nothing -> case expectation of Nothing -> "Parse error."; Just p -> pos ++ ", expected " ++ p
+
+-- Testing:
 
 test :: IO ()
 test = do
@@ -868,7 +904,7 @@ test = do
   t "prepend x before everything after 4 and add y after 4" $ Right "1 2 3 2 3 4yx 5"
   t "add y after 4 and prepend x before everything after 4" $ Right "1 2 3 2 3 4xy 5"
   -- Edit errors:
-  t "move second 2 to x" $ Left "column 18: unexpected \"x\". expected: \"begin\", \"front\", \"end\", \"back\", \"before \" or \"after \". "
+  t "move second 2 to x" $ Left "Unexpected \"x\" after \"second 2 to \". Expected \"begin\", \"front\", \"end\", \"back\", \"before \", or \"after \"."
   t "replace alligators with chickens" $ Left "String \"alligators\" does not occur."
   t "use banana" $ Left "No match."
   t "use 5426" $ Left "No match."
@@ -879,29 +915,29 @@ test = do
   t "replace all 2 with 3 and replace second 2 with x" $ Left "Overlapping edits: replace \"2\" with \"3\" and replace \"2\" with \"x\"."
   t "erase everything before first 3 and replace first 2 with x" $ Left "Overlapping edits: erase \"1 2 \" and replace \"2\" with \"x\"."
   -- Syntax errors:
-  t "move 4 to back " $ Left "column 16: unexpected end of command. "
-  t "isnert 3 before 4" $ Left "column 1: unexpected \"s\". expected: \"insert \", \"add \", \"append \", \"prepend \", \"erase \", \"remove \", \"kill \", \"cut \", \"omit \", \"delete \", \"replace \", \"use \", \"move \" or \"wrap \". "
-  t "insert " $ Left "column 8: unexpected end of command. expected: verbatim string. "
-  t "erase first and " $ Left "column 17: unexpected end of command. expected: ordinal. "
-  t "erase between second " $ Left "column 22: unexpected end of command. expected: \"last \", \"and \" or verbatim string. "
-  t "insert kung fu" $ Left "column 15: unexpected end of command. expected: \" after \", \" before \" or \" at \". "
-  t "move " $ Left "column 6: unexpected end of command. expected: \"till \", \"until \", \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", ordinal or verbatim string. "
-  t "move x " $ Left "column 8: unexpected end of command. expected: \" before \", \" after \", \" between\", \" till \", \" until \" or \" to \". "
-  t "move x to "$ Left "column 11: unexpected end of command. expected: \"begin\", \"front\", \"end\", \"back\", \"before \" or \"after \". "
-  t "wrap x and y" $ Left $ "column 13: unexpected end of command. expected: \" around \" or \" in \". "
-  t "append x and erase first " $ Left "column 26: unexpected end of command. expected: \"and \" or verbatim string. "
-  t "erase all 2 and " $ Left "column 17: unexpected end of command. expected: \"insert \", \"add \", \"append \", \"prepend \", \"erase \", \"remove \", \"kill \", \"cut \", \"omit \", \"delete \", \"replace \", \"use \", \"move \", \"wrap \", \"till \", \"until \", \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", \"all \", \"any \", \"every \", \"each \", ordinal or verbatim string. "
+  t "move 4 to back " $ Left "Unexpected end of command."
+  t "isnert 3 before 4" $ Left "Unexpected \"s\" at start. Expected \"insert \", \"add \", \"append \", \"prepend \", \"erase \", \"remove \", \"kill \", \"cut \", \"omit \", \"delete \", \"replace \", \"use \", \"move \", or \"wrap \"."
+  t "insert " $ Left "Unexpected end of command. Expected verbatim string."
+  t "erase first and " $ Left "Unexpected end of command. Expected ordinal."
+  t "erase between second " $ Left "Unexpected end of command. Expected \"last \", \"and \", or verbatim string."
+  t "insert kung fu" $ Left "Unexpected end of command. Expected \" after \", \" before \", or \" at \"."
+  t "move " $ Left "Unexpected end of command. Expected \"till \", \"until \", \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", ordinal, or verbatim string."
+  t "move x " $ Left "Unexpected end of command. Expected \" before \", \" after \", \" between\", \" till \", \" until \", or \" to \"."
+  t "move x to "$ Left "Unexpected end of command. Expected \"begin\", \"front\", \"end\", \"back\", \"before \", or \"after \"."
+  t "wrap x and y" $ Left $ "Unexpected end of command. Expected \" around \" or \" in \"."
+  t "append x and erase first " $ Left "Unexpected end of command. Expected \"and \" or verbatim string."
+  t "erase all 2 and " $ Left "Unexpected end of command. Expected \"insert \", \"add \", \"append \", \"prepend \", \"erase \", \"remove \", \"kill \", \"cut \", \"omit \", \"delete \", \"replace \", \"use \", \"move \", \"wrap \", \"till \", \"until \", \"from \", \"everything\", \"begin \", \"before \", \"between \", \"after \", \"all \", \"any \", \"every \", \"each \", ordinal, or verbatim string."
   -- "use" tests:
-  ut "ETYPE_DESC" "ETPYE" "Replaced \"cout << ETPYE\" with \"cout << ETYPE_DESC\"." "Replaced \"cout << ETYPE_DESC\" with \"cout << ETPYE\"."
+  ut "ETYPE_DESC" "ETPYE" "Replaced \"<< ETPYE\" with \"<< ETYPE_DESC\"." "Replaced \"<< ETYPE_DESC\" with \"<< ETPYE\"."
   ut "kip(a.~T)" "a.~T" "Replaced \"a.~T\" with \"kip(a.~T)\"." "Replaced \"kip(a.~T)\" with \"a.~T\"."
   -- ut "cos(a.~T)" "a.~T" -- Fails, but can probably be made to work by rewarding successive skips.
   ut "size_type" "size_t" "Replaced \"string::size_t- siz\" with \"string::size_type- siz\"." "Replaced \"string::size_type- siz\" with \"string::size_t- siz\"."
   ut "size = 9" "siz = 2" "Replaced \"string::size_t- siz = 2\" with \"string::size_t- size = 9\"." "Replaced \"string::size_t- size = 9\" with \"string::size_t- siz = 2\"."
-  ut "ETYPE" "ETPYE" "Replaced \"cout << ETPYE\" with \"cout << ETYPE\"." "Replaced \"cout << ETYPE\" with \"cout << ETPYE\"."
+  ut "ETYPE" "ETPYE" "Replaced \"<< ETPYE\" with \"<< ETYPE\"." "Replaced \"<< ETYPE\" with \"<< ETPYE\"."
   ut "std::string" "string" "Replaced \"string::size_t- siz\" with \"std::string::size_t- siz\"." "Replaced \"std::string::size_t- siz\" with \"string::size_t- siz\"."
   ut "; float x" "; int x" "Replaced \"int x\" with \"float x\"." "Replaced \"float x\" with \"int x\"."
   ut "x-" "x -" "Replaced \"x - size\" with \"x- size\"." "Replaced \"x- size\" with \"x - size\"."
-  ut ") cin <<" ") cout <<" "Replaced \"cout << ETPYE\" with \"cin << ETPYE\"." "Replaced \"cin << ETPYE\" with \"cout << ETPYE\"."
+  ut ") cin <<" ") cout <<" "Replaced \"cout\" with \"cin\"." "Replaced \"cin\" with \"cout\"."
   ut "x = 4" "x = 3" "Replaced \"3\" with \"4\"." "Replaced \"4\" with \"3\"."
   ut "x - 8);" "x - size);" "Replaced \"x - size\" with \"x - 8\"." "Replaced \"x - 8\" with \"x - size\"."
   ut "(!i)" "(i == 0)" "Replaced \"i == 0\" with \"!i\"."  "Replaced \"!i\" with \"i == 0\"."
@@ -909,9 +945,9 @@ test = do
   ut "<char>" "<unsigned char>" "Replaced \"vector<unsigned char> & r\" with \"vector<char> & r\"." "Replaced \"vector<char> & r\" with \"vector<unsigned char> & r\"."
   ut "<const fish>" "<fish>" "Replaced \"reinterpret_cat<fish>\" with \"reinterpret_cat<const fish>\"." "Replaced \"reinterpret_cat<const fish>\" with \"reinterpret_cat<fish>\"."
   ut "&); };" "&) };" "Inserted \";\" after \"C const &)\"." "Erased \";\" after \"C const &)\"."
-  -- ut "> * r = v" "> & r = v" "Replaced \"& r\" with \"* r\"." "Replaced \"* r\" with \"& r\"."
+  ut "> * r = v" "> & r = v" "Replaced \"& r\" with \"* r\"." "Replaced \"* r\" with \"& r\"."
   ut "v.cbegin()" "v.begin()" "Replaced \"v.begin\" with \"v.cbegin\"." "Replaced \"v.cbegin\" with \"v.begin\"."
-  -- ut "void foo" "voidfoo" ""  ""
+  -- Todo: "void foo" should match "voidfoo".
   ut "x - sizeof(y))" "x - size)" "Replaced \"x - size\" with \"x - sizeof(y)\"." "Replaced \"x - sizeof(y))\" with \"x - size)\"."
   ut "int a(2);" "int a;" "Inserted \"(2)\" after \"{ int a\"." "Erased \"(2)\" after \"{ int a\"."
   ut "int const * w" "int * w" "Replaced \"int * w\" with \"int const * w\"." "Replaced \"int const * w\" with \"int * w\"."
@@ -923,7 +959,7 @@ test = do
   ut "a->seekp" "a.seek" "Replaced \"a.seek\" with \"a->seekp\"." "Replaced \"a->seekp\" with \"a.seek\"."
   ut "vector<int>::iterator i" "vector<int> i" "Replaced \"vector<int> i\" with \"vector<int>::iterator i\"." "Replaced \"vector<int>::iterator i\" with \"vector<int> i\"."
   ut "runtime_error(" "runtime_exception(" "Replaced \"throw runtime_exception\" with \"throw runtime_error\"." "Replaced \"throw runtime_error\" with \"throw runtime_exception\"."
-  -- ut "~T();" "~T;" "Inserted \"()\" after \") { a.~T\"." "Replaced \") { a.~T()\" with \") { a.~T\"."
+  ut "~T();" "~T;" "Inserted \"()\" after \") { a.~T\"." "Erased \"()\" after \") { a.~T\"." -- Todo: ugly.
   ut "int const * w" "int * w" "Replaced \"int * w\" with \"int const * w\"." "Replaced \"int const * w\" with \"int * w\"."
   ut "(T & a)" "(T a)" "Replaced \"T a\" with \"T & a\"." "Replaced \"T & a\" with \"T a\"."
   ut "& r(v);" "& r = v;" "Replaced \"= v\" after \"vector<unsigned char> & r\" with \"(v)\"." "Replaced \"(v)\" after \"vector<unsigned char> & r\" with \"= v\"."
@@ -934,8 +970,8 @@ test = do
   ut "B z{p};" "B z = B{p};" "Erased \"= B\" after \"B z\"." "Inserted \"= B\" after \"B z\"."
   ut "friend C & operator+" "C & operator+" "Inserted \"friend\" before \"C & operator+\"." "Erased \"friend\" before \"C & operator+\"."
   ut "char const(&here)[N]" "char(const&here)[N]" "Replaced \"char(const&here\" with \"char const(&here\"." "Replaced \"char const(&here\" with \"char(const&here\"."
-  ut "z = shared_ptr<B>{new p}" "z = B{p}" "Replaced \"B{p\" with \"shared_ptr<B>{new p\"." "Replaced \"shared_ptr<B>{new p\" with \"B{p\"." -- hmm
---  ut "(X(y));" "X(y);" "Replaced \"X\" with \"(X\", and inserted \")\" after \"} X(y)\"."
+  ut "z = shared_ptr<B>{new p}" "z = B{p}" "Replaced \"B{p\" with \"shared_ptr<B>{new p\"." "Replaced \"shared_ptr<B>{new p\" with \"B{p\"." -- Todo: ugly.
+  ut "(X(y));" "X(y);" "Inserted \"(\" before \"X(y)\" and inserted \")\" after \"} X(y)\"." "Erased \"(\" before \"X(y))\" and \")\" after \"} (X(y)\"." -- Todo: ugly.
   ut "2000" "1800" "Replaced \"1800\" with \"2000\"." "Replaced \"2000\" with \"1800\"."
   ut "8000100808" "10000000000" "Replaced \"10000000000\" with \"8000100808\"." "Replaced \"8000100808\" with \"10000000000\"."
   ut "> 7" ">= 7" "Replaced \"x >= 7\" with \"x > 7\"." "Replaced \"x > 7\" with \"x >= 7\"."
@@ -946,10 +982,12 @@ test = do
   ut "u - -j" "u--j" "Replaced \"&u--j\" with \"&u - -j\"." "Replaced \"&u - -j\" with \"&u--j\"."
   ut "struct C{" "struct C(){" "Erased \"()\" after \"struct C\"." "Inserted \"()\" after \"struct C\"."
 
+  dt' "foo; bar; monkey; chicken; bas;" "bar; monkey; chicken;" "Erased \"foo;\" and \"bas;\"." "Prepended \"foo;\" and appended \"bas;\"."
+
   dt' "{ fstream f(\"t.cpp\"); string s(istreambuf_iterator<char>(f), istreambuf_iterator<char>()); }"
     "{ fstream f(\"t.cpp\"); string s((istreambuf_iterator<char>(f)), istreambuf_iterator<char>()); }"
-    "Inserted \"(\" before \"istreambuf_iterator<char>\", and inserted \")\" after \"istreambuf_iterator<char>(f)\"."
-    "Erased \"(\" before \"istreambuf_iterator<char>\", and erased \")\" after \"istreambuf_iterator<char>(f)\"."
+    "Inserted \"(\" before \"istreambuf_iterator<char>\" and inserted \")\" after \"istreambuf_iterator<char>(f)\"."
+    "Erased \"(\" before \"istreambuf_iterator<char>\" and \")\" after \"istreambuf_iterator<char>(f)\"."
         -- Todo: One day, the former should say "wrapped ...".
 
   dt' "int f(int & i) { i = 4; return i;} int g(int && i){return f(i);} int main() { cout << g(2); }"
@@ -959,8 +997,9 @@ test = do
 
   dt' "{string foo = \"kangaroo\"; auto m = foo.find_first_of('m'); cout << *m;}"
     "{string foo = \"kangaroo\"; size_t m = foo.find_first_of('m'); cout << foo[m];}"
-    "Replaced \"auto m\" with \"size_t m\", and replaced \"cout << *m\" with \"cout << foo[m]\"."
-    "Replaced \"size_t m\" with \"auto m\", and replaced \"cout << foo[m]\" with \"cout << *m\"."
+    "Replaced \"auto m\" with \"size_t m\" and replaced \"<< *m\" with \"<< foo[m]\"."
+    "Replaced \"size_t m\" with \"auto m\" and replaced \"<< foo[m]\" with \"<< *m\"."
+      -- Todo: Group.
 
   dt "{int i=0,t=time(0);for(;i<5000000;i++)asm(\".org 0xffff\");cout << time(0)-t; }"
     "{int i=0,t=time(0);for(;i<5000;i++)int tmp=1*88+71/4000^66;cout << time(8)-t; }"
@@ -968,7 +1007,7 @@ test = do
 
   dt' "struct curr_func { string name; cf(string n):name(n){} }; \\ #define DEFUN(name) name try { throw curr_func(#name); } catch(curr_func& cfun) \\ DEFUN(void haha(int a)) { cout << cfun.name; } int main() { cout << haha; }"
     "struct curr_func { string name; curr_func(string n):name(n){} }; \\ #define DEFUN(name) name try { throw curr_func(#name); } catch(curr_func& cfun) \\ DEFUN(void haha(int a)) { cout << cfun.name << \": \" << a; } int main() { haha(42); }"
-    "Replaced \"cf\" with \"curr_func\", inserted \"<< \\\": \\\" << a\" after \"cout << cfun.name\", and replaced \"cout << haha\" with \"haha(42)\"."
+    "Replaced \"cf\" with \"curr_func\", inserted \"<< \\\": \\\" << a\" after \"<< cfun.name\", and replaced \"cout << haha\" with \"haha(42)\"."
     "Replaced \"curr_func\" with \"cf\", erased \"<< \\\": \\\" << a\", and replaced \"haha(42)\" with \"cout << haha\"."
 
   dt "{float i=0,t=time(0);for(;i<5000000;i++) { if(x == 3) f(reinterpret_cast<long>(x)); } }"
@@ -982,34 +1021,42 @@ test = do
 -}
   dt "struct curr_func { string name; cf(string n):name(n){} }; \\ #define DEFUN(name) name try { throw curr_func(#name); } catch(curr_func& cfun) \\ DEFUN(void haha(int a)) { cout << cfun.name; } int main() { cout << haha; }"
     "struct { string name; cf(string n){} }; \\ #define DEFUN(name) name try { } catch(curr_func& cfun) \\ DEFUN(void haha(int a) { cout << \"tortoise\"; } ) { cout << ETYPE(cfun.name); } int main() { do_something(complicated); cout << haha; }"
-    "Replaced \"struct curr_func\" with \"struct\", erased \":name(n)\", erased \"throw curr_func(#name);\", inserted \"{ cout << \\\"tortoise\\\"; }\" before \") { cout << cfun.name\", replaced \"cout << cfun.name\" with \"cout << ETYPE(cfun.name)\", and inserted \"do_something(complicated);\" before \"cout << haha\"."
+    "Replaced \"struct curr_func\" with \"struct\", erased \":name(n)\" and \"throw curr_func(#name);\", inserted \"{ cout << \\\"tortoise\\\"; }\" before \") { cout\", replaced \"<< cfun.name\" with \"<< ETYPE(cfun.name)\", and inserted \"do_something(complicated);\" before \"cout << haha\"."
 
   dt "{ char str[] = \"giraffe\"; char * pch; pch=(char*) memchr(str, 'y', (int)strlen(str)); if (pch!=NULL) { printf(\"'y' was found at position #%d\", pch-str+1); } }"
     "{ char * str = \"giraffe\"; char * pch; pch=(char*) memchr(str, 'v', (size_t)strlen(str)); if (pch!=NULL) { printf(\"'v' was found at position #%d\", pch-str-1); memset(str, '*', 6); puts(str); printf(\"%s\", str); } }"
     "Replaced \"char str[]\" with \"char * str\", replaced \"'y'\" with \"'v'\", replaced \"int\" with \"size_t\", replaced \"\\\"'y' was\" with \"\\\"'v' was\", and replaced \"pch-str+1\" with \"pch-str-1); memset(str, '*', 6); puts(str); printf(\\\"%s\\\", str\"."
 
+  dt "geordi: { char y(34); stringstream i(\"geordi: { char y(34); stringstream i(!); string t; getline(i, t, '!'); cout << t << y << i.str() << y << i.rdbuf(); }\"); string t; getline(i, t, '!'); cout<< t << y << i.str() << y << i.rdbuf(); }"
+    "geordi: { stringstream i(\"geordi: { stringstream i(!); string t; getline(i, t, '!'); cout << t << i.str() << i.rdbuf(); }\"); string t; getline(i, t, '!'); cout << t << i.str() << i.rdbuf(); }"
+    "Erased \"char y(34);\" and \"char y(34);\" and \"<< y\" and \"<< y\" and \"<< y\" and \"<< y\"." -- Todo: "Erased all \"char y(34);\" and all \"<< y\"."
+
+  dt "char *& f() { static char *p; cout << &p << endl; return p; } int main() { char *p = f(); cout << &p << endl; }"
+    "char *& f() { static char *p; cout << &p << ' '; return p; } int main() { char *p = f(); cout << &p; }"
+    "Replaced \"<< endl\" with \"<< ' '\" and erased \"<< endl\"." -- Todo: say "first" and "last".
+
   putStrLn "No test failures."
  where
   t :: String -> Either String String -> IO ()
-  t c o = cmp c o $ case PS.parse (commandsP << eof) "" c of
-    Left e -> Left $ showParseError False e
+  t c o = test_cmp c o $ case PS.parse (commandsP << eof) "" c of
+    Left e -> Left $ showParseError "command" c True e
     Right cmds -> execute cmds "1 2 3 2 3 4 5"
   ut :: String -> String -> String -> String -> IO ()
   ut pattern match d rd = do
     let txt = "{ string::size_t- siz = 2; int x = 3; if(i == 0) cout << ETPYE(x - size); vector<int> v; v = { 3, 2 }; vector<int> i = reinterpret_cat<fish>(10000000000, v.begin()); } X(y); using tracked::B; B z = B{p}; int const u = 94; int * w = &u--j; !B && !D; vector<unsigned char> & r = v; struct C(){ C & operator+(ostream &, char(const&here)[N], C const &) }; template<typename T> voidfoo(T a) { a.~T; } void main() { int a; a.seek(1800, ios::end); foo(a++); if(x >= 7) throw runtime_exception(y); } class Qbla { public: fstream p; };"
     RangeReplaceEdit rng _ <- findInStr txt (UseClause pattern)
-    cmp pattern match (selectRange rng txt)
+    test_cmp pattern match (selectRange rng txt)
     let r = replaceRange rng pattern txt
-    cmp pattern d $ either id pretty_commands $ diff txt r
-    cmp pattern rd $ either id pretty_commands $ diff r txt
+    test_cmp pattern d $ either id pretty_commands $ diff txt r
+    test_cmp pattern rd $ either id pretty_commands $ diff r txt
   dt :: String -> String -> String -> IO ()
-  dt x y r = cmp x r $ either id (capitalize . (++ ".") . commas_and . map show . unne . andList) $ diff x y
+  dt x y r = test_cmp x r $ either id (capitalize . (++ ".") . commas_and . map show . unne . andList) $ diff x y
   dt' :: String -> String -> String -> String -> IO ()
   dt' x y xy yx = do
     let xy' = either id (capitalize . (++ ".") . commas_and . map show . unne . andList) $ diff x y
     let yx' = either id (capitalize . (++ ".") . commas_and . map show . unne . andList) $ diff y x
-    cmp x xy xy'
-    cmp y yx yx'
+    test_cmp x xy xy'
+    test_cmp y yx yx'
   dts :: String -> [(String, String)] -> IO ()
   dts _ [] = return ()
   dts s ((s', d) : r) = dt s s' d >> dts s' r
