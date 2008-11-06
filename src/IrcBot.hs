@@ -109,7 +109,7 @@ describe_lines [] = ""
 describe_lines [x] = x
 describe_lines (x:xs) = x ++ discarded_lines_description (length xs)
 
-data ChannelMemory = ChannelMemory { editable_requests :: [String], last_output :: String }
+data ChannelMemory = ChannelMemory { editable_requests :: [Request.EditableRequest], last_output :: String }
 type ChannelMemoryMap = Map String ChannelMemory
 
 is_request :: IrcBotConfig -> Where -> String -> Maybe String
@@ -157,7 +157,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
           if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after " ++ show (reverse $ take 15 $ reverse r) ++ "." else do
             -- The `elem` "};" condition gains a reduction in false positives at the cost of an increase in false negatives.
           mmem <- Map.lookup wher . lift readState
-          Request.Response output history_addition <- lift $ lift $ eval r $ Request.Context (editable_requests . mmem `orElse` [])
+          Request.Response history_addition output <- lift $ lift $ eval r $ Request.Context (editable_requests . mmem `orElse` [])
           let output' = describe_lines $ lines output
           lift $ mapState' $ Map.insert wher $ ChannelMemory
             { editable_requests = (maybe id (:) history_addition) (maybe [] editable_requests mmem)

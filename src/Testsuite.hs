@@ -103,7 +103,7 @@ tests "misc" =
   , test "srand()/time()" "{ srand(time(0)); }" NoOutput
   , test "line breaks" "#define X \"\\\\\" \\ #define Y X \\ int main() { cout \\ << Y Y; }" $ ExactMatch "\\\\"
   , test "-v" "-v" $ PrefixMatch "g++ (GCC) 4"
-  , test "getopt" "-monkey chicken" $ ExactMatch "error: unrecognized option `-m'\n"
+  , test "getopt" "-monkey chicken" $ ExactMatch "error: No such option: -m"
   , test "operator new/delete overriding" "{ cerr << \"| \"; list<int> v(5); } void * operator new(size_t const s) throw(bad_alloc) { cerr << s << ' '; return malloc(s); } void operator delete(void * const p) throw() { free(p); }" $ RegexMatch "[^-]*\\| [[:digit:] ]+"
   ]
 

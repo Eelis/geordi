@@ -774,9 +774,8 @@ merge_nearby_edits s (e : m) = e : merge_nearby_edits s m
 
 -- Main:
 
-diff :: String -> String -> Either String (AndList Command)
+diff :: String -> String -> [Command]
 diff pre post =
-  (\r -> case r of [] -> Left "Strings are identical."; (h:t) -> Right $ AndList $ NElist h t) $
   let pre_toks = diff_tokenize pre in
   merge_commands $
   map (flip describe_simpleEdit pre_toks) $
@@ -791,7 +790,7 @@ execute cmds str = do
 pretty_commands :: AndList Command -> String
 pretty_commands = capitalize . (++ ".") . commas_and . map show . unne . andList
 
-isUnexpectation, isExpectation :: PSE.Message -> Maybe String
+isUnexpectation, isExpectation, isMessage :: PSE.Message -> Maybe String
 
 isUnexpectation (PSE.SysUnExpect s) = Just s
 isUnexpectation (PSE.UnExpect s) = Just s
@@ -800,18 +799,23 @@ isUnexpectation _ = Nothing
 isExpectation (PSE.Expect s@(_:_)) = Just s
 isExpectation _ = Nothing
 
+isMessage (PSE.Message s@(_:_)) = Just s
+isMessage _ = Nothing
+
 showParseError :: String -> String -> Bool -> PSE.ParseError -> String
-showParseError n d show_expectation e =
-  let
-    pos = show (describe_position_after (PS.sourceColumn (PS.errorPos e) - 1) d)
+showParseError subject_desc input show_expectation e =
+  findMaybe isMessage (PSE.errorMessages e) `orElse`
+    if null input then maybe "Parse error." capitalize expectation else
+      case findMaybe isUnexpectation (PSE.errorMessages e) of
+        Just u -> "Unexpected " ++
+          (case u of "" -> "end of " ++ subject_desc; "\" \"" -> "whitespace " ++ pos; _ -> u ++ " " ++ pos) ++ "." ++
+          maybe "" ((" " ++) . capitalize) expectation
+        Nothing -> maybe "Parse error." ((capitalize pos ++ ", ") ++) expectation
+  where
+    pos = show (describe_position_after (PS.sourceColumn (PS.errorPos e) - 1) input)
     expectation = if not show_expectation then Nothing else
       case List.nub $ mapMaybe isExpectation $ PSE.errorMessages e of
-        [] -> Nothing
-        l -> Just $ commas_or l ++ "."
-  in if null d then maybe "Parse error." ("Expected " ++) expectation else
-   case findMaybe isUnexpectation (PSE.errorMessages e) of
-    Just u -> "Unexpected " ++ (if null u then "end of " ++ n else u ++ " " ++ pos) ++ "." ++ maybe "" (" Expected " ++) expectation
-    Nothing -> case expectation of Nothing -> "Parse error."; Just p -> pos ++ ", expected " ++ p
+        [] -> Nothing; l -> Just $ "expected " ++ commas_or l ++ "."
 
 -- Testing:
 
@@ -1047,19 +1051,19 @@ test = do
     RangeReplaceEdit rng _ <- findInStr txt (UseClause pattern)
     test_cmp pattern match (selectRange rng txt)
     let r = replaceRange rng pattern txt
-    test_cmp pattern d $ either id pretty_commands $ diff txt r
-    test_cmp pattern rd $ either id pretty_commands $ diff r txt
+    test_cmp pattern d $ pretty_diff txt r
+    test_cmp pattern rd $ pretty_diff r txt
   dt :: String -> String -> String -> IO ()
-  dt x y r = test_cmp x r $ either id (capitalize . (++ ".") . commas_and . map show . unne . andList) $ diff x y
+  dt x y r = test_cmp x r $ pretty_diff x y
   dt' :: String -> String -> String -> String -> IO ()
   dt' x y xy yx = do
-    let xy' = either id (capitalize . (++ ".") . commas_and . map show . unne . andList) $ diff x y
-    let yx' = either id (capitalize . (++ ".") . commas_and . map show . unne . andList) $ diff y x
-    test_cmp x xy xy'
-    test_cmp y yx yx'
+    test_cmp x xy $ pretty_diff x y
+    test_cmp y yx $ pretty_diff y x
   dts :: String -> [(String, String)] -> IO ()
   dts _ [] = return ()
   dts s ((s', d) : r) = dt s s' d >> dts s' r
+  pretty_diff :: String -> String -> String
+  pretty_diff x y = capitalize (commas_and $ show . diff x y) ++ "."
 
 {- Command grammar:
 

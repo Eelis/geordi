@@ -39,7 +39,7 @@ make_history_adder = do
       RL.addHistory s
       writeIORef r (Just s)
 
-data Memory = Memory { editable_requests :: [String], last_output :: Maybe String }
+data Memory = Memory { editable_requests :: [Request.EditableRequest], last_output :: Maybe String }
 
 blankMemory :: Memory
 blankMemory = Memory [] Nothing
@@ -51,14 +51,14 @@ main = do
   (opts, rest) <- getArgs
   if Help `elem` opts then putStrLn help else do
   eval <- Request.evaluator
-  forM_ rest $ \l -> do Request.Response output _ <- eval l (Request.Context []); putStrLn output
+  forM_ rest $ \l -> do Request.Response _ output <- eval l (Request.Context []); putStrLn output
   addHistory <- make_history_adder
   when (rest == []) $ flip fix blankMemory $ \loop mem -> (UTF8.decodeString .) . RL.readline "geordi: " >>= case_of
     Nothing -> putNewLn
     Just "" -> loop mem
     Just l -> do
-      Request.Response output history_addition <- eval l $ Request.Context $ editable_requests mem
-      maybeM history_addition $ addHistory . UTF8.encodeString
+      Request.Response history_addition output <- eval l $ Request.Context $ editable_requests mem
+      maybeM history_addition $ addHistory . UTF8.encodeString . show
       putStrLn $ describe_new_output (last_output mem) output
       loop $ Memory
         { editable_requests = (maybe id (:) history_addition) (editable_requests mem)
