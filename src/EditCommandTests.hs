@@ -169,7 +169,7 @@ test = do
   ut "friend C & operator+" "C & operator+" "Inserted \"friend\" before \"C & operator+\"." "Erased \"friend\" before \"C & operator+\"."
   ut "char const(&here)[N]" "char(const&here)[N]" "Replaced \"char(const&here\" with \"char const(&here\"." "Replaced \"char const(&here\" with \"char(const&here\"."
   ut "z = shared_ptr<B>{new p}" "z = B{p}" "Replaced \"B{p\" with \"shared_ptr<B>{new p\"." "Replaced \"shared_ptr<B>{new p\" with \"B{p\"." -- Todo: ugly.
-  ut "(X(y));" "X(y);" "Inserted \"(\" before \"X(y)\" and inserted \")\" after \"} X(y)\"." "Erased \"(\" before \"X(y))\" and \")\" after \"} (X(y)\"." -- Todo: ugly.
+  ut "(X(y));" "X(y);" "Inserted \"(\" before \"X(y)\", and inserted \")\" after \"} X(y)\"." "Erased \"(\" before \"X(y))\" and \")\" after \"} (X(y)\"." -- Todo: ugly.
   ut "2000" "1800" "Replaced \"1800\" with \"2000\"." "Replaced \"2000\" with \"1800\"."
   ut "8000100808" "10000000000" "Replaced \"10000000000\" with \"8000100808\"." "Replaced \"8000100808\" with \"10000000000\"."
   ut "> 7" ">= 7" "Replaced \"x >= 7\" with \"x > 7\"." "Replaced \"x > 7\" with \"x >= 7\"."
@@ -184,7 +184,7 @@ test = do
 
   dt' "{ fstream f(\"t.cpp\"); string s(istreambuf_iterator<char>(f), istreambuf_iterator<char>()); }"
     "{ fstream f(\"t.cpp\"); string s((istreambuf_iterator<char>(f)), istreambuf_iterator<char>()); }"
-    "Inserted \"(\" before \"istreambuf_iterator<char>\" and inserted \")\" after \"istreambuf_iterator<char>(f)\"."
+    "Inserted \"(\" before \"istreambuf_iterator<char>\", and inserted \")\" after \"istreambuf_iterator<char>(f)\"."
     "Erased \"(\" before \"istreambuf_iterator<char>\" and \")\" after \"istreambuf_iterator<char>(f)\"."
         -- Todo: One day, the former should say "wrapped ...".
 
@@ -195,8 +195,8 @@ test = do
 
   dt' "{string foo = \"kangaroo\"; auto m = foo.find_first_of('m'); cout << *m;}"
     "{string foo = \"kangaroo\"; size_t m = foo.find_first_of('m'); cout << foo[m];}"
-    "Replaced \"auto m\" with \"size_t m\" and replaced \"<< *m\" with \"<< foo[m]\"."
-    "Replaced \"size_t m\" with \"auto m\" and replaced \"<< foo[m]\" with \"<< *m\"."
+    "Replaced \"auto m\" with \"size_t m\", and replaced \"<< *m\" with \"<< foo[m]\"."
+    "Replaced \"size_t m\" with \"auto m\", and replaced \"<< foo[m]\" with \"<< *m\"."
       -- Todo: Group.
 
   dt "{int i=0,t=time(0);for(;i<5000000;i++)asm(\".org 0xffff\");cout << time(0)-t; }"
@@ -231,7 +231,7 @@ test = do
 
   dt "char *& f() { static char *p; cout << &p << endl; return p; } int main() { char *p = f(); cout << &p << endl; }"
     "char *& f() { static char *p; cout << &p << ' '; return p; } int main() { char *p = f(); cout << &p; }"
-    "Replaced \"<< endl\" with \"<< ' '\" and erased \"<< endl\"." -- Todo: say "first" and "last".
+    "Replaced \"<< endl\" with \"<< ' '\", and erased \"<< endl\"." -- Todo: say "first" and "last".
 
   putStrLn "No test failures."
  where

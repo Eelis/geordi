@@ -7,11 +7,12 @@ import qualified EditCommandParseError
 import qualified EditCommandParse
 import qualified EditCommandDiff
 import qualified CxxParse as Cxx
+import qualified Data.List as List
 import Data.Char (isPrint)
-import Data.Maybe (mapMaybe, listToMaybe)
+import Data.Maybe (listToMaybe)
 import Text.ParserCombinators.Parsec (getInput, (<|>), spaces, satisfy, eof, CharParser, string, try, choice, parse, notFollowedBy, option)
 import ParsecUtil (optParser)
-import Util ((.), (<<), (.||.), commas_and, isIdChar, capitalize, all_values, Option(..), lefts, orElse, length_ge, replace)
+import Util ((.), (<<), (.||.), commas_and, isIdChar, capitalize, all_values, lefts, orElse, length_ge, replace, maybe_nonempty, unne)
 import Request (Context(..), EvalOpt(..), Response(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
 import Prelude hiding (catch, (.))
 
@@ -22,16 +23,16 @@ line_breaks ::Cxx.Code -> Cxx.Code
 line_breaks = map $ Cxx.map_plain $ map $ \c -> if c == '\\' then '\n' else c
 
 diff :: EditableRequest -> EditableRequest -> String
-diff r r' = case (r, r') of
-    (EditableRequest MakeType y, EditableRequest MakeType x) -> pretty $ show . EditCommandDiff.diff x y
-    (EditableRequest Precedence y, EditableRequest Precedence x) -> pretty $ show . EditCommandDiff.diff x y
-    (EditableRequest (Evaluate flags) y, EditableRequest (Evaluate flags') x) -> pretty $
-      mapMaybe (\o -> if flags o && not (flags' o) then Just $ "added --" ++ long o else if flags' o && not (flags o) then Just $ "removed --" ++ long o else Nothing) all_values ++ show . EditCommandDiff.diff x y
-    _ -> "Requests differ in kind."
-  where
-    pretty :: [String] -> String
-    pretty [] = "Requests are identical."
-    pretty l = capitalize (commas_and l) ++ "."
+diff (EditableRequest MakeType y) (EditableRequest MakeType x) = pretty $ show . EditCommandDiff.diff x y
+diff (EditableRequest Precedence y) (EditableRequest Precedence x) = pretty $ show . EditCommandDiff.diff x y
+diff (EditableRequest (Evaluate flags) y) (EditableRequest (Evaluate flags') x) =
+  pretty $ f "removed" flags' flags ++ f "added" flags flags' ++ show . EditCommandDiff.diff x y
+    where f n fl fl' = maybe [] (\l -> [n ++ " " ++ concat (List.intersperse " and " $ map show $ unne l)]) (maybe_nonempty $ filter (\o -> fl o && not (fl' o)) all_values)
+diff _ _ = "Requests differ in kind."
+
+pretty :: [String] -> String
+pretty [] = "Requests are identical."
+pretty l = capitalize (commas_and l) ++ "."
 
 kwd :: [String] -> CharParser st ()
 kwd s = try (choice (try . string . s) >> notFollowedBy (satisfy isIdChar)) >> spaces

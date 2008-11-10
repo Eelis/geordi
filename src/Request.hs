@@ -5,7 +5,7 @@ import Control.Exception ()
 import Data.Char (isAlpha, isDigit)
 import Control.Monad.Error ()
 import Text.ParserCombinators.Parsec (getInput, (<|>), oneOf, lookAhead, spaces, satisfy, CharParser, many1, string, parse)
-import Util (Option(..), (.), (.||.), all_values)
+import Util (Option(..), (.), (.||.), all_values, none)
 import Prelude hiding (catch, (.))
 
 data EvalOpt = CompileOnly | Terse | NoWarn deriving (Eq, Enum, Bounded)
@@ -18,7 +18,7 @@ instance Option EvalOpt where
   long Terse = "terse"
   long NoWarn = "no-warn"
 
-instance Option o => Show o where show = long
+instance Option o => Show o where show = ("--" ++) . long
 
 instance (Option a, Option b) => Option (Either a b) where
   short = either short short; long = either long long
@@ -53,11 +53,13 @@ data EditableRequestKind = MakeType | Precedence | Evaluate (EvalOpt -> Bool)
 instance Show EditableRequestKind where
   show MakeType = "make type"
   show Precedence = "precedence"
-  show (Evaluate f) = case filter f all_values of [] -> ""; s -> '-' : (short . s) ++ " "
+  show (Evaluate f) = case filter f all_values of [] -> ""; s -> '-' : (short . s)
 
 data EditableRequest = EditableRequest { kind :: EditableRequestKind, editable_body :: String }
 
-instance Show EditableRequest where show (EditableRequest k s) = show k ++ " " ++ s
+instance Show EditableRequest where
+  show (EditableRequest (Evaluate f) s) | none f all_values = s
+  show (EditableRequest k s) = show k ++ (if null s then "" else " " ++ s)
 
 data Response = Response
   { response_add_history :: Maybe EditableRequest

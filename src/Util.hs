@@ -203,6 +203,10 @@ instance Functor NElist where fmap f (NElist x l) = NElist (f x) (f . l)
 unne :: NElist a -> [a]
 unne (NElist x l) = x : l
 
+maybe_nonempty :: [a] -> Maybe (NElist a)
+maybe_nonempty [] = Nothing
+maybe_nonempty (h:t) = Just $ NElist h t
+
 class Convert a b where convert :: a -> b
 
 instance (Functor f, Convert a b) => Convert (f a) (f b) where convert = fmap convert
@@ -286,7 +290,7 @@ isIdChar = isAlphaNum .||. (== '_')
 comma_enum :: String -> [String] -> String
 comma_enum _ [] = ""
 comma_enum _ [x] = x
-comma_enum a [x, y] = x ++ " " ++ a ++ " " ++ y
+comma_enum a [x, y] = x ++ (if length x > 25 then ", " else " ") ++ a ++ " " ++ y
 comma_enum a [x, y, z] = x ++ ", " ++ y ++ ", " ++ a ++ " " ++ z
 comma_enum z (x : y) = x ++ ", " ++ comma_enum z y
 
@@ -355,3 +359,7 @@ partitionEithers (Right x : l) | (a, b) <- partitionEithers l = (a, x : b)
 
 lefts :: [Either a b] -> [a]
 lefts = fst . partitionEithers
+
+total_tail :: [a] -> [a]
+total_tail [] = []
+total_tail (_ : t) = t

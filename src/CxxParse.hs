@@ -22,6 +22,7 @@ module CxxParse (Code, Chunk(..), code, charLit, stringLit, map_plain, parseExpr
 
 import qualified Data.List as List
 import qualified EditCommandParseError
+import Control.Arrow (second)
 import Control.Monad.Fix (fix)
 import Control.Monad.Error ()
 import qualified Text.ParserCombinators.Parsec as PS
@@ -30,7 +31,7 @@ import Control.Monad (liftM2, guard)
 import Data.Function (on)
 import Data.Char (isSpace)
 import ParsecUtil (spaces)
-import Util ((<<), (.), isIdChar, test_cmp, fail_test, all_values)
+import Util ((<<), (.), isIdChar, test_cmp, fail_test, all_values, total_tail)
 import Prelude hiding ((.))
 
 data Chunk
@@ -42,6 +43,7 @@ data Chunk
   | Curlies Code
   | Parens Code
   | Squares Code
+  deriving Eq
 
 type Code = [Chunk]
 
@@ -70,11 +72,6 @@ textLit q = (char q >>) $ fix $ \h -> do
   if c == '\\'
     then do d <- anyChar; r <- h; return $ s ++ ('\\':d:r)
     else return s
-
-splitSemicolon :: Code -> (Code, Code)
-splitSemicolon [] = ([], [])
-splitSemicolon (Plain ";" : r) = ([Plain ";"], r)
-splitSemicolon (a : r) = (a : x, y) where (x, y) = splitSemicolon r
 
 data ShortCode
   = Long Code
@@ -114,7 +111,7 @@ resume old new = case new of
 
 shortcut_syntaxes :: Code -> ShortCode
 shortcut_syntaxes (Curlies c : b) = Block c b
-shortcut_syntaxes (Plain ('<':'<':x) : y) = uncurry Print $ splitSemicolon $ Plain x : y
+shortcut_syntaxes (Plain ('<':'<':x) : y) = uncurry Print $ second total_tail $ break (== Plain ";") $ Plain x : y
 shortcut_syntaxes c = Long c
 
 -- Parsec's Haskell char/string literal parsers consume whitespace, and save the value rather than the denotation.
