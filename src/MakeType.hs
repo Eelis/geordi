@@ -407,11 +407,8 @@ opt_type_adornment_p = option id type_adornment_p
 
 type_adornment_p :: CharParser st (UnconstrainedType -> UnconstrainedType)
 type_adornment_p =
-    liftM2 (flip (.)) (
-      ptr_operator_p <|>
-      UnconstrainedCVQ . cv_qualifier_seq_p <|>
-      UnconstrainedArray . (op "[" >> optionMaybe arraySizeP << op "]")
-    ) opt_type_adornment_p
+    liftM2 (flip (.)) (ptr_operator_p <|> UnconstrainedCVQ . cv_qualifier_seq_p) opt_type_adornment_p
+  <|> liftM2 (.) (UnconstrainedArray . (op "[" >> optionMaybe arraySizeP << op "]")) opt_type_adornment_p
   <|> do
     op "("
     try (liftM2 (.) (type_adornment_p << op ")") opt_type_adornment_p) <|> do
@@ -478,6 +475,7 @@ test = do
   t "pointer to member pointer to member pointer to member array" $ Right "T(T::* T::* T::*)[]"
   t "function taking (pointer to function returning int taking int) returning int" $ Right "int(int(*)(int))"
   t "function+" $ Left "Unexpected \"+\" after \"function\". Expected \"from\", \"returning\", \"taking\", ptr-operator, cv-qualifier, \"[\", \"(\", or end of type description."
+  t "array of three arrays of 2 arrays of 1 integer" $ Right "int[3][2][1]"
   putStrLn "No test failures."
  where
   t :: String -> Either String String -> IO ()
