@@ -15,7 +15,7 @@ import qualified Text.ParserCombinators.Parsec as PS
 import qualified Text.ParserCombinators.Parsec.Language as PSL
 import qualified Text.ParserCombinators.Parsec.Token as PST
 import qualified Data.List as List
-import qualified EditCmds
+import qualified EditCommandParseError
 
 import Control.Monad.Error ()
 import Control.Monad (liftM, liftM2)
@@ -26,6 +26,7 @@ import Text.ParserCombinators.Parsec
 
 import Prelude hiding ((.))
 import Util ((<<), (.), prefixError, isIdChar, test_cmp)
+import ParsecUtil (spaces)
 
 data CV = CV Bool Bool deriving Eq
 
@@ -259,9 +260,6 @@ instance NestShow Type where
 
 -- Parsers
 
-spaces :: CharParser st ()
-spaces = ((char ' ' >> spaces) <|> return ()) `PS.labels` []
-
 unraw :: String -> String
 unraw ('l':'o':'n':'g':' ':s) = "long " ++ unraw s
 unraw ('s':'h':'o':'r':'t':' ':s) = "signed " ++ unraw s
@@ -426,7 +424,7 @@ type_adornment_p =
 
 makeType :: String -> Either String Type
 makeType d = either
-  (fail . EditCmds.showParseError "type description" d True)
+  (fail . EditCommandParseError.showParseError "type description" d True)
   checkConstraints
   (PS.parse (typeP << (eof <?> "end of type description")) "" d)
 

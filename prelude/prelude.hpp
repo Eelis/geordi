@@ -151,12 +151,6 @@ T(basic_istringstream)
 
 #undef T
 
-#define GEORDI_STATEMENTS_PRE int main(int argc, char * argv[]) {
-#define GEORDI_STATEMENTS_POST }
-
-#define GEORDI_PRINT_PRE GEORDI_STATEMENTS_PRE std::cout <<
-#define GEORDI_PRINT_POST ; GEORDI_STATEMENTS_POST
-
 namespace geordi { geordi::initializer_t const initializer; }
   // Could theoretically be located in other TU, but our using of an .a for our .o's makes that painful.
 

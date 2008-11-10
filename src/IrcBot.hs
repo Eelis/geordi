@@ -2,6 +2,7 @@ import qualified Network.Socket as Net
 import qualified Network.IRC as IRC
 import qualified System.Environment
 import qualified Request
+import qualified RequestEval
 import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Sys
 import qualified Data.Map as Map
@@ -17,9 +18,9 @@ import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, 
 import Text.Regex (Regex, subRegex, mkRegex)
 import Data.Char (toUpper, toLower, isSpace)
 import Data.Map (Map)
+import Util ((.), elemBy, caselessStringEq, maybeLast, readState, msapp, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, rate_limiter, mapState')
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
-import Util
 
 data IrcBotConfig = IrcBotConfig
   { server :: Net.HostName, port :: Net.PortNumber, max_response_length :: Int
@@ -84,7 +85,7 @@ main = do
   putStrLn $ "Connecting to " ++ server cfg ++ ":" ++ show (port cfg)
   withResource (connect (server cfg) (fromIntegral $ port cfg)) $ \h -> do
   putStrLn "Connected"
-  evalRequest <- Request.evaluator
+  evalRequest <- RequestEval.evaluator
   limit_rate <- rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
   let send m = limit_rate >> send_irc_msg h m
   send $ msg "NICK" [nick cfg]
@@ -142,7 +143,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
     IRC.Message (Just (IRC.NickName from _ _)) "PRIVMSG" [_, "\1VERSION\1"] ->
       send $ msg "NOTICE" [from, "\1VERSION Geordi C++ bot - http://www.eelis.net/geordi/\1"]
     IRC.Message _ "433" {- ERR_NICKNAMEINUSE -} _ -> send $ msg "NICK" [alternate_nick cfg]
-    IRC.Message _ "PING" a -> msapp [msg "PONG" a]
+    IRC.Message _ "PING" a -> send $ msg "PONG" a
     IRC.Message _ "PRIVMSG" [_, '\1':_] -> return ()
     IRC.Message (Just (IRC.NickName who muser mserver)) "PRIVMSG" [to, txt'] -> do
       let txt = strip_utf8_bom txt'

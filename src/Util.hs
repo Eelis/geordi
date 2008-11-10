@@ -5,7 +5,7 @@ import qualified GHC.Read
 import qualified Data.Monoid
 import qualified Prelude
 import qualified Data.Sequence as Seq
-import qualified Text.ParserCombinators.Parsec as PS
+import qualified Data.List as List
 
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
@@ -15,12 +15,12 @@ import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Sequence (Seq, ViewL(..), (<|))
 import Data.Function (on)
 import Control.Exception (catch, bracket, evaluate)
+import Control.Arrow (Arrow(..))
 import Control.Monad (liftM2, when)
 import Control.Monad.Fix (fix)
 import Control.Monad.State (MonadState, modify, StateT(..))
 import Control.Monad.Instances ()
 import Control.Parallel.Strategies (NFData, rnf)
-import Control.Arrow (first, second)
 import System.Posix.Types (Fd(..))
 import System.Posix.Time (epochTime)
 import System.IO (Handle, hClose)
@@ -186,10 +186,6 @@ readState = StateT $ \x -> return (x, x)
 mapState' :: Monad y => (x -> x) -> StateT x y ()
 mapState' f = StateT $ \s -> return ((), f s)
 
-many1Till' :: PS.GenParser tok st a -> PS.GenParser tok st end -> PS.GenParser tok st ([a], end)
-many1Till' p end = p >>= \v -> first (v:) . scan
-  where scan = (PS.<|>) ((\r -> ([], r)) . end) (do { x <- p; (xs, e) <- scan; return (x:xs, e) })
-
 either_part :: [Either a b] -> ([a], [b])
 either_part [] = ([], [])
 either_part (h : t) = either (first . (:)) (second . (:)) h (either_part t)
@@ -207,10 +203,9 @@ instance Functor NElist where fmap f (NElist x l) = NElist (f x) (f . l)
 unne :: NElist a -> [a]
 unne (NElist x l) = x : l
 
-sepBy1' :: PS.CharParser st a -> PS.CharParser st b -> PS.CharParser st (NElist a)
-sepBy1' x y = (\(h:t) -> NElist h t) . PS.sepBy1 x y
-
 class Convert a b where convert :: a -> b
+
+instance (Functor f, Convert a b) => Convert (f a) (f b) where convert = fmap convert
 
 instance (Convert x x', Convert y y') => Convert (Either x y) (Either x' y') where
   convert = either (Left . convert) (Right . convert)
@@ -319,5 +314,44 @@ fail_test n x y = do
 test_cmp :: (Eq a, Show a) => String -> a -> a -> IO ()
 test_cmp n x y = when (x /= y) $ fail_test n x y
 
-enumAll :: (Enum e, Bounded e) => [e]
-enumAll = enumFrom minBound
+class Finite a where all_values :: [a]
+
+instance (Finite a, Finite b) => Finite (Either a b) where
+  all_values = Left . all_values ++ Right . all_values
+
+instance (Enum a, Bounded a) => Finite a where all_values = enumFrom minBound
+
+snd_unit :: Arrow x => x () b -> x c (c, b)
+snd_unit f = pure (\c -> (c, ())) >>> second f
+
+isVowel :: Char -> Bool
+isVowel = (`elem` "aeoiu")
+
+show_ordinal :: Int -> String
+show_ordinal n = case n of
+  0 -> "first"; 1 -> "second"; 2 -> "third"; 3 -> "fourth"; 4 -> "fifth"
+  5 -> "sixth"; 6 -> "seventh"; 7 -> "eighth"; 8 -> "ninth"; 9 -> "tenth"
+  _ -> "<other ordinal>"
+
+once_twice_thrice :: Int -> String
+once_twice_thrice i = case i of
+  1 -> "once"; 2 -> "twice"; 3 -> "thrice"
+  n -> show n ++ " times"
+
+class Invertible a where invert :: a -> a
+
+instance (Functor f, Invertible a) => Invertible (f a) where invert = fmap invert
+
+liftA2 :: (Arrow a) => (c -> c' -> d) -> a b c -> a b c' -> a b d
+liftA2 f a b = (a &&& b) >>> pure (uncurry f)
+
+class Option a where short :: a -> Char; long :: a -> String
+
+partitionEithers :: [Either a b] -> ([a], [b])
+  -- Note: Newer GHC versions apparently ship this as well as "lefts" below.
+partitionEithers [] = ([], [])
+partitionEithers (Left x : l) | (a, b) <- partitionEithers l = (x : a, b)
+partitionEithers (Right x : l) | (a, b) <- partitionEithers l = (a, x : b)
+
+lefts :: [Either a b] -> [a]
+lefts = fst . partitionEithers

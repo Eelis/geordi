@@ -18,21 +18,20 @@ Todo:
 
 -}
 
-module CxxParse (Code(..), Chunk(..), code, charLit, stringLit, map_plain, map_chunks, parseExpr, Expr, test) where
+module CxxParse (Code, Chunk(..), code, charLit, stringLit, map_plain, parseExpr, Expr, test, shortcut_syntaxes, expand, blob, resume) where
 
 import qualified Data.List as List
-import qualified EditCmds
+import qualified EditCommandParseError
 import Control.Monad.Fix (fix)
 import Control.Monad.Error ()
 import qualified Text.ParserCombinators.Parsec as PS
-import Text.ParserCombinators.Parsec (try, char, string, option, noneOf, (<|>), many, anyChar, manyTill, lookAhead, CharParser, many1, pzero, sepBy, (<?>), eof, parse)
+import Text.ParserCombinators.Parsec (try, char, string, noneOf, (<|>), many, anyChar, manyTill, lookAhead, CharParser, many1, pzero, sepBy, (<?>), eof, parse, oneOf)
 import Control.Monad (liftM2, guard)
 import Data.Function (on)
-import Util ((<<), (.), isIdChar, (>+>), enumAll, test_cmp, fail_test)
+import Data.Char (isSpace)
+import ParsecUtil (spaces)
+import Util ((<<), (.), isIdChar, test_cmp, fail_test, all_values)
 import Prelude hiding ((.))
-
-spaces :: CharParser st ()
-spaces = ((char ' ' >> spaces) <|> return ()) `PS.labels` []
 
 data Chunk
   = CharLiteral String
@@ -44,23 +43,14 @@ data Chunk
   | Parens Code
   | Squares Code
 
-newtype Code = Code [Chunk]
-
-map_chunks :: (Chunk -> Chunk) -> Code -> Code
-map_chunks f (Code c) = Code (map f c)
+type Code = [Chunk]
 
 map_plain :: (String -> String) -> Chunk -> Chunk
-map_plain _ c@(CharLiteral _) = c
-map_plain _ s@(StringLiteral _) = s
 map_plain f (Plain s) = Plain $ f s
-map_plain _ c@(SingleComment _) = c
-map_plain _ m@(MultiComment _) = m
-map_plain f (Curlies c) = Curlies $ map_chunks (map_plain f) c
-map_plain f (Parens c) = Parens $ map_chunks (map_plain f) c
-map_plain f (Squares c) = Squares $ map_chunks (map_plain f) c
-  -- Todo: Perhaps some of this boilerplate can be scrapped.
-
-instance Show Code where show (Code l) = concat $ show . l
+map_plain f (Curlies c) = Curlies $ map (map_plain f) c
+map_plain f (Parens c) = Parens $ map (map_plain f) c
+map_plain f (Squares c) = Squares $ map (map_plain f) c
+map_plain _ x = x
 
 instance Show Chunk where
   show (CharLiteral c) = "'" ++ c ++ "'"
@@ -71,6 +61,7 @@ instance Show Chunk where
   show (Squares c) = "[" ++ show c ++ "]"
   show (MultiComment s) = "/*" ++ s ++ "*/"
   show (SingleComment s) = "//" ++ s
+  showList l s = concat (show . l) ++ s
 
 textLit :: Char -> CharParser st String
 textLit q = (char q >>) $ fix $ \h -> do
@@ -80,13 +71,59 @@ textLit q = (char q >>) $ fix $ \h -> do
     then do d <- anyChar; r <- h; return $ s ++ ('\\':d:r)
     else return s
 
+splitSemicolon :: Code -> (Code, Code)
+splitSemicolon [] = ([], [])
+splitSemicolon (Plain ";" : r) = ([Plain ";"], r)
+splitSemicolon (a : r) = (a : x, y) where (x, y) = splitSemicolon r
+
+data ShortCode
+  = Long Code
+  | Print Code Code -- Does not include the semicolon.
+  | Block Code Code -- Does not include Curlies.
+
+expand :: ShortCode -> Code
+expand (Long c) = c
+expand (Block c c') = c' ++ [Plain "\nint main()", Curlies c]
+expand (Print c c') = expand $ Block ([Plain "::std::cout << "] ++ c ++ [Plain "\n;"]) c'
+
+cstyle_comments :: Code -> Code
+cstyle_comments = map f
+  where f (SingleComment s) = (MultiComment s); f c = c
+
+expand_without_main :: ShortCode -> Code
+expand_without_main (Long d) = erase_main d
+  where
+    erase_main (Plain s : Parens _ : Curlies _ : c) | "main" `List.isInfixOf` s = c
+    erase_main (Plain s : Parens _ : Plain t : Curlies _ : c) | "main" `List.isInfixOf` s && all isSpace t = c
+    erase_main (x : y) = (x :) $ erase_main y
+    erase_main c = c
+expand_without_main (Print _ c) = c
+expand_without_main (Block _ c) = c
+
+blob :: ShortCode -> Code
+blob (Long c) = c
+blob (Print c c') = [Plain "<<"] ++ c ++ [Plain ";"] ++ c'
+blob (Block c c') = Curlies c : c'
+
+resume :: ShortCode -> ShortCode -> ShortCode
+resume old new = case new of
+    Long c -> Long $ old' ++ c
+    Print c c' -> Print c $ old' ++ c'
+    Block c c' -> Block c $ old' ++ c'
+  where old' = cstyle_comments $ expand_without_main old
+
+shortcut_syntaxes :: Code -> ShortCode
+shortcut_syntaxes (Curlies c : b) = Block c b
+shortcut_syntaxes (Plain ('<':'<':x) : y) = uncurry Print $ splitSemicolon $ Plain x : y
+shortcut_syntaxes c = Long c
+
 -- Parsec's Haskell char/string literal parsers consume whitespace, and save the value rather than the denotation.
 
 charLit, stringLit, plain, parens, curlies, squares, multiComment, singleComment :: CharParser st Chunk
 
 charLit = CharLiteral . textLit '\''
 stringLit = StringLiteral . textLit '"'
-plain = Plain . (string ";" <|> (many1 (noneOf "'\"{([])}/;" <|> (try $ char '/' << lookAhead (noneOf "*/"))) >+> option "" (string ";")))
+plain = Plain . ((:[]) . oneOf ";\\" <|> (many1 (noneOf "'\"{([])}/;\\" <|> (try $ char '/' << lookAhead (noneOf "*/")))))
 parens = Parens . (char '(' >> code << char ')')
 curlies = Curlies . (char '{' >> code << char '}')
 squares = Squares . (char '[' >> code << char ']')
@@ -95,8 +132,8 @@ singleComment = SingleComment . (try (string "//") >> many anyChar)
   -- singleComment is unaware of "// ... \" funkiness.
 
 code :: CharParser st Code
-code = Code . many (multiComment <|> singleComment <|> plain <|> charLit <|> parens  <|> curlies <|> squares <|> stringLit)
-  -- Uncovers just enough structure for Request.hs to find the split positions in "<< ...; ..." and "{ ... } ..." requests.
+code = many (multiComment <|> singleComment <|> charLit <|> parens  <|> curlies <|> squares <|> stringLit <|> plain)
+  -- Uncovers just enough structure for Request.hs to find the split positions in "<< ...; ..." and "{ ... } ..." requests and to implement --resume.
 
 data UnaryOp
   = Dereference | PrefixIncrement | PostfixIncrement | PrefixDecrement | PostfixDecrement | AddressOf | Negate | Positive | Complement
@@ -166,7 +203,7 @@ binaryGroup ops r = do
 
 op :: CharParser st String
 op = (<?> "operator") $ (<< spaces) $ PS.choice $ map (try . string) $ List.sortBy (flip compare `on` length) $
-  show . (enumAll :: [UnaryOp]) ++ show . (enumAll :: [BinaryOp]) ++ words "? :"
+  show . (all_values :: [UnaryOp]) ++ show . (all_values :: [BinaryOp]) ++ words "? :"
 
 specific_op :: String -> CharParser st ()
 specific_op s = try (op >>= guard . (s ==)) <?> show s
@@ -209,7 +246,7 @@ expr = binaryGroup [Comma] assignmentExpr <?> "expression"
 
 parseExpr :: String -> Either String Expr
 parseExpr s = case parse (expr << (eof <?> eof_desc)) "" s of
-  Left e -> fail $ EditCmds.showParseError "expression" s True e
+  Left e -> fail $ EditCommandParseError.showParseError "expression" s True e
   Right e -> Right e
  where
   eof_desc = "end of expression"

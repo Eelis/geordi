@@ -17,9 +17,9 @@ ignored_param :: CLong
 ignored_param = 0
 
 ptrace :: CInt -> ProcessID -> CLong -> CLong -> IO CLong
-ptrace act proc addr datum = do
+ptrace act procid addr datum = do
   resetErrno
-  r <- c_ptrace act proc addr datum
+  r <- c_ptrace act procid addr datum
   errno <- getErrno
   if errno /= eOK then throwErrno "ptrace" else return r
 

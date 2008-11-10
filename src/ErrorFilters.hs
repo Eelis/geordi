@@ -5,14 +5,14 @@ module ErrorFilters (cc1plus, as, ld, prog) where
 import qualified CxxParse
 import Control.Monad (ap, liftM2, mzero, guard)
 import Text.Regex (Regex, matchRegexAll, mkRegex, subRegex)
-import Data.Char (isAlphaNum, toLower)
+import Data.Char (toLower)
 import Data.Maybe (mapMaybe)
 import Data.List (intersperse, isPrefixOf, isSuffixOf, tails)
 import Text.ParserCombinators.Parsec
   (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, many1, anyChar, noneOf, option, count, CharParser, notFollowedBy, choice, setInput, eof, oneOf)
 import Text.ParserCombinators.Parsec.Prim (GenParser)
 import Control.Applicative (Applicative(..))
-import Util hiding (count)
+import Util ((.), (<<), isIdChar, (>+>), strip, replaceInfix, parsep, maybeLast, (!!))
 import Prelude hiding (catch, (.), (!!))
 
 subRegex' :: Regex -> String -> String -> String

@@ -1,4 +1,5 @@
 import qualified Request
+import qualified RequestEval
 
 import Control.Exception ()
 import Control.Monad (when, forM_)
@@ -49,7 +50,7 @@ test n r p = Test n r (testPred p) (show p)
 main :: IO ()
 main = do
 
-  evalRequest <- Request.evaluator
+  evalRequest <- RequestEval.evaluator
 
   putStrLn $
     "\nNote: In several tests, output is expected to include an error (sometimes on a separate line), so seeing an error in a test's output does not mean the test failed. A test failed if its output is colored red.\n"
