@@ -80,7 +80,7 @@ data ShortCode
 
 expand :: ShortCode -> Code
 expand (Long c) = c
-expand (Block c c') = c' ++ [Plain "\nint main()", Curlies c]
+expand (Block c c') = c' ++ [Plain "\nint main(int argc, char * argv[])", Curlies c]
 expand (Print c c') = expand $ Block ([Plain "::std::cout << "] ++ c ++ [Plain "\n;"]) c'
 
 cstyle_comments :: Code -> Code
