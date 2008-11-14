@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 . ./compile-config
-printf "#include \"prelude.hpp\"\nGEORDI_PRINT_PRE \"9\\\n\" GEORDI_PRINT_POST\n" > rt/t.cpp
+printf "#include \"prelude.hpp\"\nint main() { cout << \"9\\\n\"; }\n" > rt/t.cpp
 chroot rt $GXX -S t.cpp $COMPILE_FLAGS
 chroot rt $GXX -c t.s $COMPILE_FLAGS
 chroot rt $GXX t.o -o t $COMPILE_FLAGS $LINK_FLAGS
