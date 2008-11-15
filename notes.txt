@@ -3,17 +3,17 @@ Output separators
 
   Consider the following two snippets:
 
-    geordi {  }
+    geordi { cout << *(int*)0; }
     geordi { cout << 3 << flush; cout << *(int*)0; }
 
-  We want these to output "Segmentation fault" and "3 Segmentation fault", respectively. Note that a space was added in the second result but not the first. Next, consider:
+  We want these to output "Undefined behavior detected" and "3 Undefined behavior detected", respectively. Note that a space was added in the second result but not the first. Next, consider:
 
-    geordi: { cout << 'x'; tracked::B x, y; cout << 'x'; }
+    geordi: { tracked::B x, y; cout << 'a'; }
 
-  We want this to output "x B0* B1* x B1~ B0~". Note that not every tracking message is preceded by a space of its own, nor is every tracking message followed by one.
+  We want this to output "B0* B1* a B1~ B0~". Note that not every tracking message is preceded by a space of its own, nor is every tracking message followed by one.
 
   Geordi has a systematic way of dealing with these situations where we only want a space to be inserted if required to separate things. The mechanism is as follows:
   1. The program outputs the Unicode character PARAGRAPH SEPARATOR (U+2029) whenever separation is desired.
   2. EvalCxx.hsc erases any U+2029's occurring at the beginning and end of the output, and replaces any other sequence of successive U+2029's with a single space.
 
-  For the above examples, the desired output can now be easily achieved by outputting an U+2029 before "Segmentation fault", and by outputting U+2029's before and after each tracking message.
+  For the above examples, the desired output can now be easily achieved by outputting an U+2029 before "Undefined behavior detected", and by outputting U+2029's before and after each tracking message.
