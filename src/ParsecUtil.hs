@@ -11,7 +11,7 @@ import Data.Char (isAlpha)
 import Prelude hiding ((.))
 
 optParser :: (Finite o, Option o) => CharParser st [o]
-optParser = (try (spaces >> char '-') >>) $ do
+optParser = (<?> "option") $ (try (spaces >> char '-') >>) $ do
     char '-'
     n <- (many1 $ satisfy $ isAlpha .||. (== '-')) <?> "option name"
     case List.find ((== n) . long) all_values of

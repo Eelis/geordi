@@ -13,11 +13,11 @@ import EditCommandGrammar
 
 -- Positions/ranges:
 
-type Pos = Int
-data Range a = Range { start :: Pos, size :: Int } deriving Eq
-  -- The 'a' phantom parameter denotes the element type for the range. With appropriately annotated functions operating on ranges, this prevents us from accidentally mixing up different kinds of ranges.
+type Pos a = Int
+  -- The 'a' phantom parameter denotes the element type for the position. This prevents accidental mix-ups of different kinds of positions.
+data Range a = Range { start :: Pos a, size :: Int } deriving Eq
 
-end :: Range a -> Pos
+end :: Range a -> Pos a
 end (Range x y) = x + y
 
 selectRange :: Range a -> [a] -> [a]
@@ -26,10 +26,17 @@ selectRange (Range st si) = take si . drop st
 replaceRange :: Range a -> [a] -> [a] -> [a]
 replaceRange (Range p l) r s = take p s ++ r ++ drop (p + l) s
 
+splitRange :: Range Char -> String -> (String, String, String)
+splitRange (Range st si) s = (x, y, z)
+  where (x, s') = splitAt st s; (y, z) = splitAt si s'
+
+contained_in :: Range a -> Range a -> Bool
+contained_in (Range st si) (Range st' si') = st' <= st && st + si <= st' + si'
+
 overlap :: Range a -> Range a -> Int
 overlap (Range x s) (Range x' s') = max 0 $ min (x + s) (x' + s') - max x x'
 
-find_occs :: Eq a => [a] -> [a] -> [Pos]
+find_occs :: Eq a => [a] -> [a] -> [Pos a]
 find_occs _ [] = []
 find_occs x y | Just z <- stripPrefix x y = 0 : (+ length x) . find_occs x z
 find_occs x (_:ys) = (+ 1) . find_occs x ys
@@ -41,10 +48,23 @@ nth n x _ = fail $ "String " ++ show x ++ " does not occur " ++ once_twice_thric
 
 -- Edits:
 
-data Anchor = Anchor { anchor_befAft :: BefAft, anchor_pos :: Pos } deriving Eq
+data Anchor = Anchor { anchor_befAft :: BefAft, anchor_pos :: Pos Char } deriving Eq
   -- This BefAft will probably need to be generalized to Before|After|Both for "insert x between 3 and 4".
-data Edit = RangeReplaceEdit (Range Char) String | InsertEdit Anchor String | AddOptions [EvalOpt] | RemoveOptions [EvalOpt] deriving Eq
+data Edit
+  = RangeReplaceEdit (Range Char) String
+  | InsertEdit Anchor String
+  | MoveEdit BefAft Int (Range Char)
+    -- The Int is an offset. If it is a nonnegative number n, the insert position is n characters beyond the end of the source range. If it is a negative number -n, the insert position is n characters before the start of the source range. We use this instead of a normal Anchor because it ensures that silly "move into self"-edits are not representable. This constructor must not be used by anyone but the makeMoveEdit smart constructor, which detects such edits.
+  | AddOptions [EvalOpt]
+  | RemoveOptions [EvalOpt]
+    deriving Eq
   -- We don't just use a RangeReplaceEdit with range length 0 for insertions, because it is not expressive enough. For instance, given "xy", insertions at the positions "after x" and "before y" would both designate position 1, but a prior "add z after x" edit should increment the latter position but not the former. InsertEdit's BefAft argument expresses this difference.
+
+makeMoveEdit :: Monad m => Anchor -> Range Char -> m Edit
+makeMoveEdit (Anchor ba p) r@(Range st si)
+  | p < st = return $ MoveEdit ba (p - st) r
+  | st + si < p = return $ MoveEdit ba (p - st - si) r
+  | otherwise = fail "Move destination lies in source range."
 
 showEdit :: String -> Edit -> String
 showEdit _ (RemoveOptions opts) = "remove " ++ show opts
@@ -55,60 +75,100 @@ showEdit _ (RangeReplaceEdit (Range _ 0) r) = "insert " ++ show r
 showEdit _ (InsertEdit _ r) = "insert " ++ show r
 showEdit s (RangeReplaceEdit r "") = "erase " ++ show (selectRange r s)
 showEdit s (RangeReplaceEdit r s') = "replace " ++ show (selectRange r s) ++ " with " ++ show s'
+showEdit s (MoveEdit _ _ r) = "move " ++ show (selectRange r s)
+
+adjustAnchor :: Edit -> Anchor -> Maybe Anchor
+adjustAnchor (InsertEdit (Anchor _ p) s) a@(Anchor ba' p') =
+  Just $ if (ba' == After && p == p') || p < p' then Anchor ba' (p' + length s) else a
+adjustAnchor (RangeReplaceEdit (Range st si) "") (Anchor ba p)
+  | ba == After, p == st = Just $ Anchor Before p
+  | ba == Before, p == st + si = Just $ Anchor After st
+adjustAnchor (RangeReplaceEdit (Range st si) repl) a@(Anchor ba p)
+  | st + si <= p = Just $ Anchor ba (p - si + length repl)
+  | p <= st = Just a
+  | otherwise = Nothing
+adjustAnchor (MoveEdit ba p r@(Range st si)) a@(Anchor ba' p')
+  | st < p', p' < st + si = Just $ Anchor ba' (p' + p)
+  | p < 0 = adjustAnchor (RangeReplaceEdit r "") a >>=
+    adjustAnchor (InsertEdit (Anchor ba (p + st)) (replicate si 'x'))
+  | otherwise = adjustAnchor (InsertEdit (Anchor ba (p + st + si)) (replicate si 'x')) a >>=
+    adjustAnchor (RangeReplaceEdit r "")
+adjustAnchor (RemoveOptions _) a = Just a
+adjustAnchor (AddOptions _) a = Just a
+
+adjustRange :: Edit -> Range Char -> Maybe (Range Char)
+adjustRange (RangeReplaceEdit (Range st si) repl) r'@(Range st' si')
+  | st + si <= st' = Just $ Range (st' - si + length repl) si'
+  | st' + si' <= st = Just r'
+  | otherwise = Nothing
+adjustRange (InsertEdit (Anchor _ p) s) r = adjustRange (RangeReplaceEdit (Range p 0) s) r
+adjustRange (MoveEdit ba p r@(Range st si)) r'@(Range st' si')
+  | r' `contained_in` r = Just $ Range (p + st') si'
+  | p < 0 = adjustRange (RangeReplaceEdit r "") r' >>=
+    adjustRange (InsertEdit (Anchor ba (p + st)) (replicate si 'x'))
+  | otherwise = adjustRange (InsertEdit (Anchor ba (p + st + si)) (replicate si 'x')) r' >>=
+    adjustRange (RangeReplaceEdit r "")
+adjustRange (RemoveOptions _) r = Just r
+adjustRange (AddOptions _) r = Just r
+
+adjustEraseRange :: Edit -> Range Char -> Maybe (Range Char)
+adjustEraseRange e@(RangeReplaceEdit r@(Range st si) "") r'@(Range st' si') =
+  return $ case adjustRange e r' of
+    Just r'' -> r''
+    Nothing | st <= st' -> Range st (max 0 $ (st' + si') - (st + si))
+    Nothing -> Range st' (si' - overlap r r')
+adjustEraseRange (MoveEdit ba p r@(Range st si)) r'@(Range st' si')
+  | r' `contained_in` r = Just $ Range (p + st') si'
+  | p < 0 = adjustEraseRange (RangeReplaceEdit r "") r' >>=
+    adjustEraseRange (InsertEdit (Anchor ba (st + p)) (replicate si 'x'))
+  | otherwise = adjustEraseRange (InsertEdit (Anchor ba (st + si + p)) (replicate si 'x')) r' >>=
+    adjustEraseRange (RangeReplaceEdit r "")
+adjustEraseRange e r = adjustRange e r
 
 adjustEdit :: Edit -> Edit -> Maybe Edit
   -- Returns an adjusted Edit, or Nothing if the edits conflict. Second Edit is the one to be adjusted.
+adjustEdit e e' | e == e' = Just e
 adjustEdit (RemoveOptions _) e = Just e
 adjustEdit _ e@(RemoveOptions _) = Just e
 adjustEdit (AddOptions _) e = Just e
 adjustEdit _ e@(AddOptions _) = Just e
-adjustEdit (InsertEdit (Anchor _ p) s) e@(RangeReplaceEdit _ _) =
-  adjustEdit (RangeReplaceEdit (Range p 0) s) e
-adjustEdit (RangeReplaceEdit (Range st si) repl) e@(InsertEdit (Anchor ba p) s) =
-  case () of
-    ()| st + si <= p -> Just $ InsertEdit (Anchor ba (p - si + length repl)) s
-    ()| p <= st -> Just e
-    ()| otherwise -> Nothing
-adjustEdit (InsertEdit (Anchor _ p) s) e@(InsertEdit (Anchor ba p') s') =
-  Just $ if (ba == After && p == p') || p < p' then InsertEdit (Anchor ba (p' + length s)) s' else e
-adjustEdit e@(RangeReplaceEdit r@(Range st si) repl) e'@(RangeReplaceEdit r'@(Range st' si') repl') =
-  case () of
-    ()| st + si <= st' -> Just $ RangeReplaceEdit (Range (st' - si + length repl) si') repl'
-    ()| st' + si' <= st || e == e' -> Just e'
-    ()| null repl && null repl' -> -- Overlapping erase-edits do not conflict.
-      if st <= st' then Just $ RangeReplaceEdit (Range st (max 0 $ (st' + si') - (st + si))) repl'
-      else Just $ RangeReplaceEdit (Range st' (si' - overlap r r')) repl'
-    ()| otherwise -> Nothing
+adjustEdit e (InsertEdit a s) = flip InsertEdit s . adjustAnchor e a
+adjustEdit e (MoveEdit ba p r@(Range st si)) = do
+  r' <- adjustEraseRange e r
+  a <- adjustAnchor e $ Anchor ba $ if p < 0 then st + p else st + si + p
+  makeMoveEdit a r'
+adjustEdit e (RangeReplaceEdit r s) =
+  flip RangeReplaceEdit s . (if null s then adjustEraseRange else adjustRange) e r
 
 adjustEdits :: Edit -> [Edit] -> Either Edit [Edit]
   -- Returns either a conflicting Edit or the list of adjusted Edits.
 adjustEdits _ [] = Right []
-adjustEdits e (e' : t) =
-  case adjustEdit e e' of
-    Just r -> (r :) . adjustEdits e t
-    Nothing -> Left e'
+adjustEdits e (e' : t)
+  | Just r <- adjustEdit e e' = (r :) . adjustEdits e t
+  | otherwise = Left e'
 
 exec_edits :: Monad m => [Edit] -> EditableRequest -> m EditableRequest
 exec_edits [] r = return r
-exec_edits (e : t) (EditableRequest k s) =
-  case adjustEdits e t of
-    Left e' -> fail $ "Overlapping edits: " ++ showEdit s e ++ " and " ++ showEdit s e' ++ "."
-    Right t' -> case e of
-      RangeReplaceEdit (Range st si) repl -> do
-        let (x, y) = splitAt st s
-        let (_, b) = splitAt si y
-        exec_edits t' $ EditableRequest k $ x ++ repl ++ b
-      InsertEdit (Anchor _ p) repl -> do
-        let (x, y) = splitAt p s
-        exec_edits t' $ EditableRequest k $ x ++ repl ++ y
-      RemoveOptions opts ->
-        case k of
-          Evaluate f -> exec_edits t' $ EditableRequest (Evaluate (f .&&. (not . (`elem` opts)))) s
-          _ -> fail $ "Cannot remove evaluation options from \"" ++ show k ++ "\" request."
-      AddOptions opts ->
-        case k of
-          Evaluate f -> exec_edits t' $ EditableRequest (Evaluate (f .||. (`elem` opts))) s
-          _ -> fail $ "Cannot use evaluation options for \"" ++ show k ++ "\" request."
+exec_edits (e : t) (EditableRequest k s) = case adjustEdits e t of
+  Left e' -> fail $ "Overlapping edits: " ++ showEdit s e ++ " and " ++ showEdit s e' ++ "."
+  Right t' -> case e of
+    RangeReplaceEdit r repl ->
+      let (x, _, b) = splitRange r s in exec_edits t' $ EditableRequest k $ x ++ repl ++ b
+    InsertEdit (Anchor _ p) repl ->
+      let (x, y) = splitAt p s in exec_edits t' $ EditableRequest k $ x ++ repl ++ y
+    MoveEdit _ p r@(Range st si)
+      | p < 0 -> do
+        let (x, y) = splitAt (st + p) s; (a, b, c) = splitRange (Range (-p) si) y
+        exec_edits t' $ EditableRequest k $ x ++ selectRange r s ++ a ++ c
+      | otherwise -> do
+        let (x, y) = splitAt (st + si + p) s; (a, b, c) = splitRange r x
+        exec_edits t' $ EditableRequest k $ a ++ c ++ selectRange r s ++ y
+    RemoveOptions opts
+      | Evaluate f <- k -> exec_edits t' $ EditableRequest (Evaluate (f .&&. (not . (`elem` opts)))) s
+      | otherwise -> fail $ "Cannot remove evaluation options from \"" ++ show k ++ "\" request."
+    AddOptions opts
+      | Evaluate f <- k -> exec_edits t' $ EditableRequest (Evaluate (f .||. (`elem` opts))) s
+      | otherwise -> fail $ "Cannot use evaluation options for \"" ++ show k ++ "\" request."
 
 -- Resolving positions/occurrences/edits in the subject string:
 
@@ -160,7 +220,7 @@ instance Convert (Range Char) [ARange] where convert = (:[]) . anchor_range
 instance Convert (Range Char) ARange where convert = anchor_range
 
 instance Convert ARange (Range Char) where convert = unanchor_range
-instance Convert Anchor Pos where convert = anchor_pos
+instance Convert Anchor (Pos Char) where convert = anchor_pos
 
 instance (Offsettable b, Invertible a, FindInStr a b, Convert (Range Char) b) => FindInStr (Relative a) b where
   findInStr s (Relative o ba w) = do
@@ -171,14 +231,14 @@ instance (Offsettable b, Invertible a, FindInStr a b, Convert (Range Char) b) =>
   findInStr s (Between o (Betw b e)) = do
     x <- convert . findInStr s b
     y <- convert . findInStr s e
-    let (p, q) = if either start id x <= either start id (y :: Either (Range Char) Pos)  then (x, y) else (y, x)
+    let (p, q) = if either start id x <= either start id (y :: Either (Range Char) (Pos Char))  then (x, y) else (y, x)
     let p' = either end id p; q' = either start id q
     offset p' . findInStr (take (q' - p') $ drop p' s) o
   findInStr s (FromTill b e) = do
     x <- convert . findInStr s b
-    let p = either start id (x :: Either (Range Char) Pos)
+    let p = either start id (x :: Either (Range Char) (Pos Char))
     y <- convert . findInStr (drop p s) e
-    return $ convert $ (Range p (either end id (y :: Either (Range Char) Pos)) :: Range Char)
+    return $ convert $ (Range p (either end id (y :: Either (Range Char) (Pos Char))) :: Range Char)
 
 everything_arange :: String -> ARange
 everything_arange _ Before = Anchor Before 0
@@ -220,11 +280,9 @@ instance FindInStr Eraser [Edit] where
   findInStr _ (EraseOptions o) = return $ [RemoveOptions o]
 
 instance FindInStr Bound (Either ARange Anchor) where
-  findInStr s (Bound ba Everything) =
-    return $ case ba of
-      Nothing -> Left $ everything_arange s
-      Just Before -> Right $ Anchor Before 0
-      Just After -> Right $ Anchor After (length s)
+  findInStr s (Bound Nothing Everything) = return $ Left $ everything_arange s
+  findInStr _ (Bound (Just Before) Everything) = return $ Right $ Anchor Before 0
+  findInStr s (Bound (Just After) Everything) = return $ Right $ Anchor After (length s)
   findInStr s (Bound mba p) = maybe Left (\ba -> Right . ($ ba)) mba . findInStr s p
 
 instance FindInStr RelativeBound (Either ARange Anchor) where
@@ -232,11 +290,11 @@ instance FindInStr RelativeBound (Either ARange Anchor) where
   findInStr s Back = return $ Right $ Anchor After (length s)
   findInStr s (RelativeBound mba p) = maybe Left (\ba -> Right . ($ ba)) mba . findInStr s p
 
-instance FindInStr Mover [Edit] where
+instance FindInStr Mover Edit where
   findInStr s (Mover o p) = do
-    r <- unanchor_range . findInStr s o
     a <- findInStr s p
-    return [RangeReplaceEdit r "", InsertEdit a (selectRange r s)]
+    r <- unanchor_range . findInStr s o
+    makeMoveEdit a r
 
 instance FindInStr Position Anchor where
   findInStr _ (Position Before Everything) = return $ Anchor Before 0
@@ -266,10 +324,8 @@ token_edit_cost (InsertOp (' ':_)) = -0.02
 token_edit_cost (InsertOp x@(y:_)) | isAlpha y = fromIntegral (length x) * 0.7
 token_edit_cost (InsertOp (x:y)) | isDigit x = 1 + fromIntegral (length y) * 0.3
 token_edit_cost (InsertOp _) = 1
-token_edit_cost (ReplaceOp x y) | x `elem` classKeys && y `elem` classKeys = 0.4
-token_edit_cost (ReplaceOp x y) | x `elem` accessSpecifiers && y `elem` accessSpecifiers = 0.4
-token_edit_cost (ReplaceOp x y) | x `elem` relational_ops && y `elem` relational_ops = 0.4
-token_edit_cost (ReplaceOp x y) | x `elem` arithmetic_ops && y `elem` arithmetic_ops = 0.4
+token_edit_cost (ReplaceOp x y)
+  | or $ (\c -> List.all (`elem` c) [x, y]) . [classKeys, accessSpecifiers, relational_ops, arithmetic_ops] = 0.4
 token_edit_cost (ReplaceOp (c:_) (d:_)) | not (isAlphaNum c || isAlphaNum d) = 1.1
 token_edit_cost (ReplaceOp x@(c:_) y@(d:_)) | isAlpha c && isAlpha d =
   if null (List.intersect x y) then 10 else levenshtein x y * 0.4
@@ -286,7 +342,7 @@ instance FindInStr Command [Edit] where
   findInStr s (Erase (AndList l)) = concat . sequence (findInStr s . unne l)
   findInStr s (Replace (AndList l)) = concat . sequence (findInStr s . unne l)
   findInStr s (Insert r p) = (flip InsertEdit r .) . concat . findInStr s p
-  findInStr s (Move (AndList movers)) = concat . sequence (findInStr s . unne movers)
+  findInStr s (Move (AndList movers)) = sequence (findInStr s . unne movers)
   findInStr s (WrapAround (Wrapping x y) z) = concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . concat . findInStr s z
   findInStr s (WrapIn z (Wrapping x y)) = findInStr s $ WrapAround (Wrapping x y) $ and_one $ Around z
 
@@ -336,11 +392,11 @@ instance Monoid Token where
 toks_text :: [Token] -> String
 toks_text = tok_text . mconcat
 
-describe_position_after :: Pos -> String -> Position
-describe_position_after 0 _ = Position Before Everything
-describe_position_after n s | n == length s = Position After Everything
-describe_position_after n s =
-  Position After $ NotEverything $ Sole $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s
+describe_position_after :: Pos Char -> String -> Position
+describe_position_after n s
+  | n == 0 = Position Before Everything
+  | n == length s = Position After Everything
+  | otherwise = Position After $ NotEverything $ Sole $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s
 
 execute :: (Functor m, Monad m) => [Command] -> EditableRequest -> m EditableRequest
 execute cmds r@(EditableRequest _ str) = do

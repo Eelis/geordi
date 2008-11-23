@@ -90,7 +90,7 @@ auto2 f = proc x -> do a <- parse -< x; b <- parse -< x; returnA -< f a b
 
 till, begin, end_kwds :: [String]
 till = ["till", "until"]
-begin = ["begin", "front"]
+begin = ["beginning", "begin", "front", "start"]
 end_kwds = ["end", "back"]
 
 opt_an :: String -> [String]
@@ -210,10 +210,10 @@ instance Parse a => Parse (Maybe a) where parse = (parse >>> pure Just) <||> pur
 
 instance Parse Command where
   parse = label "edit command" $
-    (kwd ["insert", "add"] >>> auto2 Insert) <||>
+    (kwd ["insert", "add"] >>> ((parse >>> pure (Use . (UseOptions .))) <||> auto2 Insert)) <||>
     (kwd ["append"] >>> auto2 Append) <||>
     (kwd ["prepend"] >>> ((parse >>> pure (Use . (UseOptions .))) <||> auto2 Prepend)) <||>
-    (kwd ["erase", "remove", "kill", "cut", "omit", "delete"] >>> auto1 Erase) <||>
+    (kwd ["erase", "remove", "kill", "cut", "omit", "delete", "drop"] >>> auto1 Erase) <||>
     (kwd ["replace"] >>> auto1 Replace) <||>
     (kwd ["use"] >>> auto1 Use) <||>
     (kwd ["move"] >>> auto1 Move) <||>

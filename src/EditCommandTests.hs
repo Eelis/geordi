@@ -91,6 +91,15 @@ test = do
   t "insert spacer before 4 and insert a semicolon after 1 and erase last space" $ Right "1; 2 3 2 3 spacer45"
   t "erase first and second last  " $ Right "12 3 2 34 5"
   t "replace 1 with x and all 2 with y and erase second 3" $ Right "x y 3 y  4 5"
+  t "move everything after last 3 to front and erase 5" $ Right " 4 1 2 3 2 3"
+  t "add x after 4 and add y after 4" $ Right "1 2 3 2 3 4yx 5"
+  t "erase 4 and add y before 4 and add x after 4" $ Right "1 2 3 2 3 yx 5"
+  t "move 4 to end and insert x before 5" $ Right "1 2 3 2 3  x54"
+  t "erase 4 and move 5 to begin" $ Right "51 2 3 2 3  "
+  t "move 3 2 3 to front and insert x before second 2" $ Right "3 x2 31 2  4 5"
+  t "erase 5 and move everything after last 3 to front" $ Right " 4 1 2 3 2 3"
+  t "move everything before 4 to end and move first 3 to front" $ Right "34 51 2  2 3 "
+  t "move 3 4 5 to before 4" $ Left "Move destination lies in source range."
   -- Order-sensitive edits:
   t "wrap parentheses around everything and append x" $ Right "(1 2 3 2 3 4 5)x"
   t "append x and wrap parentheses around everything" $ Right "(1 2 3 2 3 4 5x)"
@@ -102,28 +111,29 @@ test = do
   t "prepend x before everything after 4 and add y after 4" $ Right "1 2 3 2 3 4yx 5"
   t "add y after 4 and prepend x before everything after 4" $ Right "1 2 3 2 3 4xy 5"
   -- Edit errors:
-  t "move second 2 to x" $ Left "Unexpected \"x\" after \"second 2 to \". Expected \"begin\", \"front\", \"end\", \"back\", \"before\", or \"after\"."
+  t "move second 2 to x" $ Left "Unexpected \"x\" after \"second 2 to \". Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
   t "replace alligators with chickens" $ Left "String \"alligators\" does not occur."
   t "use banana" $ Left "No match."
   t "use 5426" $ Left "No match."
   t "erase 2" $ Left "String \"2\" occurs multiple times."
   t "replace 1 and erase with 4" $ Left "String \"erase\" does not occur."
   t "replace tenth last 2 by x" $ Left "String \"2\" does not occur 10 times."
+  -- Todo: t "move 3 4 to begin and erase 4 5" $ Left "some error"
   t "erase second 9" $ Left "String \"9\" does not occur."
   t "replace all 2 with 3 and replace second 2 with x" $ Left "Overlapping edits: replace \"2\" with \"3\" and replace \"2\" with \"x\"."
   t "erase everything before first 3 and replace first 2 with x" $ Left "Overlapping edits: erase \"1 2 \" and replace \"2\" with \"x\"."
   -- Syntax errors:
   t "isnert 3 before 4" $ Left "Unexpected \"s\" at start. Expected edit command."
-  t "insert " $ Left "Unexpected end of command. Expected verbatim string."
+  t "insert " $ Left "Unexpected end of command. Expected option or verbatim string."
   t "erase first and " $ Left "Unexpected end of command. Expected ordinal."
   t "erase between second " $ Left "Unexpected end of command. Expected \"last\", \"and\", or verbatim string."
   t "insert kung fu" $ Left "Unexpected end of command. Expected \" at\", \" before\", or \" after\"."
   t "move " $ Left "Unexpected end of command. Expected \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", ordinal, or verbatim string."
   t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" between\", or \" to\"."
-  t "move x to "$ Left "Unexpected end of command. Expected \"begin\", \"front\", \"end\", \"back\", \"before\", or \"after\"."
+  t "move x to "$ Left "Unexpected end of command. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
 --  t "wrap x and y" $ Left $ "Unexpected end of command. Expected \" around \" or \" in \"."
   t "append x and erase first " $ Left "Unexpected end of command. Expected \"and\" or verbatim string."
-  t "erase all 2 and " $ Left "Unexpected end of command. Expected \"insert\", \"add\", \"append\", \"prepend\", \"erase\", \"remove\", \"kill\", \"cut\", \"omit\", \"delete\", \"replace\", \"use\", \"move\", \"wrap\", \"-\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, or verbatim string."
+  t "erase all 2 and " $ Left "Unexpected end of command. Expected \"insert\", \"add\", \"append\", \"prepend\", \"erase\", \"remove\", \"kill\", \"cut\", \"omit\", \"delete\", \"drop\", \"replace\", \"use\", \"move\", \"wrap\", option, \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, or verbatim string."
     -- Todo: Why doesn't this say "edit command"?
   -- "use" tests:
   ut "ETYPE_DESC" "ETPYE" "Replaced \"<< ETPYE\" with \"<< ETYPE_DESC\"." "Replaced \"<< ETYPE_DESC\" with \"<< ETPYE\"."
@@ -294,6 +304,8 @@ test = do
   This is an idealized grammar with LOTS of ambiguity. The parsers do their best to choose the most sensible interpretation of ambiguous commands.
 
 Design notes:
+
+  Consider "erase {x} and second {", given "{x}{y}". Here, "second {" has to be searched for in the original string, rather than the result of performing the first erase. However, consider "erase z" and move everything after x to front", given "xyz". The "everything after front" should /not/ include "z", but this requires performing the first erase. Also, consider "append z and move everything after x to front", given "xy". This should produce "yxz", not "yzx".
 
   "use" is heavily biased toward whole-token edits, so users are encouraged to use those. This will not only produce better edits, it is also more readable.
 
