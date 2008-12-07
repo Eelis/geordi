@@ -1,13 +1,14 @@
 module EditCommandParse (Terminators(..), commandP, commandsP) where
 
 import Control.Monad.Error ()
-import Control.Arrow (Arrow(..), ArrowChoice(..), returnA)
+import Control.Category (Category, (.), id)
+import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA)
 import Text.ParserCombinators.Parsec (choice, char, string, try, lookAhead, eof, (<|>), (<?>), CharParser, anyChar, spaces)
-import Util (isVowel, (<<), NElist(..), unne, snd_unit, (.), show_ordinal, liftA2)
+import Util (isVowel, (<<), NElist(..), unne, snd_unit, show_ordinal, liftA2)
 import ParsecUtil (sepBy1', notFollowedBy, many1Till', optParser)
 import Request (EvalOpt)
 
-import Prelude hiding ((.))
+import Prelude hiding ((.), id)
 import EditCommandGrammar
 
 data Terminators = Terminators { term_eof :: Bool, term_keywords :: [String] } deriving Eq
@@ -23,28 +24,31 @@ zero_width (Parser (Terminators b _) _) = b
 terminators :: Parser st a b -> [String]
 terminators (Parser (Terminators _ t) _) = t
 
-instance Arrow (Parser st) where
-  pure f = Parser (Terminators True []) $ \_ _ -> return . f
-  Parser (Terminators b t) f >>> p' =
+instance Category (Parser st) where
+  id = Parser (Terminators True []) $ \_ _ x -> return x
+  p' . Parser (Terminators b t) f =
     Parser (Terminators (b && zero_width p') (if null t then terminators p' else t))
      $ \(Terminators b'' t'') a'' x -> do
       let (Parser (Terminators b' t') f') = p'
       u <- f (Terminators (b' && b'') (if b' then t' ++ t'' else t')) (if null t' then a'' else []) x
       f' (Terminators b'' t'') a'' u
+
+instance Arrow (Parser st) where
+  arr f = Parser (Terminators True []) $ \_ _ -> return . f
   first (Parser ac f) = Parser ac $ \y ac' (b, d) -> do c <- f y ac' b; return (c, d)
   second (Parser ac f) = Parser ac $ \y ac' (d, b) -> do c <- f y ac' b; return (d, c)
 
 instance ArrowChoice (Parser st) where
   left (Parser (Terminators b t) p) = Parser (Terminators b t) $ \(Terminators b' t') a ->
-    either ((Left .) . p (Terminators b' t') a) (return . Right)
+    either ((fmap Left) `fmap` p (Terminators b' t') a) (fmap return Right)
   right (Parser (Terminators b t) p) = Parser (Terminators b t) $ \(Terminators b' t') a ->
-    either (return . Left) ((Right .) . p (Terminators b' t') a)
+    either (return `fmap` Left) ((fmap Right) `fmap` p (Terminators b' t') a)
 
 class Parse a where parse :: Parser st x a
 
 kwd :: [String] -> Parser st a String
 kwd s = Parser (Terminators False s) $ \(Terminators b _) _ _ -> try $
-  choice (try . string . s) << (if b then (eof <|>) else id) (char ' ' >> return ())
+  choice (try `fmap` string `fmap` s) << (if b then (eof <|>) else id) (char ' ' >> return ())
 
 label :: String -> Parser st a b -> Parser st a b
 label s (Parser t f) = Parser t $ \l a x -> f l a x <?> s
@@ -55,19 +59,19 @@ Parser (Terminators b t) f <||> Parser (Terminators b' t') f' =
 
 instance Parse String where
   parse = label "verbatim string" $ (select cs <||>) $
-    Parser (Terminators False []) $ \t _ _ -> (fst .) $ many1Till' anyChar $ try $ (if term_eof t then (eof <|>) else id) $ lookAhead (choice (try . string . (' ':) . term_keywords t)) >> char ' ' >> return ()
+    Parser (Terminators False []) $ \t _ _ -> fmap fst $ many1Till' anyChar $ try $ (if term_eof t then (eof <|>) else id) $ lookAhead (choice (try `fmap` string `fmap` (' ':) `fmap` term_keywords t)) >> char ' ' >> return ()
    where
     cs :: [([String], String)]
-    cs = first opt_an . [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~")]
+    cs = first opt_an `fmap` [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~")]
 
 andP :: Parser st a ()
-andP = tryP $ (kwd ["and"] >>>) $ Parser (Terminators True []) $ \_ a _ -> notFollowedBy (choice $ try . string . a)
+andP = tryP $ (kwd ["and"] >>>) $ Parser (Terminators True []) $ \_ a _ -> notFollowedBy (choice $ try `fmap` string `fmap` a)
   where
     tryP :: Parser st a b -> Parser st a b
     tryP (Parser t f) = Parser t $ \x y z -> try (f x y z)
 
 instance Parse a => Parse (AndList a) where
-  parse = sepP parse andP >>> pure AndList
+  parse = sepP parse andP >>> arr AndList
     where
       sepP :: Parser st a t -> Parser st a t1 -> Parser st a (NElist t)
       sepP (Parser u@(Terminators _ t) p) (Parser (Terminators _ t') p') = Parser (Terminators False t) $
@@ -77,13 +81,13 @@ semipure :: (a -> Either String b) -> Parser st a b
 semipure f = Parser (Terminators True []) $ \_ _ -> either fail return . f
 
 select :: [([String], a)] -> Parser st x a
-select = foldl1 (<||>) . map (\(s, r) -> if null s then pure (const r) else kwd s >>> pure (const r))
+select = foldl1 (<||>) . map (\(s, r) -> if null s then arr (const r) else kwd s >>> arr (const r))
 
 optional :: Parser st a b -> Parser st a ()
-optional p = (p >>> pure (const ())) <||> pure (const ())
+optional p = (p >>> arr (const ())) <||> arr (const ())
 
 auto1 :: Parse a => (a -> b) -> Parser st x b
-auto1 f = parse >>> pure f
+auto1 f = parse >>> arr f
 
 auto2 :: (Parse a, Parse b) => (a -> b -> c) -> Parser st x c
 auto2 f = proc x -> do a <- parse -< x; b <- parse -< x; returnA -< f a b
@@ -108,10 +112,10 @@ instance Parse RelativeBound where
   parse = select [(end_kwds, Back), (begin, Front)] <||> auto2 RelativeBound
 
 instance Parse Ordinal where
-  parse = label "ordinal" $ (>>> pure Ordinal) $ proc _ -> do
+  parse = label "ordinal" $ (>>> arr Ordinal) $ proc _ -> do
     optional $ kwd ["the"] -< ()
     (select [(["last"], -1), (["first"], 0)] -< ()) <||> do
-    n <- select $ (\n -> ([show_ordinal n], n)) . [1..9] -< ()
+    n <- select $ fmap (\n -> ([show_ordinal n], n)) [1..9] -< ()
     b <- select [(["last"], True), ([], False)] -< ()
     returnA -< if b then - n - 1 else n
 
@@ -139,11 +143,11 @@ instance Parse Betw where
 relative_everything_orA :: Parser st y (Relative (EverythingOr a))
 relative_everything_orA =
     (kwd till >>> auto1 (Between Everything . Betw front))
-  <||> liftA2 FromTill (kwd ["from"] >>> parse) ((kwd till >>> parse) <||> pure (const Back))
+  <||> liftA2 FromTill (kwd ["from"] >>> parse) ((kwd till >>> parse) <||> arr (const Back))
   <||> (kwd ["everything"] >>>
     (liftA2 (\x y -> Between Everything (Betw x y)) (kwd ["from"] >>> parse) (kwd till >>> parse)
       <||> (kwd till >>> auto1 (\x -> Between Everything (Betw front x)))
-      <||> (pure (const Everything) >>> relative)))
+      <||> (arr (const Everything) >>> relative)))
   <||> (kwd ["begin"] >>> kwd till >>> auto1 (Between Everything . Betw front))
   <||> (proc _ -> do
     kwd ["before"] -< ()
@@ -176,14 +180,14 @@ instance Parse (Relative (EverythingOr (Ranked String))) where
     <||> (relative -< NotEverything x)
 
 instance Parse Position where
-  parse = (select [(begin, Before), (end_kwds, After)] >>> pure (flip Position Everything)) <||> auto2 Position
+  parse = (select [(begin, Before), (end_kwds, After)] >>> arr (flip Position Everything)) <||> auto2 Position
 
 instance Parse (Rankeds String) where
   parse = (kwd ["all"] >>> ((kwd ["except", "but"] >>> auto2 AllBut) <||> auto1 All))
     <||> (kwd ["any", "every", "each"] >>> auto1 All) <||> auto2 Rankeds <||> auto1 Sole'
 
 instance Parse PositionsClause where
-  parse = (kwd ["at"] >>> select [(begin, Before), (end_kwds, After)] >>> pure (\ba -> PositionsClause ba $ and_one $ absolute Everything)) <||> auto2 PositionsClause
+  parse = (kwd ["at"] >>> select [(begin, Before), (end_kwds, After)] >>> arr (\ba -> PositionsClause ba $ and_one $ absolute Everything)) <||> auto2 PositionsClause
 
 instance Parse Replacer where
   parse = liftA2 ReplaceOptions parse (wb >>> parse) <||> liftA2 Replacer parse (wb >>> parse)
@@ -197,22 +201,22 @@ instance Parse UseClause where parse = auto1 UseOptions <||> auto1 UseString
 
 instance Parse Wrapping where
   parse =
-    (kwd ["curlies", "braces", "curly brackets"] >>> pure (const (Wrapping "{" "}")))
-    <||> (kwd ["parentheses", "parens", "round brackets"] >>> pure (const (Wrapping "(" ")")))
-    <||> (kwd ["square brackets"] >>> pure (const (Wrapping "[" "]")))
-    <||> (kwd ["angle brackets"] >>> pure (const (Wrapping "<" ">")))
-    <||> (kwd ["single quotes"] >>> pure (const (Wrapping "'" "'")))
-    <||> (kwd ["double quotes"] >>> pure (const (Wrapping "\"" "\"")))
+    (kwd ["curlies", "braces", "curly brackets"] >>> arr (const (Wrapping "{" "}")))
+    <||> (kwd ["parentheses", "parens", "round brackets"] >>> arr (const (Wrapping "(" ")")))
+    <||> (kwd ["square brackets"] >>> arr (const (Wrapping "[" "]")))
+    <||> (kwd ["angle brackets"] >>> arr (const (Wrapping "<" ">")))
+    <||> (kwd ["single quotes"] >>> arr (const (Wrapping "'" "'")))
+    <||> (kwd ["double quotes"] >>> arr (const (Wrapping "\"" "\"")))
     <||> liftA2 Wrapping parse (andP >>> parse)
   -- Todo: This is duplicated below.
 
-instance Parse a => Parse (Maybe a) where parse = (parse >>> pure Just) <||> pure (const Nothing)
+instance Parse a => Parse (Maybe a) where parse = (parse >>> arr Just) <||> arr (const Nothing)
 
 instance Parse Command where
   parse = label "edit command" $
-    (kwd ["insert", "add"] >>> ((parse >>> pure (Use . (UseOptions .))) <||> auto2 Insert)) <||>
+    (kwd ["insert", "add"] >>> ((parse >>> arr (Use `fmap` (fmap UseOptions))) <||> auto2 Insert)) <||>
     (kwd ["append"] >>> auto2 Append) <||>
-    (kwd ["prepend"] >>> ((parse >>> pure (Use . (UseOptions .))) <||> auto2 Prepend)) <||>
+    (kwd ["prepend"] >>> ((parse >>> arr (Use `fmap` (fmap UseOptions))) <||> auto2 Prepend)) <||>
     (kwd ["erase", "remove", "kill", "cut", "omit", "delete", "drop"] >>> auto1 Erase) <||>
     (kwd ["replace"] >>> auto1 Replace) <||>
     (kwd ["use"] >>> auto1 Use) <||>
@@ -222,7 +226,7 @@ instance Parse Command where
       wc :: (AndList (Relative (EverythingOr (Rankeds String)))) -> Either (AndList Around) Wrapping -> Either String Command
       wc what (Right wrapping) = return $ WrapIn what wrapping
       wc (AndList (NElist (Between (NotEverything (Sole' x)) (Betw (Bound (Just Before) Everything) Back)) [])) (Left what) =
-        (\q -> WrapAround q what) . case () of
+        (\q -> WrapAround q what) `fmap` case () of
           ()| x `elem` ["curlies", "braces", "curly brackets"] -> return $ Wrapping "{" "}"
           ()| x `elem` ["parentheses", "parens", "round brackets"] -> return $ Wrapping "(" ")"
           ()| x `elem` ["square brackets"] -> return $ Wrapping "[" "]"
@@ -239,4 +243,4 @@ commandP :: CharParser st Command
 commandP = uncool parse (Terminators True []) []
 
 commandsP :: CharParser st [Command]
-commandsP = unne . andList . uncool parse (Terminators True []) []
+commandsP = unne `fmap` andList `fmap` uncool parse (Terminators True []) []

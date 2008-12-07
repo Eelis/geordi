@@ -230,11 +230,12 @@ data CompileConfig = CompileConfig { gxxPath :: FilePath, compileFlags, linkFlag
 readCompileConfig :: IO CompileConfig
 readCompileConfig = do
   l <- lines . readFileNow "compile-config"
-  let m = Map.fromList $ (\s -> let (k,_:v) = span (/= '=') s in (k, read v)) . l
-  CompileConfig .
-    (Map.lookup "GXX" m) <*>
-    (words . Map.lookup "COMPILE_FLAGS" m) <*>
-    (words . Map.lookup "LINK_FLAGS" m)
+  let
+    m = Map.fromList $ (\s -> let (k,_:v) = span (/= '=') s in (k, read v)) . l
+    var k
+      | Just x <- Map.lookup k m = return x
+      | otherwise = fail $ "Missing variable in compile-config: " ++ k
+  CompileConfig . var "GXX" <*> (words . var "COMPILE_FLAGS") <*> (words . var "LINK_FLAGS")
 
 data Request = Request { code :: String, also_run, no_warn :: Bool }
 
@@ -270,7 +271,7 @@ evaluator = do
 ignored_syscalls, allowed_syscalls :: [SysCall]
 
 ignored_syscalls = -- These are effectively replaced with "return 0;".
-  [ SYS_chmod, SYS_fadvise64, SYS_unlink, SYS_munmap, SYS_madvise, SYS_umask, SYS_rt_sigaction, SYS_rt_sigprocmask, SYS_ioctl, SYS_setitimer, SYS_vfork {- see "Secure compilation" -} ]
+  [ SYS_chmod, SYS_fadvise64, SYS_unlink, SYS_munmap, SYS_madvise, SYS_umask, SYS_rt_sigaction, SYS_rt_sigprocmask, SYS_ioctl, SYS_setitimer, SYS_timer_settime, SYS_vfork {- see "Secure compilation" -} ]
 
 allowed_syscalls =
   [ SYS_open, SYS_write, SYS_uname, SYS_brk, SYS_read, SYS_mmap, SYS_exit_group, SYS_getpid, SYS_access, SYS_getrusage, SYS_close, SYS_gettimeofday, SYS_time, SYS_writev, SYS_execve, SYS_mprotect, SYS_getcwd, SYS_times

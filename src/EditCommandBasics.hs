@@ -7,7 +7,7 @@ import qualified Prelude
 import Prelude hiding (last, (.), all, (!!))
 import qualified Data.List as List
 import Request (EvalOpt, EditableRequest(..), EditableRequestKind(..))
-import Util (findMaybe, take_atleast, (.), isIdChar, stripPrefix, Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtein, replaceAllInfix, approx_match, (!!), Cost, once_twice_thrice, Invertible(..), (.||.), (.&&.))
+import Util (findMaybe, take_atleast, (.), isIdChar, Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtein, replaceAllInfix, approx_match, (!!), Cost, once_twice_thrice, Invertible(..), (.||.), (.&&.))
 
 import EditCommandGrammar
 
@@ -38,7 +38,7 @@ overlap (Range x s) (Range x' s') = max 0 $ min (x + s) (x' + s') - max x x'
 
 find_occs :: Eq a => [a] -> [a] -> [Pos a]
 find_occs _ [] = []
-find_occs x y | Just z <- stripPrefix x y = 0 : (+ length x) . find_occs x z
+find_occs x y | Just z <- List.stripPrefix x y = 0 : (+ length x) . find_occs x z
 find_occs x (_:ys) = (+ 1) . find_occs x ys
 
 nth :: (Monad m, Show a, Eq a) => Int -> [a] -> [a] -> m (Range a)
@@ -368,7 +368,7 @@ edit_tokens :: (Char -> Bool) -> String -> [String]
 edit_tokens p = work
   where
     work [] = []
-    work s | Just (o, s') <- findMaybe (\q -> (\x -> (q, x)) . stripPrefix q s) long_ops = o : work s'
+    work s | Just (o, s') <- findMaybe (\q -> (\x -> (q, x)) . List.stripPrefix q s) long_ops = o : work s'
     work (' ':s) = let (x, s') = span isSpace s in (' ':x) : work s'
     work (h:s) | isDigit h = let (x, s') = span isDigit s in (h:x) : work s'
     work (h:s) | p h = let (x, s') = span p s in (h:x) : work s'

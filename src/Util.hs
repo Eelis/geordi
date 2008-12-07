@@ -1,7 +1,6 @@
 module Util where
 
 import qualified System.Posix.IO
-import qualified GHC.Read
 import qualified Data.Monoid
 import qualified Prelude
 import qualified Data.Sequence as Seq
@@ -9,14 +8,15 @@ import qualified Data.List as List
 
 import Data.Maybe (listToMaybe, mapMaybe)
 import Data.Monoid (Monoid(..))
-import Data.List (sortBy, minimumBy, isPrefixOf, tails, all)
+import Data.List (sortBy, minimumBy, isPrefixOf, tails, all, stripPrefix)
 import Data.Char (isSpace, isAlphaNum, toLower, toUpper)
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.Sequence (Seq, ViewL(..), (<|))
 import Data.Function (on)
-import Control.Exception (catch, bracket, evaluate)
-import Control.Arrow (Arrow(..))
+import Control.Exception (bracket, evaluate)
+import Control.Arrow (Arrow, (>>>), arr, first, second, (&&&))
 import Control.Monad (liftM2, when)
+import Control.Monad.Error ()
 import Control.Monad.Fix (fix)
 import Control.Monad.State (MonadState, modify, StateT(..))
 import Control.Monad.Instances ()
@@ -26,7 +26,7 @@ import System.Posix.Time (epochTime)
 import System.IO (Handle, hClose)
 import Sys (sleep)
 
-import Prelude hiding (catch, (.), (!!))
+import Prelude hiding ((.), (!!))
 
 full_evaluate :: NFData a => a -> IO a
 full_evaluate x = do () <- evaluate (rnf x); return x
@@ -57,14 +57,13 @@ kibi, mebi :: Integral a => a
 kibi = 1024
 mebi = kibi * kibi
 
-readTypedFile :: Read a => FilePath -> IO a
-readTypedFile f = either (const $ fail $ "parsing \"" ++ f ++ "\"") return =<< GHC.Read.readEither . readFile f
+readEither :: Read a => String -> Either String a
+readEither s
+  | [(x, r)] <- reads s, all isSpace r = return x
+  | otherwise = fail "parse failure"
 
-stripPrefix :: Eq a => [a] -> [a] -> Maybe [a]
-stripPrefix [] ys = Just ys
-stripPrefix (x:xs) (y:ys) | x == y = stripPrefix xs ys
-stripPrefix _ _ = Nothing
-  -- ExtDep: GHC 6.8.2 has this in Data.List.
+readTypedFile :: Read a => FilePath -> IO a
+readTypedFile f = either (const $ fail $ "parsing \"" ++ f ++ "\"") return =<< readEither . readFile f
 
 stripSuffix :: String -> String -> Maybe String
 stripSuffix x y = reverse . stripPrefix (reverse x) (reverse y)
@@ -326,7 +325,7 @@ instance (Finite a, Finite b) => Finite (Either a b) where
 instance (Enum a, Bounded a) => Finite a where all_values = enumFrom minBound
 
 snd_unit :: Arrow x => x () b -> x c (c, b)
-snd_unit f = pure (\c -> (c, ())) >>> second f
+snd_unit f = arr (\c -> (c, ())) >>> second f
 
 isVowel :: Char -> Bool
 isVowel = (`elem` "aeoiu")
@@ -347,18 +346,9 @@ class Invertible a where invert :: a -> a
 instance (Functor f, Invertible a) => Invertible (f a) where invert = fmap invert
 
 liftA2 :: (Arrow a) => (c -> c' -> d) -> a b c -> a b c' -> a b d
-liftA2 f a b = (a &&& b) >>> pure (uncurry f)
+liftA2 f a b = (a &&& b) >>> arr (uncurry f)
 
 class Option a where short :: a -> Char; long :: a -> String
-
-partitionEithers :: [Either a b] -> ([a], [b])
-  -- Note: Newer GHC versions apparently ship this as well as "lefts" below.
-partitionEithers [] = ([], [])
-partitionEithers (Left x : l) | (a, b) <- partitionEithers l = (x : a, b)
-partitionEithers (Right x : l) | (a, b) <- partitionEithers l = (a, x : b)
-
-lefts :: [Either a b] -> [a]
-lefts = fst . partitionEithers
 
 total_tail :: [a] -> [a]
 total_tail [] = []

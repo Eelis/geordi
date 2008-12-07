@@ -10,9 +10,10 @@ import qualified CxxParse as Cxx
 import qualified Data.List as List
 import Data.Char (isPrint)
 import Data.Maybe (listToMaybe)
+import Data.Either (lefts)
 import Text.ParserCombinators.Parsec (getInput, (<|>), spaces, satisfy, eof, CharParser, string, try, choice, parse, notFollowedBy, option)
 import ParsecUtil (optParser)
-import Util ((.), (<<), (.||.), commas_and, isIdChar, capitalize, all_values, lefts, orElse, length_ge, replace, maybe_nonempty, unne)
+import Util ((.), (<<), (.||.), commas_and, isIdChar, capitalize, all_values, orElse, length_ge, replace, maybe_nonempty, unne)
 import Request (Context(..), EvalOpt(..), Response(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
 import Prelude hiding (catch, (.))
 
