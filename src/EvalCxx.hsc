@@ -243,7 +243,7 @@ evaluate :: CompileConfig -> Request -> IO EvaluationResult
 evaluate cfg req = do
   withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd -> do
   Flock.exclusive lock_fd
-  writeFile "t.cpp" $ UTF8.encodeString $ code req
+  writeFile "t.cpp" $ UTF8.encodeString $ code req ++ "\n"
   env <- filter (("LC_" `isPrefixOf`) . fst) . getEnvironment
   let
     gxx :: [String] -> Stage -> IO EvaluationResult -> IO EvaluationResult
