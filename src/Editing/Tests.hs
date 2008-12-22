@@ -1,20 +1,77 @@
-module EditCommandTests (test) where
+module Main (main) where
 
-import qualified Text.ParserCombinators.Parsec as PS
+import qualified Editing.EditsPreparation
+import qualified Editing.Parse
+import qualified Editing.Execute
+import qualified Editing.Diff
+import qualified Data.Set as Set
+import qualified Cxx.Show
+import qualified Cxx.Parse
 
-import Text.ParserCombinators.Parsec (eof, parse)
-import EditCommandGrammar (UseClause(..))
-import Util (test_cmp, (<<), commas_and, capitalize, (.))
+import Parsers (eof, parseOrFailE)
+import Util (test_cmp, (<<), (.))
+import Request (EditableRequest(..), EditableRequestKind(..))
 
 import Prelude hiding ((.))
-import Request (EditableRequest(..), EditableRequestKind(..))
-import EditCommandParseError (showParseError)
-import EditCommandParse (commandsP)
-import EditCommandBasics (execute, findInStr, selectRange, replaceRange, Edit(..))
-import EditCommandDiff (diff)
 
-test :: IO ()
-test = do
+make_tests :: IO ()
+make_tests = do
+  f "" "make foo bar bas" "Unexpected end of command. Expected \"::\" or template-arguments."
+  f "" "make " "Unexpected end of command. Expected declarator-id."
+  f "" "make i pointer to" "Unexpected end of command. Expected type description."
+  s "mutable int i;" "make i const" "const mutable int i;"
+  s "int i;" "make i a const double" "double const i;"
+  s "int const i;" "make i a double" "double const i;"
+  s "int i;" "make i a *&" "int *& i;"
+  s "int * p = f();" "make p auto" "auto p = f();"
+  s "inline void f();" "make f noninline" "void f();"
+  s "int (* const i)(double);" "make i nonconst" "int (* i)(double);"
+  s "int i;" "make i a pointer&" "int *& i;"
+  s "void f() { int i; i = 0; }" "make i a pointer" "void f() { int * i; i = 0; }"
+  s "struct X { static void f(); }" "append semicolon and make f pure" "struct X { virtual void f()= 0 ; };"
+  s "struct X { virtual void f() = 0; };" "make f static" "struct X { static void f() ; };"
+  s "struct X { void f(); };" "make f virtual pure const inline explicit" "struct X { virtual inline explicit void f()const = 0 ; };"
+  s "struct X { ~X(); };" "make ~ X virtual" "struct X { virtual ~X(); };"
+  s "struct X { virtual inline explicit void f()const = 0 ; };" "make f impure nonvirtual nonexplicit noninline" "struct X { void f()const ; };"
+  s "struct X { X(int i); };" "make i a reference to const and make X explicit" "struct X { explicit X(const int & i); };"
+  s "int *p;" "make p a const*volatile" "const int *volatile p;"
+  s "void N::f() {}" "make N::f inline" "inline void N::f() {}"
+  s "struct X { void operator++(); };" "make operator++ a const function returning an X&" "struct X { X & operator++()const ; };"
+  s "struct X { int const i, f() const; };" "make i and f nonconst" "struct X { int i; int const f() ; };"
+  s "int x /*haha*/ ; // ok dan /* mja */" "make x const" "const int x /*haha*/ ; // ok dan /* mja */"
+  s "T const ( &f() )[3] { T x = {v}; }" "make f inline" "inline T const ( &f() )[3] { T x = {v}; }"
+  s "int *i; int * & j;" "make i a pointer to a pointer" "int ** i; int * & j;"
+  s "{ struct S {}; int (S:: * p) = 0; int (S:: * & r) = p; }" "make p and r const" "{ struct S {}; int (S:: * const p) = 0; int (S:: * const & r) = p; }"
+  s "int i;" "make i an array" "int i[];"
+  s "int i;" "make i a const array" "const int i[];"
+  s "int i(3), j(x);" "make i and j const" "const int i(3);int j(x)const ;"
+  s "int i;" "make i a const array of pointers" "int *const i[];"
+  s "int i[];" "make i const" "const int i[];"
+  s "void f(int i, double d){}" "make i and d long" "void f(long int i, long double d){}"
+  s "int i;" "make i an array of const" "const int i[];"
+  s "int i;" "make i a static const function" "static int i()const ;"
+  s "int i;" "make i a pointer to a function" "int (* i)();"
+  s "int i;" "make i a pointer to a function taking two doubles" "int (* i)(double, double);"
+  s "int i;" "make i a function returning a const" "const int i();"
+  s "int i;" "make i a function returning a const pointer and taking a bool" "int *const i(bool);"
+  s "void f() { if(b) int i, j; }" "make j register and make f static const" "static void f() const { if(b) {int i; register int j; }}"
+  s "void f(int i) { try {} catch(int j) {} }" "make f and i and j const" "void f(const int i) const { try {} catch(const int j) {} }"
+  f "void f(int i) { try {} catch(int j) {} }" "make j mutable" "Invalid decl-specifier for type-specifier-seq: mutable"
+  s "struct X { void f(int p); };" "make f static inline and make p a reference to long" "struct X { static inline void f(long int & p); };"
+  putStrLn "All make tests passed."
+  where
+    t :: String -> String -> Either String String -> IO ()
+    t code cmdstring expectation = test_cmp cmdstring expectation actual
+      where
+        actual = case parseOrFailE (Editing.Parse.commandsP << eof) cmdstring "command" of
+          Left e -> Left e
+          Right cmds -> editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) code)
+    s, f :: String -> String -> String -> IO ()
+    s code cmdstring expectation = t code cmdstring (Right expectation) -- test for success
+    f code cmdstring expectation = t code cmdstring (Left expectation) -- test for failure
+
+basic_tests :: IO ()
+basic_tests = do
   t "erase all 2 and insert x before second 3 and prepend y" $ Right "y1  3  x3 4 5"
   t "erase everything before last 2 and replace everything after 4 with x" $ Right "2 3 4x"
   t "insert x after all 2 and append y" $ Right "1 2x 3 2x 3 4 5y"
@@ -118,77 +175,26 @@ test = do
   t "erase 2" $ Left "String \"2\" occurs multiple times."
   t "replace 1 and erase with 4" $ Left "String \"erase\" does not occur."
   t "replace tenth last 2 by x" $ Left "String \"2\" does not occur 10 times."
-  -- Todo: t "move 3 4 to begin and erase 4 5" $ Left "some error"
   t "erase second 9" $ Left "String \"9\" does not occur."
   t "replace all 2 with 3 and replace second 2 with x" $ Left "Overlapping edits: replace \"2\" with \"3\" and replace \"2\" with \"x\"."
   t "erase everything before first 3 and replace first 2 with x" $ Left "Overlapping edits: erase \"1 2 \" and replace \"2\" with \"x\"."
   -- Syntax errors:
-  t "isnert 3 before 4" $ Left "Unexpected \"s\" at start. Expected edit command."
+  t "isnert 3 before 4" $ Left "Unexpected \"i\" at start. Expected edit command." -- Todo: This would look better if the token was mentioned.
   t "insert " $ Left "Unexpected end of command. Expected option or verbatim string."
-  t "erase first and " $ Left "Unexpected end of command. Expected ordinal."
-  t "erase between second " $ Left "Unexpected end of command. Expected \"last\", \"and\", or verbatim string."
   t "insert kung fu" $ Left "Unexpected end of command. Expected \" at\", \" before\", or \" after\"."
   t "move " $ Left "Unexpected end of command. Expected \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", ordinal, or verbatim string."
   t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" between\", or \" to\"."
   t "move x to "$ Left "Unexpected end of command. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
---  t "wrap x and y" $ Left $ "Unexpected end of command. Expected \" around \" or \" in \"."
-  t "append x and erase first " $ Left "Unexpected end of command. Expected \"and\" or verbatim string."
-  t "erase all 2 and " $ Left "Unexpected end of command. Expected \"insert\", \"add\", \"append\", \"prepend\", \"erase\", \"remove\", \"kill\", \"cut\", \"omit\", \"delete\", \"drop\", \"replace\", \"use\", \"move\", \"wrap\", option, \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, or verbatim string."
-    -- Todo: Why doesn't this say "edit command"?
-  -- "use" tests:
-  ut "ETYPE_DESC" "ETPYE" "Replaced \"<< ETPYE\" with \"<< ETYPE_DESC\"." "Replaced \"<< ETYPE_DESC\" with \"<< ETPYE\"."
-  ut "kip(a.~T)" "a.~T" "Replaced \"a.~T\" with \"kip(a.~T)\"." "Replaced \"kip(a.~T)\" with \"a.~T\"."
-  -- ut "cos(a.~T)" "a.~T" -- Fails, but can probably be made to work by rewarding successive skips.
-  ut "size_type" "size_t" "Replaced \"string::size_t- siz\" with \"string::size_type- siz\"." "Replaced \"string::size_type- siz\" with \"string::size_t- siz\"."
-  ut "size = 9" "siz = 2" "Replaced \"string::size_t- siz = 2\" with \"string::size_t- size = 9\"." "Replaced \"string::size_t- size = 9\" with \"string::size_t- siz = 2\"."
-  ut "ETYPE" "ETPYE" "Replaced \"<< ETPYE\" with \"<< ETYPE\"." "Replaced \"<< ETYPE\" with \"<< ETPYE\"."
-  ut "std::string" "string" "Replaced \"string::size_t- siz\" with \"std::string::size_t- siz\"." "Replaced \"std::string::size_t- siz\" with \"string::size_t- siz\"."
-  ut "; float x" "; int x" "Replaced \"int x\" with \"float x\"." "Replaced \"float x\" with \"int x\"."
-  ut "x-" "x -" "Replaced \"x - size\" with \"x- size\"." "Replaced \"x- size\" with \"x - size\"."
-  ut ") cin <<" ") cout <<" "Replaced \"cout\" with \"cin\"." "Replaced \"cin\" with \"cout\"."
-  ut "x = 4" "x = 3" "Replaced \"3\" with \"4\"." "Replaced \"4\" with \"3\"."
-  ut "x - 8);" "x - size);" "Replaced \"x - size\" with \"x - 8\"." "Replaced \"x - 8\" with \"x - size\"."
-  ut "(!i)" "(i == 0)" "Replaced \"i == 0\" with \"!i\"."  "Replaced \"!i\" with \"i == 0\"."
-  ut "seekp" "seek" "Replaced \"a.seek\" with \"a.seekp\"." "Replaced \"a.seekp\" with \"a.seek\"."
-  ut "<char>" "<unsigned char>" "Replaced \"vector<unsigned char> & r\" with \"vector<char> & r\"." "Replaced \"vector<char> & r\" with \"vector<unsigned char> & r\"."
-  ut "<const fish>" "<fish>" "Replaced \"reinterpret_cat<fish>\" with \"reinterpret_cat<const fish>\"." "Replaced \"reinterpret_cat<const fish>\" with \"reinterpret_cat<fish>\"."
-  ut "&); };" "&) };" "Inserted \";\" after \"C const &)\"." "Erased \";\" after \"C const &)\"."
-  ut "> * r = v" "> & r = v" "Replaced \"& r\" with \"* r\"." "Replaced \"* r\" with \"& r\"."
-  ut "v.cbegin()" "v.begin()" "Replaced \"v.begin\" with \"v.cbegin\"." "Replaced \"v.cbegin\" with \"v.begin\"."
-  -- Todo: "void foo" should match "voidfoo".
-  ut "x - sizeof(y))" "x - size)" "Replaced \"x - size\" with \"x - sizeof(y)\"." "Replaced \"x - sizeof(y))\" with \"x - size)\"."
-  ut "int a(2);" "int a;" "Inserted \"(2)\" after \"{ int a\"." "Erased \"(2)\" after \"{ int a\"."
-  ut "int const * w" "int * w" "Replaced \"int * w\" with \"int const * w\"." "Replaced \"int const * w\" with \"int * w\"."
-  ut "main(int argc) {" "main() {" "Inserted \"int argc\" after \"void main(\"." "Erased \"int argc\"."
-  ut "operator-" "operator+" "Replaced \"C & operator+\" with \"C & operator-\"." "Replaced \"C & operator-\" with \"C & operator+\"."
-  ut "_cast" "_cat" "Replaced \"reinterpret_cat<fish>\" with \"reinterpret_cast<fish>\"." "Replaced \"reinterpret_cast<fish>\" with \"reinterpret_cat<fish>\"."
-  ut "(++a)" "(a++)" "Replaced \"a++\" with \"++a\"." "Replaced \"++a\" with \"a++\"."
-  ut "list<int>" "vector<int>" "Replaced \"vector<int> v\" with \"list<int> v\"." "Replaced \"list<int> v\" with \"vector<int> v\"."
-  ut "a->seekp" "a.seek" "Replaced \"a.seek\" with \"a->seekp\"." "Replaced \"a->seekp\" with \"a.seek\"."
-  ut "vector<int>::iterator i" "vector<int> i" "Replaced \"vector<int> i\" with \"vector<int>::iterator i\"." "Replaced \"vector<int>::iterator i\" with \"vector<int> i\"."
-  ut "runtime_error(" "runtime_exception(" "Replaced \"throw runtime_exception\" with \"throw runtime_error\"." "Replaced \"throw runtime_error\" with \"throw runtime_exception\"."
-  ut "~T();" "~T;" "Inserted \"()\" after \") { a.~T\"." "Erased \"()\" after \") { a.~T\"." -- Todo: ugly.
-  ut "int const * w" "int * w" "Replaced \"int * w\" with \"int const * w\"." "Replaced \"int const * w\" with \"int * w\"."
-  ut "(T & a)" "(T a)" "Replaced \"T a\" with \"T & a\"." "Replaced \"T & a\" with \"T a\"."
-  ut "& r(v);" "& r = v;" "Replaced \"= v\" after \"vector<unsigned char> & r\" with \"(v)\"." "Replaced \"(v)\" after \"vector<unsigned char> & r\" with \"= v\"."
-  ut "ios_base::end_t" "ios::end" "Replaced \"ios::end\" with \"ios_base::end_t\".""Replaced \"ios_base::end_t\" with \"ios::end\"."
-  ut "95" "94" "Replaced \"94\" with \"95\"." "Replaced \"95\" with \"94\"."
-  ut "vector<int> const v { 3, 2 };" "vector<int> v; v = { 3, 2 };" "Replaced \"vector<int> v; v =\" with \"vector<int> const v\"." "Replaced \"vector<int> const v\" with \"vector<int> v; v =\"."
-  ut "class C" "struct C" "Replaced \"struct C\" with \"class C\"." "Replaced \"class C\" with \"struct C\"."
-  ut "B z{p};" "B z = B{p};" "Erased \"= B\" after \"B z\"." "Inserted \"= B\" after \"B z\"."
-  ut "friend C & operator+" "C & operator+" "Inserted \"friend\" before \"C & operator+\"." "Erased \"friend\" before \"C & operator+\"."
-  ut "char const(&here)[N]" "char(const&here)[N]" "Replaced \"char(const&here\" with \"char const(&here\"." "Replaced \"char const(&here\" with \"char(const&here\"."
-  ut "z = shared_ptr<B>{new p}" "z = B{p}" "Replaced \"B{p\" with \"shared_ptr<B>{new p\"." "Replaced \"shared_ptr<B>{new p\" with \"B{p\"." -- Todo: ugly.
-  ut "(X(y));" "X(y);" "Inserted \"(\" before \"X(y)\", and inserted \")\" after \"} X(y)\"." "Erased \"(\" before \"X(y))\" and \")\" after \"} (X(y)\"." -- Todo: ugly.
-  ut "2000" "1800" "Replaced \"1800\" with \"2000\"." "Replaced \"2000\" with \"1800\"."
-  ut "8000100808" "10000000000" "Replaced \"10000000000\" with \"8000100808\"." "Replaced \"8000100808\" with \"10000000000\"."
-  ut "> 7" ">= 7" "Replaced \"x >= 7\" with \"x > 7\"." "Replaced \"x > 7\" with \"x >= 7\"."
-  ut "private: fstream" "public: fstream" "Replaced \"public: fstream p\" with \"private: fstream p\"." "Replaced \"private: fstream p\" with \"public: fstream p\"." -- Todo: "replaced public: with private: before fstream p".
-  ut "int main" "void main" "Replaced \"void main\" with \"int main\"." "Replaced \"int main\" with \"void main\"."
-  ut "<char>" "<unsigned char>" "Replaced \"vector<unsigned char> & r\" with \"vector<char> & r\"." "Replaced \"vector<char> & r\" with \"vector<unsigned char> & r\"."
-  ut "int const u =" "int x =" "Replaced \"int x\" with \"int const u\"." "Replaced \"int const u\" with \"int x\"."
-  ut "u - -j" "u--j" "Replaced \"&u--j\" with \"&u - -j\"." "Replaced \"&u - -j\" with \"&u--j\"."
-  ut "struct C{" "struct C(){" "Erased \"()\" after \"struct C\"." "Inserted \"()\" after \"struct C\"."
+  t "erase all 2 and " $ Left "Unexpected end of command. Expected option, \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, verbatim string, or edit command."
+  putStrLn "All basics tests passed."
+ where
+  t :: String -> Either String String -> IO ()
+  t c o = test_cmp c o $ case parseOrFailE (Editing.Parse.commandsP << eof) c "command" of
+    Left e -> Left e
+    Right cmds -> editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) "1 2 3 2 3 4 5")
+
+diff_tests :: IO ()
+diff_tests = do
 
   dt' "foo; bar; monkey; chicken; bas;" "bar; monkey; chicken;" "Erased \"foo;\" and \"bas;\"." "Prepended \"foo;\" and appended \"bas;\"."
 
@@ -243,99 +249,125 @@ test = do
     "char *& f() { static char *p; cout << &p << ' '; return p; } int main() { char *p = f(); cout << &p; }"
     "Replaced \"<< endl\" with \"<< ' '\", and erased \"<< endl\"." -- Todo: say "first" and "last".
 
-  putStrLn "No test failures."
+  putStrLn "All diff tests passed."
  where
-  t :: String -> Either String String -> IO ()
-  t c o = (print c >>) $ test_cmp c o $ case PS.parse (commandsP << eof) "" c of
-    Left e -> Left $ showParseError "command" c True e
-    Right cmds -> editable_body . execute cmds (EditableRequest (Evaluate (const False)) "1 2 3 2 3 4 5")
-  ut :: String -> String -> String -> String -> IO ()
-  ut pattern match d rd = do
-    let txt = "{ string::size_t- siz = 2; int x = 3; if(i == 0) cout << ETPYE(x - size); vector<int> v; v = { 3, 2 }; vector<int> i = reinterpret_cat<fish>(10000000000, v.begin()); } X(y); using tracked::B; B z = B{p}; int const u = 94; int * w = &u--j; !B && !D; vector<unsigned char> & r = v; struct C(){ C & operator+(ostream &, char(const&here)[N], C const &) }; template<typename T> voidfoo(T a) { a.~T; } void main() { int a; a.seek(1800, ios::end); foo(a++); if(x >= 7) throw runtime_exception(y); } class Qbla { public: fstream p; };"
-    RangeReplaceEdit rng _ <- findInStr txt (UseString pattern)
-    test_cmp pattern match (selectRange rng txt)
-    let r = replaceRange rng pattern txt
-    test_cmp pattern d $ pretty_diff txt r
-    test_cmp pattern rd $ pretty_diff r txt
   dt :: String -> String -> String -> IO ()
-  dt x y r = test_cmp x r $ pretty_diff x y
+  dt x y r = test_cmp x r $ show $ Editing.Diff.diff x y
   dt' :: String -> String -> String -> String -> IO ()
   dt' x y xy yx = do
-    test_cmp x xy $ pretty_diff x y
-    test_cmp y yx $ pretty_diff y x
+    test_cmp x xy $ show $ Editing.Diff.diff x y
+    test_cmp y yx $ show $ Editing.Diff.diff y x
   dts :: String -> [(String, String)] -> IO ()
   dts _ [] = return ()
   dts s ((s', d) : r) = dt s s' d >> dts s' r
-  pretty_diff :: String -> String -> String
-  pretty_diff x y = capitalize (commas_and $ show . diff x y) ++ "."
 
-{- Command grammar:
-
-  command = (insert | append | prepend | erase | replace | move | wrap | use)*
-
-  insert = ("insert" | "add") ... positions*
-  append = "append" ... [positions*]
-  prepend = "prepend" ... [positions*]
-  erase = ("erase" | "remove" | "delete" | "cut" | "omit" | "kill") substrs*
-  replace = "replace" (substrs* ("with" | "by") ...)*
-  move = "move" (substr "to" position)*
-  wrap = "wrap" wrapping ("around" substrs*)* | "wrap" substrs* "in" wrapping
-  use = "use" verbatim*
-
-  wrapping = ... "and" ... | "parentheses" | "parens" | "braces" | "curlies"
-    | ("square" | "angle" | "curly" | "round") "brackets" | ("single" | "double") "quotes"
-  relative = between | befaft ranked
-  substrs = range | ("everything" | rankeds) [relative]
-  substr = range | ("everything" | ranked) [relative]
-  position = limit | befaft ("everything" | ranked)
-  befaft = "before" | "after"
-  positions = "at" limit | befaft (("everything" | rankeds) [befaft ranked])*
-  ordinal = "first" | ("second" | "third" | etc) ["last"] | "last"
-  ranked = [ordinal] ...
-  rankeds = "all" [("except" | "but") ordinal*] ... | ["each" | "every" | "any" | ordinal*] ...
-  between = "between" (bound "and" relative-bound | ordinal "and" ordinal ...)
-  range = ([["everything"] "from"] bound | "everything") ("till" | "until") relative-bound
-  limit = "begin" | "front" | "end" | "back"
-  bound = limit | [befaft] ("everything" | ranked)
-  relative-bound = limit | [befaft] ("everything" | ranked) [relative]
-
-  Ellipsis denote a verbatim string, and x* = x ["and" x*].
-
-  This is an idealized grammar with LOTS of ambiguity. The parsers do their best to choose the most sensible interpretation of ambiguous commands.
-
-Design notes:
-
-  Consider "erase {x} and second {", given "{x}{y}". Here, "second {" has to be searched for in the original string, rather than the result of performing the first erase. However, consider "erase z" and move everything after x to front", given "xyz". The "everything after front" should /not/ include "z", but this requires performing the first erase. Also, consider "append z and move everything after x to front", given "xy". This should produce "yxz", not "yzx".
-
-  "use" is heavily biased toward whole-token edits, so users are encouraged to use those. This will not only produce better edits, it is also more readable.
-
-  Giving moves a single target makes "move 4 to end and 5 to begin" work, because otherwise it would be parsed as a move with two targets, the second of which, 5, is not a valid target.
-
-  Should "second last x before y" in "xxaxxy" designate the 'x' before or after 'a'?
-
-    We choose the latter, because it seems more natural, despite the curious result that "first x before y" now means the same as "last x before y".
-
-  Should "erase all x and y" mean "erase all x and all y" or "erase all x and the sole y"?
-
-    We choose the latter, because:
-    - it's easier to implement, because we don't need "and"-repetition nested under "all";
-    - it's safe, because if y occurs multiple times, a clear "y occurs multiple times" error will be emitted, whereas the former solution could result in unintended edit results.
-
-  Should "first and second last x" mean "(first and second) last x" or "first and (second last) x"?
-
-    I have no strong feelings on the matter. Currently it is interpreted to mean the second.
-
-  Should "from ..." / "until ..." bounds be inclusive or exclusive?
-
-    We choose the former, for no particular reason. Note that this default can be overridden by by saying "from after ..." / "until before ...".
-
-  Grammar guidelines:
-
-    - Ranges are never relative (but their bounds may be).
-    - Position specifications never mention ranges (this means that "everything" must not be a range).
-
-  Semantic choices:
-
-    - Ordinal specifications are always relative to the full string, so "erase from x until second b" in "bxabcb" produces "bxbcb", not "bxb".
-
+make_type_tests :: IO ()
+make_type_tests = do
+  t "void(pointer)" $ Right "void(T *)"
+  t "pointer to const pointer to long double" $ Right "long double*const *"
+  t "function taking an int and returning nothing" $ Right "void(int )"
+  let q = "void(int (* const (** (* const volatile (X::* volatile* (* )(int) )(char*)) [2])(long) ) [3])" in t q $ Right q
+  t "function returning nothing and taking a pointer to a function returning a bool and taking an int" $ Right "void (bool (*)(int))"
+  t "function taking a pointer to a (function returning a bool and taking an int), returning nothing" $ Right "void(bool (*)(int))"
+  t "reference to a pointer to a function returning nothing, and taking an int" $ Right "void(*&)(int)"
+  t "function taking an int, a char, a double, and returning nothing" $ Right "void(int, char, double)"
+  t "function returning nothing and taking an int, a char, and a double" $ Right "void (int, char, double)"
+  t "function returning a B<C<T>>" $ Right "B<C<T>>()"
+  t "vector<T*>" $ Right "vector<T*>"
+  t "function returning a ::B<T, (3>>2)>::value_type and taking a vector<vector<int>>" $ Right "::B<T, (3>>2)>::value_type (vector<vector<int>>)"
+  t "function taking no arguments, returning a reference to an array of three pointers to functions taking integers and returning nothing" $ Right "void(*(&())[3])(int )"
+  t "pointer to a constant volatile pointer to an array of 3 ints" $ Right "int(*volatile const *)[3]"
+  t "function returning nothing and taking a reference to an array of three pointers to void" $ Right "void (void*(&)[3])"
+  t "pointer to void(void)" $ Right "void(*)(void)"
+  t "reference to pointer to const array" $ Right "T const (*&)[]"
+  t "function taking a const (pointer to int) and a volatile function" $ Right "T (int*const , T ()volatile )"
+  t "function taking two integers, three doubles, and returning a boolean" $ Right "bool(int, int, double, double, double)"
+  t "function taking two pointers to integers" $ Right "T (int*, int*)"
+  t "rvalue reference to function" $ Right "T (&&)()"
+  t "constant constant pointer to volatile volatile int" $ Right "volatile volatile int*const "
+  --t "pointer to a function from string_bla to int" $ Right "int(*)(string_bla )"
+  t "pointer to " $ Left "Unexpected end of type description. Expected type description."
+  t "pointer to function taking pointer to function" $ Right "T (*)(T (*)())"
+  --t "pointer to int and double" $ Left "Unexpected \"a\" after \"to int \". Expected type-specifier, abstract-declarator, or end of type description."
+  t "function returning " $ Left "Unexpected end of type description. Expected type description."
+  t "function taking a pointer and a reference and returning a reference to a constant array" $ Right "T const (&(T *, T &))[]"
+  t "array of " $ Left "Unexpected end of type description. Expected type description or integer-literal."
+  t "foo bar bas" $ Left "Unexpected \"b\" after \"foo bar \". Expected \"::\" or template-arguments."
+  t "array of seven characters" $ Right "char[7]"
+  t "pointer to (function taking constant integer)*" $ Right "T (**)(const int)"
+  t "pointer to void()" $ Right "void(*)()"
+  t "function taking a pointer to void() returning a reference to an int[3]" $ Right "int(&(void(*)() ))[3]"
+  t "void(pointer to function)" $ Right "void(T (*)())"
+  t "function*(const int)" $ Right "T (*(const int))()"
+  t "(function taking an int[3] )*" $ Right "T (*)(int[3] )"
+  t "(function*[3])&()" $ Right "T (*(&())[3])()"
+  t "int(::T::U::V::**)" $ Right "int(::T::U::V::**)"
+  t "int(X::*)()const volatile" $ Right "int(X::*)()const volatile"
+  t "int volatile X::* Y::* const Z::*" $ Right "int volatile X::* Y::* const Z::*"
+{-
+  t "pointer to a member function" $ Right "void(T::*)()"
+  t "pointer to member integer" $ Right "int T::*"
+  t "pointer to member" $ Right "T T::*"
+  t "pointer to member pointer to member pointer to member array" $ Right "T(T::* T::* T::*)[]"
 -}
+  t "array*const" $ Right "T (*const)[]"
+  t "function taking (pointer to function returning int taking int) returning int" $ Right "int(int (*)(int))"
+  --t "function+" $ Left "Unexpected \"+\" after \"function\". Expected \"taking\", \"returning\", \"from\", abstract-declarator, or end of type description."
+  t "void(register pointer to string)" $ Right "void(register string*)"
+  t "array of three arrays of 2 arrays of 1 integer" $ Right "int[3][2][1]"
+  putStrLn "All make-type tests passed."
+ where
+  t :: String -> Either String String -> IO ()
+  t i o = test_cmp i o (either (Left . id) (Right . Cxx.Show.show_simple) $ Cxx.Parse.makeType i)
+
+precedence_tests :: IO ()
+precedence_tests = do
+  s "x::y" "x::y"
+  s "if (b) int *ptr = new int(3), a(2);" "if (b) {int *ptr = new int(3);int a(2);}"
+  s "if(b) if(c) foo; else bar;" "if(b) { if(c) { foo; } else { bar; } }"
+  s "a=b<c?d=e:f=g" "a=((b<c)?(d=e):(f=g))" -- Example from TC++PL, section 6.2.
+  s "x?y?z?a:b:c:d" "x?(y?(z?a:b):c):d"
+  s "*i-40?(*i-x?S(1,*i):a)+r(i+1,e,x,a):'('+(i[1]-46?r(i+1,o-1,x,a):'.'+r(i+2,o-1,x+1,a))+')'+r(o,e,x,a)" "((*i)-40)?((((*i)-x)?(S(1,(*i))):a)+(r((i+1),e,x,a))):((('('+(((i[1])-46)?(r((i+1),(o-1),x,a)):('.'+(r((i+2),(o-1),(x+1),a)))))+')')+(r(o,e,x,a)))" -- Taken from the lambda calculus snippet.
+  s "x->x->*x.x.*x" "((x->x)->*(x.x)).*x"
+  s "x || x && x | x ^ x & x == x < x << x" "x || (x && (x | (x ^ (x & (x == (x < (x << x)))))))"
+  s "x---------x" "((((x--)--)--)--)-x"
+  s "z+operator+(x,y)" "z+(operator+(x,y))"
+  s "x.operator()() * operator new[ ]()" "((x.operator())()) * (operator new[ ]())"
+  s "throw 2 + 1, throw, 9" "((throw (2 + 1)), throw), 9"
+  s "x + x *= x + x /= x + x" "(x + x) *= ((x + x) /= (x + x))"
+  s "(x)y + x(y)" "((x)y) + (x(y))"
+  f "(x+y)z" "Unexpected \"z\" after \"(x+y)\". Expected postfix operator, binary operator, ternary operator, or end of code."
+  s "a+++a, b++ +b, c+ ++c, d+++ +d, e+ +++e" "(((((a++)+a), ((b++) +b)), (c+ (++c))), ((d++)+ (+d))), (e+ (++(+e)))"
+  s "x += operatornew, b(), !c" "((x += operatornew), (b())), (!c)"
+  s "sizeof u + sizeof(x) + sizeof(y*z)" "((sizeof u) + sizeof(x)) + (sizeof(y*z))"
+  s "x.template a<int>()" "(x.template a<int>)()"
+  s "const_cast<vector<vector<int>>>(x)" "const_cast<vector<vector<int>>>(x)" -- Tricky closing angle brackets.
+  s "x.~y" "x.~y"
+  s "f  (x+3,y)-g(x+3)" "(f  ((x+3),y))-(g(x+3))"
+  s "::x + y::z + a::b::c::d::e" "(::x + y::z) + a::b::c::d::e"
+  s "x[y + 'z']" "x[y + 'z']" -- No parens around x + z or around 'z'.
+  f "x*" "Unexpected end of code. Expected pm-expression."
+  f "&operator" "Unexpected end of code. Expected overloadable operator or conversion-type-id."
+  f "x.*" "Unexpected end of code. Expected cast-expression."
+  f "x--x" "Unexpected \"x\" after \"x--\". Expected postfix operator, binary operator, ternary operator, or end of code."
+  f "x." "Unexpected end of code. Expected id-expression, \"template\", or pseudo-destructor-name."
+  f "x-" "Unexpected end of code. Expected multiplicative-expression."
+  f "x( " "Unexpected end of code. Expected \")\" or initializer-list."
+  f "x(y" "Unexpected end of code. Expected \")\", \"::\", template-arguments, postfix operator, binary operator, ternary operator, or comma."
+  f "x?y" "Unexpected end of code. Expected colon, \"::\", template-arguments, postfix operator, binary operator, or ternary operator."
+  f "x[" "Unexpected end of code. Expected expression or braced-init-list."
+  putStrLn "All precedence tests passed."
+ where
+  s :: String -> String -> IO () -- Test for success.
+  s i o = test_cmp i (Right o) (Cxx.Parse.precedence i)
+  f :: String -> String -> IO () -- Test for failure.
+  f i o = test_cmp i (Left o) (Cxx.Parse.precedence i)
+
+main :: IO ()
+main = do
+  basic_tests
+  make_tests
+  Editing.EditsPreparation.use_tests
+  diff_tests
+  make_type_tests
+  precedence_tests

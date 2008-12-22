@@ -4,8 +4,13 @@ module Sys where
 
 import qualified System.Posix.Internals
 import qualified Codec.Binary.UTF8.String as UTF8
+import qualified Data.Sequence as Seq
 
+import Data.Sequence (Seq, ViewL(..), (<|))
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Control.Monad.Instances ()
+import Control.Monad.Fix (fix)
+import System.Posix.Time (epochTime)
 import Network.Socket (Socket(..), setSocketOption, SocketOption(..))
 import Foreign (with, sizeOf, peek, Ptr, Word8, unsafePerformIO, allocaBytes)
 import Prelude hiding (catch, (.))
@@ -111,3 +116,29 @@ foreign import ccall unsafe "locale.h setlocale" setlocale :: CInt -> CString ->
 
 setlocale_ALL_env :: IO ()
 setlocale_ALL_env = withCString "" $ \s -> setlocale (#const LC_ALL) s >> return ()
+
+class Queue q e | q -> e where
+  qpush :: e -> q -> q
+  qpop :: q -> Maybe (e, q)
+
+instance Queue (Seq e) e where
+  qpush = (<|)
+  qpop q = case (Seq.viewl q) of
+    Seq.EmptyL -> Nothing
+    e :< q' -> Just (e, q')
+
+qPopWhile :: Queue q e => (e -> Bool) -> q -> q
+qPopWhile p q | Just (e, q') <- qpop q, p e = qPopWhile p q'
+qPopWhile _ q = q
+
+rate_limiter :: Int -> Int -> IO (IO ())
+rate_limiter bound window = do
+  r <- newIORef Seq.empty
+  return $ fix $ \loop -> do
+    now <- epochTime
+    hist <- discard_until (now - fromIntegral window) `fmap` readIORef r
+    if Seq.length hist < bound
+      then writeIORef r (qpush now hist)
+      else writeIORef r hist >> sleep 1 >> loop
+ where discard_until t = qPopWhile (< t)
+  -- Given |rl <- rate_limiter b w|, |rl| actions will sleep as required to make sure no more than b actions pass during any w second time window.

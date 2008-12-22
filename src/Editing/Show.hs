@@ -1,9 +1,22 @@
-module EditCommandShow () where
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+
+module Editing.Show (showEdit) where
 
 import qualified Data.List as List
 import Data.Char (isSpace)
-import EditCommandGrammar
-import Util (unne, isVowel, show_ordinal)
+import Util (unne, isVowel, show_long_opts, capitalize, commas_and)
+import Editing.Basics
+
+showEdit :: String -> Edit -> String
+showEdit _ (RemoveOptions opts) = "remove " ++ show_long_opts opts
+showEdit _ (AddOptions opts) = "use " ++ show_long_opts opts
+showEdit _ (RangeReplaceEdit (Range 0 0) r) = "prepend " ++ show r
+showEdit s (RangeReplaceEdit (Range t _) r) | t == length s = "append " ++ show r
+showEdit _ (RangeReplaceEdit (Range _ 0) r) = "insert " ++ show r
+showEdit _ (InsertEdit _ r) = "insert " ++ show r
+showEdit s (RangeReplaceEdit r "") = "erase " ++ show (selectRange r s)
+showEdit s (RangeReplaceEdit r s') = "replace " ++ show (selectRange r s) ++ " with " ++ show s'
+showEdit s (MoveEdit _ _ r) = "move " ++ show (selectRange r s)
 
 instance Show Wrapping where
   show (Wrapping "<" ">") = "angle brackets"
@@ -13,8 +26,6 @@ instance Show Wrapping where
   show (Wrapping "'" "'") = "single quotes"
   show (Wrapping "\"" "\"") = "double quotes"
   show (Wrapping x y) = x ++ " and " ++ y
-
-instance Show Ordinal where show (Ordinal n) = show_ordinal n
 
 instance Show a => Show (EverythingOr a) where
   show Everything = "everything"
@@ -47,8 +58,7 @@ instance Show a => Show (Relative a) where
   show (FromTill b c) = "from " ++ show b ++ " till " ++ show c
 
 instance Show RelativeBound where
-  show Front = "front"
-  show Back = "back"
+  show Front = "front"; show Back = "back"
   show (RelativeBound mba x) = maybe "" ((++ " ") . show) mba ++ show x
 
 instance RawShow a => Show (Rankeds a) where
@@ -59,14 +69,12 @@ instance RawShow a => Show (Rankeds a) where
 
 instance Show Replacer where
   show (Replacer x y) = show x ++ " with " ++ raw_show y
-  show (ReplaceOptions o o') = show o ++ " with " ++ show o'
-instance Show Eraser where show (EraseText l) = show l; show (EraseOptions o) = show o
-instance Show UseClause where show (UseString s) = s; show (UseOptions o) = show o
+  show (ReplaceOptions o o') = show_long_opts o ++ " with " ++ show_long_opts o'
+instance Show Eraser where show (EraseText l) = show l; show (EraseOptions o) = show_long_opts o
+instance Show UseClause where show (UseString s) = s; show (UseOptions o) = show_long_opts o
 instance Show Mover where show (Mover x y) = show x ++ " to " ++ show y
 
 class RawShow a where raw_show :: a -> String
-
-instance Show a => RawShow a where raw_show = show
 
 instance RawShow String where
   raw_show " " = "space"
@@ -98,4 +106,6 @@ show_command t (Move l) = tense t "move" ++ " " ++ show l
 show_command t (WrapIn l w) = tense t "wrap" ++ " " ++ show l ++ " in " ++ show w
 show_command t (WrapAround w l) = tense t "wrap" ++ " " ++ show w ++ " around " ++ show l
 
-instance Show Command where show = show_command Past
+instance Show Command where
+  show = show_command Past
+  showList l r = capitalize (commas_and $ map show l) ++ "." ++ r

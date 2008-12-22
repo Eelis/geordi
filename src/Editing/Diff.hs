@@ -1,12 +1,14 @@
-module EditCommandDiff (diff) where
+-- Express the difference between two strings as a list of edit commands.
 
+module Editing.Diff (diff) where
+
+import qualified Cxx.Basics
+import qualified Data.Char as Char
 import Data.Algorithm.Diff (DI(..), getDiff)
 import Data.Maybe (listToMaybe)
 import Data.Monoid (Monoid(..))
-import Data.Char (isAlpha)
 import Util (orElse, take_atleast, convert, (.), isIdChar, invert)
-import EditCommandBasics (toks_text, ops, Range(..), toks_len, tok_len, Token(..), edit_tokens, selectRange)
-import EditCommandGrammar
+import Editing.Basics
 import Prelude hiding ((.))
 
 diff :: String -> String -> [Command]
@@ -29,7 +31,7 @@ describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
     ()| repl_elem ["}", ")", ";"] || alpha Before -> ins After
     ()| toks_len s <= 4 && size (se_range expanded_edit) > siz -> describe_simpleEdit expanded_edit t
     () -> ins $ if toks_len (context After) > toks_len (context Before) then Before else After
-  else if all ((`elem` ops) . tok_text) sr && s /= [] && not (source_elem ["{", "}", "(", ")"]) && size (se_range expanded_edit) > siz then
+  else if all ((`elem` Cxx.Basics.ops) . tok_text) sr && s /= [] && not (source_elem ["{", "}", "(", ")"]) && size (se_range expanded_edit) > siz then
     describe_simpleEdit expanded_edit t
   else
     Replace $ and_one $ Replacer (and_one describe_range) (toks_text s)
@@ -44,7 +46,7 @@ describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
     inorder_context After = context After
     inorder_context Before = reverse $ context Before
     furthest Before = listToMaybe; furthest After = listToMaybe . reverse
-    alpha ba = isAlpha . (tok_text . listToMaybe (toks ba) >>= furthest (invert ba)) `orElse` False
+    alpha ba = Char.isAlpha . (tok_text . listToMaybe (toks ba) >>= furthest (invert ba)) `orElse` False
     ins ba = Insert (toks_text s) $ and_one $ PositionsClause ba $ and_one $ absolute $ convert $ NotEverything $ Sole $ toks_text $ inorder_context $ invert ba
     sr = selectRange r t
     sole = convert . NotEverything (Sole sr')

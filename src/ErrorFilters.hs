@@ -1,8 +1,10 @@
+{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeSynonymInstances, UndecidableInstances #-}
+
 -- Virtually everything here is GCC specific.
 
 module ErrorFilters (cc1plus, as, ld, prog) where
 
-import qualified CxxParse
+import qualified Cxx.Parse
 import Control.Monad (ap, liftM2, mzero, guard)
 import Text.Regex (Regex, matchRegexAll, mkRegex, subRegex)
 import Data.Char (toLower)
@@ -43,12 +45,14 @@ cxxArg :: CharParser st String
 cxxArg = strip . ce
  where
   ce =
-    (show . CxxParse.charLit >+> ce) <|> (show . CxxParse.stringLit >+> ce) <|>
+    (show . Cxx.Parse.charLit >+> ce) <|> (show . Cxx.Parse.stringLit >+> ce) <|>
     between '(' ')' <|> between '<' '>' <|> between '[' ']' <|>
     option [] ((:[]) . noneOf ")>],'\"" >+> ce)
   between open close =
     string [open] >+> (concat . intersperse "," . sepBy ce (string ",")) >+> string [close] >+> ce
     -- cxxArg can get confused when faced with sneaky uses of tokens like '>'.
+
+-- Todo: Use new C++ parser instead of cxxArg.
 
 hide_clutter_namespaces :: String -> String
 hide_clutter_namespaces = subRegex' (mkRegex "(\\b|:: *)(std|boost|__(gnu_)?(debug(_def)?|norm|cxx))::") ""

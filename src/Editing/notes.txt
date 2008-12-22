@@ -1,0 +1,71 @@
+{- Command grammar:
+
+  command = (insert | append | prepend | erase | replace | move | wrap | use | make)*
+
+  insert = ("insert" | "add") ... positions*
+  append = "append" ... [positions*]
+  prepend = "prepend" ... [positions*]
+  erase = ("erase" | "remove" | "delete" | "cut" | "omit" | "kill") substrs*
+  replace = "replace" (substrs* ("with" | "by") ...)*
+  move = "move" (substr "to" position)*
+  wrap = "wrap" wrapping ("around" substrs*)* | "wrap" substrs* "in" wrapping
+  use = "use" verbatim*
+  make = "make" declarator-id* type-description
+
+  wrapping = ... "and" ... | "parentheses" | "parens" | "braces" | "curlies"
+    | ("square" | "angle" | "curly" | "round") "brackets" | ("single" | "double") "quotes"
+  relative = between | befaft ranked
+  substrs = range | ("everything" | rankeds) [relative]
+  substr = range | ("everything" | ranked) [relative]
+  position = limit | befaft ("everything" | ranked)
+  befaft = "before" | "after"
+  positions = "at" limit | befaft (("everything" | rankeds) [befaft ranked])*
+  ordinal = "first" | ("second" | "third" | etc) ["last"] | "last"
+  ranked = [ordinal] ...
+  rankeds = "all" [("except" | "but") ordinal*] ... | ["each" | "every" | "any" | ordinal*] ...
+  between = "between" (bound "and" relative-bound | ordinal "and" ordinal ...)
+  range = ([["everything"] "from"] bound | "everything") ("till" | "until") relative-bound
+  limit = "begin" | "front" | "end" | "back"
+  bound = limit | [befaft] ("everything" | ranked)
+  relative-bound = limit | [befaft] ("everything" | ranked) [relative]
+
+  Ellipsis denote a verbatim string, and x* = x ["and" x*].
+
+  This is an idealized grammar with LOTS of ambiguity. The parsers do their best to choose the most sensible interpretation of ambiguous commands.
+
+Design notes:
+
+  Consider "erase {x} and second {", given "{x}{y}". Here, "second {" has to be searched for in the original string, rather than the result of performing the first erase. However, consider "erase z" and move everything after x to front", given "xyz". The "everything after front" should /not/ include "z", but this requires performing the first erase. Also, consider "append z and move everything after x to front", given "xy". This should produce "yxz", not "yzx".
+
+  "use" is heavily biased toward whole-token edits, so users are encouraged to use those. This will not only produce better edits, it is also more readable.
+
+  Giving moves a single target makes "move 4 to end and 5 to begin" work, because otherwise it would be parsed as a move with two targets, the second of which, 5, is not a valid target.
+
+  Should "second last x before y" in "xxaxxy" designate the 'x' before or after 'a'?
+
+    We choose the latter, because it seems more natural, despite the curious result that "first x before y" now means the same as "last x before y".
+
+  Should "erase all x and y" mean "erase all x and all y" or "erase all x and the sole y"?
+
+    We choose the latter, because:
+    - it's easier to implement, because we don't need "and"-repetition nested under "all";
+    - it's safe, because if y occurs multiple times, a clear "y occurs multiple times" error will be emitted, whereas the former solution could result in unintended edit results.
+
+  Should "first and second last x" mean "(first and second) last x" or "first and (second last) x"?
+
+    I have no strong feelings on the matter. Currently it is interpreted to mean the second.
+
+  Should "from ..." / "until ..." bounds be inclusive or exclusive?
+
+    We choose the former, for no particular reason. Note that this default can be overridden by by saying "from after ..." / "until before ...".
+
+  Grammar guidelines:
+
+    - Ranges are never relative (but their bounds may be).
+    - Position specifications never mention ranges (this means that "everything" must not be a range).
+
+  Semantic choices:
+
+    - Ordinal specifications are always relative to the full string, so "erase from x until second b" in "bxabcb" produces "bxbcb", not "bxb".
+
+-}
