@@ -6,11 +6,11 @@ import qualified Cxx.Show
 import qualified Data.List as List
 import qualified Data.Char as Char
 import qualified Data.Maybe as Maybe
-import Util (NElist(..), unne, (.), Convert(..), total_tail, filter_ne, isIdChar, TriBool(..), maybe_ne)
+import Util (NElist(..), unne, (.), Convert(..), total_tail, strip, filter_ne, isIdChar, TriBool(..), maybe_ne, MaybeEitherString(..))
 import Cxx.Basics
-import Control.Monad (foldM)
+import Control.Monad (foldM, MonadPlus(..))
 import Control.Arrow (second)
-import Data.Generics (cast, gmapT, everywhere, everywhereM, Data, Typeable, Typeable1, gfoldl)
+import Data.Generics (cast, gmapT, everywhere, somewhere, Data, Typeable, gfoldl)
 
 import Prelude hiding ((.))
 
@@ -77,44 +77,46 @@ specT = TypeSpecifier_SimpleTypeSpecifier $ SimpleTypeSpecifier_TypeName (OptQua
 -- Applying make-specifications.
 
 apply_makedecl :: MakeDeclaration -> DeclaratorId -> GeordiRequest -> Either String GeordiRequest
-apply_makedecl d s = apply_makedecl_to s d . split_all_decls
+apply_makedecl md did r = case apply_makedecl_to did md(split_all_decls r) of
+  MaybeEitherString Nothing -> fail $ "Could not find " ++ strip (Cxx.Show.show_simple did) ++ "."
+  MaybeEitherString (Just e) -> e
   -- Todo: Only split when necessary.
 
-apply_makedecl_to :: (Typeable1 m, Monad m, Data d) => DeclaratorId -> MakeDeclaration -> d -> m d
-apply_makedecl_to s makedecl = everywhereM $ maybe return id $ Maybe.listToMaybe . Maybe.catMaybes $
+apply_makedecl_to :: Data d => DeclaratorId -> MakeDeclaration -> d -> MaybeEitherString d
+apply_makedecl_to s makedecl = somewhere $ maybe (const mzero) id $ Maybe.listToMaybe . Maybe.catMaybes $
   [ cast $ ((\d -> case d of
     SimpleDeclaration specs (Just (Commad (InitDeclarator x mi) [])) w | convert x == s ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify simple-declaration."
         MakeDeclaration specs' mpad _ -> return $ let (specs'', x') = apply (specs', mpad) (specs, x) in
           SimpleDeclaration specs'' (Just (Commad (InitDeclarator x' mi) [])) w
-    _ -> return d) :: SimpleDeclaration -> Either String SimpleDeclaration)
+    _ -> mzero) :: SimpleDeclaration -> MaybeEitherString SimpleDeclaration)
   , cast $ ((\d -> case d of
     ParameterDeclaration specs (Left x) m | convert x == s ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify parameter-declaration."
         MakeDeclaration specs' mpad _ -> return $ let (specs'', x') = apply (specs', mpad) (specs, x) in
           ParameterDeclaration specs'' (Left x') m
-    _ -> return d) :: ParameterDeclaration -> Either String ParameterDeclaration)
+    _ -> mzero) :: ParameterDeclaration -> MaybeEitherString ParameterDeclaration)
   , cast $ ((\d -> case d of
     ExceptionDeclaration u (Just (Left e)) | convert e == s ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify exception-declaration."
         MakeDeclaration specs mpad _ ->
           (\(u', e') -> ExceptionDeclaration u' $ Just $ Left e') . mapply (specs, mpad) (u, e)
-    _ -> return d) :: ExceptionDeclaration -> Either String ExceptionDeclaration)
+    _ -> mzero) :: ExceptionDeclaration -> MaybeEitherString ExceptionDeclaration)
   , cast $ ((\d -> case d of
     MemberDeclaration specs (Commad (MemberDeclarator decl ps) []) semicolon | convert decl == s ->
       return $ let (specs', decl', ps') = apply makedecl (specs, decl, ps) in
         MemberDeclaration specs' (Commad (MemberDeclarator decl' ps') []) semicolon
-    _ -> return d) :: MemberDeclaration -> Either String MemberDeclaration)
+    _ -> mzero) :: MemberDeclaration -> MaybeEitherString MemberDeclaration)
   , cast $ ((\d -> case d of
     FunctionDefinition specs decl body | convert decl == s ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify function-definition."
         MakeDeclaration specs' mpad _ -> return $ let (specs'', decl') = apply (specs', mpad) (specs, decl) in
           FunctionDefinition specs'' decl' body
-    _ -> return d) :: FunctionDefinition -> Either String FunctionDefinition)
+    _ -> mzero) :: FunctionDefinition -> MaybeEitherString FunctionDefinition)
   ]
 
 -- Specifier/qualifier compatibility.

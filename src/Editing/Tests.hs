@@ -27,6 +27,7 @@ make_tests = do
   s "inline void f();" "make f noninline" "void f();"
   s "int (* const i)(double);" "make i nonconst" "int (* i)(double);"
   s "int i;" "make i a pointer&" "int *& i;"
+  f "int i;" "make j const" "Could not find j."
   s "void f() { int i; i = 0; }" "make i a pointer" "void f() { int * i; i = 0; }"
   s "struct X { static void f(); }" "append semicolon and make f pure" "struct X { virtual void f()= 0 ; };"
   s "struct X { virtual void f() = 0; };" "make f static" "struct X { static void f() ; };"

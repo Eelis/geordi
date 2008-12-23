@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, UndecidableInstances, PatternGuards #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, UndecidableInstances, PatternGuards, DeriveDataTypeable #-}
 
 module Util where
 
@@ -11,9 +11,10 @@ import Data.Monoid (Monoid(..))
 import Data.List (sortBy, minimumBy, isPrefixOf, tails, all, stripPrefix)
 import Data.Char (isSpace, isAlphaNum, toLower, toUpper)
 import Data.Function (on)
+import Data.Generics (Typeable)
 import Control.Exception (bracket, evaluate)
 import Control.Arrow (Arrow, (>>>), arr, first, second, (&&&))
-import Control.Monad (liftM2, when)
+import Control.Monad (liftM2, when, MonadPlus(..))
 import Control.Monad.Error ()
 import Control.Monad.State (MonadState, modify, StateT(..))
 import Control.Monad.Instances ()
@@ -402,3 +403,22 @@ mapState' :: Monad y => (x -> x) -> StateT x y ()
 mapState' f = StateT $ \s -> return ((), f s)
 
 data TriBool = Definitely | Indeterminate | DefinitelyNot
+
+newtype MaybeEitherString a = MaybeEitherString (Maybe (Either String a)) deriving (Show, Typeable)
+
+instance Monad MaybeEitherString where
+  return = MaybeEitherString . return . return
+  MaybeEitherString Nothing >>= _ = MaybeEitherString Nothing
+  MaybeEitherString (Just (Left e)) >>= _ = MaybeEitherString $ Just $ Left e
+  MaybeEitherString (Just (Right x)) >>= f = f x
+  fail = MaybeEitherString . return . fail
+
+instance MonadPlus MaybeEitherString where
+  mzero = MaybeEitherString Nothing
+  mplus (MaybeEitherString Nothing) = id
+  mplus c = const c
+
+instance Functor MaybeEitherString where
+  fmap f (MaybeEitherString (Just (Right x))) = MaybeEitherString $ Just $ Right $ f x
+  fmap _ (MaybeEitherString (Just (Left e))) = MaybeEitherString $ Just $ Left e
+  fmap _ (MaybeEitherString Nothing) = MaybeEitherString Nothing
