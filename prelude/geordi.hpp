@@ -31,8 +31,6 @@ namespace geordi
 
   struct initializer_t { initializer_t (); };
 
-  std::string advice();
-
   utsname uname();
 }
 
