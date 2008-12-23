@@ -2,10 +2,14 @@
 
 module Editing.Show (showEdit) where
 
+import Cxx.Show ()
 import qualified Data.List as List
 import Data.Char (isSpace)
-import Util (unne, isVowel, show_long_opts, capitalize, commas_and)
+import Util (unne, isVowel, show_long_opts, capitalize, commas_and, Ordinal)
+import Cxx.Basics (DeclaratorId)
 import Editing.Basics
+import qualified Prelude
+import Prelude hiding (Show(..))
 
 showEdit :: String -> Edit -> String
 showEdit _ (RemoveOptions opts) = "remove " ++ show_long_opts opts
@@ -17,6 +21,13 @@ showEdit _ (InsertEdit _ r) = "insert " ++ show r
 showEdit s (RangeReplaceEdit r "") = "erase " ++ show (selectRange r s)
 showEdit s (RangeReplaceEdit r s') = "replace " ++ show (selectRange r s) ++ " with " ++ show s'
 showEdit s (MoveEdit _ _ r) = "move " ++ show (selectRange r s)
+
+class Show a where show :: a -> String
+  -- To let us define our own instances for things like Either.
+
+instance Show Ordinal where show = Prelude.show
+instance Show DeclaratorId where show = Prelude.show
+instance Show String where show = Prelude.show
 
 instance Show Wrapping where
   show (Wrapping "<" ">") = "angle brackets"
@@ -31,6 +42,9 @@ instance Show a => Show (EverythingOr a) where
   show Everything = "everything"
   show (NotEverything x) = show x
 
+instance (Show a, Show b) => Show (Either a b) where
+  show (Left x) = show x; show (Right x) = show x
+
 instance Show BefAft where show Before = "before"; show After = "after"
 
 instance RawShow a => Show (Ranked a) where
@@ -38,8 +52,8 @@ instance RawShow a => Show (Ranked a) where
   show (Ranked r s) = show r ++ " " ++ raw_show s
 
 instance Show Position where
-  show (Position Before Everything) = "at start"
-  show (Position After Everything) = "at end"
+  show (Position Before (Right Everything)) = "at start"
+  show (Position After (Right Everything)) = "at end"
   show (Position a x) = show a ++ " " ++ show x
 
 instance Show a => Show (AndList a) where
@@ -106,6 +120,8 @@ show_command t (Move l) = tense t "move" ++ " " ++ show l
 show_command t (WrapIn l w) = tense t "wrap" ++ " " ++ show l ++ " in " ++ show w
 show_command t (WrapAround w l) = tense t "wrap" ++ " " ++ show w ++ " around " ++ show l
 
-instance Show Command where
+instance Prelude.Show Command where
   show = show_command Past
-  showList l r = capitalize (commas_and $ map show l) ++ "." ++ r
+  showList l r = capitalize (commas_and $ map Prelude.show l) ++ "." ++ r
+
+instance Prelude.Show Position where show = Editing.Show.show

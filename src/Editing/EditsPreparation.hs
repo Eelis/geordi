@@ -3,13 +3,15 @@
 module Editing.EditsPreparation (prepareEdits, use_tests) where
 
 import qualified Cxx.Basics
+import qualified Cxx.Parse
 import qualified Editing.Diff
 import qualified Data.List as List
 import qualified Data.Char as Char
 import Editing.Show ()
+import Cxx.Operations (findDeclaration)
 import Control.Monad.Error ()
 
-import Util ((.), Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp)
+import Util ((.), Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, strip)
 
 import Prelude hiding (last, (.), all, (!!))
 import Editing.Basics
@@ -97,6 +99,21 @@ instance FindInStr (Rankeds String) [ARange] where
   findInStr x (AllBut (AndList rs) s) =
     return $ (anchor_range . flip Range (length s)) . erase_indexed (ordinal_carrier . unne rs) (find_occs s x)
 
+instance FindInStr Cxx.Basics.DeclaratorId ARange where
+  findInStr s did = case Cxx.Parse.parseRequest s of
+    Left e -> fail $ "Could not parse code in previous request. " ++ e
+    Right r -> case findDeclaration did r of
+      Nothing -> fail $ "Could not find " ++ strip (show did) ++ "."
+      Just (Range x y) -> return $ \ba -> Anchor (invert ba) (case ba of Before -> x; After -> (x + y))
+
+instance FindInStr (Either Cxx.Basics.DeclaratorId (Relative (EverythingOr (Ranked String)))) ARange where
+  findInStr s (Right t) = findInStr s t
+  findInStr s (Left did) = findInStr s did
+
+instance FindInStr (Either Cxx.Basics.DeclaratorId (Relative (EverythingOr (Rankeds String)))) [ARange] where
+  findInStr s (Right r) = findInStr s r
+  findInStr s (Left did) = (:[]) . findInStr s did
+
 instance FindInStr PositionsClause [Anchor] where
   findInStr s (PositionsClause Before (AndList o)) = (($ Before) .) . concat . sequence (findInStr s . unne o)
   findInStr s (PositionsClause After (AndList o)) = (($ After) .) . concat . sequence (findInStr s . unne o)
@@ -130,9 +147,10 @@ instance FindInStr Mover Edit where
     makeMoveEdit a r
 
 instance FindInStr Position Anchor where
-  findInStr _ (Position Before Everything) = return $ Anchor Before 0
-  findInStr s (Position After Everything) = return $ Anchor After (length s)
-  findInStr s (Position ba (NotEverything p)) = ($ ba) . findInStr s p
+  findInStr _ (Position Before (Right Everything)) = return $ Anchor Before 0
+  findInStr s (Position After (Right Everything)) = return $ Anchor After (length s)
+  findInStr s (Position ba (Right (NotEverything p))) = ($ ba) . findInStr s p
+  findInStr s (Position ba (Left did)) = ($ ba) . findInStr s did
 
 instance FindInStr UseClause Edit where
   findInStr _ (UseOptions o) = return $ AddOptions o

@@ -192,3 +192,5 @@ instance Show FloatingLiteral where show (FloatingLiteral s) = s
 instance Show StringLiteralKind where
   show StringLiteral_Plain = ""; show StringLiteral_L = "L"
   show StringLiteral_u8 = "u8"; show StringLiteral_u = "u"; show StringLiteral_U = "U"
+
+instance Show DeclaratorId where show = Cxx.Show.show_simple

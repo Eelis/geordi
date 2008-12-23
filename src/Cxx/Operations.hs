@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances #-}
 
-module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT) where
+module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, findDeclaration) where
 
 import qualified Cxx.Show
 import qualified Data.List as List
@@ -8,6 +8,7 @@ import qualified Data.Char as Char
 import qualified Data.Maybe as Maybe
 import Util (NElist(..), unne, (.), Convert(..), total_tail, strip, filter_ne, isIdChar, TriBool(..), maybe_ne, MaybeEitherString(..))
 import Cxx.Basics
+import Editing.Basics (Range(..))
 import Control.Monad (foldM, MonadPlus(..))
 import Control.Arrow (second)
 import Data.Generics (cast, gmapT, everywhere, somewhere, Data, Typeable, gfoldl)
@@ -78,7 +79,7 @@ specT = TypeSpecifier_SimpleTypeSpecifier $ SimpleTypeSpecifier_TypeName (OptQua
 
 apply_makedecl :: MakeDeclaration -> DeclaratorId -> GeordiRequest -> Either String GeordiRequest
 apply_makedecl md did r = case apply_makedecl_to did md(split_all_decls r) of
-  MaybeEitherString Nothing -> fail $ "Could not find " ++ strip (Cxx.Show.show_simple did) ++ "."
+  MaybeEitherString Nothing -> fail $ "Could not find " ++ strip (show did) ++ "."
   MaybeEitherString (Just e) -> e
   -- Todo: Only split when necessary.
 
@@ -106,9 +107,9 @@ apply_makedecl_to s makedecl = somewhere $ maybe (const mzero) id $ Maybe.listTo
           (\(u', e') -> ExceptionDeclaration u' $ Just $ Left e') . mapply (specs, mpad) (u, e)
     _ -> mzero) :: ExceptionDeclaration -> MaybeEitherString ExceptionDeclaration)
   , cast $ ((\d -> case d of
-    MemberDeclaration specs (Commad (MemberDeclarator decl ps) []) semicolon | convert decl == s ->
+    MemberDeclaration specs (Just (Commad (MemberDeclarator decl ps) [])) semicolon | convert decl == s ->
       return $ let (specs', decl', ps') = apply makedecl (specs, decl, ps) in
-        MemberDeclaration specs' (Commad (MemberDeclarator decl' ps') []) semicolon
+        MemberDeclaration specs' (Just (Commad (MemberDeclarator decl' ps') [])) semicolon
     _ -> mzero) :: MemberDeclaration -> MaybeEitherString MemberDeclaration)
   , cast $ ((\d -> case d of
     FunctionDefinition specs decl body | convert decl == s ->
@@ -118,6 +119,98 @@ apply_makedecl_to s makedecl = somewhere $ maybe (const mzero) id $ Maybe.listTo
           FunctionDefinition specs'' decl' body
     _ -> mzero) :: FunctionDefinition -> MaybeEitherString FunctionDefinition)
   ]
+
+-- Getting declarator-ids out of things.
+
+instance Convert ClassSpecifier (Maybe DeclaratorId) where convert (ClassSpecifier h _) = convert h
+instance Convert ClassHead (Maybe DeclaratorId) where convert (ClassHead _ k _) = convert k
+instance Convert Identifier DeclaratorId where convert = DeclaratorId_IdExpression Nothing . convert
+instance Convert Identifier IdExpression where convert = IdExpression . Right . convert
+instance Convert Identifier UnqualifiedId where convert = UnqualifiedId_Identifier
+instance Convert (NestedNameSpecifier, Identifier) QualifiedId where convert (nns, i) = NestedUnqualifiedId Nothing nns Nothing (convert i)
+instance Convert (NestedNameSpecifier, Identifier) IdExpression where convert = IdExpression . Left . convert
+instance Convert SimpleTemplateId UnqualifiedId where convert = UnqualifiedId_TemplateId . convert
+instance Convert SimpleTemplateId IdExpression where convert = IdExpression . Right . convert
+instance Convert SimpleTemplateId DeclaratorId where convert = DeclaratorId_IdExpression Nothing . convert
+instance Convert SimpleTemplateId TemplateId where convert = TemplateId_SimpleTemplateId
+instance Convert (NestedNameSpecifier, SimpleTemplateId) DeclaratorId where convert = DeclaratorId_IdExpression Nothing . convert
+instance Convert (NestedNameSpecifier, SimpleTemplateId) IdExpression where convert = IdExpression . Left . convert
+instance Convert (NestedNameSpecifier, SimpleTemplateId) QualifiedId where convert (nns, tid) = NestedUnqualifiedId Nothing nns Nothing (convert tid)
+instance Convert ClassHeadKind (Maybe DeclaratorId) where
+  convert (ClassHeadKind_Identifier m) = convert . m
+  convert (ClassHeadKind_NestedIdentifier nns i) = Just $ DeclaratorId_IdExpression Nothing $ convert (nns, i)
+  convert (ClassHeadKind_SimpleTemplateId Nothing i) = Just $ convert i
+  convert (ClassHeadKind_SimpleTemplateId (Just nns) i) = Just $ convert (nns, i)
+instance Convert EnumSpecifier (Maybe DeclaratorId) where convert (EnumSpecifier x _) = convert x
+instance Convert EnumHead (Maybe DeclaratorId) where convert (EnumHead _ m _) = convert . m
+instance Convert SimpleDeclaration (Maybe DeclaratorId) where
+  convert (SimpleDeclaration _ (Just (Commad (InitDeclarator d _) [])) _) = Just $ convert d
+  convert (SimpleDeclaration (NElist (DeclSpecifier_TypeSpecifier (TypeSpecifier_ClassSpecifier c)) []) Nothing _) = convert c
+  convert (SimpleDeclaration (NElist (DeclSpecifier_TypeSpecifier (TypeSpecifier_EnumSpecifier c)) []) Nothing _) = convert c
+  convert _ = Nothing
+instance Convert NamespaceAliasDefinition DeclaratorId where convert (NamespaceAliasDefinition _ i _ _ _ _) = convert i
+instance Convert BlockDeclaration (Maybe DeclaratorId) where
+  convert (BlockDeclaration_SimpleDeclaration d) = convert d
+  convert (BlockDeclaration_NamespaceAliasDefinition d) = Just $ convert d
+  convert (BlockDeclaration_AliasDeclaration d) = Just $ convert d
+  convert _ = Nothing
+instance Convert FunctionDefinition DeclaratorId where convert (FunctionDefinition _ d _) = convert d
+instance Convert NamespaceDefinition (Maybe DeclaratorId) where convert (NamespaceDefinition _ _ m _) = convert . m
+instance Convert AliasDeclaration DeclaratorId where convert (AliasDeclaration _ i _ _ _) = convert i
+instance Convert Declaration (Maybe DeclaratorId) where
+  convert (Declaration_BlockDeclaration d) = convert d
+  convert (Declaration_FunctionDefinition d) = Just $ convert d
+  convert (Declaration_TemplateDeclaration d) = convert d
+  convert (Declaration_NamespaceDefinition d) = convert d
+  convert _ = Nothing
+instance Convert TemplateDeclaration (Maybe DeclaratorId) where convert (TemplateDeclaration _ _ _ d) = convert d
+instance Convert MemberDeclarator (Maybe DeclaratorId) where
+  convert (MemberDeclarator d _) = Just $ convert d
+  convert (BitField m _ _) = convert . m
+instance Convert MemberDeclaration (Maybe DeclaratorId) where
+  convert (MemberFunctionDefinition d _) = Just $ convert d
+  convert (MemberUsingDeclaration _) = Nothing
+  convert (MemberTemplateDeclaration d) = convert d
+  convert (MemberDeclaration _ (Just (Commad d [])) _) = convert d
+  convert (MemberDeclaration [DeclSpecifier_TypeSpecifier (TypeSpecifier_ClassSpecifier c)] Nothing _) = convert c
+  convert (MemberDeclaration [DeclSpecifier_TypeSpecifier (TypeSpecifier_EnumSpecifier c)] Nothing _) = convert c
+  convert (MemberDeclaration _ _ _) = Nothing
+instance Convert Declarator DeclaratorId where convert (Declarator_PtrDeclarator p) = convert p
+instance Convert PtrDeclarator DeclaratorId where
+  convert (PtrDeclarator_NoptrDeclarator d) = convert d
+  convert (PtrDeclarator _ d) = convert d
+instance Convert NoptrDeclarator DeclaratorId where
+  convert (NoptrDeclarator_Id did) = did
+  convert (NoptrDeclarator_WithParams d _) = convert d
+  convert (NoptrDeclarator_Squared d _) = convert d
+  convert (NoptrDeclarator_Parenthesized (Parenthesized _ (Enclosed d) _)) = convert d
+
+-- Finding declarations
+
+data GfoldlWithLengthsIntermediary r a = GfoldlWithLengthsIntermediary { gwli_result :: Maybe r, off :: Int }
+
+gfoldl_with_lengths :: Data a => Int -> (forall d. Data d => Int -> d -> Maybe r) -> a -> Maybe r
+gfoldl_with_lengths i f thing = gwli_result $ gfoldl (\(GfoldlWithLengthsIntermediary m o) y -> GfoldlWithLengthsIntermediary (mplus m (f o y)) (o + length (Cxx.Show.show_simple y))) (\_ -> GfoldlWithLengthsIntermediary Nothing i) thing
+
+findDeclaration :: Data a => DeclaratorId -> a -> Maybe (Range Char)
+findDeclaration did = findDeclaration' did 0
+
+findDeclaration' :: Data d => DeclaratorId -> Int -> d -> Maybe (Range Char)
+  -- We can't move this helper into findDeclaration, probably because of the monomorphism restriction.
+findDeclaration' did i x
+  | Just s <- cast x, convert (s :: Declaration) == Just did = found
+  | Just s <- cast x, convert (s :: BlockDeclaration) == Just did = found
+  | Just s <- cast x, convert (s :: TemplateDeclaration) == Just did = found
+  | Just s <- cast x, convert (s :: MemberDeclaration) == Just did = found
+  | otherwise = gfoldl_with_lengths i (findDeclaration' did) x
+  where found = Just $ Range i $ length $ Cxx.Show.show_simple x
+
+  {- With the above, the following cannot yet be found:
+      - class declarations that have declarators
+      - individual enumerators
+      - things part of multi-declarator declarations
+    Futhermore, one cannot yet distinguish between non-definition declarations and definitions when both occur.
+  -}
 
 -- Specifier/qualifier compatibility.
 
@@ -168,20 +261,6 @@ instance Compatible DeclSpecifier DeclSpecifier where
   compatible (DeclSpecifier_FunctionSpecifier (Virtual, _)) (DeclSpecifier_StorageClassSpecifier (Static, _)) = False
   compatible (DeclSpecifier_StorageClassSpecifier (Static, _)) (DeclSpecifier_FunctionSpecifier (Virtual, _)) = False
   compatible _ _ = True
-
--- Getting declarator-ids out of declarators.
-
-instance Convert Declarator DeclaratorId where convert (Declarator_PtrDeclarator p) = convert p
-
-instance Convert PtrDeclarator DeclaratorId where
-  convert (PtrDeclarator_NoptrDeclarator d) = convert d
-  convert (PtrDeclarator _ d) = convert d
-
-instance Convert NoptrDeclarator DeclaratorId where
-  convert (NoptrDeclarator_Id did) = did
-  convert (NoptrDeclarator_WithParams d _) = convert d
-  convert (NoptrDeclarator_Squared d _) = convert d
-  convert (NoptrDeclarator_Parenthesized (Parenthesized _ (Enclosed d) _)) = convert d
 
 -- Making sure things end with whitespace.
 
@@ -255,8 +334,8 @@ instance SplitDecls Statement where
   split_decls s = [gmapT split_all_decls s]
 
 instance SplitDecls MemberDeclaration where
-  split_decls (MemberDeclaration specs (Commad d ds) s) =
-    (\d' -> MemberDeclaration specs (Commad d' []) s) . (d : snd . ds)
+  split_decls (MemberDeclaration specs (Just (Commad d ds)) s) =
+    (\d' -> MemberDeclaration specs (Just (Commad d' [])) s) . (d : snd . ds)
   split_decls d = [gmapT split_all_decls d]
 
 compound_split_decls :: Statement -> Statement

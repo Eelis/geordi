@@ -436,8 +436,7 @@ data ClassHead = ClassHead (ClassKey, White) ClassHeadKind (Maybe BaseClause) de
 data ClassKey = Class | Struct | Union deriving (Enum, Bounded, Data, Typeable, Eq)
 data MemberAccessSpecifier = MemberAccessSpecifier (AccessSpecifier, White) (ColonOp, White) deriving (Data, Typeable, Eq)
 data MemberSpecification = MemberSpecification [Either MemberDeclaration MemberAccessSpecifier] deriving (Data, Typeable, Eq)
-data MemberDeclaration = MemberDeclaration [DeclSpecifier] (Commad MemberDeclarator) (SemicolonOperator, White) | MemberFunctionDefinition FunctionDefinition (Maybe (SemicolonOperator, White)) | MemberUsingDeclaration UsingDeclaration | MemberTemplateDeclaration TemplateDeclaration deriving (Data, Typeable, Eq)
-  -- According to the spec, the member-declarator-list is optional in a member-declaration. Since I don't see how that can be right, and since it complicates parsing, I've made it non-optional.
+data MemberDeclaration = MemberDeclaration [DeclSpecifier] (Maybe (Commad MemberDeclarator)) (SemicolonOperator, White) | MemberFunctionDefinition FunctionDefinition (Maybe (SemicolonOperator, White)) | MemberUsingDeclaration UsingDeclaration | MemberTemplateDeclaration TemplateDeclaration deriving (Data, Typeable, Eq)
 data MemberDeclarator = MemberDeclarator Declarator (Maybe PureSpecifier) | BitField (Maybe Identifier) (ColonOp, White) ConstantExpression deriving (Data, Typeable, Eq)
 data PureSpecifier = PureSpecifier (IsOperator, White) (KwdZero, White) deriving (Data, Typeable, Eq)
 

@@ -7,6 +7,8 @@ import qualified Request
 import qualified Data.List as List
 import qualified Data.Char as Char
 
+import Cxx.Basics (DeclaratorId)
+
 import Data.Monoid (Monoid(..))
 import Util (NElist(..), Convert(..), Invertible(..), Ordinal, once_twice_thrice, (.), (!!), findMaybe, take_atleast, isIdChar)
 
@@ -78,15 +80,14 @@ data Bound = Bound (Maybe BefAft) (EverythingOr (Ranked String))
 data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative (EverythingOr (Ranked String)))
 data Relative a = Relative a BefAft (Ranked String) | Between a Betw | FromTill Bound RelativeBound
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
-data PositionsClause = PositionsClause BefAft (AndList (Relative (EverythingOr (Rankeds String))))
-data Position = Position BefAft (EverythingOr (Ranked String))
+data PositionsClause = PositionsClause BefAft (AndList (Either DeclaratorId (Relative (EverythingOr (Rankeds String)))))
+data Position = Position BefAft (Either DeclaratorId (EverythingOr (Ranked String)))
 type Positions = AndList PositionsClause
-data Replacer = Replacer (AndList (Relative (EverythingOr (Rankeds String)))) String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
-data Eraser = EraseText (Relative (EverythingOr (Rankeds String))) | EraseOptions [Request.EvalOpt]
-
-data Mover = Mover (Relative (EverythingOr (Ranked String))) Position
+data Replacer = Replacer (AndList (Either DeclaratorId (Relative (EverythingOr (Rankeds String))))) String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
+data Eraser = EraseText (Either DeclaratorId (Relative (EverythingOr (Rankeds String)))) | EraseOptions [Request.EvalOpt]
+data Mover = Mover (Either DeclaratorId (Relative (EverythingOr (Ranked String)))) Position
 data BefAft = Before | After deriving Eq
-data Around = Around (AndList (Relative (EverythingOr (Rankeds String))))
+data Around = Around (AndList (Either DeclaratorId (Relative (EverythingOr (Rankeds String)))))
 data Betw = Betw Bound RelativeBound
 data Wrapping = Wrapping String String
 data UseClause = UseString String | UseOptions [Request.EvalOpt]
@@ -99,12 +100,12 @@ data Command
   | Erase (AndList Eraser)
   | Move (AndList Mover)
   | WrapAround Wrapping (AndList Around)
-  | WrapIn (AndList (Relative (EverythingOr (Rankeds String)))) Wrapping
+  | WrapIn (AndList (Either DeclaratorId (Relative (EverythingOr (Rankeds String))))) Wrapping
   | Use (AndList UseClause)
 
 newtype Identifier = Identifier { identifier_string :: String }
 
-data SemCommand = Make (AndList Cxx.Basics.DeclaratorId) Cxx.Basics.MakeDeclaration
+data SemCommand = Make (AndList DeclaratorId) Cxx.Basics.MakeDeclaration
   -- This is separate from Command because SemCommands are not executed until /after/ all non-sem-commands have been executed (because the latter may fix syntactic problems that the parser would trip on.)
 
 -- Convenience constructors
@@ -147,9 +148,9 @@ merge_commands (h:t) = h : merge_commands t
 
 describe_position_after :: Pos Char -> String -> Position
 describe_position_after n s
-  | n == 0 = Position Before Everything
-  | n == length s = Position After Everything
-  | otherwise = Position After $ NotEverything $ Sole $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s
+  | n == 0 = Position Before $ Right Everything
+  | n == length s = Position After $ Right Everything
+  | otherwise = Position After $ Right $ NotEverything $ Sole $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s
 
 -- Tokenization:
 

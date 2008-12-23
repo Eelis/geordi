@@ -15,8 +15,9 @@
   wrapping = ... "and" ... | "parentheses" | "parens" | "braces" | "curlies"
     | ("square" | "angle" | "curly" | "round") "brackets" | ("single" | "double") "quotes"
   relative = between | befaft ranked
-  substrs = range | ("everything" | rankeds) [relative]
-  substr = range | ("everything" | ranked) [relative]
+  substrs = declaration | range | ("everything" | rankeds) [relative]
+  substr = declaration | range | ("everything" | ranked) [relative]
+  declaration = "declaration" "of" declarator-id
   position = limit | befaft ("everything" | ranked)
   befaft = "before" | "after"
   positions = "at" limit | befaft (("everything" | rankeds) [befaft ranked])*
