@@ -143,10 +143,14 @@ instance Convert ClassHeadKind (Maybe DeclaratorId) where
   convert (ClassHeadKind_SimpleTemplateId (Just nns) i) = Just $ convert (nns, i)
 instance Convert EnumSpecifier (Maybe DeclaratorId) where convert (EnumSpecifier x _) = convert x
 instance Convert EnumHead (Maybe DeclaratorId) where convert (EnumHead _ m _) = convert . m
+instance Convert DeclSpecifier (Maybe DeclaratorId) where
+  convert (DeclSpecifier_TypeSpecifier (TypeSpecifier_ClassSpecifier c)) = convert c
+  convert (DeclSpecifier_TypeSpecifier (TypeSpecifier_EnumSpecifier c)) = convert c
+  convert (DeclSpecifier_TypeSpecifier (TypeSpecifier_ElaboratedTypeSpecifier c)) = Just $ convert c
+  convert _ = Nothing
 instance Convert SimpleDeclaration (Maybe DeclaratorId) where
   convert (SimpleDeclaration _ (Just (Commad (InitDeclarator d _) [])) _) = Just $ convert d
-  convert (SimpleDeclaration (NElist (DeclSpecifier_TypeSpecifier (TypeSpecifier_ClassSpecifier c)) []) Nothing _) = convert c
-  convert (SimpleDeclaration (NElist (DeclSpecifier_TypeSpecifier (TypeSpecifier_EnumSpecifier c)) []) Nothing _) = convert c
+  convert (SimpleDeclaration (NElist d []) Nothing _) = convert d
   convert _ = Nothing
 instance Convert NamespaceAliasDefinition DeclaratorId where convert (NamespaceAliasDefinition _ i _ _ _ _) = convert i
 instance Convert BlockDeclaration (Maybe DeclaratorId) where
@@ -172,9 +176,20 @@ instance Convert MemberDeclaration (Maybe DeclaratorId) where
   convert (MemberUsingDeclaration _) = Nothing
   convert (MemberTemplateDeclaration d) = convert d
   convert (MemberDeclaration _ (Just (Commad d [])) _) = convert d
-  convert (MemberDeclaration [DeclSpecifier_TypeSpecifier (TypeSpecifier_ClassSpecifier c)] Nothing _) = convert c
-  convert (MemberDeclaration [DeclSpecifier_TypeSpecifier (TypeSpecifier_EnumSpecifier c)] Nothing _) = convert c
+  convert (MemberDeclaration [d] Nothing _) = convert d
   convert (MemberDeclaration _ _ _) = Nothing
+instance Convert (OptQualified, Identifier) DeclaratorId where
+  convert (OptQualified Nothing Nothing, i) = convert i
+  convert (OptQualified (Just s) Nothing, i) = DeclaratorId_IdExpression Nothing $ IdExpression $ Left $ GlobalIdentifier s i
+  convert (OptQualified ms (Just nns), i) = DeclaratorId_IdExpression Nothing $ IdExpression $ Left $ NestedUnqualifiedId ms nns Nothing $ convert i
+instance Convert (OptQualified, SimpleTemplateId) DeclaratorId where
+  convert (OptQualified Nothing Nothing, stid) = convert stid
+  convert (OptQualified (Just s) Nothing, stid) = DeclaratorId_IdExpression Nothing $ IdExpression $ Left $ GlobalTemplateId s $ convert stid
+  convert (OptQualified ms (Just nns), stid) = DeclaratorId_IdExpression Nothing $ IdExpression $ Left $ NestedUnqualifiedId ms nns Nothing $ convert stid
+instance Convert ElaboratedTypeSpecifier DeclaratorId where
+  convert (ElaboratedTypeSpecifier _ optqualified (Left identifier)) = convert (optqualified, identifier)
+  convert (ElaboratedTypeSpecifier _ optqualified (Right (_, stid))) = convert (optqualified, stid)
+    -- Todo: Maybe using the (KwdTemplate, White) pair in the declarator-id would be better.
 instance Convert Declarator DeclaratorId where convert (Declarator_PtrDeclarator p) = convert p
 instance Convert PtrDeclarator DeclaratorId where
   convert (PtrDeclarator_NoptrDeclarator d) = convert d

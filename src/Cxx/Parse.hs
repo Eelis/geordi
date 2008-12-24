@@ -501,6 +501,7 @@ instance Parse NoptrDeclarator where
    where f d = either (NoptrDeclarator_WithParams d) (NoptrDeclarator_Squared d)
 
 instance Parse DeclaratorId where parse = auto2 DeclaratorId_IdExpression <?> "declarator-id"
+  -- We don't even try to parse a DeclaratorId_Nested, because we can't tell it apart from an IdExpression anyway.
 
 instance Parse TypeId where parse = (<?> "type-id") $ typeP id (\x y -> TypeId x $ AbstractDeclarator_PtrAbstractDeclarator . y)
 
