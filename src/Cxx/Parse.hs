@@ -44,7 +44,7 @@ import Cxx.Show (pretty_with_precedence)
 import Cxx.Operations (apply, squared, is_primary_TypeSpecifier, parenthesized, specT, split_all_decls, is_pointer_or_reference)
 import Prelude hiding ((.))
 import Control.Monad.Reader (ReaderT(..))
-import Parsers ((<?>), (<|>), pzero, spaces, many, optional, choice, sep, many1, symbols, noneOf, lookAhead, symbol, satisfy, optionMaybe, many1', anySymbol, manys, manyTill, many1Till', oneOf, ParserLike, eof, ParseResult(..), getInput, sepBy1)
+import Parsers ((<?>), (<|>), pzero, spaces, many, optional, choice, sep, many1, symbols, noneOf, lookAhead, symbol, satisfy, optionMaybe, many1', anySymbol, manys, manyTill, many1Till', oneOf, ParserLike, eof, ParseResult(..), getInput, sepBy1, option)
 import MemoTrie (memo, Trie(..), PairTrie(..), BoolTrie(..))
 
 -- Custom parsing monad:
@@ -329,6 +329,15 @@ instance Parse Identifier where
 instance Parse ClassName where parse = auto1 ClassName_TemplateId <|> auto1 ClassName_Identifier <?> "class-name"
 instance Parse TypeName where parse = auto1 TypeName_ClassName <?> "type-name"
 
+instance Parse FloatingLiteral where
+  parse = (<?> "floating-literal") $ (FloatingLiteral .) $ (>++> optSuffix) $
+    (symbols "." >++> many1 digit >++> option "" exponentPart) <|>
+    (many1 digit >++> ((symbols "." >++> many digit >++> option "" exponentPart >++> optSuffix) <|> exponentPart))
+    where
+      (>++>) = liftM2 (++)
+      digit = satisfy Char.isDigit
+      optSuffix = option "" $ (:[]) . (symbol 'f' <|> symbol 'l' <|> symbol 'F' <|> symbol 'L')
+      exponentPart = option "" $ (symbols "e" <|> symbols "E") >++> option "" (symbols "+" <|> symbols "-") >++> many1 digit
 instance Parse IntegerLiteral where
   parse = (<?> "integer-literal") $ (IntegerLiteral .) $ (p <|>) $ do
     b <- makeTypeExtensions . parseOptions
@@ -341,7 +350,7 @@ instance Parse StringLiteral where parse = StringLiteral . many1' (auto2 (,)) <?
 instance Parse CharacterLiteralKind where parse = (symbol 'u' >> return CharacterLiteralKind_u) <|> (symbol 'U' >> return CharacterLiteralKind_U) <|> (symbol 'L' >> return CharacterLiteralKind_L) <|> return CharacterLiteral_Plain
 instance Parse CharacterLiteral where parse = liftM2 CharacterLiteral parse (textLit '\'')
 instance Parse Literal where
-  parse = (<?> "literal") $ auto2 Literal_CharacterLiteral <|> auto1 Literal_StringLiteral <|> auto2 Literal_IntegerLiteral <|> liftM2 Literal_BooleanLiteral ((kwd "true" >> return True) <|> (kwd "false" >> return False)) parse <|> (kwd "nullptr" >> PointerLiteral . parse)
+  parse = (<?> "literal") $ auto2 Literal_CharacterLiteral <|> auto1 Literal_StringLiteral <|> auto2 Literal_FloatingLiteral <|> auto2 Literal_IntegerLiteral <|> liftM2 Literal_BooleanLiteral ((kwd "true" >> return True) <|> (kwd "false" >> return False)) parse <|> (kwd "nullptr" >> PointerLiteral . parse)
 
 -- A.3 Basic concepts [gram.basic]
 
