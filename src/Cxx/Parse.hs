@@ -218,7 +218,7 @@ takingClause = (do
   if n > 10 then pzero else replicate (fromInteger n) . parse) <|> (:[]) . (an >> parse)
 
 instance Parse MakeDeclaration where
-  parse = (<?> "type description") $ (an >>) $ flip fix [] $ \self specs -> do
+  parse = (<?> "type description") $ (an >>) $ (longlong .) $ flip fix [] $ \self specs -> do
     pspec <- parsePrimarySpec
     sspecs <- many parseSecondarySpec
     (\x -> MakeDeclaration (reverse specs ++ pspec : sspecs) x Indeterminate) . parse
@@ -237,6 +237,10 @@ instance Parse MakeDeclaration where
       Left s -> (noncvs ++ MakeSpecifier_DeclSpecifier . DeclSpecifier_TypeSpecifier . (x ++ [s]), Nothing)
       Right ad -> (noncvs ++ MakeSpecifier_DeclSpecifier . DeclSpecifier_TypeSpecifier . x, Just ad)
     <|> (\x -> MakeDeclaration specs x Indeterminate) . (if null specs then Just . parse else parse)
+    where
+      longlong m@(MakeDeclaration l x y)
+        | (p, q) <- List.partition (== convert LongSpec) l, length p >= 2 = MakeDeclaration (LongLong : q) x y
+        | otherwise = m
 
 literalArrayBound :: IntegerLiteral -> ConditionalExpression
 literalArrayBound = ConditionalExpression_LogicalOrExpression . LogicalOrExpression_LogicalAndExpression . LogicalAndExpression_InclusiveOrExpression . InclusiveOrExpression_ExclusiveOrExpression . ExclusiveOrExpression_AndExpression . AndExpression_EqualityExpression . EqualityExpression_RelationalExpression . RelationalExpression_ShiftExpression . ShiftExpression_AdditiveExpression . AdditiveExpression_MultiplicativeExpression . MultiplicativeExpression_PmExpression . PmExpression_CastExpression . CastExpression_UnaryExpression . UnaryExpression_PostfixExpression . PostfixExpression_PrimaryExpression . PrimaryExpression_Literal . flip Literal_IntegerLiteral (White "")

@@ -46,6 +46,8 @@ make_tests = do
   s "int *i; int * & j;" "make i a pointer to a pointer" "int ** i; int * & j;"
   s "{ struct S {}; int (S:: * p) = 0; int (S:: * & r) = p; }" "make p and r const" "{ struct S {}; int (S:: * const p) = 0; int (S:: * const & r) = p; }"
   s "int i;" "make i an array" "int i[];"
+  s "void f() { try { int long i; } catch(int long j) {} }" "make i and j long long" "void f() { try { long long int i; } catch(long long int j) {} }"
+  s "void f() { try { long long i; } catch(long long j) {} }" "make i and j long" "void f() { try { long i; } catch(long j) {} }"
   s "int i;" "make i a const array" "const int i[];"
   s "int i(3), j(x);" "make i and j const" "const int i(3);int j(x)const ;"
   s "int i;" "make i a const array of pointers" "int *const i[];"

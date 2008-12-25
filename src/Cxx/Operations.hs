@@ -245,7 +245,6 @@ instance Compatible CvQualifier DeclSpecifier where
 instance Compatible SimpleTypeSpecifier SimpleTypeSpecifier where
   compatible (SignSpec _) (LengthSpec _) = True
   compatible (LengthSpec _) (SignSpec _) = True
-  compatible (LengthSpec (LongSpec, _)) (LengthSpec (LongSpec, _)) = True
   compatible (LengthSpec (LongSpec, _)) (SimpleTypeSpecifier_BasicType (Int', _)) = True
   compatible (LengthSpec (LongSpec, _)) (SimpleTypeSpecifier_BasicType (Double', _)) = True
   compatible x@(SimpleTypeSpecifier_BasicType _) y@(LengthSpec _) = compatible y x
@@ -305,6 +304,7 @@ instance Convert CvQualifier DeclSpecifier where convert = convert . (convert ::
 instance Convert CvQualifier MakeSpecifier where convert = convert . (convert :: TypeSpecifier -> DeclSpecifier) . convert
 instance Convert SimpleTypeSpecifier (Maybe Sign) where convert (SignSpec (s, _)) = Just s; convert _ = Nothing
 instance Convert SimpleTypeSpecifier (Maybe LengthSpec) where convert (LengthSpec (s, _)) = Just s; convert _ = Nothing
+instance Convert SimpleTypeSpecifier TypeSpecifier where convert = TypeSpecifier_SimpleTypeSpecifier
 instance Convert TypeSpecifier DeclSpecifier where convert = DeclSpecifier_TypeSpecifier
 instance Convert TypeSpecifier (Maybe Sign) where convert x = convert x >>= (convert :: SimpleTypeSpecifier -> Maybe Sign)
 instance Convert TypeSpecifier (Maybe SimpleTypeSpecifier) where convert (TypeSpecifier_SimpleTypeSpecifier s) = Just s; convert _ = Nothing
@@ -320,6 +320,10 @@ instance Convert DeclSpecifier (Maybe LengthSpec) where convert x = convert x >>
 instance Convert DeclSpecifier (Maybe (CvQualifier, White)) where convert (DeclSpecifier_TypeSpecifier t) = convert t; convert _ = Nothing
 instance Convert DeclSpecifier (Maybe CvQualifier) where convert x = fst . (convert x :: Maybe (CvQualifier, White))
 instance Convert MakeSpecifier (Maybe (CvQualifier, White)) where convert (MakeSpecifier_DeclSpecifier t) = convert t; convert _ = Nothing
+instance Convert LengthSpec SimpleTypeSpecifier where convert x = LengthSpec (x, White " ")
+instance Convert LengthSpec TypeSpecifier where convert = convert . (convert :: LengthSpec -> SimpleTypeSpecifier)
+instance Convert LengthSpec DeclSpecifier where convert = convert . (convert :: LengthSpec -> TypeSpecifier)
+instance Convert LengthSpec MakeSpecifier where convert = convert . (convert :: LengthSpec -> DeclSpecifier)
 
 -- Declaration splitting
 
@@ -515,6 +519,7 @@ instance MaybeApply MakeSpecifier (NElist TypeSpecifier) where
   mapply (NonCv cvq) = return . filter_ne ((/= Just cvq) . convert)
   mapply (NonSign s) = return . nonIntSpec s
   mapply (NonLength s) = return . nonIntSpec s
+  mapply LongLong = return . NElist (convert LongSpec) . (convert LongSpec :) . filter (compatible (convert LongSpec :: TypeSpecifier)) . unne
 
 instance Apply MakeSpecifier (NElist DeclSpecifier) (NElist DeclSpecifier) where
   apply (MakeSpecifier_DeclSpecifier s) = apply s
@@ -523,6 +528,7 @@ instance Apply MakeSpecifier (NElist DeclSpecifier) (NElist DeclSpecifier) where
   apply (NonCv cvq) = filter_ne $ (/= Just cvq) . convert
   apply (NonSign s) = nonIntSpec s
   apply (NonLength s) = nonIntSpec s
+  apply LongLong = NElist (convert LongSpec) . (convert LongSpec :) . filter (compatible (convert LongSpec :: DeclSpecifier)) . unne
 
 instance Apply MakeSpecifier [DeclSpecifier] [DeclSpecifier] where
   apply (MakeSpecifier_DeclSpecifier d) = apply d
@@ -531,6 +537,7 @@ instance Apply MakeSpecifier [DeclSpecifier] [DeclSpecifier] where
   apply (NonCv cvq) = filter $ (/= Just cvq) . convert
   apply (NonSign s) = maybe [] (unne . nonIntSpec s) . maybe_ne
   apply (NonLength s) = maybe [] (unne . nonIntSpec s) . maybe_ne
+  apply LongLong = (convert LongSpec :) . (convert LongSpec :) . filter (compatible (convert LongSpec :: DeclSpecifier))
 
 -- PtrOperator application
 
