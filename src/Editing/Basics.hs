@@ -42,9 +42,7 @@ replaceRange :: Range a -> [a] -> [a] -> [a]
 replaceRange (Range p l) r s = take p s ++ r ++ drop (p + l) s
 
 find_occs :: Eq a => [a] -> [a] -> [Pos a]
-find_occs _ [] = []
-find_occs x y | Just z <- List.stripPrefix x y = 0 : (+ length x) . find_occs x z
-find_occs x (_:ys) = (+ 1) . find_occs x ys
+find_occs x = map fst . filter (List.isPrefixOf x . snd) . zip [0..] . List.tails
 
 -- Edits
 
