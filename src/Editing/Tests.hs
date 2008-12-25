@@ -22,6 +22,8 @@ make_tests = do
   s "mutable int i;" "make i const" "const mutable int i;"
   s "int i;" "make i a const double" "double const i;"
   s "int const i;" "make i a double" "double const i;"
+  s "void g(int); void f() { bind(&g)(3, 2); }" "make g a function taking two integers" "void g(int, int); void f() { bind(&g)(3, 2); }"
+    -- "bind(&g)(3, 2);" is determined not to be declaration because it would be a reference initialized with two arguments.
   s "int i;" "make i a *&" "int *& i;"
   s "int * p = f();" "make p auto" "auto p = f();"
   s "inline void f();" "make f noninline" "void f();"

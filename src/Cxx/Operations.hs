@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances #-}
 
-module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, findDeclaration) where
+module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, findDeclaration, is_pointer_or_reference) where
 
 import qualified Cxx.Show
 import qualified Data.List as List
@@ -669,3 +669,22 @@ instance MaybeApply CvQualifier NoptrAbstractDeclarator where
   mapply cvq (NoptrAbstractDeclarator m (Left p)) = return $ NoptrAbstractDeclarator m $ Left $ apply cvq p
   mapply cvq (NoptrAbstractDeclarator_PtrAbstractDeclarator (Parenthesized w d w')) =
     NoptrAbstractDeclarator_PtrAbstractDeclarator . (\x -> Parenthesized w x w') . mapply cvq d
+
+-- Determination of whether declarators declare pointers/references
+
+class IsPointerOrReference t r | t -> r where is_pointer_or_reference :: t -> r
+
+instance IsPointerOrReference Declarator Bool where
+  is_pointer_or_reference (Declarator_PtrDeclarator d) = case is_pointer_or_reference d of
+    Definitely -> True; _ -> False
+instance IsPointerOrReference PtrDeclarator TriBool where
+  is_pointer_or_reference (PtrDeclarator_NoptrDeclarator d) = is_pointer_or_reference d
+  is_pointer_or_reference (PtrDeclarator _ d) = case is_pointer_or_reference d of
+    DefinitelyNot -> DefinitelyNot; _ -> Definitely
+instance IsPointerOrReference NoptrDeclarator TriBool where
+  is_pointer_or_reference (NoptrDeclarator_Id _) = Indeterminate
+  is_pointer_or_reference (NoptrDeclarator_WithParams d _) = case is_pointer_or_reference d of
+    Definitely -> Definitely; _ -> DefinitelyNot
+  is_pointer_or_reference (NoptrDeclarator_Squared d _) = case is_pointer_or_reference d of
+    Definitely -> Definitely; _ -> DefinitelyNot
+  is_pointer_or_reference (NoptrDeclarator_Parenthesized (Parenthesized _ (Enclosed d) _)) = is_pointer_or_reference d

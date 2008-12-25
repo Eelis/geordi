@@ -41,7 +41,7 @@ import Data.Function (on)
 import Util ((<<), (.), Convert(..), isIdChar, NElist(..), Finite(..), Phantom(..), reverse_ne, cardinals, partitionMaybe, nonne_ne_app, unne, lastAndRest, TriBool(..), (.||.))
 import Cxx.Basics
 import Cxx.Show (pretty_with_precedence)
-import Cxx.Operations (apply, squared, is_primary_TypeSpecifier, parenthesized, specT, split_all_decls)
+import Cxx.Operations (apply, squared, is_primary_TypeSpecifier, parenthesized, specT, split_all_decls, is_pointer_or_reference)
 import Prelude hiding ((.))
 import Control.Monad.Reader (ReaderT(..))
 import Parsers ((<?>), (<|>), pzero, spaces, many, optional, choice, sep, many1, symbols, noneOf, lookAhead, symbol, satisfy, optionMaybe, many1', anySymbol, manys, manyTill, many1Till', oneOf, ParserLike, eof, ParseResult(..), getInput, sepBy1)
@@ -492,7 +492,13 @@ instance Parse NoptrAbstractDeclarator where parse = liftM2 (foldl $ \x y -> Nop
 instance Parse AbstractDeclarator where parse = auto1 AbstractDeclarator_PtrAbstractDeclarator <?> "abstract-declarator"
 instance Parse InitializerList where parse = auto1 InitializerList <?> "initializer-list"
 instance Parse InitializerClause where parse = auto1 InitializerClause <?> "initializer-clause"
-instance Parse InitDeclarator where parse = auto2 InitDeclarator <?> "init-declarator"
+instance Parse InitDeclarator where
+  parse = (<?> "init-declarator") $ do
+    declarator <- parse
+    if is_pointer_or_reference declarator
+      then InitDeclarator declarator . (optionMaybe $ (<?> "initializer") $ Initializer_Parenthesized . parseParenthesized (Enclosed . InitializerList . flip Commad [] . parse) <|> auto1 Initializer_BraceOrEqualInitializer)
+      else auto1 (InitDeclarator declarator)
+
 instance Parse Declarator where parse = auto1 Declarator_PtrDeclarator <?> "declarator"
 instance Parse PtrDeclarator where parse = liftM2 (flip $ foldl $ flip PtrDeclarator) (reverse . parse) (PtrDeclarator_NoptrDeclarator . parse) <?> "ptr-declarator"
 
