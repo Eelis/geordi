@@ -396,7 +396,7 @@ describe_new_output :: Maybe String -> String -> String
 describe_new_output Nothing new = new
 describe_new_output (Just prev) new =
   if prev /= new || length new <= 20 then new
-  else if "error:" `isPrefixOf` new then "Same error."
+  else if any (`isPrefixOf` new) ["error:", "internal compiler error:"] then "Same error."
   else if "warning:" `isPrefixOf` new then "Same warning."
   else "No change in output."
 
