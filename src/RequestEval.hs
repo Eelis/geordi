@@ -62,6 +62,13 @@ evaluator = do
         kwd "show"; eof
         return $ return $ Response Nothing $ show . listToMaybe prevs `orElse` "<none>"
       <|> do
+        kwd "parse"; eof
+        case prevs of
+          [] -> error_response "There is no previous request."
+          EditableRequest (Evaluate _) c : _ -> return $ return $ Response Nothing $
+            case Cxx.Parse.parseRequest c of Right _ -> "Looks fine to me."; Left e -> e
+          _ -> error_response "Last (editable) request was not an evaluation request."
+      <|> do
         kwds ["--precedence", "precedence"]
         respond_and_remember . EditableRequest Precedence =<< getInput
       <|> do
