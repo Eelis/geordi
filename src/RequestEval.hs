@@ -11,7 +11,7 @@ import qualified Cxx.Show
 import Cxx.Show
 import Control.Monad.Error ()
 import qualified Data.List as List
-import Data.Char (isPrint)
+import Data.Char (isPrint, isSpace)
 import Data.Maybe (listToMaybe)
 import Data.Either (lefts)
 import Parsers ((<|>), eof, optParser, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail)
@@ -47,7 +47,7 @@ evaluator = do
     respond (EditableRequest MakeType d) = return $ either ("error: " ++) show_simple $ Cxx.Parse.makeType d
     respond (EditableRequest Precedence t) = return $ either ("error: " ++) id $ Cxx.Parse.precedence t
     respond (EditableRequest (Evaluate opts) code) =
-      case parseOrFail (Cxx.Parse.code << eof) code "request" of
+      case parseOrFail (Cxx.Parse.code << eof) (dropWhile isSpace code) "request" of
         Right sc -> do
           evf $ EvalCxx.Request (prel ++ (if Set.member Terse opts then "#include \"terse.hpp\"\n" else "") ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc)) (not $ Set.member CompileOnly opts) (Set.member NoWarn opts)
         Left x -> return $ "error: " ++ x
@@ -57,7 +57,7 @@ evaluator = do
   return $ \r (Context prevs) -> do
   let
     p :: Parser Char (IO Response)
-    p =
+    p = (spaces >>) $
       do
         kwd "show"; eof
         return $ return $ Response Nothing $ show . listToMaybe prevs `orElse` "<none>"
@@ -111,7 +111,7 @@ evaluator = do
         if Right Resume `elem` opts
           then case prevs of
             [] -> fail "There is no previous resumable request."
-            EditableRequest (Evaluate oldopts) oldcodeblob : _ -> case run_parser (Cxx.Parse.code << eof) oldcodeblob of
+            EditableRequest (Evaluate oldopts) oldcodeblob : _ -> case run_parser (Cxx.Parse.code << eof) (dropWhile isSpace oldcodeblob) of
               ParseSuccess oldcode _ _ _ -> do
                 code <- Cxx.Parse.code; eof
                 respond_and_remember $ EditableRequest (Evaluate $ Set.union evalopts oldopts) $ show $ Cxx.Operations.blob $ Cxx.Operations.resume (Cxx.Operations.shortcut_syntaxes oldcode) (Cxx.Operations.shortcut_syntaxes code)

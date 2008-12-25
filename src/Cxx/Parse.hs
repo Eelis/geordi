@@ -99,14 +99,14 @@ notFollowedBy (ReaderT p) = ReaderT $ P.notFollowedBy . p
 
 precedence :: String -> Either String String
 precedence s = either (pretty_with_precedence . split_all_decls) (pretty_with_precedence . split_all_decls) .
-  P.parseOrFail p s "code"
+  P.parseOrFail p (dropWhile Char.isSpace s) "code"
   where p = runReaderT (parse << eof) defaultParseOptions :: P.Parser Char (Either Expression [Statement])
 
 parseRequest :: String -> Either String GeordiRequest
-parseRequest s = P.parseOrFail (runReaderT (parse << eof) defaultParseOptions) s "request"
+parseRequest s = P.parseOrFail (runReaderT (parse << eof) defaultParseOptions) (dropWhile Char.isSpace s) "request"
 
 makeType :: String -> Either String TypeId
-makeType s = P.parseOrFail (runReaderT (parse << eof) (defaultParseOptions { makeTypeExtensions = True })) s "type description"
+makeType s = P.parseOrFail (runReaderT (parse << eof) (defaultParseOptions { makeTypeExtensions = True })) (dropWhile Char.isSpace s) "type description"
 
 -- Chunk/Code parsers
 
