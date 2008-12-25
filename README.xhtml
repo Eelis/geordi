@@ -41,12 +41,14 @@
         <p>On Ubuntu, it is highly recommended to use GHC packages from the Ubuntu repositories. Use of haskell.org's GHC packages may result in strange "g++: Virtual timer expired" errors.</p>
         <p>Some distributions package GHC libraries separately. If, when compiling, you get errors like “Could not find module "Control.Monad.State"”, look for separate mtl and network packages.</p>
       </li>
+      <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/parsec'>Parsec</a> &lt; 3 (Yes, that's a "less than".)</li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/utf8-string'>utf8-string</a> &ge; 0.2</li>
+      <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/readline'>readline</a> &ge; 1.0.1.0</li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/Diff'>Diff</a> &ge; 0.1.2</li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/irc'>irc</a> &ge; 0.2.3 (Only needed if you want to run an IRC bot.)</li>
-      <li><a href='http://www.dtek.chalmers.se/~henoch/hsxmpp-doc/index.html'>XMPP</a> &ge; 0.0.1 (Only needed if you want to run an XMPP bot.)</li>
+      <!-- <li><a href='http://www.dtek.chalmers.se/~henoch/hsxmpp-doc/index.html'>XMPP</a> &ge; 0.0.1 (Only needed if you want to run an XMPP bot.)</li> -->
     </ul>
-    <p>These last four are GHC packages. For those of us not familiar with GHC packages, to install these do:</p>
+    <p>These last five are GHC packages. Depending on where you got your GHC from (and on how your distro packaged it, if at all), some of them may already be installed. Use <kbd>ghc-pkg list</kbd> to figure out which ones you need. Then, to install those (assuming no distro package was available), use the following procedure (shown here for utf8-string, but it's the same for the others):</p>
     <p>
       <kbd>
         tar xf utf8-string-0.2.tar.gz<br/>
@@ -56,7 +58,7 @@
         su -c "runhaskell Setup.lhs install"
       </kbd>
     </p>
-    <p>(And likewise for the others.)</p>
+    <p>It may also be possible to install these with cabal, I have no idea.</p>
 
     <h3>Optional step for improved error messages</h3>
     <p>
@@ -76,7 +78,7 @@
     <ol>
       <li><kbd>chmod +x scripts/*</kbd> &nbsp; # darcs is not yet aware of executability</li>
       <li><kbd>scripts/compile-base</kbd> &nbsp; # To produce the ./geordi-local, and ./geordi-testsuite executables.</li>
-      <li><kbd>scripts/compile-irc</kbd> and/or <kbd>scripts/compile-xmpp</kbd>, or neither, depending on what kind of bot you want to run (if any).</li>
+      <li><kbd>scripts/compile-irc</kbd> <!-- and/or <kbd>scripts/compile-xmpp</kbd>, or neither, depending on what kind of bot you want to run (if any). --> &nbsp; # To produce ./geordi-irc. Only needed if you actually want to run a geordi IRC bot.</li>
       <li>Edit the compile-config file to your liking. Check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</li>
       <li>On Debian and Ubuntu, replace <code>group = "nobody"</code> with <code>group = "nogroup"</code> in jail-config.</li>
       <li><kbd>scripts/mkrt</kbd> &nbsp; # Creates a directory called "rt", which will be our chroot root, and copies various files into it that GCC needs in order to function.</li>
@@ -141,17 +143,6 @@
     <h4>Censoring phrases</h4>
     <p>Some networks automatically kick or ban clients that utter certain phrases (like botnet commands). To prevent a geordi bot from uttering these, list regexes for them in irc-config. E.g.:</p>
     <pre>  , censor = ["some naughty phrase", "some wicked utterance"]</pre>
-
-    <h3>3.2 XMPP</h3>
-
-    <p>Usage:&emsp;<kbd>sudo ./geordi-xmpp [option]...</kbd></p>
-    <p>Options:</p>
-    <dl>
-      <dt><kbd>-c &lt;file></kbd> / <kbd>--config &lt;file></kbd></dt>
-      <dd><p>Load bot configuration from &lt;file> instead of "xmpp-config".</p></dd>
-      <dt><kbd>-h</kbd> / <kbd>--help</kbd></dt>
-      <dd><p>Display help and exit.</p></dd>
-    </dl>
 
     <hr/><h2 id='localization'>4. Localization</h2>
     <p>To get compiler diagnostics (and some (but not all) other geordi messages) in a locale of your choice, copy the following into rt (preserving paths, for example using <kbd>cp --parents</kbd>):</p>
