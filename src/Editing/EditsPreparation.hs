@@ -8,10 +8,11 @@ import qualified Editing.Diff
 import qualified Data.List as List
 import qualified Data.Char as Char
 import Editing.Show ()
+import Cxx.Basics (DeclaratorId)
 import Cxx.Operations (findDeclaration)
 import Control.Monad.Error ()
 
-import Util ((.), Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, strip)
+import Util ((.), Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, strip, NElist(..), nth_ne, once_twice_thrice)
 
 import Prelude hiding (last, (.), all, (!!))
 import Editing.Basics
@@ -48,8 +49,18 @@ instance Convert Anchor (Pos Char) where convert = anchor_pos
 
 instance FindInStr Around [ARange] where findInStr s (Around x) = concat . findInStr s x
 
+instance FindInStr (Ranked (Either Declaration String)) ARange where
+  findInStr t (Ranked o (Right s)) = findInStr t (Ranked o s)
+  findInStr y (Sole (Right x)) = findInStr y (Sole x)
+  findInStr s (Sole (Left d)) = findInStr s (Sole d)
+  findInStr s (Ranked o (Left d)) = findInStr s (Ranked o d)
+
 instance FindInStr (Ranked String) ARange where
-  findInStr t (Ranked (Ordinal o) s) = anchor_range . nth o s t
+  findInStr t (Ranked o@(Ordinal n) s) = case find_occs s t of
+    [] -> fail $ "String " ++ show s ++ " does not occur."
+    (a:b) -> case nth_ne o (NElist a b) of
+      Just g -> return $ anchor_range $ Range g $ length s
+      Nothing -> fail $ "String " ++ show s ++ " does not occur " ++ once_twice_thrice (if n < 0 then -n else (n+1)) ++ "."
   findInStr y (Sole x) = case find_occs x y of
     [z] -> return $ anchor_range $ Range z (length x)
     [] -> fail $ "String " ++ show x ++ " does not occur."
@@ -99,20 +110,34 @@ instance FindInStr (Rankeds String) [ARange] where
   findInStr x (AllBut (AndList rs) s) =
     return $ (anchor_range . flip Range (length s)) . erase_indexed (ordinal_carrier . unne rs) (find_occs s x)
 
-instance FindInStr Cxx.Basics.DeclaratorId ARange where
+instance FindInStr DeclaratorId (NElist ARange) where
   findInStr s did = case Cxx.Parse.parseRequest s of
     Left e -> fail $ "Could not parse code in previous request. " ++ e
     Right r -> case findDeclaration did r of
-      Nothing -> fail $ "Could not find " ++ strip (show did) ++ "."
-      Just (Range x y) -> return $ \ba -> Anchor (invert ba) (case ba of Before -> x; After -> (x + y))
+      [] -> fail $ "Could not find free declaration of " ++ strip (show did) ++ "."
+      (x:y) -> return $ fmap convert $ NElist x y
 
-instance FindInStr (Either Cxx.Basics.DeclaratorId (Relative (EverythingOr (Ranked String)))) ARange where
-  findInStr s (Right t) = findInStr s t
-  findInStr s (Left did) = findInStr s did
+instance FindInStr (Ranked Declaration) ARange where
+  findInStr s (Sole (DeclarationOf did)) = do
+    NElist x y <- findInStr s did
+    if null y then return x else fail $ "Multiple declarations of " ++ strip (show did) ++ " occur."
+  findInStr s (Ranked o (DeclarationOf did)) = do
+    l <- findInStr s did
+    case nth_ne o l of
+      Nothing -> fail $ "Could not find a " ++ show o ++ " declaration of " ++ strip (show did) ++ "."
+      Just r -> return r
 
-instance FindInStr (Either Cxx.Basics.DeclaratorId (Relative (EverythingOr (Rankeds String)))) [ARange] where
-  findInStr s (Right r) = findInStr s r
-  findInStr s (Left did) = (:[]) . findInStr s did
+instance FindInStr (Rankeds Declaration) [ARange] where
+  findInStr s (All (DeclarationOf did)) = unne . findInStr s did
+  findInStr s (Sole' (DeclarationOf did)) = do
+    NElist x y <- findInStr s did
+    if null y then return [x] else fail $ "Multiple declarations of " ++ strip (show did) ++ " occur."
+  findInStr x (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x (Ranked r s)) . unne rs
+  findInStr x (AllBut (AndList rs) (DeclarationOf d)) =
+    erase_indexed (ordinal_carrier . unne rs) . unne . findInStr x d
+
+instance (FindInStr x a, FindInStr y a) => FindInStr (Either x y) a where
+  findInStr s = either (findInStr s) (findInStr s)
 
 instance FindInStr PositionsClause [Anchor] where
   findInStr s (PositionsClause Before (AndList o)) = (($ Before) .) . concat . sequence (findInStr s . unne o)
@@ -147,10 +172,9 @@ instance FindInStr Mover Edit where
     makeMoveEdit a r
 
 instance FindInStr Position Anchor where
-  findInStr _ (Position Before (Right Everything)) = return $ Anchor Before 0
-  findInStr s (Position After (Right Everything)) = return $ Anchor After (length s)
-  findInStr s (Position ba (Right (NotEverything p))) = ($ ba) . findInStr s p
-  findInStr s (Position ba (Left did)) = ($ ba) . findInStr s did
+  findInStr _ (Position Before Everything) = return $ Anchor Before 0
+  findInStr s (Position After Everything) = return $ Anchor After (length s)
+  findInStr s (Position ba (NotEverything p)) = ($ ba) . findInStr s p
 
 instance FindInStr UseClause Edit where
   findInStr _ (UseOptions o) = return $ AddOptions o

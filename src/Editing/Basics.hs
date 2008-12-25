@@ -10,9 +10,9 @@ import qualified Data.Char as Char
 import Cxx.Basics (DeclaratorId)
 
 import Data.Monoid (Monoid(..))
-import Util (NElist(..), Convert(..), Invertible(..), Ordinal, once_twice_thrice, (.), (!!), findMaybe, take_atleast, isIdChar)
+import Util (NElist(..), Convert(..), Invertible(..), Ordinal(..), (.), findMaybe, take_atleast, isIdChar)
 
-import Prelude hiding ((.), (!!))
+import Prelude hiding ((.))
 
 -- AndLists
 
@@ -46,11 +46,6 @@ find_occs _ [] = []
 find_occs x y | Just z <- List.stripPrefix x y = 0 : (+ length x) . find_occs x z
 find_occs x (_:ys) = (+ 1) . find_occs x ys
 
-nth :: (Monad m, Show a, Eq a) => Int -> [a] -> [a] -> m (Range a)
-nth _ x y | [] <- find_occs x y = fail $ "String " ++ show x ++ " does not occur."
-nth n x y | l <- find_occs x y, (- length l) <= n, n < length l = return $ Range (l !! n) (length x)
-nth n x _ = fail $ "String " ++ show x ++ " does not occur " ++ once_twice_thrice (if n < 0 then -n else (n+1)) ++ "."
-
 -- Edits
 
 data Anchor = Anchor { anchor_befAft :: BefAft, anchor_pos :: Pos Char } deriving Eq
@@ -73,21 +68,25 @@ makeMoveEdit (Anchor ba p) r@(Range st si)
 
 -- Command grammar
 
+newtype Declaration = DeclarationOf DeclaratorId
 data EverythingOr a = Everything | NotEverything a
 data Ranked a = Ranked Ordinal a | Sole a
 data Rankeds a = Rankeds (AndList Ordinal) a | Sole' a | All a | AllBut (AndList Ordinal) a
 data Bound = Bound (Maybe BefAft) (EverythingOr (Ranked String))
 data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative (EverythingOr (Ranked String)))
-data Relative a = Relative a BefAft (Ranked String) | Between a Betw | FromTill Bound RelativeBound
+data Relative a = Relative a BefAft (Ranked (Either Declaration String)) | Between a Betw | FromTill Bound RelativeBound
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
-data PositionsClause = PositionsClause BefAft (AndList (Either DeclaratorId (Relative (EverythingOr (Rankeds String)))))
-data Position = Position BefAft (Either DeclaratorId (EverythingOr (Ranked String)))
+data PositionsClause = PositionsClause BefAft (AndList Substrs)
+type Substr = EverythingOr (Ranked (Either Declaration String))
+type Substrs = Either (Rankeds Declaration) (Relative (EverythingOr (Rankeds String)))
+  -- We don't do relative declarations, for now.
+data Position = Position BefAft Substr
 type Positions = AndList PositionsClause
-data Replacer = Replacer (AndList (Either DeclaratorId (Relative (EverythingOr (Rankeds String))))) String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
-data Eraser = EraseText (Either DeclaratorId (Relative (EverythingOr (Rankeds String)))) | EraseOptions [Request.EvalOpt]
-data Mover = Mover (Either DeclaratorId (Relative (EverythingOr (Ranked String)))) Position
-data BefAft = Before | After deriving Eq
-data Around = Around (AndList (Either DeclaratorId (Relative (EverythingOr (Rankeds String)))))
+data Replacer = Replacer (AndList Substrs) String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
+data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt]
+data Mover = Mover (Either (Ranked Declaration) (Relative (EverythingOr (Ranked String)))) Position
+data BefAft = Before | After deriving (Eq)
+data Around = Around (AndList Substrs)
 data Betw = Betw Bound RelativeBound
 data Wrapping = Wrapping String String
 data UseClause = UseString String | UseOptions [Request.EvalOpt]
@@ -100,7 +99,7 @@ data Command
   | Erase (AndList Eraser)
   | Move (AndList Mover)
   | WrapAround Wrapping (AndList Around)
-  | WrapIn (AndList (Either DeclaratorId (Relative (EverythingOr (Rankeds String))))) Wrapping
+  | WrapIn (AndList Substrs) Wrapping
   | Use (AndList UseClause)
 
 newtype Identifier = Identifier { identifier_string :: String }
@@ -148,9 +147,9 @@ merge_commands (h:t) = h : merge_commands t
 
 describe_position_after :: Pos Char -> String -> Position
 describe_position_after n s
-  | n == 0 = Position Before $ Right Everything
-  | n == length s = Position After $ Right Everything
-  | otherwise = Position After $ Right $ NotEverything $ Sole $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s
+  | n == 0 = Position Before $ Everything
+  | n == length s = Position After $ Everything
+  | otherwise = Position After $ NotEverything $ Sole $ Right $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s
 
 -- Tokenization:
 

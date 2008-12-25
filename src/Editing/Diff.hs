@@ -50,7 +50,7 @@ describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
     ins ba = Insert (toks_text s) $ and_one $ PositionsClause ba $ and_one $ Right $ absolute $ convert $ NotEverything $ Sole $ toks_text $ inorder_context $ invert ba
     sr = selectRange r t
     sole = convert . NotEverything (Sole sr')
-    rel ba = Relative sole ba (Sole $ toks_text $ inorder_context (invert ba))
+    rel ba = Relative sole ba $ Sole $ Right $ toks_text $ inorder_context $ invert ba
     describe_range :: Relative (EverythingOr (Rankeds String))
     describe_range =
       case () of

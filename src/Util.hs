@@ -48,6 +48,10 @@ maybe_ne :: [a] -> Maybe (NElist a)
 maybe_ne [] = Nothing
 maybe_ne (h:t) = Just $ NElist h t
 
+nth_ne :: Ordinal -> NElist a -> Maybe a
+nth_ne (Ordinal n) l | (- length (unne l)) <= n, n < length (unne l) = return $ unne l !! n
+nth_ne _ _ = Nothing
+
 reverse_ne :: NElist a -> NElist a
 reverse_ne = work []
   where

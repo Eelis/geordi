@@ -202,15 +202,15 @@ instance Convert NoptrDeclarator DeclaratorId where
 
 -- Finding declarations
 
-data GfoldlWithLengthsIntermediary r a = GfoldlWithLengthsIntermediary { gwli_result :: Maybe r, off :: Int }
+data GfoldlWithLengthsIntermediary r a = GfoldlWithLengthsIntermediary { gwli_result :: [r], off :: Int }
 
-gfoldl_with_lengths :: Data a => Int -> (forall d. Data d => Int -> d -> Maybe r) -> a -> Maybe r
-gfoldl_with_lengths i f thing = gwli_result $ gfoldl (\(GfoldlWithLengthsIntermediary m o) y -> GfoldlWithLengthsIntermediary (mplus m (f o y)) (o + length (Cxx.Show.show_simple y))) (\_ -> GfoldlWithLengthsIntermediary Nothing i) thing
+gfoldl_with_lengths :: Data a => Int -> (forall d. Data d => Int -> d -> [r]) -> a -> [r]
+gfoldl_with_lengths i f thing = gwli_result $ gfoldl (\(GfoldlWithLengthsIntermediary m o) y -> GfoldlWithLengthsIntermediary (m ++ f o y) (o + length (Cxx.Show.show_simple y))) (\_ -> GfoldlWithLengthsIntermediary [] i) thing
 
-findDeclaration :: Data a => DeclaratorId -> a -> Maybe (Range Char)
+findDeclaration :: Data a => DeclaratorId -> a -> [Range Char]
 findDeclaration did = findDeclaration' did 0
 
-findDeclaration' :: Data d => DeclaratorId -> Int -> d -> Maybe (Range Char)
+findDeclaration' :: Data d => DeclaratorId -> Int -> d -> [Range Char]
   -- We can't move this helper into findDeclaration, probably because of the monomorphism restriction.
 findDeclaration' did i x
   | Just s <- cast x, convert (s :: Declaration) == Just did = found
@@ -218,7 +218,7 @@ findDeclaration' did i x
   | Just s <- cast x, convert (s :: TemplateDeclaration) == Just did = found
   | Just s <- cast x, convert (s :: MemberDeclaration) == Just did = found
   | otherwise = gfoldl_with_lengths i (findDeclaration' did) x
-  where found = Just $ Range i $ length $ Cxx.Show.show_simple x
+  where found = [Range i $ length $ Cxx.Show.show_simple x]
 
   {- With the above, the following cannot yet be found:
       - class declarations that have declarators

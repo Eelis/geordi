@@ -12,6 +12,7 @@ import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA
 import Data.Either (partitionEithers)
 import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, sepBy1', many1Till', optParser, try)
 import Util (isVowel, (<<), NElist(..), unne, snd_unit, liftA2, Ordinal(..))
+import Cxx.Basics (DeclaratorId)
 import Request (EvalOpt)
 
 import Prelude hiding ((.), id)
@@ -99,6 +100,9 @@ instance Parse a => Parse (AndList a) where
       f :: NElist (Either String t) -> Either String (NElist t)
       f (NElist x l) = liftM2 NElist x $ case l of [] -> return []; (h : t) -> fmap unne $ f (NElist h t)
 
+instance (Parse a, Parse b) => Parse (Either a b) where
+  parse = (parse >>> arr Left) <||> (parse >>> arr Right)
+
 semipure :: (a -> Either String b) -> Parser a b
 semipure f = Parser (Terminators True []) $ \_ _ -> return . f
 
@@ -126,7 +130,7 @@ opt_an s = [s, "a " ++ s]
 uncool :: Parser () a -> Terminators -> [AndCont] -> P.Parser Char (Either String a)
 uncool (Parser _ f) t a = f t a ()
 
-instance Parse (Ranked String) where parse = auto2 Ranked <||> auto1 Sole
+instance Parse a => Parse (Ranked a) where parse = auto2 Ranked <||> auto1 Sole
 
 instance Parse BefAft where parse = select [(["before"], Before), (["after"], After)]
 
@@ -141,7 +145,7 @@ instance Parse Ordinal where
     b <- select [(["last"], True), ([], False)] -< ()
     returnA -< if b then - n - 1 else n
 
-instance Parse (EverythingOr (Ranked String)) where
+instance Parse a => Parse (EverythingOr a) where
   parse = select [(["everything"], Everything)] <||> auto1 NotEverything
 
 relative :: Parser a (Relative a)
@@ -201,13 +205,14 @@ instance Parse (Relative (EverythingOr (Ranked String))) where
       returnA -< Between Everything $ Betw (Bound (Just Before) $ NotEverything x) u
     <||> (relative -< NotEverything x)
 
-instance Parse a => Parse (Either Cxx.Basics.DeclaratorId a) where
-  parse = (kwd ["declaration"] >>> kwd ["of"] >>> parse >>> arr Left) <||> (parse >>> arr Right)
+instance Parse Declaration where
+  parse = k >>> kwd ["of"] >>> parse >>> arr DeclarationOf
+    where k = Parser (Terminators False ["declaration"]) $ \(Terminators b _) _ _ -> fmap Right $ symbols "declaration" >> P.optional (char 's') >> (if b then (eof <|>) else id) (char ' ' >> return ())
 
 instance Parse Position where
-  parse = (select [(begin, Before), (end_kwds, After)] >>> arr (flip Position (Right Everything))) <||> auto2 Position
+  parse = (select [(begin, Before), (end_kwds, After)] >>> arr (flip Position Everything)) <||> auto2 Position
 
-instance Parse (Rankeds String) where
+instance Parse a => Parse (Rankeds a) where
   parse = (kwd ["all"] >>> ((kwd ["except", "but"] >>> auto2 AllBut) <||> auto1 All))
     <||> (kwd ["any", "every", "each"] >>> auto1 All) <||> auto2 Rankeds <||> auto1 Sole'
 
@@ -248,7 +253,7 @@ instance Parse Command where
     (kwd ["move"] >>> auto1 Move) <||>
     (kwd ["wrap"] >>> parse >>> snd_unit (auto1 Left <||> (kwd ["in"] >>> auto1 Right)) >>> semipure (uncurry wc))
     where
-      wc :: (AndList (Either Cxx.Basics.DeclaratorId (Relative (EverythingOr (Rankeds String))))) -> Either (AndList Around) Wrapping -> Either String Command
+      wc :: (AndList Substrs) -> Either (AndList Around) Wrapping -> Either String Command
       wc what (Right wrapping) = return $ WrapIn what wrapping
       wc (AndList (NElist (Right (Between (NotEverything (Sole' x)) (Betw (Bound (Just Before) Everything) Back))) [])) (Left what) =
         (\q -> WrapAround q what) `fmap` case () of
@@ -267,14 +272,11 @@ instance Parse Command where
 instance Parse Cxx.Basics.MakeDeclaration where
   parse = Parser (Terminators False []) $ \_ _ _ -> Right `fmap` Cxx.Parse.makeDeclParser
 
-instance Parse Cxx.Basics.DeclaratorId where
+instance Parse DeclaratorId where
   parse = Parser (Terminators False []) $ \_ _ _ -> Right `fmap` Cxx.Parse.declaratorIdParser
 
 instance Parse SemCommand where
   parse = label "edit command" $ kwd ["make"] >>> commit (auto2 Make)
-
-instance Parse (Either Command SemCommand) where
-  parse = (parse >>> arr Left) <||> (parse >>> arr Right)
 
 commandsP :: P.Parser Char (Either String ([Command], [SemCommand]))
 commandsP = (fmap $ partitionEithers . unne . andList) `fmap` uncool parse (Terminators True []) []

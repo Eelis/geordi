@@ -183,10 +183,10 @@ basic_tests = do
   t "isnert 3 before 4" $ Left "Unexpected \"i\" at start. Expected edit command." -- Todo: This would look better if the token was mentioned.
   t "insert " $ Left "Unexpected end of command. Expected option or verbatim string."
   t "insert kung fu" $ Left "Unexpected end of command. Expected \" at\", \" before\", or \" after\"."
-  t "move " $ Left "Unexpected end of command. Expected \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", ordinal, or verbatim string."
+  t "move " $ Left "Unexpected end of command. Expected ordinal, \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", or verbatim string."
   t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" between\", or \" to\"."
   t "move x to "$ Left "Unexpected end of command. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
-  t "erase all 2 and " $ Left "Unexpected end of command. Expected option, \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, verbatim string, or edit command."
+  t "erase all 2 and " $ Left "Unexpected end of command. Expected option, \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", verbatim string, or edit command."
   putStrLn "All basics tests passed."
  where
   t :: String -> Either String String -> IO ()
