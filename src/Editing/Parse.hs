@@ -244,14 +244,14 @@ instance Parse a => Parse (Maybe a) where parse = (parse >>> arr Just) <||> arr 
 
 instance Parse Command where
   parse = label "edit command" $
-    (kwd ["insert", "add"] >>> ((parse >>> arr (Use `fmap` (fmap UseOptions))) <||> auto2 Insert)) <||>
-    (kwd ["append"] >>> auto2 Append) <||>
-    (kwd ["prepend"] >>> ((parse >>> arr (Use `fmap` (fmap UseOptions))) <||> auto2 Prepend)) <||>
-    (kwd ["erase", "remove", "kill", "cut", "omit", "delete", "drop"] >>> auto1 Erase) <||>
-    (kwd ["replace"] >>> auto1 Replace) <||>
-    (kwd ["use"] >>> auto1 Use) <||>
-    (kwd ["move"] >>> auto1 Move) <||>
-    (kwd ["wrap"] >>> parse >>> snd_unit (auto1 Left <||> (kwd ["in"] >>> auto1 Right)) >>> semipure (uncurry wc))
+    (kwd ["insert", "add"] >>> commit ((parse >>> arr (Use `fmap` (fmap UseOptions))) <||> auto2 Insert)) <||>
+    (kwd ["append"] >>> commit (auto2 Append)) <||>
+    (kwd ["prepend"] >>> commit ((parse >>> arr (Use `fmap` (fmap UseOptions))) <||> auto2 Prepend)) <||>
+    (kwd ["erase", "remove", "kill", "cut", "omit", "delete", "drop"] >>> commit (auto1 Erase)) <||>
+    (kwd ["replace"] >>> commit (auto1 Replace)) <||>
+    (kwd ["use"] >>> commit (auto1 Use)) <||>
+    (kwd ["move"] >>> commit (auto1 Move)) <||>
+    (kwd ["wrap"] >>> commit (parse >>> snd_unit (auto1 Left <||> (kwd ["in"] >>> auto1 Right)) >>> semipure (uncurry wc)))
     where
       wc :: (AndList Substrs) -> Either (AndList Around) Wrapping -> Either String Command
       wc what (Right wrapping) = return $ WrapIn what wrapping
