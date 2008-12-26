@@ -1,6 +1,6 @@
 {- Command grammar:
 
-  command = (insert | append | prepend | erase | replace | move | wrap | use | make)*
+  command = (insert | append | prepend | erase | replace | move | swap | wrap | use | make)*
 
   insert = ("insert" | "add") ... positions*
   append = "append" ... [positions*]
@@ -8,6 +8,7 @@
   erase = ("erase" | "remove" | "delete" | "cut" | "omit" | "kill") substrs*
   replace = "replace" (substrs* ("with" | "by") ...)*
   move = "move" (substr "to" position)*
+  swap = "swap" (substr "and" substr)*
   wrap = "wrap" wrapping ("around" substrs*)* | "wrap" substrs* "in" wrapping
   use = "use" verbatim*
   make = "make" declarator-id* type-description
