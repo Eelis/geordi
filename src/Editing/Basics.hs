@@ -88,6 +88,9 @@ data Around = Around (AndList Substrs)
 data Betw = Betw Bound RelativeBound
 data Wrapping = Wrapping String String
 data UseClause = UseString String | UseOptions [Request.EvalOpt]
+type Swappable = Either (Ranked Declaration) (Relative (EverythingOr (Ranked String)))
+  -- The EverythingOr is pretty silly for Swappable, but removing it only costs extra code in the parser.
+data Swapper = Swapper Swappable Swappable
 
 data Command
   = Insert String Positions
@@ -96,6 +99,7 @@ data Command
   | Replace (AndList Replacer)
   | Erase (AndList Eraser)
   | Move (AndList Mover)
+  | Swap (AndList Swapper)
   | WrapAround Wrapping (AndList Around)
   | WrapIn (AndList Substrs) Wrapping
   | Use (AndList UseClause)

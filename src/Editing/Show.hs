@@ -86,6 +86,7 @@ instance Show Replacer where
 instance Show Eraser where show (EraseText l) = show l; show (EraseOptions o) = show_long_opts o
 instance Show UseClause where show (UseString s) = s; show (UseOptions o) = show_long_opts o
 instance Show Mover where show (Mover x y) = show x ++ " to " ++ show y
+instance Show Swapper where show (Swapper x y) = show x ++ " and " ++ show y
 
 instance Show Declaration where show (DeclarationOf d) = "declaration of " ++ strip (show d)
 
@@ -101,6 +102,7 @@ data Tense = Present | Past
 
 past :: String -> String
 past "wrap" = "wrapped"
+past "swap" = "swapped"
 past s | isVowel (List.last s) = s ++ "d"
 past s = s ++ "ed"
 
@@ -116,6 +118,7 @@ show_command t (Use l) = tense t "use" ++ " " ++ show l
 show_command t (Prepend s mp) = tense t "prepend" ++ " " ++ show s ++ maybe "" ((" " ++) . show) mp
 show_command t (Append s mp) = tense t "append" ++ " " ++ show s ++ maybe "" ((" " ++) . show) mp
 show_command t (Move l) = tense t "move" ++ " " ++ show l
+show_command t (Swap l) = tense t "swap" ++ " " ++ show l
 show_command t (WrapIn l w) = tense t "wrap" ++ " " ++ show l ++ " in " ++ show w
 show_command t (WrapAround w l) = tense t "wrap" ++ " " ++ show w ++ " around " ++ show l
 

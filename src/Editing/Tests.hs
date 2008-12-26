@@ -92,6 +92,8 @@ basic_tests = do
   t "erase first 2 3 and 3 2 and 4 5 and last  " $ Right "1  3 "
   t "move 1 till second 3 to before 5" $ Right "3 4 1 2 3 2 5"
   t "move 1 till after second 3 to before 5" $ Right " 4 1 2 3 2 35"
+  t "swap last 2 3 and last space before 4" $ Right "1 2 3  2 34 5"
+  t "swap 1 and first 3 and second 3 and 5" $ Right "3 2 1 2 5 4 3"
   t "replace 2 after second space with x" $ Right "1 2 3 x 3 4 5"
   t "move everything till 4  to end and erase 4 " $ Right "51 2 3 2 3 "
   t "erase everything" $ Right ""

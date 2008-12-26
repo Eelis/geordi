@@ -171,6 +171,11 @@ instance FindInStr Mover Edit where
     r <- unanchor_range . findInStr s o
     makeMoveEdit a r
 
+instance FindInStr Swapper [Edit] where
+  findInStr s (Swapper x y) = do
+    a <- findInStr s x; b <- findInStr s y
+    return $ makeMoveEdit (b Before) (unanchor_range a) ++ makeMoveEdit (a Before) (unanchor_range b) -- By executing makeMoveEdit in the list monad, we nicely filter edits that would be considered overlapping (for example when swapping adjacent ranges).
+
 instance FindInStr Position Anchor where
   findInStr _ (Position Before Everything) = return $ Anchor Before 0
   findInStr s (Position After Everything) = return $ Anchor After (length s)
@@ -218,6 +223,7 @@ instance FindInStr Command [Edit] where
   findInStr s (Replace (AndList l)) = concat . sequence (findInStr s . unne l)
   findInStr s (Insert r p) = (flip InsertEdit r .) . concat . findInStr s p
   findInStr s (Move (AndList movers)) = sequence (findInStr s . unne movers)
+  findInStr s (Swap (AndList swappers)) = concat . sequence (findInStr s . unne swappers)
   findInStr s (WrapAround (Wrapping x y) z) = concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . concat . findInStr s z
   findInStr s (WrapIn z (Wrapping x y)) = findInStr s $ WrapAround (Wrapping x y) $ and_one $ Around z
 

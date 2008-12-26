@@ -225,6 +225,7 @@ instance Parse Replacer where
 
 instance Parse Eraser where parse = auto1 EraseOptions <||> auto1 EraseText
 instance Parse Mover where parse = liftA2 Mover parse (kwd ["to"] >>> parse)
+instance Parse Swapper where parse = liftA2 Swapper parse (andP >>> parse)
 instance Parse [EvalOpt] where parse = Parser (Terminators False []) $ \_ _ _ -> optParser
 instance Parse Around where parse = kwd ["around"] >>> auto1 Around
 instance Parse UseClause where parse = auto1 UseOptions <||> auto1 UseString
@@ -251,6 +252,7 @@ instance Parse Command where
     (kwd ["replace"] >>> commit (auto1 Replace)) <||>
     (kwd ["use"] >>> commit (auto1 Use)) <||>
     (kwd ["move"] >>> commit (auto1 Move)) <||>
+    (kwd ["swap"] >>> commit (auto1 Swap)) <||>
     (kwd ["wrap"] >>> commit (parse >>> snd_unit (auto1 Left <||> (kwd ["in"] >>> auto1 Right)) >>> semipure (uncurry wc)))
     where
       wc :: (AndList Substrs) -> Either (AndList Around) Wrapping -> Either String Command
