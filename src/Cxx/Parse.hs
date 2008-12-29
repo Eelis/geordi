@@ -386,7 +386,7 @@ instance Parse PostfixExpression where
   parse = (<?> "postfix-expression") $ liftM2 (foldl $ flip ($)) basic $ many $ (<?> "postfix operator") $
       auto3 (\o t e' e -> PostfixExpression_Member e o t e') <|> flip PostfixExpression_IncDec . parse <|> flip PostfixExpression_FunctionCall . parse <|> flip PostfixExpression_Squared . parse <|> auto2 (\o n e -> PostfixExpression_PseudoDestructor e o n)
     where
-     basic = auto3 PostfixExpression_NewStyleCast <|> auto1 PostfixExpression_PrimaryExpression <|> auto2 PostfixExpression_Conversion <|> auto2 PostfixExpression_TypeId
+     basic = auto3 PostfixExpression_NewStyleCast <|> auto2 PostfixExpression_Conversion <|> auto2 PostfixExpression_TypeId <|> auto1 PostfixExpression_PrimaryExpression
 instance Parse PseudoDestructorName where
   parse = (<?> "pseudo-destructor-name") $ do
     w <- parse

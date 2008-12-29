@@ -141,6 +141,7 @@ pretty =
     ()| Just (AssignmentExpression _ _ _) <- cast x -> extraParentheses au
     ()| Just (PostfixExpression_Squared _ _) <- cast x -> extraParentheses au
     ()| Just (PostfixExpression_FunctionCall _ _) <- cast x -> extraParentheses au
+    ()| Just (PostfixExpression_Conversion _ _) <- cast x -> extraParentheses au
     ()| Just (PostfixExpression_Member _ _ _ _) <- cast x -> extraParentheses au
     ()| Just (PostfixExpression_IncDec _ _) <- cast x -> extraParentheses au
     ()| Just (Expression_Comma _ _ _) <- cast x -> extraParentheses au

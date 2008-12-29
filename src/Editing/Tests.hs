@@ -337,6 +337,7 @@ precedence_tests = do
   s "*i-40?(*i-x?S(1,*i):a)+r(i+1,e,x,a):'('+(i[1]-46?r(i+1,o-1,x,a):'.'+r(i+2,o-1,x+1,a))+')'+r(o,e,x,a)" "((*i)-40)?((((*i)-x)?(S(1,(*i))):a)+(r((i+1),e,x,a))):((('('+(((i[1])-46)?(r((i+1),(o-1),x,a)):('.'+(r((i+2),(o-1),(x+1),a)))))+')')+(r(o,e,x,a)))" -- Taken from the lambda calculus snippet.
   s "x->x->*x.x.*x" "((x->x)->*(x.x)).*x"
   s "x || x && x | x ^ x & x == x < x << x" "x || (x && (x | (x ^ (x & (x == (x < (x << x)))))))"
+  s "*++vector<int>{2,5,4}.rbegin()" "*(++(((vector<int>{2,5,4}).rbegin)()))"
   s "x---------x" "((((x--)--)--)--)-x"
   s "z+operator+(x,y)" "z+(operator+(x,y))"
   s "x.operator()() * operator new[ ]()" "((x.operator())()) * (operator new[ ]())"
@@ -360,8 +361,8 @@ precedence_tests = do
   f "x." "Unexpected end of code. Expected id-expression, \"template\", or pseudo-destructor-name."
   f "x-" "Unexpected end of code. Expected multiplicative-expression."
   f "x( " "Unexpected end of code. Expected \")\" or initializer-list."
-  f "x(y" "Unexpected end of code. Expected \")\", \"::\", template-arguments, postfix operator, binary operator, ternary operator, or comma."
-  f "x?y" "Unexpected end of code. Expected colon, \"::\", template-arguments, postfix operator, binary operator, or ternary operator."
+  f "x(y" "Unexpected end of code. Expected \")\", \"(\", braced-init-list, \"::\", template-arguments, postfix operator, binary operator, ternary operator, or comma."
+  f "x?y" "Unexpected end of code. Expected colon, \"(\", braced-init-list, \"::\", template-arguments, postfix operator, binary operator, or ternary operator."
   f "x[" "Unexpected end of code. Expected expression or braced-init-list."
   putStrLn "All precedence tests passed."
  where
