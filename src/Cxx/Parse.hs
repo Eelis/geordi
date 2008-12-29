@@ -568,7 +568,7 @@ instance Parse ParameterDeclaration where parse = (<?> "parameter-declaration") 
 class ParseSpecifier s where parsePrimarySpec, parseSecondarySpec :: Parser Char s
 
 instance ParseSpecifier TypeSpecifier where
-  parsePrimarySpec = (<?> "type-specifier") $ TypeSpecifier_SimpleTypeSpecifier . primarySimpleTypeSpecifier <|> TypeSpecifier_ClassSpecifier . parse <|> TypeSpecifier_EnumSpecifier . parse <|> TypeSpecifier_ElaboratedTypeSpecifier . parse
+  parsePrimarySpec = (<?> "type-specifier") $ TypeSpecifier_SimpleTypeSpecifier . primarySimpleTypeSpecifier <|> TypeSpecifier_ClassSpecifier . parse <|> TypeSpecifier_TypenameSpecifier . parse <|> TypeSpecifier_EnumSpecifier . parse <|> TypeSpecifier_ElaboratedTypeSpecifier . parse
   parseSecondarySpec = (<?> "type-specifier") $ TypeSpecifier_CvQualifier . parse <|> TypeSpecifier_SimpleTypeSpecifier . LengthSpec . parse <|> TypeSpecifier_SimpleTypeSpecifier . SignSpec . parse <|> TypeSpecifier_SimpleTypeSpecifier . SimpleTypeSpecifier_BasicType . parse
 
 instance ParseSpecifier DeclSpecifier where
