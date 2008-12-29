@@ -1,3 +1,4 @@
+{-# LANGUAGE ForeignFunctionInterface, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, PatternGuards #-}
 -- Miscellaneous additional system API wrapping.
 
 module Sys where

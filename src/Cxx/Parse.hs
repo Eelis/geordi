@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleInstances, TypeSynonymInstances, MultiParamTypeClasses, FlexibleContexts, OverlappingInstances, GADTs, TypeOperators, TypeFamilies, ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleInstances, TypeSynonymInstances, MultiParamTypeClasses, FlexibleContexts, OverlappingInstances, GADTs, TypeOperators, TypeFamilies, ScopedTypeVariables, PatternGuards #-}
 
 {- C++ is notoriously hard to parse. There are ambiguities in the grammar that can only be resolved through things like name lookup, which in turn require things like overloading and template instantiation, and so one basically has to implement a complete compiler front-end just to be able to parse.
 

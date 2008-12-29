@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternGuards #-}
 import qualified Network.Socket as Net
 import qualified Network.IRC as IRC
 import qualified System.Environment
