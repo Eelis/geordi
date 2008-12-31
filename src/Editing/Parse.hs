@@ -35,11 +35,7 @@ terminators :: Parser a b -> [String]
 terminators (Parser (Terminators _ t) _) = t
 
 commit :: Parser a b -> Parser a b
-commit (Parser t f) = Parser t $ \t' n v ->
-  let (P.Parser g) = f t' n v in
-  P.Parser $ \s -> case g s of
-    P.ParseSuccess a b c d -> P.ParseSuccess a b c d
-    P.ParseFailure x y -> P.ParseSuccess (Left (P.showParseError "command" s x y)) [] 0 Nothing
+commit (Parser t f) = Parser t $ \t' n v -> P.commit (f t' n v)
 
 instance Category Parser where
   id = Parser (Terminators True []) $ \_ _ x -> return $ return x

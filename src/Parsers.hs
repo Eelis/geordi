@@ -131,11 +131,11 @@ Parsec mixes ordinary parse errors with custom parse errors. One can "fail" at a
 data ParseResult t a
   = ParseSuccess a [t] Int (Maybe (Int, [String]))
   -- The Int is the length of the match. Hence, the [t] is strictly redundant, but there for efficiency. The Maybe is the furthest we've been able to parse successfully, with an indication of why we couldn't go even further.
-  | ParseFailure Int [String] deriving Show
-  -- The Int and [String] serve as the Maybe above.
+  | ParseFailure Int [String] Bool deriving Show
+  -- The Int and [String] serve as the Maybe above. The Bool indicates whether the failure is terminal.
 
 instance Functor (ParseResult t) where
-  fmap f (ParseSuccess x t i m) = ParseSuccess (f x) t i m; fmap _ (ParseFailure x y) = ParseFailure x y
+  fmap f (ParseSuccess x t i m) = ParseSuccess (f x) t i m; fmap _ (ParseFailure x y b) = ParseFailure x y b
 
 newtype Parser t a = Parser { run_parser :: [t] -> ParseResult t a }
 
@@ -151,52 +151,57 @@ instance Monad (Parser t) where
   Parser p >>= f = Parser $ \s -> case p s of
     ParseSuccess r s' n m -> case run_parser (f r) s' of
       ParseSuccess r' s'' n' m' -> ParseSuccess r' s'' (n + n') (furthest m (offset n m'))
-      ParseFailure n' m' -> uncurry ParseFailure $ let u = (n + n', m') in maybe u (furthest' u) m
-    ParseFailure n m -> ParseFailure n m
+      ParseFailure n' m' b -> (\(x, y) -> ParseFailure x y b) $ let u = (n + n', m') in maybe u (furthest' u) m
+    ParseFailure n m b -> ParseFailure n m b
   fail = const pzero
 
 instance ParserLike (Parser a) a where
   anySymbol = satisfy (const True) <?> "any symbol"
   satisfy p = Parser $ \s -> case s of
     h:t | p h -> ParseSuccess h t 1 Nothing
-    _ -> ParseFailure 0 []
+    _ -> ParseFailure 0 [] False
   symbols t = Parser $ \s -> case List.stripPrefix t s of
-    Nothing -> ParseFailure 0 [show t]
+    Nothing -> ParseFailure 0 [show t] False
     Just s' -> ParseSuccess t s' (length t) Nothing
   Parser p <|> Parser q = Parser $ \s -> case p s of
-    ParseSuccess r u n m -> ParseSuccess r u n m
-    ParseFailure n m -> case q s of
+    ParseFailure n m False -> case q s of
       ParseSuccess r u n' m' -> ParseSuccess r u n' (Just $ maybe (n, m) (furthest' (n, m)) m')
-      ParseFailure n' m' -> uncurry ParseFailure (furthest' (n, m) (n', m'))
+      ParseFailure n' m' b -> ParseFailure x y b where (x, y) = furthest' (n, m) (n', m')
+    ps -> ps
   Parser p <?> m = Parser $ \s -> case p s of
-    ParseFailure 0 _ -> ParseFailure 0 [m]
+    ParseFailure 0 _ b -> ParseFailure 0 [m] b
     b -> b
   lookAhead (Parser p) = Parser $ \s -> case p s of
     ParseSuccess r _ _ m -> ParseSuccess r s 0 m
     e -> e
-  pzero = Parser $ const $ ParseFailure 0 []
-  eof = Parser $ \s -> if null s then ParseSuccess () [] 0 Nothing else ParseFailure 0 ["EOF"]
+  pzero = Parser $ const $ ParseFailure 0 [] False
+  eof = Parser $ \s -> if null s then ParseSuccess () [] 0 Nothing else ParseFailure 0 ["EOF"] False
   try = id
   getInput = Parser $ \s -> ParseSuccess s s 0 Nothing
 
 notFollowedBy :: Parser t a -> Parser t ()
 notFollowedBy (Parser p) = Parser $ \s -> case p s of
-  ParseFailure _ _ -> ParseSuccess () s 0 Nothing
-  ParseSuccess _ _ _ _ -> ParseFailure 0 []
+  ParseFailure _ _ _ -> ParseSuccess () s 0 Nothing
+  ParseSuccess _ _ _ _ -> ParseFailure 0 [] False
 
 -- Some Parser-specific parsers:
 
 guarded :: (a -> Bool) -> Parser t a -> Parser t a
 guarded f (Parser p) = Parser $ \s -> case p s of
-  ParseSuccess x _ _ _ | not (f x) -> ParseFailure 0 []
+  ParseSuccess x _ _ _ | not (f x) -> ParseFailure 0 [] False
   k -> k
 
 char :: (Show t, Eq t) => t -> Parser t t
 char t = satisfy (== t) <?> show t
 
+commit :: Parser t a -> Parser t a
+commit (Parser p) = Parser $ \s -> case p s of
+  ParseFailure x y _ -> ParseFailure x y True
+  ps -> ps
+
 silent :: Parser t a -> Parser t a
 silent (Parser p) = Parser $ \s -> case p s of
-  ParseFailure _ _ -> ParseFailure 0 []
+  ParseFailure _ _ b -> ParseFailure 0 [] b
   ParseSuccess r t n _ -> ParseSuccess r t n Nothing
 
 optParser :: (Monad m, Functor m, Finite o, Option o) => Parser Char (m [o])
@@ -249,9 +254,9 @@ parseOrFailE :: Parser Char (Either String a) -> String -> String -> Either Stri
 parseOrFailE p input desc = case run_parser p input of
   ParseSuccess (Left e) _ _ _ -> fail e
   ParseSuccess (Right x) _ _ _ -> return x
-  ParseFailure x y -> fail $ showParseError desc input x y
+  ParseFailure x y _ -> fail $ showParseError desc input x y
 
 parseOrFail :: Parser Char a -> String -> String -> Either String a
 parseOrFail p input desc = case run_parser p input of
   ParseSuccess x _ _ _ -> return x
-  ParseFailure x y -> fail $ showParseError desc input x y
+  ParseFailure x y _ -> fail $ showParseError desc input x y

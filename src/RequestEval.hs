@@ -14,7 +14,7 @@ import qualified Data.List as List
 import Data.Char (isPrint, isSpace)
 import Data.Maybe (listToMaybe)
 import Data.Either (lefts)
-import Parsers ((<|>), eof, optParser, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail)
+import Parsers ((<|>), eof, optParser, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail, commit)
 import Util ((.), (<<), (.||.), commas_and, capitalize, orElse, length_ge, replace, maybe_ne, unne, show_long_opt)
 import Request (Context(..), EvalOpt(..), Response(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
 import Prelude hiding (catch, (.))
@@ -59,11 +59,11 @@ evaluator = do
     p :: Parser Char (IO Response)
     p = (spaces >>) $
       do
-        kwd "show"; eof
+        kwd "show"; commit $ do
+        eof
         return $ return $ Response Nothing $ show . listToMaybe prevs `orElse` "<none>"
       <|> do
-        kwd "parse"; eof
-        case prevs of
+        kwd "parse"; commit $ eof >> case prevs of
           [] -> error_response "There is no previous request."
           EditableRequest (Evaluate _) c : _ -> return $ return $ Response Nothing $
             case Cxx.Parse.parseRequest c of Right _ -> "Looks fine to me."; Left e -> e
@@ -84,18 +84,15 @@ evaluator = do
         kwd "--show-compile-flags"
         return $ return $ Response Nothing $ unwords $ EvalCxx.compileFlags compile_cfg
       <|> do
-        kwds ["diff", "diffs", "differences", "change", "changes"]; eof
-        case prevs of
+        kwds ["diff", "diffs", "differences", "change", "changes"]; commit $ eof >> case prevs of
           x : y : _ -> return $ return $ Response Nothing $ diff x y
           _ -> error_response "I have not yet seen two comparable requests."
       <|> do
-        optional (kwd "try"); kwd "again"; eof
-        case prevs of
+        optional (kwd "try"); kwd "again"; commit $ eof >> case prevs of
           [] -> error_response "There is no repeatable request."
           x : _ -> return $ Response Nothing . respond x
       <|> do
-        cs' <- Editing.Parse.commandsP; eof
-        case cs' of
+        cs' <- Editing.Parse.commandsP; commit $ eof >> case cs' of
           Left e -> error_response e
           Right cs -> case prevs of
             [] -> error_response "There is no previous editable request."
@@ -115,7 +112,7 @@ evaluator = do
               ParseSuccess oldcode _ _ _ -> do
                 code <- Cxx.Parse.code; eof
                 respond_and_remember $ EditableRequest (Evaluate $ Set.union evalopts oldopts) $ show $ Cxx.Operations.blob $ Cxx.Operations.resume (Cxx.Operations.shortcut_syntaxes oldcode) (Cxx.Operations.shortcut_syntaxes code)
-              ParseFailure _ _ -> error_response "Previous request too malformed to resume."
+              ParseFailure _ _ _ -> error_response "Previous request too malformed to resume."
             _ -> error_response "Last (editable) request was not resumable."
           else respond_and_remember =<< EditableRequest (Evaluate evalopts) . getInput
   either (return . Response Nothing) id $ parseOrFail p (replace no_break_space ' ' r) "request"

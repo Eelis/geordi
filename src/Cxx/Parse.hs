@@ -83,9 +83,7 @@ silent :: Parser a b -> Parser a b
 silent (ReaderT f) = ReaderT $ P.silent . f
 
 guarded :: (a -> Bool) -> Parser t a -> Parser t a
-guarded f (ReaderT p) = ReaderT $ \o -> P.Parser $ \s -> case P.run_parser (p o) s of
-  ParseSuccess x _ _ _ | not (f x) -> ParseFailure 0 []
-  k -> k
+guarded f (ReaderT p) = ReaderT $ P.guarded f . p
 
 memoize :: Parser Char a -> Parser Char a
 memoize (ReaderT p) = ReaderT $ \o -> P.Parser $ \s -> m (o, s)
