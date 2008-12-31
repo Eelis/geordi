@@ -61,5 +61,5 @@ instance Show EditableRequest where
   show (EditableRequest k s) = show k ++ (if null s then "" else " " ++ s)
 
 data Response = Response
-  { response_add_history :: Maybe EditableRequest
+  { response_new_history :: Maybe (EditableRequest, Bool) -- The Bool indicates whether the new request replaces the most recent historic request.
   , response_output :: String }

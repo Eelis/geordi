@@ -59,8 +59,11 @@ main = do
     Just "" -> loop mem
     Just l -> do
       Request.Response history_addition output <- eval l $ Request.Context $ editable_requests mem
-      maybeM history_addition $ addHistory . UTF8.encodeString . show
+      maybeM history_addition $ addHistory . UTF8.encodeString . show . fst
       putStrLn $ describe_new_output (last_output mem) output
       loop $ Memory
-        { editable_requests = (maybe id (:) history_addition) (editable_requests mem)
+        { editable_requests = case history_addition of
+            Nothing -> editable_requests mem
+            Just (n, False) -> n : editable_requests mem
+            Just (n, True) -> n : total_tail (editable_requests mem)
         , last_output = Just output }

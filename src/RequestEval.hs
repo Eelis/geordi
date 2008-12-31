@@ -52,7 +52,7 @@ evaluator = do
           evf $ EvalCxx.Request (prel ++ (if Set.member Terse opts then "#include \"terse.hpp\"\n" else "") ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc)) (not $ Set.member CompileOnly opts) (Set.member NoWarn opts)
         Left x -> return $ "error: " ++ x
     error_response s = return $ return $ Response Nothing $ "error: " ++ s
-    respond_and_remember er = return $ Response (Just er) . respond er
+    respond_and_remember er = return $ Response (Just (er, False)) . respond er
 
   return $ \r (Context prevs) -> do
   let
@@ -68,6 +68,18 @@ evaluator = do
           EditableRequest (Evaluate _) c : _ -> return $ return $ Response Nothing $
             case Cxx.Parse.parseRequest c of Right _ -> "Looks fine to me."; Left e -> e
           _ -> error_response "Last (editable) request was not an evaluation request."
+      <|> do
+        kwds ["undo", "revert"]; commit $ case prevs of
+          (_:prev:_) -> do
+            kwd "and"; oe <- Editing.Parse.commandsP; eof
+            case oe of
+              Left e -> error_response e
+              Right cs -> case Editing.Execute.execute cs prev of
+                Left e -> error_response e
+                Right (EditableRequest _ edited_body) | length_ge 1000 edited_body ->
+                  error_response "Request would become too large."
+                Right edited -> return $ Response (Just (edited, True)) . respond edited
+          _ -> error_response "There is no prior request."
       <|> do
         kwds ["--precedence", "precedence"]
         respond_and_remember . EditableRequest Precedence =<< getInput
