@@ -19,7 +19,7 @@ import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, 
 import Text.Regex (Regex, subRegex, mkRegex)
 import Data.Char (toUpper, toLower, isSpace)
 import Data.Map (Map)
-import Util ((.), elemBy, caselessStringEq, maybeLast, readState, msapp, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState')
+import Util ((.), elemBy, caselessStringEq, maybeLast, readState, msapp, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState', total_tail)
 import Sys (rate_limiter)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
@@ -163,7 +163,10 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
           Request.Response history_addition output <- lift $ lift $ eval r $ Request.Context (editable_requests . mmem `orElse` [])
           let output' = describe_lines $ lines output
           lift $ mapState' $ Map.insert wher $ ChannelMemory
-            { editable_requests = (maybe id (:) history_addition) (maybe [] editable_requests mmem)
+            { editable_requests = let l = maybe [] editable_requests mmem in case history_addition of
+                Nothing -> l
+                Just (n, False) -> n : l
+                Just (n, True) -> n : total_tail l
             , last_output = output' }
           reply $ describe_new_output (last_output . mmem) output'
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
