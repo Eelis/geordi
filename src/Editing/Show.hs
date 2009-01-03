@@ -1,11 +1,11 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, PatternGuards #-}
 
 module Editing.Show (showEdit) where
 
 import Cxx.Show ()
 import qualified Data.List as List
-import Data.Char (isSpace)
-import Util (unne, isVowel, show_long_opts, capitalize, commas_and, Ordinal, strip)
+import Data.Char as Char
+import Util (unne, isVowel, show_long_opts, capitalize, commas_and, Ordinal, strip, none, isIdChar)
 import Cxx.Basics (DeclaratorId)
 import Editing.Basics
 import qualified Prelude
@@ -92,9 +92,14 @@ instance Show Declaration where show (DeclarationOf d) = "declaration of " ++ st
 
 instance Show String where
   show " " = "space"
-  show s | List.all isSpace s = "spaces"
   show "," = "comma"
-  show x = Prelude.show x
+  show ":" = "colon"
+  show ";" = "semicolon"
+  show s
+    | all Char.isSpace s = "spaces"
+    | all isIdChar s = s
+    | none (`elem` " ,;") s, length s < 10 = s
+    | otherwise = '`' : s ++ "`"
 
 instance Show Around where show (Around a) = show a
 

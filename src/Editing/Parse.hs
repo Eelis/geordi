@@ -10,7 +10,7 @@ import Control.Monad.Error ()
 import Control.Category (Category, (.), id)
 import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA)
 import Data.Either (partitionEithers)
-import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, sepBy1', many1Till', optParser, try)
+import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, sepBy1', many1Till', optParser, try, many, satisfy, spaces)
 import Util (isVowel, (<<), NElist(..), unne, snd_unit, liftA2, Ordinal(..))
 import Cxx.Basics (DeclaratorId)
 import Request (EvalOpt)
@@ -79,8 +79,10 @@ Parser (Terminators b t) f <||> Parser (Terminators b' t') f' =
 
 instance Parse String where
   parse = label "verbatim string" $ (select cs <||>) $
-    Parser (Terminators False []) $ \t _ _ -> fmap Right $ fmap unne $ fmap fst $ many1Till' (P.silent $ anySymbol) $ try $ (if term_eof t then (eof <|>) else id) $ lookAhead (choice (try `fmap` symbols `fmap` (' ':) `fmap` term_keywords t)) >> char ' ' >> return ()
+    Parser (Terminators False []) $ \t _ _ -> quoted <|> unquoted t
    where
+    quoted = char '`' >> fmap Right (many $ satisfy (/= '`')) << char '`' << spaces
+    unquoted t = fmap (Right . unne . fst) $ many1Till' (P.silent anySymbol) $ try $ (if term_eof t then (eof <|>) else id) $ lookAhead (choice ((try . symbols . (' ':)) `fmap` term_keywords t)) >> char ' ' >> return ()
     cs :: [([String], String)]
     cs = first opt_an `fmap` [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~")]
 

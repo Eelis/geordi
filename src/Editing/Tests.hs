@@ -175,7 +175,7 @@ basic_tests = do
   t "prepend x before everything after 4 and add y after 4" $ Right "1 2 3 2 3 4yx 5"
   t "add y after 4 and prepend x before everything after 4" $ Right "1 2 3 2 3 4xy 5"
   -- Edit errors:
-  t "move second 2 to x" $ Left "Unexpected \"x\" after \"second 2 to \". Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
+  t "move second 2 to x" $ Left "Unexpected \"x\" after `second 2 to `. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
   t "replace alligators with chickens" $ Left "String \"alligators\" does not occur."
   t "use banana" $ Left "No match."
   t "use 5426" $ Left "No match."
@@ -183,8 +183,8 @@ basic_tests = do
   t "replace 1 and erase with 4" $ Left "String \"erase\" does not occur."
   t "replace tenth last 2 by x" $ Left "String \"2\" does not occur 10 times."
   t "erase second 9" $ Left "String \"9\" does not occur."
-  t "replace all 2 with 3 and replace second 2 with x" $ Left "Overlapping edits: replace \"2\" with \"3\" and replace \"2\" with \"x\"."
-  t "erase everything before first 3 and replace first 2 with x" $ Left "Overlapping edits: erase \"1 2 \" and replace \"2\" with \"x\"."
+  t "replace all 2 with 3 and replace second 2 with x" $ Left "Overlapping edits: replace 2 with 3 and replace 2 with x."
+  t "erase everything before first 3 and replace first 2 with x" $ Left "Overlapping edits: erase `1 2 ` and replace 2 with x."
   -- Syntax errors:
   t "isnert 3 before 4" $ Left "Unexpected \"i\" at start. Expected edit command." -- Todo: This would look better if the token was mentioned.
   t "insert " $ Left "Unexpected end of command. Expected option or verbatim string."
@@ -203,37 +203,37 @@ basic_tests = do
 diff_tests :: IO ()
 diff_tests = do
 
-  dt' "foo; bar; monkey; chicken; bas;" "bar; monkey; chicken;" "Erased \"foo;\" and \"bas;\"." "Prepended \"foo;\" and appended \"bas;\"."
+  dt' "foo; bar; monkey; chicken; bas;" "bar; monkey; chicken;" "Erased `foo;` and `bas;`." "Prepended `foo;` and appended `bas;`."
 
   dt' "{ fstream f(\"t.cpp\"); string s(istreambuf_iterator<char>(f), istreambuf_iterator<char>()); }"
     "{ fstream f(\"t.cpp\"); string s((istreambuf_iterator<char>(f)), istreambuf_iterator<char>()); }"
-    "Inserted \"(\" before \"istreambuf_iterator<char>\", and inserted \")\" after \"istreambuf_iterator<char>(f)\"."
-    "Erased \"(\" before \"istreambuf_iterator<char>\" and \")\" after \"istreambuf_iterator<char>(f)\"."
+    "Inserted ( before `istreambuf_iterator<char>`, and inserted ) after `istreambuf_iterator<char>(f)`."
+    "Erased ( before `istreambuf_iterator<char>` and ) after `istreambuf_iterator<char>(f)`."
         -- Todo: One day, the former should say "wrapped ...".
 
   dt' "int f(int & i) { i = 4; return i;} int g(int && i){return f(i);} int main() { cout << g(2); }"
     "int & f(int & i) { i = 4; return i;} int & g(int && i){return f(i);} int & g(int & i){return f(i);} int main() { cout << g(2); }"
-    "Replaced \"int f\" with \"int & f\", replaced \"int g\" with \"int & g\", and inserted \"int & g(int & i){return f(i);}\" before \"int main\"."
-    "Replaced \"int & f\" with \"int f\", replaced \"int & g\" with \"int g\", and erased \"int & g(int & i){return f(i);}\"."
+    "Replaced `int f` with `int & f`, replaced `int g` with `int & g`, and inserted `int & g(int & i){return f(i);}` before `int main`."
+    "Replaced `int & f` with `int f`, replaced `int & g` with `int g`, and erased `int & g(int & i){return f(i);}`."
 
   dt' "{string foo = \"kangaroo\"; auto m = foo.find_first_of('m'); cout << *m;}"
     "{string foo = \"kangaroo\"; size_t m = foo.find_first_of('m'); cout << foo[m];}"
-    "Replaced \"auto m\" with \"size_t m\", and replaced \"<< *m\" with \"<< foo[m]\"."
-    "Replaced \"size_t m\" with \"auto m\", and replaced \"<< foo[m]\" with \"<< *m\"."
+    "Replaced `auto m` with `size_t m`, and replaced `<< *m` with `<< foo[m]`."
+    "Replaced `size_t m` with `auto m`, and replaced `<< foo[m]` with `<< *m`."
       -- Todo: Group.
 
   dt "{int i=0,t=time(0);for(;i<5000000;i++)asm(\".org 0xffff\");cout << time(0)-t; }"
     "{int i=0,t=time(0);for(;i<5000;i++)int tmp=1*88+71/4000^66;cout << time(8)-t; }"
-    "Replaced \"i<5000000\" with \"i<5000\", replaced \"asm(\\\".org 0xffff\\\")\" with \"int tmp=1*88+71/4000^66\", and replaced \"0\" with \"8\"."
+    "Replaced i<5000000 with i<5000, replaced `asm(\".org 0xffff\")` with `int tmp=1*88+71/4000^66`, and replaced 0 with 8."
 
   dt' "struct curr_func { string name; cf(string n):name(n){} }; \\ #define DEFUN(name) name try { throw curr_func(#name); } catch(curr_func& cfun) \\ DEFUN(void haha(int a)) { cout << cfun.name; } int main() { cout << haha; }"
     "struct curr_func { string name; curr_func(string n):name(n){} }; \\ #define DEFUN(name) name try { throw curr_func(#name); } catch(curr_func& cfun) \\ DEFUN(void haha(int a)) { cout << cfun.name << \": \" << a; } int main() { haha(42); }"
-    "Replaced \"cf\" with \"curr_func\", inserted \"<< \\\": \\\" << a\" after \"<< cfun.name\", and replaced \"cout << haha\" with \"haha(42)\"."
-    "Replaced \"curr_func\" with \"cf\", erased \"<< \\\": \\\" << a\", and replaced \"haha(42)\" with \"cout << haha\"."
+    "Replaced cf with curr_func, inserted `<< \": \" << a` after `<< cfun.name`, and replaced `cout << haha` with haha(42)."
+    "Replaced curr_func with cf, erased `<< \": \" << a`, and replaced haha(42) with `cout << haha`."
 
   dt "{float i=0,t=time(0);for(;i<5000000;i++) { if(x == 3) f(reinterpret_cast<long>(x)); } }"
     "{int i=0,t=time(null);for(;i<5000000;++i) { if(x != 3) f(static_cast<long>(x)); } }"
-    "Replaced \"float i\" with \"int i\", replaced \"0\" with \"null\", replaced \"i++\" with \"++i\", replaced \"x == 3\" with \"x != 3\", and replaced \"reinterpret_cast<long>\" with \"static_cast<long>\"."
+    "Replaced `float i` with `int i`, replaced 0 with null, replaced i++ with ++i, replaced `x == 3` with `x != 3`, and replaced `reinterpret_cast<long>` with `static_cast<long>`."
 {-
   dt' "struct a { int b; a():b([]{ return 1 + 2 + 3; }){}}a_; int main() { cout << a_.b }"
     "struct a { int b; a({}):b([]{ return 1 + 2 + 3; }()){}}a_; int main() { cout << a_.b; }"
@@ -242,19 +242,19 @@ diff_tests = do
 -}
   dt "struct curr_func { string name; cf(string n):name(n){} }; \\ #define DEFUN(name) name try { throw curr_func(#name); } catch(curr_func& cfun) \\ DEFUN(void haha(int a)) { cout << cfun.name; } int main() { cout << haha; }"
     "struct { string name; cf(string n){} }; \\ #define DEFUN(name) name try { } catch(curr_func& cfun) \\ DEFUN(void haha(int a) { cout << \"tortoise\"; } ) { cout << ETYPE(cfun.name); } int main() { do_something(complicated); cout << haha; }"
-    "Replaced \"struct curr_func\" with \"struct\", erased \":name(n)\" and \"throw curr_func(#name);\", inserted \"{ cout << \\\"tortoise\\\"; }\" before \") { cout\", replaced \"<< cfun.name\" with \"<< ETYPE(cfun.name)\", and inserted \"do_something(complicated);\" before \"cout << haha\"."
+    "Replaced `struct curr_func` with struct, erased :name(n) and `throw curr_func(#name);`, inserted `{ cout << \"tortoise\"; }` before `) { cout`, replaced `<< cfun.name` with `<< ETYPE(cfun.name)`, and inserted `do_something(complicated);` before `cout << haha`."
 
   dt "{ char str[] = \"giraffe\"; char * pch; pch=(char*) memchr(str, 'y', (int)strlen(str)); if (pch!=NULL) { printf(\"'y' was found at position #%d\", pch-str+1); } }"
     "{ char * str = \"giraffe\"; char * pch; pch=(char*) memchr(str, 'v', (size_t)strlen(str)); if (pch!=NULL) { printf(\"'v' was found at position #%d\", pch-str-1); memset(str, '*', 6); puts(str); printf(\"%s\", str); } }"
-    "Replaced \"char str[]\" with \"char * str\", replaced \"'y'\" with \"'v'\", replaced \"int\" with \"size_t\", replaced \"\\\"'y' was\" with \"\\\"'v' was\", and replaced \"pch-str+1\" with \"pch-str-1); memset(str, '*', 6); puts(str); printf(\\\"%s\\\", str\"."
+    "Replaced `char str[]` with `char * str`, replaced 'y' with 'v', replaced int with size_t, replaced `\"'y' was` with `\"'v' was`, and replaced pch-str+1 with `pch-str-1); memset(str, '*', 6); puts(str); printf(\"%s\", str`."
 
   dt "geordi: { char y(34); stringstream i(\"geordi: { char y(34); stringstream i(!); string t; getline(i, t, '!'); cout << t << y << i.str() << y << i.rdbuf(); }\"); string t; getline(i, t, '!'); cout<< t << y << i.str() << y << i.rdbuf(); }"
     "geordi: { stringstream i(\"geordi: { stringstream i(!); string t; getline(i, t, '!'); cout << t << i.str() << i.rdbuf(); }\"); string t; getline(i, t, '!'); cout << t << i.str() << i.rdbuf(); }"
-    "Erased \"char y(34);\" and \"char y(34);\" and \"<< y\" and \"<< y\" and \"<< y\" and \"<< y\"." -- Todo: "Erased all \"char y(34);\" and all \"<< y\"."
+    "Erased `char y(34);` and `char y(34);` and `<< y` and `<< y` and `<< y` and `<< y`." -- Todo: "Erased all \"char y(34);\" and all \"<< y\"."
 
   dt "char *& f() { static char *p; cout << &p << endl; return p; } int main() { char *p = f(); cout << &p << endl; }"
     "char *& f() { static char *p; cout << &p << ' '; return p; } int main() { char *p = f(); cout << &p; }"
-    "Replaced \"<< endl\" with \"<< ' '\", and erased \"<< endl\"." -- Todo: say "first" and "last".
+    "Replaced `<< endl` with `<< ' '`, and erased `<< endl`." -- Todo: say "first" and "last".
 
   putStrLn "All diff tests passed."
  where
@@ -299,7 +299,7 @@ make_type_tests = do
   t "function returning " $ Left "Unexpected end of type description. Expected type description."
   t "function taking a pointer and a reference and returning a reference to a constant array" $ Right "T const (&(T *, T &))[]"
   t "array of " $ Left "Unexpected end of type description. Expected type description or integer-literal."
-  t "foo bar bas" $ Left "Unexpected \"b\" after \"foo bar \". Expected \"::\" or template-arguments."
+  t "foo bar bas" $ Left "Unexpected \"b\" after `foo bar `. Expected \"::\" or template-arguments."
   t "array of seven characters" $ Right "char[7]"
   t "pointer to (function taking constant integer)*" $ Right "T (**)(const int)"
   t "pointer to void()" $ Right "void(*)()"
@@ -344,7 +344,7 @@ precedence_tests = do
   s "throw 2 + 1, throw, 9" "((throw (2 + 1)), throw), 9"
   s "x + x *= x + x /= x + x" "(x + x) *= ((x + x) /= (x + x))"
   s "(x)y + x(y)" "((x)y) + (x(y))"
-  f "(x+y)z" "Unexpected \"z\" after \"(x+y)\". Expected postfix operator, binary operator, ternary operator, or end of code."
+  f "(x+y)z" "Unexpected \"z\" after (x+y). Expected postfix operator, binary operator, ternary operator, or end of code."
   s "a+++a, b++ +b, c+ ++c, d+++ +d, e+ +++e" "(((((a++)+a), ((b++) +b)), (c+ (++c))), ((d++)+ (+d))), (e+ (++(+e)))"
   s "x += operatornew, b(), !c" "((x += operatornew), (b())), (!c)"
   s "sizeof u + sizeof(x) + sizeof(y*z)" "((sizeof u) + sizeof(x)) + (sizeof(y*z))"
@@ -357,7 +357,7 @@ precedence_tests = do
   f "x*" "Unexpected end of code. Expected pm-expression."
   f "&operator" "Unexpected end of code. Expected overloadable operator or conversion-type-id."
   f "x.*" "Unexpected end of code. Expected cast-expression."
-  f "x--x" "Unexpected \"x\" after \"x--\". Expected postfix operator, binary operator, ternary operator, or end of code."
+  f "x--x" "Unexpected \"x\" after x--. Expected postfix operator, binary operator, ternary operator, or end of code."
   f "x." "Unexpected end of code. Expected id-expression, \"template\", or pseudo-destructor-name."
   f "x-" "Unexpected end of code. Expected multiplicative-expression."
   f "x( " "Unexpected end of code. Expected \")\" or initializer-list."

@@ -31,7 +31,7 @@
   bound = limit | [befaft] ("everything" | ranked)
   relative-bound = limit | [befaft] ("everything" | ranked) [relative]
 
-  Ellipsis denote a verbatim string, and x* = x ["and" x*].
+  Ellipsis denote a verbatim string, which may be quoted in backticks. Finally, x* = x ["and" x*].
 
   This is an idealized grammar with LOTS of ambiguity. The parsers do their best to choose the most sensible interpretation of ambiguous commands.
 
