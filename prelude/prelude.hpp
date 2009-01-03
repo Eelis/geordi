@@ -130,6 +130,9 @@
 char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
 
 #define RANGE(x) (::boost::begin(x)), (::boost::end(x))
+#define CRANGE(x) (::boost::const_begin(x)), (::boost::const_end(x))
+#define RRANGE(x) (::boost::rbegin(x)), (::boost::rend(x))
+#define CRRANGE(x) (::boost::const_rbegin(x)), (::boost::const_rend(x))
 
 #define T(n) \
   namespace std \
