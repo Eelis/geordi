@@ -2,6 +2,11 @@
 set -eu
 . ./compile-config
 printf "#include \"prelude.hpp\"\nint main() { cout << \"9\\\n\"; }\n" > rt/t.cpp
+
+echo -n > rt/t.o
+echo -n > rt/t
+  # If these are not empty, gcc replaces them, changing the owner (because this scripts is supposed to be run as root).
+
 chroot rt $GXX -S t.cpp $COMPILE_FLAGS
 chroot rt $GXX -c t.s $COMPILE_FLAGS
 chroot rt $GXX t.o -o t $COMPILE_FLAGS $LINK_FLAGS
