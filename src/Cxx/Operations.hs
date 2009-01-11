@@ -182,6 +182,8 @@ instance Convert (OptQualified, Identifier) DeclaratorId where
   convert (OptQualified Nothing Nothing, i) = convert i
   convert (OptQualified (Just s) Nothing, i) = DeclaratorId_IdExpression Nothing $ IdExpression $ Left $ GlobalIdentifier s i
   convert (OptQualified ms (Just nns), i) = DeclaratorId_IdExpression Nothing $ IdExpression $ Left $ NestedUnqualifiedId ms nns Nothing $ convert i
+instance Convert QualifiedId DeclaratorId where
+  convert = DeclaratorId_IdExpression Nothing . IdExpression . Left
 instance Convert (OptQualified, SimpleTemplateId) DeclaratorId where
   convert (OptQualified Nothing Nothing, stid) = convert stid
   convert (OptQualified (Just s) Nothing, stid) = DeclaratorId_IdExpression Nothing $ IdExpression $ Left $ GlobalTemplateId s $ convert stid
@@ -199,6 +201,15 @@ instance Convert NoptrDeclarator DeclaratorId where
   convert (NoptrDeclarator_WithParams d _) = convert d
   convert (NoptrDeclarator_Squared d _) = convert d
   convert (NoptrDeclarator_Parenthesized (Parenthesized _ (Enclosed d) _)) = convert d
+instance Convert ((ScopeRes, White), UnqualifiedId) (Maybe DeclaratorId) where
+  convert (scoperes, UnqualifiedId_Identifier i) = Just $ convert (GlobalIdentifier scoperes i)
+  convert (scoperes, UnqualifiedId_TemplateId i) = Just $ convert (GlobalTemplateId scoperes i)
+  convert (scoperes, UnqualifiedId_OperatorFunctionId i) = Just $ convert (GlobalOperatorFunctionId scoperes i)
+  convert (_, UnqualifiedId_Destructor _ _) = Nothing -- There are no global destructors.
+  convert (_, UnqualifiedId_ConversionFunctionId _) = Nothing -- There are no global conversion operators.
+instance Convert UsingDeclaration (Maybe DeclaratorId) where
+  convert (UsingDeclaration_Nested _ _ msr nns i _) = Just $ convert $ NestedUnqualifiedId msr nns Nothing i
+  convert (UsingDeclaration_NonNested _ s i _) = convert (s, i)
 
 -- Finding declarations
 
@@ -217,6 +228,7 @@ findDeclaration' did i x
   | Just s <- cast x, convert (s :: BlockDeclaration) == Just did = found
   | Just s <- cast x, convert (s :: TemplateDeclaration) == Just did = found
   | Just s <- cast x, convert (s :: MemberDeclaration) == Just did = found
+  | Just s <- cast x, convert (s :: UsingDeclaration) == Just did = found
   | otherwise = gfoldl_with_lengths i (findDeclaration' did) x
   where found = [Range i $ length $ Cxx.Show.show_simple x]
 
