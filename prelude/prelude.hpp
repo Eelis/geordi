@@ -162,5 +162,25 @@ namespace geordi { geordi::initializer_t const initializer; }
 
 #define typeid(...) static_cast< ::type_strings_detail::type_info const &>(typeid(__VA_ARGS__))
 
+namespace bark_detail
+{
+  template <typename T, typename I>
+  I find_first_toplevel(T const open, T const close, T const v, I i, I const e) {
+    for(int nested = 0; i != e && !(nested == 0 && *i == v); ++i)
+    { if(*i == open) ++nested; if(*i == close) --nested; }
+    return i;
+  }
+
+  template <std::size_t N>
+  void bark(char const (& s)[N]) {
+    std::reverse_iterator<char const*> const i(std::find(RANGE(s), '(')), e(s);
+    std::cout << geordi::parsep << find_first_toplevel('>', '<', ' ', i, e).base() << geordi::parsep;
+      // We strip the return type and decl-specifiers.
+  }
+}
+
+#define BARK bark_detail::bark(__PRETTY_FUNCTION__)
+  // We don't include a trailing semicolon, because a function body looking like { BARK } confuses geordi's C++ parser.
+
 using namespace std;
 using namespace boost::assign;

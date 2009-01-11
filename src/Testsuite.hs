@@ -141,6 +141,7 @@ tests "utilities" =
   , test "Demangled printable typeid" "<< typeid(int)" $ ExactMatch "int"
   , test "Custom assert()/abort()" "{ assert(4 > 9); }" $ ExactMatch "Assertion `4 > 9' fails."
   ,  test "bin IO manipulator" "<< showbase << uppercase << bin << setfill('_') << internal << setw(10) << 53" $ ExactMatch "0B__110101"
+  , test "BARK" "{ Y y; y.f(0); y.Xi::f(0); } template <typename> struct X {}; template <typename T> struct X<T const> { virtual void f(void(*)()) { BARK; } }; typedef X<std::string const> Xi; struct Y: Xi { void f(void(*)()) { BARK; } };" $ ExactMatch "Y::f(void (*)()) X<const string>::f(void (*)())"
   ]
 
 tests "errorfilters" =
