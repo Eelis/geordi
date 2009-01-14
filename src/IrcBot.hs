@@ -157,7 +157,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
       case request_allowed cfg who muser mserver w of
         Deny reason -> maybeM reason reply
         Allow -> do
-          if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after " ++ show (reverse $ take 15 $ reverse r) ++ "." else do
+          if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after `" ++ reverse (take 15 $ reverse r) ++ "`." else do
             -- The `elem` "};" condition gains a reduction in false positives at the cost of an increase in false negatives.
           mmem <- Map.lookup wher . lift readState
           Request.Response history_addition output <- lift $ lift $ eval r $ Request.Context (editable_requests . mmem `orElse` [])
