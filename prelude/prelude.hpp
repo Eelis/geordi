@@ -174,7 +174,7 @@ namespace bark_detail
   template <std::size_t N>
   void bark(char const (& s)[N]) {
     std::reverse_iterator<char const*> const i(std::find(RANGE(s), '(')), e(s);
-    std::cout << geordi::parsep << find_first_toplevel('>', '<', ' ', i, e).base() << geordi::parsep;
+    std::cout << geordi::parsep << find_first_toplevel('>', '<', ' ', i, e).base() << geordi::parsep << std::flush;
       // We strip the return type and decl-specifiers.
   }
 }
