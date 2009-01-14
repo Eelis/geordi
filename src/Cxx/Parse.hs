@@ -75,7 +75,7 @@ parseOptions :: Parser t ParseOptions
 parseOptions = ReaderT return
 
 run_parser :: Parser t a -> ParseOptions -> [t] -> ParseResult t a
-run_parser p o s = P.run_parser (runReaderT p o) s
+run_parser p o = P.run_parser (runReaderT p o)
 
 -- Some combinators:
 
@@ -150,7 +150,7 @@ anyOperator = (<?> "operator") $ do
   o <- parseOptions
   liftM2 (,) (choice $ if pendingCloseAngleBracket o then pcab else normal) parse
   where
-    normal = map (\x -> (symbols $ show x) >> return x) $ List.sortBy (flip compare `on` length . show) $ (all_values :: [OperatorTok])
+    normal = map (\x -> (symbols $ show x) >> return x) $ List.sortBy (flip compare `on` length . show) (all_values :: [OperatorTok])
     pcab = map (\x -> (symbols $ show x) >> return x) $ List.sortBy (flip compare `on` length . show) $ (all_values :: [OperatorTok]) \\ [CloseTwoAngles, CloseAngle]
       -- Profiling showed that having these two separate makes a huge difference in space/time efficiency.
 
@@ -193,9 +193,8 @@ delim :: Parser Char ()
 delim = (op CommaTok >> optional (kwd "and") >> return ()) <|> (kwd "and" >> return ())
 
 takingP :: Parser Char ParameterDeclarationClause
-takingP = do
-  ((kwd "nothing" <|> (kwd "no" >> kwd "arguments")) >> return (ParameterDeclarationClause Nothing Nothing)) <|>
-   mkParameterDeclarationClause . concat . sepBy1 takingClause (delim >> ((kwd "returning" >> pzero) <|> return ()))
+takingP =
+  ((kwd "nothing" <|> (kwd "no" >> kwd "arguments")) >> return (ParameterDeclarationClause Nothing Nothing)) <|> mkParameterDeclarationClause . concat . sepBy1 takingClause (delim >> ((kwd "returning" >> pzero) <|> return ()))
 
 commad :: NElist x -> Commad x
 commad (NElist h t) = Commad h $ (,) (CommaOp, White " ") . t
@@ -251,7 +250,7 @@ type_desc = (<?> "type description") $ do
       (kwd "to" >> an >> second Right . apply o . specdDesc) <|> ((,) [] . Right . flip apply (PtrAbstractDeclarator o Nothing) . (parse :: Parser Char (Maybe PtrAbstractDeclarator)))
     <|> do
       pluralP "array"
-      let d n = PtrAbstractDeclarator_NoptrAbstractDeclarator $ NoptrAbstractDeclarator Nothing (Right $ squared n)
+      let d = PtrAbstractDeclarator_NoptrAbstractDeclarator . NoptrAbstractDeclarator Nothing . Right . squared
       do
         kwd "of"; n <- (d . Just . literalArrayBound . parse << spaces) <|> return (d Nothing)
         second Right . apply n . specdDesc

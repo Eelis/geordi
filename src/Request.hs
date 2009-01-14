@@ -33,8 +33,8 @@ nickP = many1 $ satisfy $ isAlpha .||. isDigit .||. (`elem` "[]\\`_^|}-")
   -- We don't include '{' because it messes up "geordi{...}", and no sane person would use it in a nick for a geordi bot anyway.
 
 is_short_request :: String -> Maybe String
-is_short_request txt =
-  either (const Nothing) Just (parse (spaces >> lookAhead (string "{" <|> string "<<") >> getInput) "" txt)
+is_short_request =
+  either (const Nothing) Just . parse (spaces >> lookAhead (string "{" <|> string "<<") >> getInput) ""
 
 is_addressed_request :: String -> Maybe (Nick, String)
 is_addressed_request txt = either (const Nothing) Just (parse p "" txt)
@@ -58,7 +58,7 @@ data EditableRequest = EditableRequest { kind :: EditableRequestKind, editable_b
 
 instance Show EditableRequest where
   show (EditableRequest (Evaluate f) s) | Set.null f = s
-  show (EditableRequest k s) = show k ++ (if null s then "" else " " ++ s)
+  show (EditableRequest k s) = show k ++ (if null s then "" else ' ' : s)
 
 data Response = Response
   { response_new_history :: Maybe (EditableRequest, Bool) -- The Bool indicates whether the new request replaces the most recent historic request.

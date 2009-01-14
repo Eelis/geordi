@@ -73,7 +73,7 @@ send_irc_msg :: Handle -> IRC.Message -> IO ()
 send_irc_msg h m = hPutStrLn h (take 510 $ enc 450 $ IRC.render m) >> hFlush h
   where
     enc :: Int -> String -> String
-    enc n (c:s) | c' <- UTF8.encodeString [c], n' <- n - length c', (n' >= 0 || length c' == 1) = c' ++ enc n' s
+    enc n (c:s) | c' <- UTF8.encodeString [c], n' <- n - length c', n' >= 0 || length c' == 1 = c' ++ enc n' s
     enc _ _ = ""
   -- If we simply used (System.IO.hPutStrLn $ take 510 $ UTF8.encodeString $ IRC.render m), the last UTF-8 encoded character might get cut in half if its encoding consists of multiple bytes. We want to avoid this because it causes some IRC clients (like irssi) to conclude that the encoding must be something other than UTF-8. As a further complication, while we can be sure that the server will receive messages up to 512 bytes long, it may drop anything after 450 bytes or so as it prepends our prefix when relaying messages to other clients. Hence, we can only reliably encode UTF-8 characters until a message is 450 bytes long. We don't need to immediately truncate after 450 bytes, though; after that limit, we don't truncate until an actual multi-byte character is encountered.
 

@@ -84,34 +84,34 @@ apply_makedecl md did r = case apply_makedecl_to did md(split_all_decls r) of
   -- Todo: Only split when necessary.
 
 apply_makedecl_to :: Data d => DeclaratorId -> MakeDeclaration -> d -> MaybeEitherString d
-apply_makedecl_to s makedecl = somewhere $ maybe (const mzero) id $ Maybe.listToMaybe . Maybe.catMaybes $
-  [ cast $ ((\d -> case d of
+apply_makedecl_to s makedecl = somewhere $ Maybe.fromMaybe (const mzero) $ Maybe.listToMaybe . Maybe.catMaybes $
+  [ cast ((\d -> case d of
     SimpleDeclaration specs (Just (Commad (InitDeclarator x mi) [])) w | convert x == s ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify simple-declaration."
         MakeDeclaration specs' mpad _ -> return $ let (specs'', x') = apply (specs', mpad) (specs, x) in
           SimpleDeclaration specs'' (Just (Commad (InitDeclarator x' mi) [])) w
     _ -> mzero) :: SimpleDeclaration -> MaybeEitherString SimpleDeclaration)
-  , cast $ ((\d -> case d of
+  , cast ((\d -> case d of
     ParameterDeclaration specs (Left x) m | convert x == s ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify parameter-declaration."
         MakeDeclaration specs' mpad _ -> return $ let (specs'', x') = apply (specs', mpad) (specs, x) in
           ParameterDeclaration specs'' (Left x') m
     _ -> mzero) :: ParameterDeclaration -> MaybeEitherString ParameterDeclaration)
-  , cast $ ((\d -> case d of
+  , cast ((\d -> case d of
     ExceptionDeclaration u (Just (Left e)) | convert e == s ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify exception-declaration."
         MakeDeclaration specs mpad _ ->
           (\(u', e') -> ExceptionDeclaration u' $ Just $ Left e') . mapply (specs, mpad) (u, e)
     _ -> mzero) :: ExceptionDeclaration -> MaybeEitherString ExceptionDeclaration)
-  , cast $ ((\d -> case d of
+  , cast ((\d -> case d of
     MemberDeclaration specs (Just (Commad (MemberDeclarator decl ps) [])) semicolon | convert decl == s ->
       return $ let (specs', decl', ps') = apply makedecl (specs, decl, ps) in
         MemberDeclaration specs' (Just (Commad (MemberDeclarator decl' ps') [])) semicolon
     _ -> mzero) :: MemberDeclaration -> MaybeEitherString MemberDeclaration)
-  , cast $ ((\d -> case d of
+  , cast ((\d -> case d of
     FunctionDefinition specs decl body | convert decl == s ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify function-definition."
@@ -216,7 +216,7 @@ instance Convert UsingDeclaration (Maybe DeclaratorId) where
 data GfoldlWithLengthsIntermediary r a = GfoldlWithLengthsIntermediary { gwli_result :: [r], off :: Int }
 
 gfoldl_with_lengths :: Data a => Int -> (forall d. Data d => Int -> d -> [r]) -> a -> [r]
-gfoldl_with_lengths i f thing = gwli_result $ gfoldl (\(GfoldlWithLengthsIntermediary m o) y -> GfoldlWithLengthsIntermediary (m ++ f o y) (o + length (Cxx.Show.show_simple y))) (\_ -> GfoldlWithLengthsIntermediary [] i) thing
+gfoldl_with_lengths i f = gwli_result . gfoldl (\(GfoldlWithLengthsIntermediary m o) y -> GfoldlWithLengthsIntermediary (m ++ f o y) (o + length (Cxx.Show.show_simple y))) (\_ -> GfoldlWithLengthsIntermediary [] i)
 
 findDeclaration :: Data a => DeclaratorId -> a -> [Range Char]
 findDeclaration did = findDeclaration' did 0
@@ -375,10 +375,10 @@ compound_split_decls s = case split_decls s of
   l -> Statement_CompoundStatement $ CompoundStatement $ Curlied (OpenCurly_, White "") (Enclosed l) (CloseCurly_, White "")
 
 split_all_decls :: Data a => a -> a
-split_all_decls = everywhere $ maybe id id $ Maybe.listToMaybe . Maybe.catMaybes $
-  [ cast $ (concatMap split_decls :: [Declaration] -> [Declaration])
-  , cast $ (concatMap split_decls :: [Statement] -> [Statement])
-  , cast $ (concatMap (either (map Left . split_decls) ((:[]) . Right)) :: [Either MemberDeclaration MemberAccessSpecifier] -> [Either MemberDeclaration MemberAccessSpecifier])
+split_all_decls = everywhere $ Maybe.fromMaybe id $ Maybe.listToMaybe . Maybe.catMaybes $
+  [ cast (concatMap split_decls :: [Declaration] -> [Declaration])
+  , cast (concatMap split_decls :: [Statement] -> [Statement])
+  , cast (concatMap (either (map Left . split_decls) ((:[]) . Right)) :: [Either MemberDeclaration MemberAccessSpecifier] -> [Either MemberDeclaration MemberAccessSpecifier])
   ]
 
 -- Qualifier/specifier classification
@@ -677,10 +677,9 @@ instance MaybeApply CvQualifier PtrAbstractDeclarator where
   mapply cvq (PtrAbstractDeclarator_NoptrAbstractDeclarator d) =
     PtrAbstractDeclarator_NoptrAbstractDeclarator . mapply cvq d
   mapply cvq (PtrAbstractDeclarator o Nothing) = flip PtrAbstractDeclarator Nothing . mapply cvq o
-  mapply cvq (PtrAbstractDeclarator o (Just a)) = do
-    case mapply cvq a of
-      Just a' -> return $ PtrAbstractDeclarator o (Just a')
-      Nothing -> flip PtrAbstractDeclarator (Just a) . mapply cvq o
+  mapply cvq (PtrAbstractDeclarator o (Just a)) = case mapply cvq a of
+    Just a' -> return $ PtrAbstractDeclarator o (Just a')
+    Nothing -> flip PtrAbstractDeclarator (Just a) . mapply cvq o
 
 instance MaybeApply CvQualifier NoptrAbstractDeclarator where
   mapply cvq (NoptrAbstractDeclarator (Just d) (Right t)) = flip NoptrAbstractDeclarator (Right t) . Just . mapply cvq d

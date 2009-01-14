@@ -60,7 +60,7 @@ instance FindInStr (Ranked String) ARange where
     [] -> fail $ "String " ++ show s ++ " does not occur."
     (a:b) -> case nth_ne o (NElist a b) of
       Just g -> return $ anchor_range $ Range g $ length s
-      Nothing -> fail $ "String " ++ show s ++ " does not occur " ++ once_twice_thrice (if n < 0 then -n else (n+1)) ++ "."
+      Nothing -> fail $ "String " ++ show s ++ " does not occur " ++ once_twice_thrice (if n < 0 then -n else n+1) ++ "."
   findInStr y (Sole x) = case find_occs x y of
     [z] -> return $ anchor_range $ Range z (length x)
     [] -> fail $ "String " ++ show x ++ " does not occur."
@@ -84,7 +84,7 @@ instance (Offsettable b, Invertible a, FindInStr a b, Convert (Range Char) b) =>
     x <- convert . findInStr s b
     let p = either start id (x :: Either (Range Char) (Pos Char))
     y <- convert . findInStr (drop p s) e
-    return $ convert $ (Range p (either end id (y :: Either (Range Char) (Pos Char))) :: Range Char)
+    return $ convert (Range p (either end id (y :: Either (Range Char) (Pos Char))) :: Range Char)
 
 everything_arange :: String -> ARange
 everything_arange _ Before = Anchor Before 0
@@ -152,7 +152,7 @@ instance FindInStr Replacer [Edit] where
 
 instance FindInStr Eraser [Edit] where
   findInStr s (EraseText p) = ((flip RangeReplaceEdit "" . unanchor_range) .) . findInStr s p
-  findInStr _ (EraseOptions o) = return $ [RemoveOptions o]
+  findInStr _ (EraseOptions o) = return [RemoveOptions o]
 
 instance FindInStr Bound (Either ARange Anchor) where
   findInStr s (Bound Nothing Everything) = return $ Left $ everything_arange s

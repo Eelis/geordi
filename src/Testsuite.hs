@@ -2,7 +2,7 @@ import qualified Request
 import qualified RequestEval
 
 import Control.Exception ()
-import Control.Monad (when, forM_)
+import Control.Monad (when, unless, forM_)
 import Control.Monad.Error ()
 import System.Environment (getArgs)
 import Text.Regex (matchRegex, mkRegex)
@@ -52,7 +52,7 @@ main = do
 
   evalRequest <- RequestEval.evaluator
 
-  putStrLn $
+  putStrLn
     "\nNote: In several tests, output is expected to include an error (sometimes on a separate line), so seeing an error in a test's output does not mean the test failed. A test failed if its output is colored red.\n"
 
   let default_test_sets = ["resources", "misc", "diagnostics", "utilities", "errorfilters"]
@@ -66,7 +66,7 @@ main = do
       out <- fmap Request.response_output $ evalRequest r (Request.Context [])
       let success = p out
       putStrLn $ "Output: " ++ (if success then green else red) (if out == "" then "<none>" else out)
-      when (not success) $ putStrLn $ "Expected: " ++ pn
+      unless success $ putStrLn $ "Expected: " ++ pn
     putStrLn ""
 
 -- Actual test:
@@ -78,7 +78,7 @@ tests "resources" =
   , test "Stack overflow" "<< f(3); int f(int i) { if (i % 10000 == 0) cout << '+' << flush; return -f(++i); }" $
     RegexMatch "\\++ Undefined behavior detected."
   , test "Open FDs" "{ for(int i = 0; i != 1024; ++i) assert(i == 1 || i == 2 || close(i) == -1); }" NoOutput
-  , test "File creation" "{ ofstream f (\"bla\"); assert(errno == EACCES); }" $ NoOutput
+  , test "File creation" "{ ofstream f (\"bla\"); assert(errno == EACCES); }" NoOutput
   , test "Working directory" "<< get_current_dir_name()" $ ExactMatch "/"
   , test "File I/O" "{ { ofstream f (__FILE__); f << \"foo\"; } cout << ifstream(__FILE__).rdbuf(); }" $
     ExactMatch "foo"
@@ -140,7 +140,7 @@ tests "utilities" =
   , test "Range printing" "{ vector<int> v; v += 3, 5, 9, 4, 1; cout << v; }" $ ExactMatch "{3, 5, 9, 4, 1}"
   , test "Demangled printable typeid" "<< typeid(int)" $ ExactMatch "int"
   , test "Custom assert()/abort()" "{ assert(4 > 9); }" $ ExactMatch "Assertion `4 > 9' fails."
-  ,  test "bin IO manipulator" "<< showbase << uppercase << bin << setfill('_') << internal << setw(10) << 53" $ ExactMatch "0B__110101"
+  , test "bin IO manipulator" "<< showbase << uppercase << bin << setfill('_') << internal << setw(10) << 53" $ ExactMatch "0B__110101"
   , test "BARK" "{ Y y; y.f(0); y.Xi::f(0); } template <typename> struct X {}; template <typename T> struct X<T const> { virtual void f(void(*)()) { BARK; } }; typedef X<std::string const> Xi; struct Y: Xi { void f(void(*)()) { BARK; } };" $ ExactMatch "Y::f(void (*)()) X<const string>::f(void (*)())"
   ]
 

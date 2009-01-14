@@ -6,7 +6,7 @@ import qualified System.Posix.IO
 import qualified Data.Monoid
 import qualified Prelude
 import qualified Data.List as List
-import Data.Maybe (listToMaybe, mapMaybe)
+import Data.Maybe (listToMaybe, mapMaybe, fromMaybe)
 import Data.Monoid (Monoid(..))
 import Data.List (sortBy, minimumBy, isPrefixOf, tails, all, stripPrefix)
 import Data.Char (isSpace, isAlphaNum, toLower, toUpper)
@@ -100,7 +100,7 @@ sortByProperty :: Ord b => (a -> b) -> [a] -> [a]
 sortByProperty f = sortBy $ \x y -> compare (f x) (f y)
 
 findMaybe :: (a -> Maybe b) -> [a] -> Maybe b
-findMaybe f l = listToMaybe $ mapMaybe f l
+findMaybe f = listToMaybe . mapMaybe f
 
 elemBy :: (a -> a -> Bool) -> a -> [a] -> Bool
 elemBy f x = or . (f x .)
@@ -149,7 +149,7 @@ replaceInfixM :: Eq a => [a] -> [a] -> [a] -> Maybe [a]
 replaceInfixM what with l = (\(pre, post) -> pre ++ with ++ post) . stripInfix what l
 
 replaceInfix :: Eq a => [a] -> [a] -> [a] -> [a]
-replaceInfix what with l = maybe l id (replaceInfixM what with l)
+replaceInfix what with l = fromMaybe l (replaceInfixM what with l)
 
 replaceAllInfix :: Eq a => [a] -> [a] -> [a] -> [a]
 replaceAllInfix what with l | Just r <- stripPrefix what l = with ++ replaceAllInfix what with r
@@ -372,8 +372,8 @@ msapp :: (Data.Monoid.Monoid a, MonadState a m) => a -> m ()
 msapp = modify . flip Data.Monoid.mappend
 
 (.||.), (.&&.) :: (a -> Bool) -> (a -> Bool) -> (a -> Bool)
-f .||. g = \x -> f x || g x
-f .&&. g = \x -> f x && g x
+(f .||. g) x = f x || g x
+(f .&&. g) x = f x && g x
   -- In applicative notation, these could be written: f .||. g = [[ f || g ]].
 
 orElse :: Maybe a -> a -> a

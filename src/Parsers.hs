@@ -11,6 +11,7 @@ import qualified Data.Char as Ch
 import Control.Monad (liftM2)
 import Control.Arrow (first)
 import Data.List ((\\))
+import Data.Maybe (fromMaybe)
 import Util ((.), NElist(..), unne, Finite(..), commas_or, Option(..), (.||.), isIdChar, (<<))
 
 import Prelude hiding ((.))
@@ -64,7 +65,7 @@ optional :: ParserLike m t => m a -> m (Maybe a)
 optional p = Just . p <|> return Nothing
 
 option :: ParserLike m t => a -> m a -> m a
-option x p = maybe x id . optional p
+option x p = fromMaybe x . optional p
 
 symbol :: (Show t, Eq t, ParserLike m t) => t -> m t
 symbol x = satisfy (== x) <?> show x
@@ -233,7 +234,7 @@ showParseError subject_desc input column expectation =
       | column < length input = show (take 1 $ drop column input) ++ " " ++ show (Editing.Basics.describe_position_after column input)
       | otherwise = "end of " ++ subject_desc
     expectation' = (List.nub expectation \\ ["EOF", "' '"]) ++
-      if "EOF" `elem` expectation then ["end of " ++ subject_desc] else []
+      ["end of " ++ subject_desc | "EOF" `elem` expectation]
 
 furthest' :: (Int, [String]) -> (Int, [String]) -> (Int, [String])
 furthest' (n, s) (n', s')

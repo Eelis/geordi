@@ -30,7 +30,7 @@ instance Trie () UnitTrie where
 data BoolTrie a = BoolTrie a a
 instance Trie Bool BoolTrie where
   trie f = BoolTrie (f False) (f True)
-  untrie (BoolTrie f t) = \b -> if b then t else f
+  untrie (BoolTrie f t) b = if b then t else f
 
 data EitherTrie ta tb x = EitherTrie (ta x) (tb x)
 instance (Trie a ta, Trie b tb) => Trie (Either a b) (EitherTrie ta tb) where
@@ -62,7 +62,7 @@ unbits (x:xs) = (Bits..|.) (unbit x) (Bits.shiftL (unbits xs) 1)
 
 instance Trie Char (ListTrie BoolTrie) where
   trie f = trie (f . Char.chr . unbits)
-  untrie t c = untrie t (bits $ Char.ord c)
+  untrie t = untrie t . bits . Char.ord
 
 {- Test:
 

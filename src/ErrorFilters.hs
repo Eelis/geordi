@@ -8,7 +8,7 @@ import qualified Cxx.Parse
 import Control.Monad (ap, liftM2, mzero, guard)
 import Text.Regex (Regex, matchRegexAll, mkRegex, subRegex)
 import Data.Char (toLower)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, fromMaybe)
 import Data.List (intersperse, isPrefixOf, isSuffixOf, tails)
 import Text.ParserCombinators.Parsec
   (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, many1, anyChar, noneOf, option, count, CharParser, notFollowedBy, choice, setInput, eof, oneOf)
@@ -28,7 +28,7 @@ instance Applicative (GenParser Char st) where pure = return; (<*>) = ap
 cc1plus, as, ld, prog :: String -> String
 
 cc1plus e = cleanup_stdlib_templates $ replace_withs $ hide_clutter_namespaces
-  $ maybe e id $ maybeLast $ flip mapMaybe (lines e) $ \l -> do
+  $ fromMaybe e $ maybeLast $ flip mapMaybe (lines e) $ \l -> do
     (_, _, x, _) <- matchRegexAll (mkRegex "(^|\n)[^:]+:([[:digit:]]+:)+ ") l
     guard $ not $ "note:" `isPrefixOf` x
     return x
@@ -117,7 +117,7 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
     , defaulter ["istream_iterator"] 3 $ const $ option [] (string "long") $> "int"
         -- "int"/"long int" is what is printed for ptrdiff_t.
     , defaulter ["istream_iterator", "ostream_iterator"] 2 $ tmpl "char_traits" . (!!1)
-    , defaulter ["istream_iterator", "ostream_iterator"] 1 $ const $ "char"
+    , defaulter ["istream_iterator", "ostream_iterator"] 1 $ const "char"
     ] -- Together, these must be strongly normalizing.
 
   -- Things that go wrong but are hard to fix:
@@ -140,7 +140,7 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
   tmpl n p = n $> '<' $> p <$ '>'
 
   tmpi :: String -> Int -> CharParser st [String]
-  tmpi n i = tmpl n $ (:) . cxxArg <*> (count (i - 1) (spaces >> ',' $> cxxArg))
+  tmpi n i = tmpl n $ (:) . cxxArg <*> count (i - 1) (spaces >> ',' $> cxxArg)
 
   ioBasics = ["streambuf", "ofstream", "ifstream", "fstream", "filebuf", "stringbuf", "ostream", "istream", "ostringstream", "istringstream", "stringstream", "iostream", "ios", "string"]
 

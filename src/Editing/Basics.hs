@@ -149,8 +149,8 @@ merge_commands (h:t) = h : merge_commands t
 
 describe_position_after :: Pos Char -> String -> Position
 describe_position_after n s
-  | n == 0 = Position Before $ Everything
-  | n == length s = Position After $ Everything
+  | n == 0 = Position Before Everything
+  | n == length s = Position After Everything
   | otherwise = Position After $ NotEverything $ Sole $ Right $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s
 
 -- Tokenization:
