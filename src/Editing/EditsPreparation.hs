@@ -57,14 +57,14 @@ instance FindInStr (Ranked (Either Declaration String)) ARange where
 
 instance FindInStr (Ranked String) ARange where
   findInStr t (Ranked o@(Ordinal n) s) = case find_occs s t of
-    [] -> fail $ "String " ++ show s ++ " does not occur."
+    [] -> fail $ "String `" ++ s ++ "` does not occur."
     (a:b) -> case nth_ne o (NElist a b) of
       Just g -> return $ anchor_range $ Range g $ length s
-      Nothing -> fail $ "String " ++ show s ++ " does not occur " ++ once_twice_thrice (if n < 0 then -n else n+1) ++ "."
+      Nothing -> fail $ "String `" ++ s ++ "` does not occur " ++ once_twice_thrice (if n < 0 then -n else n+1) ++ "."
   findInStr y (Sole x) = case find_occs x y of
     [z] -> return $ anchor_range $ Range z (length x)
-    [] -> fail $ "String " ++ show x ++ " does not occur."
-    _ -> fail $ "String " ++ show x ++ " occurs multiple times."
+    [] -> fail $ "String `" ++ x ++ "` does not occur."
+    _ -> fail $ "String `" ++ x ++ "` occurs multiple times."
 
 instance Convert ARange (Range Char) where convert = unanchor_range
 
@@ -100,12 +100,12 @@ instance FindInStr (EverythingOr (Rankeds String)) [ARange] where
 
 instance FindInStr (Rankeds String) [ARange] where
   findInStr y (All x) = case find_occs x y of
-    [] -> fail $ "String " ++ show x ++ " does not occur."
+    [] -> fail $ "String `" ++ x ++ "` does not occur."
     l -> return $ (anchor_range . flip Range (length x)) . l
   findInStr y (Sole' x) = case find_occs x y of
     [z] -> return [anchor_range $ Range z (length x)]
-    [] -> fail $ "String " ++ show x ++ " does not occur."
-    _ -> fail $ "String " ++ show x ++ " occurs multiple times."
+    [] -> fail $ "String `" ++ x ++ "` does not occur."
+    _ -> fail $ "String `" ++ x ++ "` occurs multiple times."
   findInStr x (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x (Ranked r s)) . unne rs
   findInStr x (AllBut (AndList rs) s) =
     return $ (anchor_range . flip Range (length s)) . erase_indexed (ordinal_carrier . unne rs) (find_occs s x)

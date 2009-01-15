@@ -1,4 +1,4 @@
-{-# LANGUAGE FunctionalDependencies, MultiParamTypeClasses, FlexibleContexts, FlexibleInstances, UndecidableInstances #-}
+{-# LANGUAGE FunctionalDependencies, MultiParamTypeClasses, FlexibleContexts, FlexibleInstances, UndecidableInstances, PatternGuards #-}
 
 module Parsers where
 
@@ -231,7 +231,9 @@ showParseError subject_desc input column expectation =
   if null expectation' then "" else " Expected " ++ commas_or expectation' ++ "."
   where
     unexpectation
-      | column < length input = show (take 1 $ drop column input) ++ " " ++ show (Editing.Basics.describe_position_after column input)
+      | h:t <- drop column input =
+        '`' : (if Ch.isAlphaNum h then h : takeWhile Ch.isAlphaNum t else [h]) ++ "` " ++
+        show (Editing.Basics.describe_position_after column input)
       | otherwise = "end of " ++ subject_desc
     expectation' = (List.nub expectation \\ ["EOF", "' '"]) ++
       ["end of " ++ subject_desc | "EOF" `elem` expectation]

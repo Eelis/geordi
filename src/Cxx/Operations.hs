@@ -79,7 +79,7 @@ specT = TypeSpecifier_SimpleTypeSpecifier $ SimpleTypeSpecifier_TypeName (OptQua
 
 apply_makedecl :: MakeDeclaration -> DeclaratorId -> GeordiRequest -> Either String GeordiRequest
 apply_makedecl md did r = case apply_makedecl_to did md(split_all_decls r) of
-  MaybeEitherString Nothing -> fail $ "Could not find " ++ strip (show did) ++ "."
+  MaybeEitherString Nothing -> fail $ "Could not find declaration of " ++ strip (show did) ++ "."
   MaybeEitherString (Just e) -> e
   -- Todo: Only split when necessary.
 
