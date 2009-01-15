@@ -135,6 +135,10 @@ strip_utf8_bom :: String -> String
 strip_utf8_bom ('\239':'\187':'\191':s) = s
 strip_utf8_bom s = s
 
+strip_color_codes :: String -> String
+strip_color_codes s = subRegex r s ""
+  where r = mkRegex "\x3(,[[:digit:]]{1,2}|[[:digit:]]{1,2}(,[[:digit:]]{1,2})?)?"
+
 on_msg :: (Functor m, Monad m) =>
   (String -> Request.Context -> m Request.Response) -> IrcBotConfig -> Bool -> IRC.Message -> StateT ChannelMemoryMap m [IRC.Message]
 on_msg eval cfg full_size m = flip execStateT [] $ do
@@ -148,7 +152,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
     IRC.Message _ "PING" a -> send $ msg "PONG" a
     IRC.Message _ "PRIVMSG" [_, '\1':_] -> return ()
     IRC.Message (Just (IRC.NickName who muser mserver)) "PRIVMSG" [to, txt'] -> do
-      let txt = strip_utf8_bom txt'
+      let txt = strip_color_codes $ strip_utf8_bom txt'
       let private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
       let w = if private then Private else InChannel to
       maybeM (dropWhile isSpace . is_request cfg w txt) $ \r -> do
