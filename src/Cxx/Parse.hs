@@ -324,8 +324,7 @@ instance Parse Identifier where
   parse = (<?> "identifier") $ do
     b <- makeTypeExtensions . parseOptions
     let k = keywords ++ if b then make_type_keywords else []
-    c <- satisfy $ Char.isAlpha .||. (== '_')
-    liftM2 Identifier (guarded (not . (`elem` k)) (((c:) .) $ many $ satisfy isIdChar)) parse
+    liftM2 Identifier (guarded (not . (`elem` k)) $ liftM2 (:) (satisfy $ Char.isAlpha .||. (== '_')) (many $ satisfy isIdChar)) parse
 
 instance Parse ClassName where parse = auto1 ClassName_TemplateId <|> auto1 ClassName_Identifier <?> "class-name"
 instance Parse TypeName where parse = auto1 TypeName_ClassName <?> "type-name"
