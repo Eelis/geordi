@@ -44,6 +44,7 @@ make_tests = do
   s "int x /*haha*/ ; // ok dan /* mja */" "make x const" "const int x /*haha*/ ; // ok dan /* mja */"
   s "T const ( &f() )[3] { T x = {v}; }" "make f inline" "inline T const ( &f() )[3] { T x = {v}; }"
   s "int *i; int * & j;" "make i a pointer to a pointer" "int ** i; int * & j;"
+  s "struct Factorial { static int v = N; };" "make v const" "struct Factorial { const static int v = N; };"
   s "{ struct S {}; int (S:: * p) = 0; int (S:: * & r) = p; }" "make p and r const" "{ struct S {}; int (S:: * const p) = 0; int (S:: * const & r) = p; }"
   s "int i;" "make i an array" "int i[];"
   s "void f() { try { int long i; } catch(int long j) {} }" "make i and j long long" "void f() { try { long long int i; } catch(long long int j) {} }"

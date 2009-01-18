@@ -437,7 +437,7 @@ data ClassKey = Class | Struct | Union deriving (Enum, Bounded, Data, Typeable, 
 data MemberAccessSpecifier = MemberAccessSpecifier (AccessSpecifier, White) (ColonOp, White) deriving (Data, Typeable, Eq)
 data MemberSpecification = MemberSpecification [Either MemberDeclaration MemberAccessSpecifier] deriving (Data, Typeable, Eq)
 data MemberDeclaration = MemberDeclaration [DeclSpecifier] (Maybe (Commad MemberDeclarator)) (SemicolonOperator, White) | MemberFunctionDefinition FunctionDefinition (Maybe (SemicolonOperator, White)) | MemberUsingDeclaration UsingDeclaration | MemberTemplateDeclaration TemplateDeclaration deriving (Data, Typeable, Eq)
-data MemberDeclarator = MemberDeclarator Declarator (Maybe PureSpecifier) | BitField (Maybe Identifier) (ColonOp, White) ConstantExpression deriving (Data, Typeable, Eq)
+data MemberDeclarator = MemberDeclarator Declarator (Maybe (Either PureSpecifier BraceOrEqualInitializer)) | BitField (Maybe Identifier) (ColonOp, White) ConstantExpression deriving (Data, Typeable, Eq)
 data PureSpecifier = PureSpecifier (IsOperator, White) (KwdZero, White) deriving (Data, Typeable, Eq)
 
 -- A.9 Derived classes [gram.derived]

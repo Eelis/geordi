@@ -612,11 +612,11 @@ instance Apply NoptrAbstractDeclarator NoptrAbstractDeclarator NoptrAbstractDecl
 
 -- MakeDeclaration application
 
-instance Apply MakeDeclaration ([DeclSpecifier], Declarator, Maybe PureSpecifier) ([DeclSpecifier], Declarator, Maybe PureSpecifier) where
+instance Apply MakeDeclaration ([DeclSpecifier], Declarator, Maybe (Either PureSpecifier BraceOrEqualInitializer)) ([DeclSpecifier], Declarator, Maybe (Either PureSpecifier BraceOrEqualInitializer)) where
   apply (MakeDeclaration specs m b) (specs', d, p) = (specs'', d', pure)
     where
       (specs'', d') = apply (specs, m) (specs', d)
-      pure = if any (\ms -> case ms of NonFunctionSpecifier Virtual -> True; MakeSpecifier_DeclSpecifier (DeclSpecifier_StorageClassSpecifier (Static, _)) -> True; _ -> False) specs then Nothing else case b of Definitely -> Just $ PureSpecifier (IsOperator, White " ") (KwdZero, White " "); Indeterminate -> p; DefinitelyNot -> Nothing
+      pure = if any (\ms -> case ms of NonFunctionSpecifier Virtual -> True; MakeSpecifier_DeclSpecifier (DeclSpecifier_StorageClassSpecifier (Static, _)) -> True; _ -> False) specs then Nothing else case b of Definitely -> Just $ Left $ PureSpecifier (IsOperator, White " ") (KwdZero, White " "); Indeterminate -> p; DefinitelyNot -> Nothing
 
 -- cv-qualifier application
 
