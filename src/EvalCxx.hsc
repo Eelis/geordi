@@ -273,7 +273,13 @@ evaluator = do
 ignored_syscalls, allowed_syscalls :: [SysCall]
 
 ignored_syscalls = -- These are effectively replaced with "return 0;".
-  [ SYS_chmod, SYS_fadvise64, SYS_unlink, SYS_munmap, SYS_madvise, SYS_umask, SYS_rt_sigaction, SYS_rt_sigprocmask, SYS_ioctl, SYS_setitimer, SYS_timer_settime, SYS_vfork {- see "Secure compilation" -} ]
+  [ SYS_chmod, SYS_fadvise64, SYS_unlink, SYS_munmap, SYS_madvise, SYS_umask, SYS_rt_sigaction, SYS_rt_sigprocmask, SYS_ioctl, SYS_setitimer, SYS_timer_settime, SYS_vfork {- see "Secure compilation" -}
+  #ifdef __x86_64__
+    , SYS_fcntl
+  #else
+    , SYS_fcntl64
+  #endif
+  ]
 
 allowed_syscalls =
   [ SYS_open, SYS_write, SYS_uname, SYS_brk, SYS_read, SYS_mmap, SYS_exit_group, SYS_getpid, SYS_access, SYS_getrusage, SYS_close, SYS_gettimeofday, SYS_time, SYS_writev, SYS_execve, SYS_mprotect, SYS_getcwd, SYS_times
@@ -283,9 +289,9 @@ allowed_syscalls =
   , SYS_getdents64, SYS_pread64, SYS_readv -- for gold
 
   #ifdef __x86_64__
-    , SYS_stat, SYS_fstat, SYS_arch_prctl, SYS_getrlimit, SYS_fcntl, SYS_lseek, SYS_lstat, SYS_dup
+    , SYS_stat, SYS_fstat, SYS_arch_prctl, SYS_getrlimit, SYS_lseek, SYS_lstat, SYS_dup
   #else
-    , SYS_fstat64, SYS_lstat64, SYS_stat64, SYS_ugetrlimit, SYS_fcntl64, SYS__llseek, SYS_mmap2, SYS_mremap, SYS_set_thread_area, SYS_readlink
+    , SYS_fstat64, SYS_lstat64, SYS_stat64, SYS_ugetrlimit, SYS__llseek, SYS_mmap2, SYS_mremap, SYS_set_thread_area, SYS_readlink
   #endif
   ]
 
