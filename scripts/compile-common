@@ -1,4 +1,4 @@
-scripts/getsyscalls > src/SysCalls.hs
+scripts/getsyscalls > src/SysCalls.hsc
 cd src
 hsc2hs *.hsc
 GHC="ghc -cpp -Wall -fno-warn-unused-binds -fno-warn-orphans -XOverlappingInstances -O"
