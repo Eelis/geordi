@@ -83,18 +83,13 @@
       <li>On Debian and Ubuntu, replace <code>group = "nobody"</code> with <code>group = "nogroup"</code> in jail-config.</li>
       <li><kbd>scripts/mkrt</kbd> &nbsp; # Creates a directory called "rt", which will be our chroot root, and copies various files into it that GCC needs in order to function.</li>
       <li><kbd>scripts/compile-prelude</kbd> &nbsp; # Produces rt/prelude.hpp.gch, rt/prelude.a, and libtpreload.so.0.0.</li>
-      <li><kbd>sudo scripts/trycompile</kbd> &nbsp; # This might give errors about missing .o files and libraries. Copy those into rt until rt/t is produced successfully.
+      <li><kbd>sudo ./geordi-local "&lt;&lt; 'x'"</kbd> &nbsp; # This might give errors about missing .o files and libraries. Copy those into rt and retry, until 'x' is printed.
         <p>The recommended way to copy files into rt is using</p>
         <kbd>cp -L --parents /some/system/file rt/</kbd>
         <p>Here, <kbd>-L</kbd> makes <kbd>cp</kbd> follow symbolic links, and <kbd>--parents</kbd> makes it copy to the same path within <kbd>rt</kbd>.</p>
         <p>For libstdc++ and libm, use the shared (.so) versions, not the static (.a) versions.</p>
         <p>If, while doing this step, you decide (out of sheer desperation) at some point to just copy entire gcc directories into rt (which in itself is not completely unreasonable), make sure that there is no collect2 binary in rt (it confuses geordi).</p>
       </li>
-      <li><kbd>sudo chroot rt /t</kbd> &nbsp; # This may complain a bit more about missing libraries, which again should be copied into rt. Eventually, it should print "9".</li>
-      <li><kbd>find rt -perm -o+w</kbd> &nbsp; # This should list exactly four files: rt/t.o, rt/t.s, rt/t.cpp, and rt/t.</li>
-      <li><kbd>find rt -user nobody</kbd> &nbsp; # This should find nothing.</li>
-      <li><kbd>find rt -perm -4000</kbd> &nbsp; # This should find nothing either.</li>
-      <li><kbd>sudo ./geordi-local "&lt;&lt; 'x'"</kbd> &nbsp; # If this does not print 'x', something's wrong.</li>
       <li>To get an idea of what rt could look like, look at the <a href='#exampletree'>example rt tree</a> and the <a href='#examplelisting'>example rt file list</a>.</li>
       <li>A modest testsuite can now be run with <kbd>sudo ./geordi-testsuite</kbd> (recommended).</li>
     </ol>

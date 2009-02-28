@@ -16,7 +16,8 @@ mkdir -p "${RT}"
 chmod 711 "${RT}"
 cd "${RT}"
 
-touch t.cpp t.s t.o t lock
+printf "#include \"prelude.hpp\"\nint main() { cout << \"9\\\n\"; }\n" > t.cpp
+touch t.s t.o t lock
 chmod 666 t.cpp t.s t.o
 chmod 777 t
 
