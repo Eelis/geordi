@@ -307,6 +307,7 @@ make_type_tests = do
   t "function taking a pointer to void() returning a reference to an int[3]" $ Right "int(&(void(*)() ))[3]"
   t "void(pointer to function)" $ Right "void(T (*)())"
   t "function*(const int)" $ Right "T (*(const int))()"
+  t "constant pointer to a function" $ Right "T (*const )()"
   t "(function taking an int[3] )*" $ Right "T (*)(int[3] )"
   t "(function*[3])&()" $ Right "T (*(&())[3])()"
   t "int(::T::U::V::**)" $ Right "int(::T::U::V::**)"

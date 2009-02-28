@@ -684,7 +684,9 @@ instance MaybeApply CvQualifier PtrAbstractDeclarator where
 instance MaybeApply CvQualifier NoptrAbstractDeclarator where
   mapply cvq (NoptrAbstractDeclarator (Just d) (Right t)) = flip NoptrAbstractDeclarator (Right t) . Just . mapply cvq d
   mapply _ (NoptrAbstractDeclarator Nothing (Right _)) = fail "Cannot cv-qualify leaf array noptr-abstract-declarator."
-  mapply cvq (NoptrAbstractDeclarator m (Left p)) = return $ NoptrAbstractDeclarator m $ Left $ apply cvq p
+  mapply cvq (NoptrAbstractDeclarator m (Left p)) = return $ case m >>= mapply cvq of
+      Nothing -> NoptrAbstractDeclarator m $ Left $ apply cvq p
+      Just m' -> NoptrAbstractDeclarator (Just m') $ Left p
   mapply cvq (NoptrAbstractDeclarator_PtrAbstractDeclarator (Parenthesized w d w')) =
     NoptrAbstractDeclarator_PtrAbstractDeclarator . (\x -> Parenthesized w x w') . mapply cvq d
 
