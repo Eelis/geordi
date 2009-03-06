@@ -64,6 +64,8 @@ make_tests = do
   s "void f(int i) { try {} catch(int j) {} }" "make f and i and j const" "void f(const int i) const { try {} catch(const int j) {} }"
   f "void f(int i) { try {} catch(int j) {} }" "make j mutable" "Invalid decl-specifier for type-specifier-seq: mutable"
   s "struct X { void f(int p); };" "make f static inline and make p a reference to long" "struct X { static inline void f(long int & p); };"
+  s "struct X { operator ()(); };" "make operator() const" "struct X { operator ()()const ; };" -- Spaces don't matter when matching declarator-ids.
+  s "<< 3, i; int i = 2;" "make i const" "<< 3, i; const int i = 2;"
   putStrLn "All make tests passed."
   where
     t :: String -> String -> Either String String -> IO ()
