@@ -22,7 +22,7 @@ optsDesc :: [OptDescr Opt]
 optsDesc = [Option "h" ["help"] (NoArg Help) "Display this help and exit."]
 
 help :: String
-help = usageInfo "Usage: sudo ./Local [option]... [request]...\nOptions:" optsDesc ++ "\nSee README.xhtml for more information."
+help = usageInfo "Usage: sudo ./geordi-local [option]... [request]...\nOptions:" optsDesc ++ "\nSee README.xhtml for more information."
 
 getArgs :: IO ([Opt], [String])
 getArgs = do
