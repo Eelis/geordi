@@ -14,24 +14,14 @@
 
     <ul>
       <li><a href='#installation'>1. Installation</a></li>
-      <li><a href='#locally'>2. Running geordi locally</a></li>
-      <li><a href='#ircbot'>3. Running a geordi bot</a></li>
-      <li><a href='#localization'>4. Localization</a></li>
-      <li><a href='#problems'>5. Known problems</a></li>
-    </ul>
-    <ul>
-      <li><a href='#exampletree'>Appendix A: Example rt tree</a></li>
-      <li><a href='#examplelisting'>Appendix B: Example rt file listing</a></li>
+      <li><a href='#running'>2. Running geordi</a></li>
+      <li><a href='#localization'>3. Localization</a></li>
+      <li><a href='#problems'>4. Known problems</a></li>
     </ul>
 
     <hr/><h2 id='installation'>1. Installation</h2>
-    <p>
-      Geordi is not "<kbd>./configure &amp;&amp; make &amp;&amp; make install</kbd>" software. Setting up geordi is a somewhat awkward manual task, because preparing a chroot tree containing only those files necessary for C++ compilation involves copying into the tree various system and GCC libraries and executables whose location differs wildly from system to system. Since there is no easy way to get a list of precisely those files required for C++ compilation, we'll resort to what is basically a trial and error procedure.
-    </p>
 
-    <p>Be warned: If you are relatively new to Linux (and truth be told, even when you're not), installation could very well turn out to be quite a hassle.</p>
-
-    <h3>Prerequisites</h3>
+    <h3>1.1&emsp;Prerequisites</h3>
     <ul>
       <li>An i386 or x86-64 machine</li>
       <li>GNU/Linux &ge; 2.6.10</li>
@@ -48,55 +38,51 @@
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/irc'>irc</a> &ge; 0.2.3 (Only needed if you want to run an IRC bot.)</li>
       <!-- <li><a href='http://www.dtek.chalmers.se/~henoch/hsxmpp-doc/index.html'>XMPP</a> &ge; 0.0.1 (Only needed if you want to run an XMPP bot.)</li> -->
     </ul>
-    <p>These last five are GHC packages. Depending on where you got your GHC from (and on how your distro packaged it, if at all), some of them may already be installed. Use <kbd>ghc-pkg list</kbd> to figure out which ones you need. Then, to install those (assuming no distro package was available), use the following procedure (shown here for utf8-string, but it's the same for the others):</p>
-    <p>
-      <kbd>
-        tar xf utf8-string-0.2.tar.gz<br/>
-        cd utf8-string-0.2<br/>
-        runhaskell Setup.lhs configure<br/>
-        runhaskell Setup.lhs build<br/>
-        su -c "runhaskell Setup.lhs install"
-      </kbd>
-    </p>
-    <p>It may also be possible to install these with cabal, I have no idea.</p>
-
-    <h3>Optional step for improved error messages</h3>
+    <p>These last five are Cabal packages. Depending on where you got your GHC from (and on how your distro packaged it, if at all), some of them may already be installed. Use <kbd>ghc-pkg list</kbd> to figure out which ones you need, and consult the <a href='http://www.haskell.org/cabal/release/cabal-latest/doc/users-guide/builders.html'>Cabal manual</a> on how to install them.</p>
+<!--
+    <h3>1.2&emsp;Optional step for improved error messages</h3>
     <p>
       Do <kbd>grep get_max_length /usr/include/c++/4.3.0/debug/formatter.h</kbd> (corrected for your system, of course). If you don't get output, it means that your gcc version does not yet have configurable libstdc++ debug mode error formatter line width, which means that you should do the following manually: in that file, find the value 78, and change it into 780.
     </p>
     <p>
       (See <a href='http://gcc.gnu.org/bugzilla/show_bug.cgi?id=31518'>GCC bug 31518</a> for more information.)
     </p>
+-->
+    <h3>1.2&emsp;Installing geordi's executables</h3>
+    <p>Geordi's executables (<kbd>geordi-local</kbd>, <kbd>geordi-irc</kbd>, and <kbd>geordi-testsuite</kbd>) need to be built with Cabal:</p><pre>      runhaskell Setup.hs configure
+      runhaskell Setup.hs build
+      runhaskell Setup.hs install</pre>
+    <p>If you don't need/want the IRC bot, pass <kbd>-f-irc</kbd> in the configure step. See the <a href='http://www.haskell.org/cabal/release/cabal-latest/doc/users-guide/builders.html'>Cabal manual</a> for more information on customizing the above.</p>
 
-    <h3>Installation procedure</h3>
-    <p>
-      The following is a list of steps needed to set up the environment geordi runs in. Don't copy&amp;paste this into your terminal, this is not a shell script! It is intended to be read and interpreted by a human.
-    </p>
-    <p>
-      Assuming you have cd'd into the "geordi" directory obtained through darcs (or extracted from a snapshot), do the following:
-    </p>
+    <h3>1.3&emsp;Setting up a chroot</h3>
+
+    <p>We now set up a directory for geordi to chroot into when it starts. Assuming you have <kbd>cd</kbd>'d into the "geordi" directory obtained through darcs (or extracted from a snapshot), do the following:</p>
+
     <ol>
-      <li><kbd>chmod +x scripts/*</kbd> &nbsp; # darcs is not yet aware of executability</li>
-      <li><kbd>scripts/compile-base</kbd> &nbsp; # To produce the ./geordi-local, and ./geordi-testsuite executables.</li>
-      <li><kbd>scripts/compile-irc</kbd> <!-- and/or <kbd>scripts/compile-xmpp</kbd>, or neither, depending on what kind of bot you want to run (if any). --> &nbsp; # To produce ./geordi-irc. Only needed if you actually want to run a geordi IRC bot.</li>
-      <li>Edit the compile-config file to your liking. Check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</li>
-      <li>On Debian and Ubuntu, replace <code>group = "nobody"</code> with <code>group = "nogroup"</code> in jail-config.</li>
-      <li><kbd>scripts/mkrt</kbd> &nbsp; # Creates a directory called "rt", which will be our chroot root, and copies various files into it that GCC needs in order to function.</li>
-      <li><kbd>scripts/compile-prelude</kbd> &nbsp; # Produces rt/prelude.hpp.gch, rt/prelude.a, and libtpreload.so.0.0.</li>
-      <li><kbd>sudo ./geordi-local "&lt;&lt; 'x'"</kbd> &nbsp; # This might give errors about missing .o files and libraries. Copy those into rt and retry, until 'x' is printed.
-        <p>The recommended way to copy files into rt is using</p>
-        <kbd>cp -L --parents /some/system/file rt/</kbd>
-        <p>Here, <kbd>-L</kbd> makes <kbd>cp</kbd> follow symbolic links, and <kbd>--parents</kbd> makes it copy to the same path within <kbd>rt</kbd>.</p>
-        <p>For libstdc++ and libm, use the shared (.so) versions, not the static (.a) versions.</p>
-        <p>If, while doing this step, you decide (out of sheer desperation) at some point to just copy entire gcc directories into rt (which in itself is not completely unreasonable), make sure that there is no collect2 binary in rt (it confuses geordi).</p>
-      </li>
-      <li>To get an idea of what rt could look like, look at the <a href='#exampletree'>example rt tree</a> and the <a href='#examplelisting'>example rt file list</a>.</li>
-      <li>A modest testsuite can now be run with <kbd>sudo ./geordi-testsuite</kbd> (recommended).</li>
+      <li><p><kbd>chmod +x scripts/*</kbd></p></li>
+      <li><p>Edit <kbd>compile-config</kbd> to your liking. Check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</p></li>
+      <li><p>On Debian and Ubuntu, replace<pre>  group = "nobody"</pre> with <pre>  group = "nogroup"</pre> in <kbd>jail-config</kbd>.</p></li>
+      <li><kbd>scripts/mkrt</kbd><p>Creates a directory <kbd>rt</kbd>, which will be our chroot root, and copies various files into it that GCC needs in order to function.</p></li>
+      <li><kbd>scripts/compile-prelude</kbd><p>Produces <kbd>rt/{prelude.hpp.gch,prelude.a,libtpreload.so.0.0}</kbd>.</p></li>
     </ol>
 
-    <hr/><h2 id='locally'>2. Running geordi locally</h2>
+    <p>Now try running<pre>  sudo geordi-local "&lt;&lt; 'x'"</pre></p>
+
+    <p>If this complains about missing executables like <kbd>as</kbd> and <kbd>ld</kbd> which are present in a non-standard location in your <kbd>PATH</kbd>, try<pre>  sudo env PATH=$PATH geordi-local "&lt;&lt; 'x'"</pre></p>
+
+    <p>If your <kbd>compile-config</kbd> points to a custom-built gcc in a non-standard location <kbd>/foo/bar</kbd> and you get an error about <kbd>/t</kbd> missing some libraries, try adding <kbd>-Wl,-rlink,/foo/bar/lib</kbd> to <kbd>LINK_FLAGS</kbd> in <kbd>compile-config</kbd>.</p>
+
+    <h3>1.4&emsp;Running the testsuite</h3>
+    <p>A modest testsuite can now be run with <kbd>sudo geordi-testsuite</kbd> (recommended).</p>
+
+    <hr/><h2 id='running'>2. Running geordi</h2>
+
+    <p>At the moment, all <kbd>geordi-</kbd>* executables must be run from the directory in which <kbd>compile-config</kbd>, <kbd>jail-config</kbd>, and <kbd>rt</kbd> reside.</p>
+
+    <h3 id='locally'>2.1&emsp;<kbd>geordi-local</kbd></h3>
     <p><kbd>geordi-local</kbd> lets one test snippets locally (that is, without connecting to any IRC server).</p>
-    <p>Usage:&emsp;<kbd>sudo ./geordi-local [option]... [request]...</kbd></p>
+    <p>Usage:&emsp;<kbd>sudo geordi-local [option]... [request]...</kbd></p>
+
     <p>Request syntax is described in the <a href='http://www.eelis.net/geordi/#usage'>manual</a>, except that here the nickname (and colon/comma) must be omitted.</p>
     <p>Options:</p>
     <dl>
@@ -106,41 +92,38 @@
     <p>If any requests are specified, they are evaluated and their results are shown. If the first request starts with a request option, interject “<kbd>--</kbd>” to prevent it from being interpreted as a command option.</p>
     <p>If no requests are specified, the program goes into a Read-Eval-Print-Loop.</p>
 
-    <hr/><h2 id='ircbot'>3. Running a geordi bot</h2>
+    <h3 id='ircbot'>2.2&emsp;<kbd>geordi-irc</kbd></h3>
 
-    <h3>Regarding the need for root permissions</h3>
+    <p>Usage:&emsp;<kbd>sudo geordi-irc [option]...</kbd></p>
 
-    <p>Starting an IRC bot with root permissions should make one seriously nervous. Geordi requires root permissions only because <a href='http://linux.die.net/man/2/chroot'>chroot(2)</a> does. Geordi chroots into rt as one of the first things it does on startup, and changes to the user and group specified in jail-config before it starts responding to IRC messages.</p>
+    <p>Starting an IRC bot with root permissions should make one seriously nervous. Geordi requires root permissions only because <a href='http://linux.die.net/man/2/chroot'>chroot(2)</a> does. Geordi chroots into <kbd>rt</kbd> as one of the first things it does on startup, and changes to the user and group specified in jail-config before it starts responding to IRC messages.</p>
 
-    <h3>3.1 IRC</h3>
-
-    <p>Usage:&emsp;<kbd>sudo ./geordi-irc [option]...</kbd></p>
     <p>Options:</p>
     <dl>
       <dt><kbd>-c &lt;file></kbd> / <kbd>--config &lt;file></kbd></dt>
-      <dd><p>Load bot configuration from &lt;file> instead of "irc-config".</p></dd>
+      <dd><p>Load bot configuration from &lt;file> instead of <kbd>irc-config</kbd>.</p></dd>
       <dt><kbd>-h</kbd> / <kbd>--help</kbd></dt>
       <dd><p>Display help and exit.</p></dd>
     </dl>
 
     <h4 id='nickserv'>NickServ identification</h4>
-    <p>To have the bot identify to NickServ, change the following line in irc-config:</p>
+    <p>To have the bot identify to NickServ, change the following line in <kbd>irc-config</kbd>:</p>
     <pre>  , nick_pass = Nothing</pre>
     <p>into:</p>
     <pre>  , nick_pass = Just "mypassword"</pre>
 
     <h4 id='reconnect'>Auto-reconnect</h4>
-    <p>Geordi does not auto-reconnect. For that, just use something like <kbd>while true; do ./geordi-irc; sleep 120; done</kbd></p>
+    <p>Geordi does not auto-reconnect. For that, just use something like <pre>  while true; do geordi-irc; sleep 120; done</pre></p>
 
     <h4 id='multinetwork'>Connecting to multiple networks</h4>
-    <p>Make config files for the different networks. Then run one geordi-irc instance for each network, passing -c arguments pointing to the respective config files. The rt directory will be safely shared.</p>
+    <p>Make config files for the different networks. Then run one <kbd>geordi-irc</kbd> instance for each network, passing -c arguments pointing to the respective config files. The <kbd>rt</kbd> directory will be safely shared.</p>
 
     <h4>Censoring phrases</h4>
     <p>Some networks automatically kick or ban clients that utter certain phrases (like botnet commands). To prevent a geordi bot from uttering these, list regexes for them in irc-config. E.g.:</p>
     <pre>  , censor = ["some naughty phrase", "some wicked utterance"]</pre>
 
-    <hr/><h2 id='localization'>4. Localization</h2>
-    <p>To get compiler diagnostics (and some (but not all) other geordi messages) in a locale of your choice, copy the following into rt (preserving paths, for example using <kbd>cp --parents</kbd>):</p>
+    <hr/><h2 id='localization'>3. Localization</h2>
+    <p>To get compiler diagnostics (and some (but not all) other geordi messages) in a locale of your choice, copy the following into <kbd>rt</kbd> (preserving paths, for example using <kbd>cp --parents</kbd>):</p>
     <ul>
       <li>/usr/lib/locale/foo_BAR.utf8/*</li>
       <li>/usr/share/locale/foo/LC_MESSAGES/{cpplib,gcc,libc,libstdc++,opcodes}.mo</li>
@@ -148,124 +131,14 @@
     <p>These paths might differ somewhat on your system.</p>
     <p>You may need to install a separate GCC locales package or other kind of language pack for your distro, to get the files above.</p>
     <p>Furthermore, not all of the files above may be available for your locale; copy those that are.</p>
-    <p>Additionally, the LC_ALL environment variable must be set to foo_BAR.utf8 when geordi is started. Since sudo clears environment variables, this means you'll have to use something like:</p>
-    <p><kbd>sudo env LC_ALL=foo_BAR.utf8 ./geordi-...</kbd></p>
+    <p>Additionally, the LC_ALL environment variable must be set to foo_BAR.utf8 when geordi is started. Note that sudo clears environment variables by default, so either use <pre>  sudo -E geordi-...</pre> or use <pre>  sudo env LC_ALL=foo_BAR.utf8 geordi-...</pre></p>
 
-    <hr/><h2 id='problems'>5. Known problems</h2>
+    <hr/><h2 id='problems'>4. Known problems</h2>
     <ul>
       <li>
         Because <kbd>geordi-irc</kbd> connects as root, IRC servers that query ident may get a root response and may decide to reject the connection. (Quakenet is known to do this.)
       </li>
     </ul>
 
-    <hr/><h2 id='exampletree'>Appendix A: Example rt tree</h2>
-    <pre>
-      rt
-      |-- lib64
-      |   |-- ld-linux-x86-64.so.2
-      |   |-- libc.so.6
-      |   |-- libgcc_s.so.1
-      |   `-- libm.so.6
-      |-- libtpreload.so.0.0
-      |-- lock
-      |-- prelude.a
-      |-- prelude.hpp.gch
-      |-- t
-      |-- t.cpp
-      |-- t.o
-      |-- t.s
-      |-- terse.hpp
-      `-- usr
-          |-- bin
-          |   |-- as
-          |   |-- g++
-          |   `-- ld
-          `-- lib64
-              |-- crt1.o
-              |-- crti.o
-              |-- crtn.o
-              |-- gcc
-              |   `-- x86_64-suse-linux
-              |       `-- 4.1.2
-              |           |-- cc1plus
-              |           |-- crtbegin.o
-              |           |-- crtend.o
-              |           |-- libgcc.a
-              |           |-- libgcc_s.so
-              |           `-- libstdc++.so
-              |-- libbfd-2.17.50.0.5.so
-              |-- libc.so
-              |-- libc_nonshared.a
-              |-- libm.so
-              |-- libmcheck.a
-              |-- libstdc++.so.6
-              `-- libstdc++.so.6.0.8
-    </pre>
-
-    <hr/><h2 id='examplelisting'>Appendix B: Example rt file listing</h2>
-    <pre>
-      rt:
-      total 69M
-      drwxr-xr-x 2 eelis users  184 2007-12-25 01:14 lib64
-      -rwxr-xr-x 1 eelis users  50K 2008-05-15 16:39 libtpreload.so.0.0
-      -rw-r--r-- 1 eelis users    0 2007-12-25 01:40 lock
-      -rw-r--r-- 1 eelis users 123K 2007-12-25 01:15 prelude.a
-      -rw-r--r-- 1 eelis users  68M 2007-12-25 01:15 prelude.hpp.gch
-      -rwxrwxrwx 1 eelis users  53K 2007-12-25 01:41 t
-      -rw-rw-rw- 1 eelis users   61 2007-12-25 01:41 t.cpp
-      -rwxr-xr-x 1 eelis users 1.3K 2007-12-13 17:06 terse.hpp
-      -rw-rw-rw- 1 eelis users  12K 2007-12-25 01:41 t.o
-      -rw-rw-rw- 1 eelis users  28K 2007-12-25 01:41 t.s
-      drwxr-xr-x 4 eelis users   96 2007-12-25 01:29 usr
-
-      rt/lib64:
-      total 2.2M
-      -rwxr-xr-x 1 eelis users 139K 2007-12-13 17:07 ld-linux-x86-64.so.2
-      -rwxr-xr-x 1 eelis users 1.6M 2007-12-13 17:07 libc.so.6
-      -rwxr-xr-x 1 eelis users  59K 2007-12-13 17:08 libgcc_s.so.1
-      -rwxr-xr-x 1 eelis users 400K 2007-12-25 01:14 libm.so.6
-
-      rt/usr:
-      total 0
-      drwxr-xr-x 2 eelis users 120 2007-12-13 17:07 bin
-      drwxr-xr-x 3 eelis users 368 2007-12-25 01:41 lib64
-
-      rt/usr/bin:
-      total 2.3M
-      -rwxr-xr-x 1 eelis users 343K 2007-12-13 17:07 as
-      -rwxr-xr-x 1 eelis users 139K 2007-12-13 17:07 g++
-      -rwxr-xr-x 1 eelis users 1.9M 2007-12-13 17:07 ld
-
-      rt/usr/lib64:
-      total 4.0M
-      -rw-r--r-- 1 eelis users 3.5K 2007-12-13 17:07 crt1.o
-      -rw-r--r-- 1 eelis users 3.2K 2007-12-13 17:07 crti.o
-      -rw-r--r-- 1 eelis users 2.7K 2007-12-13 17:07 crtn.o
-      drwxr-xr-x 3 eelis users   88 2007-12-13 17:07 gcc
-      -rwxr-xr-x 1 eelis users 1.7M 2007-12-13 17:07 libbfd-2.17.50.0.5.so
-      -rw-r--r-- 1 eelis users  21K 2007-12-13 17:10 libc_nonshared.a
-      -rw-r--r-- 1 eelis users  253 2007-12-13 17:10 libc.so
-      -rw-r--r-- 1 eelis users 1.6K 2007-12-13 17:07 libmcheck.a
-      -rwxr-xr-x 1 eelis users 400K 2007-12-25 01:11 libm.so
-      -rwxr-xr-x 1 eelis users 948K 2007-12-25 01:07 libstdc++.so.6
-      -rwxr-xr-x 1 eelis users 948K 2007-12-25 01:07 libstdc++.so.6.0.8
-
-      rt/usr/lib64/gcc:
-      total 0
-      drwxr-xr-x 3 eelis users 72 2007-12-13 17:07 x86_64-suse-linux
-
-      rt/usr/lib64/gcc/x86_64-suse-linux:
-      total 0
-      drwxr-xr-x 2 eelis users 216 2007-12-25 01:31 4.1.2
-
-      rt/usr/lib64/gcc/x86_64-suse-linux/4.1.2:
-      total 7.0M
-      -rwxr-xr-x 1 eelis users 5.9M 2007-12-13 17:07 cc1plus
-      -rw-r--r-- 1 eelis users 2.4K 2007-12-13 17:07 crtbegin.o
-      -rw-r--r-- 1 eelis users 1.9K 2007-12-13 17:07 crtend.o
-      -rw-r--r-- 1 eelis users 113K 2007-12-13 17:08 libgcc.a
-      -rwxr-xr-x 1 eelis users  59K 2007-12-13 17:08 libgcc_s.so
-      -rwxr-xr-x 1 eelis users 948K 2007-12-25 01:10 libstdc++.so
-    </pre>
   </body>
 </html>

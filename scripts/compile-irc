@@ -1,4 +1,0 @@
-#!/bin/sh
-set -eu
-. scripts/compile-common
-$GHC --make IrcBot.hs -o ../geordi-irc

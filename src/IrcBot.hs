@@ -53,7 +53,7 @@ optsDesc =
   ]
 
 help :: String
-help = usageInfo "Usage: sudo ./geordi-irc [option]...\nOptions:" optsDesc ++ "\nSee README.xhtml for more information."
+help = usageInfo "Usage: sudo geordi-irc [option]...\nOptions:" optsDesc ++ "\nSee README.xhtml for more information."
 
 getArgs :: IO [Opt]
 getArgs = do

@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, UndecidableInstances, PatternGuards, DeriveDataTypeable #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, UndecidableInstances, PatternGuards, DeriveDataTypeable, OverlappingInstances #-}
 
 module Util where
 
