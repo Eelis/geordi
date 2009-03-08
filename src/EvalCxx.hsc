@@ -241,12 +241,15 @@ readCompileConfig = do
 
 data Request = Request { code :: String, also_run, no_warn :: Bool }
 
+pass_env :: String -> Bool
+pass_env s = ("LC_" `isPrefixOf` s) || (s `elem` ["PATH", "LD_LIBRARY_PATH"])
+
 evaluate :: CompileConfig -> Request -> IO EvaluationResult
 evaluate cfg req = do
   withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd -> do
   Flock.exclusive lock_fd
   writeFile "t.cpp" $ UTF8.encodeString $ code req ++ "\n"
-  env <- filter (("LC_" `isPrefixOf`) . fst) . getEnvironment
+  env <- filter (pass_env . fst) . getEnvironment
   let
     gxx :: [String] -> Stage -> IO EvaluationResult -> IO EvaluationResult
     gxx argv stage act = do
