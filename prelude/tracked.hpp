@@ -90,6 +90,8 @@ namespace tracked
     B & operator++();
     B operator++(int);
 
+    void operator*() const;
+
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       B(B &&);
       B & operator=(B &&);
@@ -97,6 +99,9 @@ namespace tracked
 
     template<typename C, typename Tr>
     friend std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> &, B const &);
+
+    private:
+      template<typename C, typename Tr> void print(std::basic_ostream<C, Tr> &) const;
   };
 
   struct D: B
@@ -130,6 +135,9 @@ namespace tracked
 
     template<typename C, typename Tr>
     friend std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> &, D const &);
+
+    private:
+      template<typename C, typename Tr> void print(std::basic_ostream<C, Tr> &) const;
   };
 
 } // namespace tracked

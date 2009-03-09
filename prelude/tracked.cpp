@@ -135,14 +135,14 @@ namespace tracked
 
   // B:
 
-    B::B() { set_name("B"); detail::info()() << *this << "*"; }
-    B::B(B const & b): Tracked(b) { set_name("B"); detail::info()() << *this << "*(" << b << ")"; }
-    B::B(int const x) { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
-    B::B(char const x) { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
-    B::B(std::string const & x) { set_name("B"); detail::info()() << *this << "*(" << x << ")"; }
+    B::B() { set_name("B"); detail::info const i; print(i()); i() << '*'; }
+    B::B(B const & b): Tracked(b) { set_name("B"); detail::info const i; print(i()); i() << "*("; b.print(i()); i() << ')'; }
+    B::B(int const x) { set_name("B"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    B::B(char const x) { set_name("B"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    B::B(std::string const & x) { set_name("B"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
       // todo: Delegating ctors should make this cleaner.
-    B & B::operator=(B const & b) { Tracked::operator=(b); detail::info()() << *this << "=" << b; return *this; }
-    B::~B() { detail::info()() << *this << "~"; }
+    B & B::operator=(B const & b) { Tracked::operator=(b); detail::info const i; print(i()); i() << '='; b.print(i()); return *this; }
+    B::~B() { detail::info const i; print(i()); i() << '~'; }
 
     void * B::operator new(std::size_t const s)
     { return detail::op_new(s, false, ::operator new(s), "B"); }
@@ -159,27 +159,27 @@ namespace tracked
 
     void B::f() const {
       assert_status_below(this, detail::pillaged, "call B::f() on");
-      detail::info()() << *this << ".f()";
+      detail::info const i; print(i()); i() << ".f()";
     }
 
     void B::vf() const {
       assert_status_below(this, detail::pillaged, "call B::vf() on");
-      detail::info()() << *this << ".vf()";
+      detail::info const i; print(i()); i() << ".vf()";
     }
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       B::B(B && b): Tracked(std::move<Tracked>(b))
-      { set_name("B"); detail::info()() << b << "=>" << *this << "*"; }
+      { set_name("B"); detail::info const i; b.print(i()); i() << "=>"; print(i()); i() << '*'; }
       B & B::operator=(B && b) {
         Tracked::operator=(std::move<Tracked>(b));
-        detail::info()() << b << "=>" << *this;
+        detail::info const i; b.print(i()); i() << "=>"; print(i());
         return *this;
       }
     #endif
 
     B & B::operator++() {
       assert_status_below(this, detail::pillaged, "pre-increment");
-      detail::info()() << "++" << *this;
+      detail::info const i; i() << "++"; print(i());
       return *this;
     }
 
@@ -188,23 +188,33 @@ namespace tracked
       B const r(*this); operator++(); return r;
     }
 
+    void B::operator*() const
+    {
+      assert_status_below(this, detail::pillaged, "dereference");
+      detail::info const i; i() << '*'; print(i());
+    }
+
+    template<typename C, typename Tr>
+    void B::print(std::basic_ostream<C, Tr> & o) const
+    { o << 'B' << detail::id(*this); }
+
     template<typename C, typename Tr>
     std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, B const & b)
-    { return o << "B" << detail::id(b); }
+    { assert_status_below(&b, detail::pillaged, "read"); b.print(o); return o; }
 
     template std::ostream & operator<<<char, std::char_traits<char> >(std::ostream &, B const &);
     template std::wostream & operator<<<wchar_t, std::char_traits<wchar_t> >(std::wostream &, B const &);
 
   // D:
 
-    D::D() { set_name("D"); detail::info()() << *this << "*"; }
+    D::D() { set_name("D"); detail::info const i; print(i()); i() << '*'; }
     D::D(D const & d): B(boost::implicit_cast<B const&>(d))
-    { set_name("D"); detail::info()() << *this << "*(" << d << ")"; }
-    D::D(int const x): B(x) { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
-    D::D(char const x): B(x) { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
-    D::D(std::string const & x): B(x) { set_name("D"); detail::info()() << *this << "*(" << x << ")"; }
-    D & D::operator=(D const & d) { B::operator=(d); detail::info()() << *this << "=" << d; return *this; }
-    D::~D() { detail::info()() << *this << "~"; }
+    { set_name("D"); detail::info const i; print(i()); i() << "*("; d.print(i()); i() << ')'; }
+    D::D(int const x): B(x) { set_name("D"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    D::D(char const x): B(x) { set_name("D"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    D::D(std::string const & x): B(x) { set_name("D"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    D & D::operator=(D const & d) { B::operator=(d); detail::info const i; print(i()); i() << '='; d.print(i()); return *this; }
+    D::~D() { detail::info const i; print(i()); i() << '~'; }
 
     void * D::operator new(std::size_t const s)
     { return detail::op_new(s, false, ::operator new(s), "D"); }
@@ -221,26 +231,31 @@ namespace tracked
 
     void D::f() const {
       assert_status_below(this, detail::pillaged, "call D::f() on");
-      detail::info()() << *this << ".f()";
+      detail::info const i; print(i()); i()<< ".f()";
     }
 
     void D::vf() const {
       assert_status_below(this, detail::pillaged, "call D::vf() on");
-      detail::info()() << *this << ".vf()";
+      detail::info const i; print(i()); i() << ".vf()";
     }
 
     template<typename C, typename Tr>
+    void D::print(std::basic_ostream<C, Tr> & o) const
+    { o << 'D' << detail::id(*this); }
+
+    template<typename C, typename Tr>
     std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, D const & d)
-    { return o << "D" << detail::id(d); }
+    { assert_status_below(&d, detail::pillaged, "read"); d.print(o); return o; }
 
     template std::ostream & operator<<<char, std::char_traits<char> >(std::ostream &, D const &);
     template std::wostream & operator<<<wchar_t, std::char_traits<wchar_t> >(std::wostream &, D const &);
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      D::D(D && d): B(std::move<B>(d)) { set_name("D"); detail::info()() << d << "=>" << *this << "*"; }
+      D::D(D && d): B(std::move<B>(d))
+      { set_name("D"); detail::info const i; d.print(i()); i() << "=>"; print(i()); i() << '*'; }
       D & D::operator=(D && d) {
         B::operator=(std::move<B>(d));
-        detail::info()() << d << "=>" << *this;
+        detail::info const i; d.print(i()); i() << "=>"; print(i());
         return *this;
       }
     #endif
