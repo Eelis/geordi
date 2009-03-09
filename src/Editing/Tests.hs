@@ -73,7 +73,7 @@ make_tests = do
       where
         actual = case parseOrFailE (Editing.Parse.commandsP << eof) cmdstring "command" of
           Left e -> Left e
-          Right cmds -> editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) code)
+          Right (cmds, _) -> editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) code)
     s, f :: String -> String -> String -> IO ()
     s code cmdstring expectation = t code cmdstring (Right expectation) -- test for success
     f code cmdstring expectation = t code cmdstring (Left expectation) -- test for failure
@@ -195,13 +195,13 @@ basic_tests = do
   t "move " $ Left "Unexpected end of command. Expected ordinal, \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", or verbatim string."
   t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" between\", or \" to\"."
   t "move x to "$ Left "Unexpected end of command. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
-  t "erase all 2 and " $ Left "Unexpected end of command. Expected option, \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", verbatim string, or edit command."
+  t "erase all 2 and " $ Left "Unexpected end of command. Expected option, \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", verbatim string, edit command, or \"show\"."
   putStrLn "All basics tests passed."
  where
   t :: String -> Either String String -> IO ()
   t c o = test_cmp c o $ case parseOrFailE (Editing.Parse.commandsP << eof) c "command" of
     Left e -> Left e
-    Right cmds -> editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) "1 2 3 2 3 4 5")
+    Right (cmds, _) -> editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) "1 2 3 2 3 4 5")
 
 diff_tests :: IO ()
 diff_tests = do

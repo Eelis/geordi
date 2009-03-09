@@ -74,11 +74,12 @@ evaluator = do
             kwd "and"; oe <- Editing.Parse.commandsP; eof
             case oe of
               Left e -> error_response e
-              Right cs -> case Editing.Execute.execute cs prev of
+              Right (cs, sh) -> case Editing.Execute.execute cs prev of
                 Left e -> error_response e
                 Right (EditableRequest _ edited_body) | length_ge 1000 edited_body ->
                   error_response "Request would become too large."
-                Right edited -> return $ Response (Just (edited, True)) . respond edited
+                Right edited ->
+                  return $ Response (Just (edited, True)) . (if sh then return (show edited) else respond edited)
           _ -> error_response "There is no prior request."
       <|> do
         kwds ["--precedence", "precedence"]
@@ -106,13 +107,14 @@ evaluator = do
       <|> do
         cs' <- Editing.Parse.commandsP; commit $ eof >> case cs' of
           Left e -> error_response e
-          Right cs -> case prevs of
+          Right (cs, sh) -> case prevs of
             [] -> error_response "There is no previous editable request."
             prev : _ -> case Editing.Execute.execute cs prev of
               Left e -> error_response e
               Right (EditableRequest _ edited_body) | length_ge 1000 edited_body ->
                 error_response "Request would become too large."
-              Right edited -> respond_and_remember edited
+              Right edited ->
+                return $ Response (Just (edited, False)) . (if sh then return (show edited) else respond edited)
       <|> do
         mopts <- option (return []) optParser; spaces
         (\z -> either error_response z mopts) $ \opts -> do
