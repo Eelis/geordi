@@ -169,6 +169,7 @@ basic_tests = do
   t "move 3 4 5 to before 4" $ Left "Move destination lies in source range."
   -- Order-sensitive edits:
   t "wrap parentheses around everything and append x" $ Right "(1 2 3 2 3 4 5)x"
+  t "add parentheses around all 3 and all 2 and erase 4" $ Right "1 (2) (3) (2) (3)  5"
   t "append x and wrap parentheses around everything" $ Right "(1 2 3 2 3 4 5x)"
   t "append x after everything before 4 and add y before 4" $ Right "1 2 3 2 3 xy4 5"
   t "insert y before 4 and insert z after second 3 " $ Right "1 2 3 2 3 zy4 5"
@@ -190,8 +191,8 @@ basic_tests = do
   t "erase everything before first 3 and replace first 2 with x" $ Left "Overlapping edits: erase `1 2 ` and replace 2 with x."
   -- Syntax errors:
   t "isnert 3 before 4" $ Left "Unexpected `isnert` at start. Expected edit command."
-  t "insert " $ Left "Unexpected end of command. Expected option or verbatim string."
-  t "insert kung fu" $ Left "Unexpected end of command. Expected \" at\", \" before\", or \" after\"."
+  t "insert " $ Left "Unexpected end of command. Expected option, verbatim string, or wrapping description."
+  t "insert kung fu" $ Left "Unexpected end of command. Expected \" at\", \" before\", \" after\", or \" and\"."
   t "move " $ Left "Unexpected end of command. Expected ordinal, \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", or verbatim string."
   t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" between\", or \" to\"."
   t "move x to "$ Left "Unexpected end of command. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."

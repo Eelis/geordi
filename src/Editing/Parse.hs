@@ -229,7 +229,7 @@ instance Parse Around where parse = kwd ["around"] >>> auto1 Around
 instance Parse UseClause where parse = auto1 UseOptions <||> auto1 UseString
 
 instance Parse Wrapping where
-  parse =
+  parse = label "wrapping description" $
     (kwd ["curlies", "braces", "curly brackets"] >>> arr (const (Wrapping "{" "}")))
     <||> (kwd ["parentheses", "parens", "round brackets"] >>> arr (const (Wrapping "(" ")")))
     <||> (kwd ["square brackets"] >>> arr (const (Wrapping "[" "]")))
@@ -243,7 +243,7 @@ instance Parse a => Parse (Maybe a) where parse = (parse >>> arr Just) <||> arr 
 
 instance Parse Command where
   parse = label "edit command" $
-    (kwd ["insert", "add"] >>> commit ((parse >>> arr (Use `fmap` (fmap UseOptions))) <||> auto2 Insert)) <||>
+    (kwd ["insert", "add"] >>> commit ((parse >>> arr (Use `fmap` (fmap UseOptions))) <||> auto2 Insert <||> auto2 WrapAround)) <||>
     (kwd ["append"] >>> commit (auto2 Append)) <||>
     (kwd ["prepend"] >>> commit ((parse >>> arr (Use `fmap` (fmap UseOptions))) <||> auto2 Prepend)) <||>
     (kwd ["erase", "remove", "kill", "cut", "omit", "delete", "drop"] >>> commit (auto1 Erase)) <||>
