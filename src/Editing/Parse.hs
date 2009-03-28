@@ -278,9 +278,12 @@ instance Parse DeclaratorId where
 instance Parse SemCommand where
   parse = label "edit command" $ kwd ["make"] >>> commit (auto2 Make)
 
+addAnd :: [AndCont] -> Parser a b -> Parser a b
+addAnd a (Parser t p) = Parser t $ \t' a' v -> p t' (a ++ a') v
+
 commandsP :: P.Parser Char (Either String (([Command], [SemCommand]), Bool))
 commandsP = uncool p (Terminators True []) []
   where
     p = liftA2 (,)
-      (parse >>> arr (partitionEithers . unne . andList))
+      (addAnd ["show"] $ parse >>> arr (partitionEithers . unne . andList))
       ((andP >>> kwd ["show"] >>> arr (const True)) <||> arr (const False))

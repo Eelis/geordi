@@ -71,7 +71,9 @@ evaluator = do
       <|> do
         kwds ["undo", "revert"]; commit $ case prevs of
           (_:prev:_) -> do
-            kwd "and"; oe <- Editing.Parse.commandsP; eof
+            kwd "and"
+            (kwd "show" >> eof >> return (return $ Response Nothing $ show prev)) <|> do
+            oe <- Editing.Parse.commandsP; eof
             case oe of
               Left e -> error_response e
               Right (cs, sh) -> case Editing.Execute.execute cs prev of
