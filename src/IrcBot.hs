@@ -8,6 +8,7 @@ import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Sys
 import qualified Data.Map as Map
 import qualified Network.BSD
+import qualified Data.List as List
 
 import Control.Exception (bracketOnError)
 import System.IO (hGetLine, hPutStrLn, hFlush, Handle, IOMode(..))
@@ -26,7 +27,8 @@ import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
 
 data IrcBotConfig = IrcBotConfig
   { server :: Net.HostName, port :: Net.PortNumber, max_response_length :: Int
-  , chans :: [String], nick :: String, nick_pass :: Maybe String, alternate_nick :: String
+  , chans :: [String], key_chans :: [(String, String)]
+  , nick :: String, nick_pass :: Maybe String, alternate_nick :: String
   , also_respond_to :: [String]
   , allow_short_request_syntax_in :: [String]
   , blacklist :: [String]
@@ -139,10 +141,15 @@ strip_color_codes :: String -> String
 strip_color_codes s = subRegex r s ""
   where r = mkRegex "\x3(,[[:digit:]]{1,2}|[[:digit:]]{1,2}(,[[:digit:]]{1,2})?)?"
 
+join_msg :: IrcBotConfig -> IRC.Message
+join_msg cfg = msg "JOIN" $ map (concat . List.intersperse ",") $
+  if null (key_chans cfg) then [chans cfg]
+  else [fst . key_chans cfg ++ chans cfg, snd . key_chans cfg]
+
 on_msg :: (Functor m, Monad m) =>
   (String -> Request.Context -> m Request.Response) -> IrcBotConfig -> Bool -> IRC.Message -> StateT ChannelMemoryMap m [IRC.Message]
 on_msg eval cfg full_size m = flip execStateT [] $ do
-  when (join_trigger cfg == Just m) join_chans
+  when (join_trigger cfg == Just m) $ send $ join_msg cfg
   case m of
     IRC.Message (Just (IRC.NickName who _ _)) "QUIT" _ | who == nick cfg ->
       send $ msg "NICK" [nick cfg]
@@ -175,11 +182,10 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
           reply $ describe_new_output (last_output . mmem) output'
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
-      when (join_trigger cfg == Nothing) join_chans
+      when (join_trigger cfg == Nothing) $ send $ join_msg cfg
     _ -> return ()
   where
     send = msapp . (:[])
-    join_chans = msapp $ msg "JOIN" . (:[]) . chans cfg
 
 connect :: Net.HostName -> Net.PortNumber -> IO Handle
   -- Mostly copied from Network.connectTo. We can't use that one because we want to set SO_KEEPALIVE (and related) options on the socket, which can't be done on a Handle.
