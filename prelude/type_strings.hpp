@@ -30,6 +30,7 @@
 #include <boost/utility.hpp>
 #include <boost/array.hpp>
 #include <boost/type_traits/is_same.hpp>
+#include <boost/type_traits/is_union.hpp>
 
 #ifdef __GXX_EXPERIMENTAL_CXX0X__
   #include <array>
@@ -264,10 +265,13 @@ namespace textual_type_descriptions
 
   #endif
 
+  template<typename T> std::string class_key()
+  { return boost::is_union<T>::value ? "union" : "class";  }
+
   // data members
 
   template <typename T, typename U> struct type_desc_t<T (U:: *)>: consonant
-  { static std::string s (bool b) { return pl("pointer", b) + " to data " + pl("member", b) + " of class " + type<U>() + " of type " + type_desc<T>(); } };
+  { static std::string s (bool b) { return pl("pointer", b) + " to data " + pl("member", b) + " of " + class_key<U>() + " " + type<U>() + " of type " + type_desc<T>(); } };
 
   // member function pointers
 
@@ -281,7 +285,7 @@ namespace textual_type_descriptions
   }
 
   template <typename T, typename U, char const * e> struct type_desc_t_mem0: consonant
-  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "nullary member " + pl("function", b) + " of class " + type<U>() + " " + returning<T>(b); } };
+  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "nullary member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " " + returning<T>(b); } };
 
   template <typename T, typename U>
   struct type_desc_t<T (U:: *) ()>: type_desc_t_mem0<T, U, cv_> {};
@@ -293,7 +297,7 @@ namespace textual_type_descriptions
   struct type_desc_t<T (U:: *) () const volatile>: type_desc_t_mem0<T, U, cv_cv> {};
 
   template <typename T, typename U, char const * e> struct type_desc_t_mem_vari: consonant
-  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "variadic member " + pl("function", b) + " of class " + type<U>() + " " + returning<T>(b); } };
+  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "variadic member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " " + returning<T>(b); } };
 
   template <typename T, typename U>
   struct type_desc_t<T (U:: *) (...)>: type_desc_t_mem_vari<T, U, cv_> {};
@@ -310,7 +314,7 @@ namespace textual_type_descriptions
   struct type_desc_t_memN: consonant {
     static std::string s (bool b) {
       std::vector<std::string> v; list_desc<P...>::s(v); v.push_back(returning<T>(b));
-      return pl("pointer", b) + " to" + e + "member " + pl("function", b) + " of class " + type<U>() + " taking " + commas_and(v.begin(), v.end());
+      return pl("pointer", b) + " to" + e + "member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " taking " + commas_and(v.begin(), v.end());
     }
   };
 
@@ -327,7 +331,7 @@ namespace textual_type_descriptions
   struct type_desc_t_memN_vari: consonant {
     static std::string s (bool b) {
       std::vector<std::string> v; list_desc<P...>::s(v); v.push_back(returning<T>(b));
-      return pl("pointer", b) + " to" + e + "variadic member " + pl("function", b) + " of class " + type<U>() + " taking at least " + commas_and(v.begin(), v.end());
+      return pl("pointer", b) + " to" + e + "variadic member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " taking at least " + commas_and(v.begin(), v.end());
     }
   };
 
@@ -345,7 +349,7 @@ namespace textual_type_descriptions
   // member function with 1 param
 
   template <typename T, typename U, typename V, char const * e> struct type_desc_t_mem1: consonant
-  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "member " + pl("function", b) + " of class " + type<U>() + " taking " + an_or_many<V>(b) + " and " + returning<T>(b); } };
+  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " taking " + an_or_many<V>(b) + " and " + returning<T>(b); } };
 
   template <typename T, typename U, typename V>
   struct type_desc_t<T (U:: *) (V)>: type_desc_t_mem1<T, U, V, cv_> {};
@@ -360,7 +364,7 @@ namespace textual_type_descriptions
 
   template <typename T, typename U, typename V, typename W, char const * e>
   struct type_desc_t_mem2: consonant
-  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "member " + pl("function", b) + " of class " + type<U>() + " taking " + an_or_many<V>(b) + ", " + an_or_many<W>(b) + ", and " + returning<T>(b); } };
+  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " taking " + an_or_many<V>(b) + ", " + an_or_many<W>(b) + ", and " + returning<T>(b); } };
 
   template <typename T, typename U, typename V, typename W>
   struct type_desc_t<T (U:: *) (V, W)>: type_desc_t_mem2<T, U, V, W, cv_> {};
@@ -375,7 +379,7 @@ namespace textual_type_descriptions
 
   template <typename T, typename U, typename V, typename W, typename X, char const * e>
   struct type_desc_t_mem3: consonant
-  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "member " + pl("function", b) + " of class " + type<U>() + " taking " + an_or_many<V>(b) + ", " + an_or_many<W>(b) + ", " + an_or_many<X>(b) + ", and " + returning<T>(b); }  };
+  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " taking " + an_or_many<V>(b) + ", " + an_or_many<W>(b) + ", " + an_or_many<X>(b) + ", and " + returning<T>(b); }  };
 
   template <typename T, typename U, typename V, typename W, typename X>
   struct type_desc_t<T (U:: *) (V, W, X)>: type_desc_t_mem3<T, U, V, W, X, cv_> {};
