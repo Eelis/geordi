@@ -203,9 +203,10 @@ instance Parse (Relative (EverythingOr (Ranked String))) where
       returnA -< Between Everything $ Betw (Bound (Just Before) $ NotEverything x) u
     <||> (relative -< NotEverything x)
 
-instance Parse Declaration where
-  parse = k >>> kwd ["of"] >>> parse >>> arr DeclarationOf
-    where k = Parser (Terminators False ["declaration"]) $ \(Terminators b _) _ _ -> fmap Right $ symbols "declaration" >> P.optional (char 's') >> (if b then (eof <|>) else id) (char ' ' >> return ())
+instance Parse NamedEntity where
+  parse =
+    ((label "\"declaration\"" $ kwd ["declarations", "declaration"]) >>> kwd ["of"] >>> auto1 DeclarationOf) <||>
+    ((label "\"body\"" $ kwd ["bodies", "body"]) >>> kwd ["of"] >>> auto1 BodyOf)
 
 instance Parse Position where
   parse = (select [(begin, Before), (end_kwds, After)] >>> arr (flip Position Everything)) <||> auto2 Position
@@ -213,6 +214,11 @@ instance Parse Position where
 instance Parse a => Parse (Rankeds a) where
   parse = (kwd ["all"] >>> ((kwd ["except", "but"] >>> auto2 AllBut) <||> auto1 All))
     <||> (kwd ["any", "every", "each"] >>> auto1 All) <||> auto2 Rankeds <||> auto1 Sole'
+
+instance Parse AppendPositionsClause where
+  parse = (kwd ["in"] >>> auto1 AppendIn) <||> auto1 NonAppendPositionsClause
+instance Parse PrependPositionsClause where
+  parse = (kwd ["in"] >>> auto1 PrependIn) <||> auto1 NonPrependPositionsClause
 
 instance Parse PositionsClause where
   parse = (kwd ["at"] >>> select [(begin, Before), (end_kwds, After)] >>> arr (\ba -> PositionsClause ba $ and_one $ Right $ absolute Everything)) <||> auto2 PositionsClause

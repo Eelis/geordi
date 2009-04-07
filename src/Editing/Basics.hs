@@ -66,36 +66,39 @@ makeMoveEdit (Anchor ba p) r@(Range st si)
 
 -- Command grammar
 
-newtype Declaration = DeclarationOf DeclaratorId
+data NamedEntity = DeclarationOf DeclaratorId | BodyOf DeclaratorId
+  -- Todo: "Nth parameter of", "base of", etc.
 data EverythingOr a = Everything | NotEverything a
 data Ranked a = Ranked Ordinal a | Sole a
 data Rankeds a = Rankeds (AndList Ordinal) a | Sole' a | All a | AllBut (AndList Ordinal) a
 data Bound = Bound (Maybe BefAft) (EverythingOr (Ranked String))
 data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative (EverythingOr (Ranked String)))
-data Relative a = Relative a BefAft (Ranked (Either Declaration String)) | Between a Betw | FromTill Bound RelativeBound
+data Relative a = Relative a BefAft (Ranked (Either NamedEntity String)) | Between a Betw | FromTill Bound RelativeBound
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
 data PositionsClause = PositionsClause BefAft (AndList Substrs)
-type Substr = EverythingOr (Ranked (Either Declaration String))
-type Substrs = Either (Rankeds Declaration) (Relative (EverythingOr (Rankeds String)))
+data AppendPositionsClause = AppendIn DeclaratorId | NonAppendPositionsClause PositionsClause
+data PrependPositionsClause = PrependIn DeclaratorId | NonPrependPositionsClause PositionsClause
+type Substr = EverythingOr (Ranked (Either NamedEntity String))
+type Substrs = Either (Rankeds NamedEntity) (Relative (EverythingOr (Rankeds String)))
   -- We don't do relative declarations, for now.
 data Position = Position BefAft Substr
 type Positions = AndList PositionsClause
 data Replacer = Replacer (AndList Substrs) String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
-data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around (Ranked (Either Declaration String)))
-data Mover = Mover (Either (Ranked Declaration) (Relative (EverythingOr (Ranked String)))) Position
+data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around (Ranked (Either NamedEntity String)))
+data Mover = Mover (Either (Ranked NamedEntity) (Relative (EverythingOr (Ranked String)))) Position
 data BefAft = Before | After deriving Eq
 data Around a = Around a
 data Betw = Betw Bound RelativeBound
 data Wrapping = Wrapping String String
 data UseClause = UseString String | UseOptions [Request.EvalOpt]
-type Swappable = Either (Ranked Declaration) (Relative (EverythingOr (Ranked String)))
+type Swappable = Either (Ranked NamedEntity) (Relative (EverythingOr (Ranked String)))
   -- The EverythingOr is pretty silly for Swappable, but removing it only costs extra code in the parser.
 data Swapper = Swapper Swappable Swappable
 
 data Command
-  = Insert String Positions
-  | Append String (Maybe Positions)
-  | Prepend String (Maybe Positions)
+  = Insert String (AndList AppendPositionsClause)
+  | Append String (Maybe (AndList AppendPositionsClause))
+  | Prepend String (Maybe (AndList PrependPositionsClause))
   | Replace (AndList Replacer)
   | Erase (AndList Eraser)
   | Move (AndList Mover)

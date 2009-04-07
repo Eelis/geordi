@@ -7,10 +7,9 @@ import qualified Cxx.Parse
 import qualified Editing.Diff
 import qualified Data.List as List
 import qualified Data.Char as Char
-import Editing.Show ()
+import qualified Editing.Show
 import Control.Monad (liftM2)
-import Cxx.Basics (DeclaratorId)
-import Cxx.Operations (findDeclaration)
+import Cxx.Operations (findDeclaration, findBody)
 import Control.Monad.Error ()
 
 import Util ((.), Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, strip, NElist(..), nth_ne, once_twice_thrice)
@@ -50,7 +49,7 @@ instance Convert Anchor (Pos Char) where convert = anchor_pos
 
 instance FindInStr (Around (AndList Substrs)) [ARange] where findInStr s (Around x) = concat . findInStr s x
 
-instance FindInStr (Ranked (Either Declaration String)) ARange where
+instance FindInStr (Ranked (Either NamedEntity String)) ARange where
   findInStr t (Ranked o (Right s)) = findInStr t (Ranked o s)
   findInStr y (Sole (Right x)) = findInStr y (Sole x)
   findInStr s (Sole (Left d)) = findInStr s (Sole d)
@@ -111,31 +110,51 @@ instance FindInStr (Rankeds String) [ARange] where
   findInStr x (AllBut (AndList rs) s) =
     return $ (anchor_range . flip Range (length s)) . erase_indexed (ordinal_carrier . unne rs) (find_occs s x)
 
-instance FindInStr DeclaratorId (NElist ARange) where
-  findInStr s did = case Cxx.Parse.parseRequest s of
+instance FindInStr NamedEntity (NElist ARange) where
+  findInStr s d = case Cxx.Parse.parseRequest s of
     Left e -> fail $ "Could not parse code in previous request. " ++ e
-    Right r -> case findDeclaration did r of
-      [] -> fail $ "Could not find free declaration of " ++ strip (show did) ++ "."
-      (x:y) -> return $ fmap convert $ NElist x y
+    Right r -> case d of
+      DeclarationOf did -> case findDeclaration did r of
+        [] -> fail $ "Could not find free declaration of " ++ strip (show did) ++ "."
+        (x:y) -> return $ fmap convert $ NElist x y
+      BodyOf did -> case findBody did r of
+        [] -> fail $ "Could not find body of " ++ strip (show did) ++ "."
+        (x:y) -> return $ fmap convert $ NElist x y
 
-instance FindInStr (Ranked Declaration) ARange where
-  findInStr s (Sole (DeclarationOf did)) = do
-    NElist x y <- findInStr s did
-    if null y then return x else fail $ "Multiple declarations of " ++ strip (show did) ++ " occur."
-  findInStr s (Ranked o (DeclarationOf did)) = do
-    l <- findInStr s did
+show_plural :: NamedEntity -> String
+show_plural (DeclarationOf did) = "declarations of " ++ strip (show did)
+show_plural (BodyOf did) = "bodies of " ++ strip (show did)
+
+instance FindInStr (Ranked NamedEntity) ARange where
+  findInStr s (Sole decl) = do
+    NElist x y <- findInStr s decl
+    if null y then return x else fail $ "Multiple " ++ show_plural decl ++ " occur."
+  findInStr s (Ranked o decl) = do
+    l <- findInStr s decl
     case nth_ne o l of
-      Nothing -> fail $ "Could not find a " ++ show o ++ " declaration of " ++ strip (show did) ++ "."
+      Nothing -> fail $ "Could not find a " ++ show o ++ " " ++ Editing.Show.show decl ++ "."
       Just r -> return r
 
-instance FindInStr (Rankeds Declaration) [ARange] where
-  findInStr s (All (DeclarationOf did)) = unne . findInStr s did
-  findInStr s (Sole' (DeclarationOf did)) = do
-    NElist x y <- findInStr s did
-    if null y then return [x] else fail $ "Multiple declarations of " ++ strip (show did) ++ " occur."
+instance FindInStr AppendPositionsClause [Anchor] where
+  findInStr s (NonAppendPositionsClause pc) = findInStr s pc
+  findInStr s (AppendIn did) = do
+    NElist ar z <- findInStr s (BodyOf did)
+    if null z then return [ar After] else fail $ "Multiple " ++ show_plural (BodyOf did) ++ " occur."
+
+instance FindInStr PrependPositionsClause [Anchor] where
+  findInStr s (NonPrependPositionsClause pc) = findInStr s pc
+  findInStr s (PrependIn did) = do
+    NElist ar z <- findInStr s (BodyOf did)
+    if null z then return [ar Before] else fail $ "Multiple " ++ show_plural (BodyOf did) ++ " occur."
+
+instance FindInStr (Rankeds NamedEntity) [ARange] where
+  findInStr s (All decl) = unne . findInStr s decl
+  findInStr s (Sole' decl) = do
+    NElist x y <- findInStr s decl
+    if null y then return [x] else fail $ "Multiple " ++ show_plural decl ++ " occur."
   findInStr x (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x (Ranked r s)) . unne rs
-  findInStr x (AllBut (AndList rs) (DeclarationOf d)) =
-    erase_indexed (ordinal_carrier . unne rs) . unne . findInStr x d
+  findInStr x (AllBut (AndList rs) decl) =
+    erase_indexed (ordinal_carrier . unne rs) . unne . findInStr x decl
 
 instance (FindInStr x a, FindInStr y a) => FindInStr (Either x y) a where
   findInStr s = either (findInStr s) (findInStr s)
@@ -222,8 +241,8 @@ instance FindInStr Command [Edit] where
   findInStr s (Use (AndList l)) = sequence $ findInStr s . unne l
   findInStr s (Append x Nothing) = return [InsertEdit (Anchor After (length s)) x]
   findInStr _ (Prepend x Nothing) = return [InsertEdit (Anchor Before 0) x]
-  findInStr s (Append x (Just y)) = findInStr s (Insert x y)
-  findInStr s (Prepend x (Just y)) = findInStr s (Insert x y)
+  findInStr s (Append r (Just p)) = (flip InsertEdit r .) . concat . findInStr s p
+  findInStr s (Prepend r (Just p)) = (flip InsertEdit r .) . concat . findInStr s p
   findInStr s (Erase (AndList l)) = concat . sequence (findInStr s . unne l)
   findInStr s (Replace (AndList l)) = concat . sequence (findInStr s . unne l)
   findInStr s (Insert r p) = (flip InsertEdit r .) . concat . findInStr s p

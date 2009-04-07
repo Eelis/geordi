@@ -180,6 +180,10 @@ basic_tests = do
   t "prepend x and wrap parentheses around everything" $ Right "(x1 2 3 2 3 4 5)"
   t "prepend x before everything after 4 and add y after 4" $ Right "1 2 3 2 3 4yx 5"
   t "add y after 4 and prepend x before everything after 4" $ Right "1 2 3 2 3 4xy 5"
+  -- Semantic edits:
+  ct "namespace N { void f(); } class C { void g() {} };" "swap body of N and body of C" $ Right "namespace N { void g() {} } class C { void f(); };"
+  ct "void f() { int i; } void g() { int j; } void h() {}" "prepend BARK; in f and append BARK; in g and in h" $ Right "void f() { BARK;int i; } void g() { int j; BARK;} void h() {BARK;}"
+  ct "class C { int f() {} };" "add int x; in C and add return x; in f" $ Right "class C { int f() {return x;} int x;};"
   -- Edit errors:
   t "move second 2 to x" $ Left "Unexpected `x` after `second 2 to `. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
   t "replace alligators with chickens" $ Left "String `alligators` does not occur."
@@ -194,17 +198,20 @@ basic_tests = do
   -- Syntax errors:
   t "isnert 3 before 4" $ Left "Unexpected `isnert` at start. Expected edit command."
   t "insert " $ Left "Unexpected end of command. Expected option, verbatim string, or wrapping description."
-  t "insert kung fu" $ Left "Unexpected end of command. Expected \" at\", \" before\", \" after\", or \" and\"."
-  t "move " $ Left "Unexpected end of command. Expected ordinal, \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", or verbatim string."
+  t "insert kung fu" $ Left "Unexpected end of command. Expected \" in\", \" at\", \" before\", \" after\", or \" and\"."
+  t "move " $ Left "Unexpected end of command. Expected ordinal, \"declaration\", \"body\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", or verbatim string."
   t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" between\", or \" to\"."
   t "move x to "$ Left "Unexpected end of command. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
-  t "erase all 2 and " $ Left "Unexpected end of command. Expected verbatim string, wrapping description, option, \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", edit command, or \"show\"."
+  t "erase all 2 and " $ Left "Unexpected end of command. Expected verbatim string, wrapping description, option, \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", edit command, or \"show\"."
   putStrLn "All basics tests passed."
  where
   t :: String -> Either String String -> IO ()
-  t c o = test_cmp c o $ case parseOrFailE (Editing.Parse.commandsP << eof) c "command" of
+  t = ct "1 2 3 2 3 4 5"
+
+  ct :: String -> String -> Either String String -> IO ()
+  ct s c o = test_cmp c o $ case parseOrFailE (Editing.Parse.commandsP << eof) c "command" of
     Left e -> Left e
-    Right (cmds, _) -> editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) "1 2 3 2 3 4 5")
+    Right (cmds, _) -> editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) s)
 
 diff_tests :: IO ()
 diff_tests = do

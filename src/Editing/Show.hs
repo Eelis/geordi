@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, PatternGuards #-}
 
-module Editing.Show (showEdit) where
+module Editing.Show (showEdit, show) where
 
 import Cxx.Show ()
 import qualified Data.List as List
@@ -61,6 +61,14 @@ instance Show a => Show (AndList a) where
 instance Show PositionsClause where
   show (PositionsClause ba l) = show ba ++ " " ++ show l
 
+instance Show AppendPositionsClause where
+  show (NonAppendPositionsClause pc) = show pc
+  show (AppendIn d) = show "in " ++ show d
+
+instance Show PrependPositionsClause where
+  show (NonPrependPositionsClause pc) = show pc
+  show (PrependIn d) = show "in " ++ show d
+
 instance Show Bound where
   show (Bound mba x) = maybe "" ((++ " ") . show) mba ++ show x
 
@@ -92,7 +100,9 @@ instance Show UseClause where show (UseString s) = s; show (UseOptions o) = show
 instance Show Mover where show (Mover x y) = show x ++ " to " ++ show y
 instance Show Swapper where show (Swapper x y) = show x ++ " and " ++ show y
 
-instance Show Declaration where show (DeclarationOf d) = "declaration of " ++ strip (show d)
+instance Show NamedEntity where
+  show (DeclarationOf d) = "declaration of " ++ strip (show d)
+  show (BodyOf d) = "body of " ++ strip (show d)
 
 instance Show String where
   show " " = "space"

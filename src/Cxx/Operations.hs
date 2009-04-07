@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances #-}
 
-module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, findDeclaration, is_pointer_or_reference) where
+module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, findDeclaration, findBody, is_pointer_or_reference) where
 
 import qualified Cxx.Show
 import qualified Data.List as List
@@ -217,6 +217,22 @@ data GfoldlWithLengthsIntermediary r a = GfoldlWithLengthsIntermediary { gwli_re
 
 gfoldl_with_lengths :: Data a => Int -> (forall d. Data d => Int -> d -> [r]) -> a -> [r]
 gfoldl_with_lengths i f = gwli_result . gfoldl (\(GfoldlWithLengthsIntermediary m o) y -> GfoldlWithLengthsIntermediary (m ++ f o y) (o + length (Cxx.Show.show_simple y))) (\_ -> GfoldlWithLengthsIntermediary [] i)
+
+findBody :: Data a => DeclaratorId -> a -> [Range Char]
+findBody did = findBody' did 0
+
+findBody' :: Data d => DeclaratorId -> Int -> d -> [Range Char]
+findBody' did i x
+  | Just (ClassSpecifier classHead (Curlied o b _)) <- cast x, convert classHead == Just did =
+    [Range (i + length (Cxx.Show.show_simple (classHead, o)))
+      (length $ Cxx.Show.show_simple b)]
+  | Just (FunctionDefinition specs declarator (FunctionBody ctorInitializer (CompoundStatement (Curlied o b _)))) <- cast x, convert declarator == did =
+    [Range (i + length (Cxx.Show.show_simple (specs, declarator, ctorInitializer, o)))
+      (length $ Cxx.Show.show_simple b)]
+  | Just (NamespaceDefinition inline kwd (Just identifier) (Curlied o b _)) <- cast x, convert identifier == did =
+    [Range (i + length (Cxx.Show.show_simple (inline, kwd, identifier, o)))
+      (length $ Cxx.Show.show_simple b)]
+  | otherwise = gfoldl_with_lengths i (findBody' did) x
 
 findDeclaration :: Data a => DeclaratorId -> a -> [Range Char]
 findDeclaration did = findDeclaration' did 0

@@ -47,7 +47,7 @@ describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
     inorder_context Before = reverse $ context Before
     furthest Before = listToMaybe; furthest After = listToMaybe . reverse
     alpha ba = Char.isAlpha . (tok_text . listToMaybe (toks ba) >>= furthest (invert ba)) `orElse` False
-    ins ba = Insert (toks_text s) $ and_one $ PositionsClause ba $ and_one $ Right $ absolute $ convert $ NotEverything $ Sole $ toks_text $ inorder_context $ invert ba
+    ins ba = Insert (toks_text s) $ and_one $ NonAppendPositionsClause $ PositionsClause ba $ and_one $ Right $ absolute $ convert $ NotEverything $ Sole $ toks_text $ inorder_context $ invert ba
     sr = selectRange r t
     sole = convert . NotEverything (Sole sr')
     rel ba = Relative sole ba $ Sole $ Right $ toks_text $ inorder_context $ invert ba
