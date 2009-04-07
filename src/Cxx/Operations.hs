@@ -223,8 +223,13 @@ findBody did = findBody' did 0
 
 findBody' :: Data d => DeclaratorId -> Int -> d -> [Range Char]
 findBody' did i x
+  | Just (GeordiRequest_Block (CompoundStatement (Curlied o b _)) _) <- cast x, strip (show did) == "main" =
+    [Range (i + length (Cxx.Show.show_simple o)) (length $ Cxx.Show.show_simple b)]
   | Just (ClassSpecifier classHead (Curlied o b _)) <- cast x, convert classHead == Just did =
     [Range (i + length (Cxx.Show.show_simple (classHead, o)))
+      (length $ Cxx.Show.show_simple b)]
+  | Just (EnumSpecifier enumHead (Curlied o b _)) <- cast x, convert enumHead == Just did =
+    [Range (i + length (Cxx.Show.show_simple (enumHead, o)))
       (length $ Cxx.Show.show_simple b)]
   | Just (FunctionDefinition specs declarator (FunctionBody ctorInitializer (CompoundStatement (Curlied o b _)))) <- cast x, convert declarator == did =
     [Range (i + length (Cxx.Show.show_simple (specs, declarator, ctorInitializer, o)))
