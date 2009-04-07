@@ -159,6 +159,8 @@ basic_tests = do
   t "erase first and second last  " $ Right "12 3 2 34 5"
   t "replace 1 with x and all 2 with y and erase second 3" $ Right "x y 3 y  4 5"
   t "move everything after last 3 to front and erase 5" $ Right " 4 1 2 3 2 3"
+  t "erase spaces around first 2" $ Right "123 2 3 4 5"
+  t "erase 1 and 2 around first space" $ Right "  3 2 3 4 5"
   t "add x after 4 and add y after 4" $ Right "1 2 3 2 3 4yx 5"
   t "erase 4 and add y before 4 and add x after 4" $ Right "1 2 3 2 3 yx 5"
   t "move 4 to end and insert x before 5" $ Right "1 2 3 2 3  x54"
@@ -196,7 +198,7 @@ basic_tests = do
   t "move " $ Left "Unexpected end of command. Expected ordinal, \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", or verbatim string."
   t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" between\", or \" to\"."
   t "move x to "$ Left "Unexpected end of command. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
-  t "erase all 2 and " $ Left "Unexpected end of command. Expected option, \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", verbatim string, edit command, or \"show\"."
+  t "erase all 2 and " $ Left "Unexpected end of command. Expected verbatim string, wrapping description, option, \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", edit command, or \"show\"."
   putStrLn "All basics tests passed."
  where
   t :: String -> Either String String -> IO ()

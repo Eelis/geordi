@@ -81,10 +81,10 @@ type Substrs = Either (Rankeds Declaration) (Relative (EverythingOr (Rankeds Str
 data Position = Position BefAft Substr
 type Positions = AndList PositionsClause
 data Replacer = Replacer (AndList Substrs) String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
-data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt]
+data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around (Ranked (Either Declaration String)))
 data Mover = Mover (Either (Ranked Declaration) (Relative (EverythingOr (Ranked String)))) Position
-data BefAft = Before | After deriving (Eq)
-data Around = Around (AndList Substrs)
+data BefAft = Before | After deriving Eq
+data Around a = Around a
 data Betw = Betw Bound RelativeBound
 data Wrapping = Wrapping String String
 data UseClause = UseString String | UseOptions [Request.EvalOpt]
@@ -100,7 +100,7 @@ data Command
   | Erase (AndList Eraser)
   | Move (AndList Mover)
   | Swap (AndList Swapper)
-  | WrapAround Wrapping (AndList Around)
+  | WrapAround Wrapping (AndList (Around (AndList Substrs)))
   | WrapIn (AndList Substrs) Wrapping
   | Use (AndList UseClause)
 

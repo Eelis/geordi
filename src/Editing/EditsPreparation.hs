@@ -8,6 +8,7 @@ import qualified Editing.Diff
 import qualified Data.List as List
 import qualified Data.Char as Char
 import Editing.Show ()
+import Control.Monad (liftM2)
 import Cxx.Basics (DeclaratorId)
 import Cxx.Operations (findDeclaration)
 import Control.Monad.Error ()
@@ -47,7 +48,7 @@ instance Convert (Range Char) ARange where convert = anchor_range
 
 instance Convert Anchor (Pos Char) where convert = anchor_pos
 
-instance FindInStr Around [ARange] where findInStr s (Around x) = concat . findInStr s x
+instance FindInStr (Around (AndList Substrs)) [ARange] where findInStr s (Around x) = concat . findInStr s x
 
 instance FindInStr (Ranked (Either Declaration String)) ARange where
   findInStr t (Ranked o (Right s)) = findInStr t (Ranked o s)
@@ -153,6 +154,10 @@ instance FindInStr Replacer [Edit] where
 instance FindInStr Eraser [Edit] where
   findInStr s (EraseText p) = ((flip RangeReplaceEdit "" . unanchor_range) .) . findInStr s p
   findInStr _ (EraseOptions o) = return [RemoveOptions o]
+  findInStr s (EraseAround (Wrapping x y) (Around z)) = liftM2 (++) (f Before) (f After)
+    where
+      w Before = x; w After = y
+      f ba = findInStr s $ EraseText $ Right $ Relative (NotEverything $ Rankeds (AndList $ NElist (Ordinal 0) []) (w ba)) ba z
 
 instance FindInStr Bound (Either ARange Anchor) where
   findInStr s (Bound Nothing Everything) = return $ Left $ everything_arange s

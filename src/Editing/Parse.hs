@@ -221,11 +221,11 @@ instance Parse Replacer where
   parse = liftA2 ReplaceOptions parse (wb >>> parse) <||> liftA2 Replacer parse (wb >>> parse)
     where wb = kwd ["with", "by"]
 
-instance Parse Eraser where parse = auto1 EraseOptions <||> auto1 EraseText
+instance Parse Eraser where parse = auto2 EraseAround <||> auto1 EraseOptions <||> auto1 EraseText
 instance Parse Mover where parse = liftA2 Mover parse (kwd ["to"] >>> parse)
 instance Parse Swapper where parse = liftA2 Swapper parse (andP >>> parse)
 instance Parse [EvalOpt] where parse = Parser (Terminators False []) $ \_ _ _ -> optParser
-instance Parse Around where parse = kwd ["around"] >>> auto1 Around
+instance Parse a => Parse (Around a) where parse = kwd ["around"] >>> auto1 Around
 instance Parse UseClause where parse = auto1 UseOptions <||> auto1 UseString
 
 instance Parse Wrapping where
@@ -236,6 +236,7 @@ instance Parse Wrapping where
     <||> (kwd ["angle brackets"] >>> arr (const (Wrapping "<" ">")))
     <||> (kwd ["single quotes"] >>> arr (const (Wrapping "'" "'")))
     <||> (kwd ["double quotes"] >>> arr (const (Wrapping "\"" "\"")))
+    <||> (kwd ["spaces"] >>> arr (const (Wrapping " " " ")))
     <||> liftA2 Wrapping parse (andP >>> parse)
   -- Todo: This is duplicated below.
 
@@ -253,7 +254,7 @@ instance Parse Command where
     (kwd ["swap"] >>> commit (auto1 Swap)) <||>
     (kwd ["wrap"] >>> commit (parse >>> snd_unit (auto1 Left <||> (kwd ["in"] >>> auto1 Right)) >>> semipure (uncurry wc)))
     where
-      wc :: (AndList Substrs) -> Either (AndList Around) Wrapping -> Either String Command
+      wc :: (AndList Substrs) -> Either (AndList (Around (AndList Substrs))) Wrapping -> Either String Command
       wc what (Right wrapping) = return $ WrapIn what wrapping
       wc (AndList (NElist (Right (Between (NotEverything (Sole' x)) (Betw (Bound (Just Before) Everything) Back))) [])) (Left what) =
         (\q -> WrapAround q what) `fmap` case () of

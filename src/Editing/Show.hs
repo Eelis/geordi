@@ -83,7 +83,11 @@ instance Show a => Show (Rankeds a) where
 instance Show Replacer where
   show (Replacer x y) = show x ++ " with " ++ show y
   show (ReplaceOptions o o') = show_long_opts o ++ " with " ++ show_long_opts o'
-instance Show Eraser where show (EraseText l) = show l; show (EraseOptions o) = show_long_opts o
+instance Show Eraser where
+  show (EraseText l) = show l
+  show (EraseOptions o) = show_long_opts o
+  show (EraseAround w l) = show w ++ " " ++ show l
+
 instance Show UseClause where show (UseString s) = s; show (UseOptions o) = show_long_opts o
 instance Show Mover where show (Mover x y) = show x ++ " to " ++ show y
 instance Show Swapper where show (Swapper x y) = show x ++ " and " ++ show y
@@ -101,7 +105,7 @@ instance Show String where
     | none (`elem` " ,;") s, length s < 10 = s
     | otherwise = '`' : s ++ "`"
 
-instance Show Around where show (Around a) = show a
+instance Show a => Show (Around a) where show (Around a) = "around " ++ show a
 
 data Tense = Present | Past
 
@@ -125,7 +129,7 @@ show_command t (Append s mp) = tense t "append" ++ " " ++ show s ++ maybe "" (("
 show_command t (Move l) = tense t "move" ++ " " ++ show l
 show_command t (Swap l) = tense t "swap" ++ " " ++ show l
 show_command t (WrapIn l w) = tense t "wrap" ++ " " ++ show l ++ " in " ++ show w
-show_command t (WrapAround w l) = tense t "wrap" ++ " " ++ show w ++ " around " ++ show l
+show_command t (WrapAround w l) = tense t "wrap" ++ " " ++ show w ++ " " ++ show l
 
 instance Prelude.Show Command where
   show = show_command Past
