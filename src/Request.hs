@@ -56,10 +56,6 @@ instance Show EditableRequestKind where
 
 data EditableRequest = EditableRequest { kind :: EditableRequestKind, editable_body :: String }
 
-instance Show EditableRequest where
-  show (EditableRequest (Evaluate f) s) | Set.null f = s
-  show (EditableRequest k s) = show k ++ (if null s then "" else ' ' : s)
-
 data Response = Response
   { response_new_history :: Maybe (EditableRequest, Bool) -- The Bool indicates whether the new request replaces the most recent historic request.
   , response_output :: String }

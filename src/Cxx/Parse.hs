@@ -23,10 +23,11 @@ This C++ parser is probably extremely inefficient. Fortunately, geordi only ever
 
 -}
 
-module Cxx.Parse (Code, Chunk(..), code, charLit, stringLit, makeType, precedence, parseRequest, makeDeclParser, declaratorIdParser) where
+module Cxx.Parse (Code, Chunk(..), code, charLit, stringLit, makeType, precedence, parseRequest, makeDeclParser, declaratorIdParser, highlight) where
 
 import qualified Data.List as List
 import qualified Parsers as P
+import qualified Cxx.Show
 
 import qualified Data.Char as Char
 import Control.Arrow (first, second)
@@ -40,7 +41,7 @@ import Data.Maybe (mapMaybe)
 import Data.Function (on)
 import Util ((<<), (.), Convert(..), isIdChar, NElist(..), Finite(..), Phantom(..), reverse_ne, cardinals, partitionMaybe, nonne_ne_app, unne, lastAndRest, TriBool(..), (.||.))
 import Cxx.Basics
-import Cxx.Show (pretty_with_precedence)
+import Cxx.Show (pretty_with_precedence, Highlighter)
 import Cxx.Operations (apply, squared, is_primary_TypeSpecifier, parenthesized, specT, split_all_decls, is_pointer_or_reference)
 import Prelude hiding ((.))
 import Control.Monad.Reader (ReaderT(..))
@@ -99,6 +100,13 @@ precedence :: String -> Either String String
 precedence s = either (pretty_with_precedence . split_all_decls) (pretty_with_precedence . split_all_decls) .
   P.parseOrFail p (dropWhile Char.isSpace s) "code"
   where p = runReaderT (parse << eof) defaultParseOptions :: P.Parser Char (Either Expression [Statement])
+
+highlight :: Highlighter -> String -> String
+highlight h s =
+  case P.run_parser p (dropWhile Char.isSpace s) of
+    ParseSuccess r _ _ _ -> Cxx.Show.show_pretty False h r
+    ParseFailure _ _ _ -> s
+  where p = runReaderT (parse << eof) defaultParseOptions :: P.Parser Char GeordiRequest
 
 parseRequest :: String -> Either String GeordiRequest
 parseRequest s = P.parseOrFail (runReaderT (parse << eof) defaultParseOptions) (dropWhile Char.isSpace s) "request"

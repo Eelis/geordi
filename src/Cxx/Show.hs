@@ -1,7 +1,7 @@
 {-# LANGUAGE Rank2Types, FlexibleInstances, UndecidableInstances, RelaxedPolyRec, PatternGuards, OverlappingInstances #-}
 {-# OPTIONS -cpp #-}
 
-module Cxx.Show (pretty_with_precedence, show_simple) where
+module Cxx.Show (pretty_with_precedence, show_simple, show_pretty, Highlighter, Highlightable(..), noHighlighting) where
 
 import Util ((.), unne)
 import Control.Applicative (Applicative(..))
@@ -23,7 +23,20 @@ instance Show Chunk where
 
 type PrettyA a = PrettyOptions -> a
 data ExtraParenOpts = NoExtraParens | ExtraParens | ChildrenExtraParens
-data PrettyOptions = PrettyOptions { extra_parentheses :: ExtraParenOpts }
+
+data Highlightable = Keyword | CurlyParen | RoundParen | Literal
+type Highlighter = Highlightable -> (String, String)
+
+wrap :: (String, String) -> String -> String
+wrap (x, y) s = x ++ s ++ y
+
+noHighlighting :: Highlighter
+noHighlighting = const ("", "")
+
+data PrettyOptions = PrettyOptions
+  { extra_parentheses :: ExtraParenOpts
+  , highlighter :: Highlighter
+  }
 
 -- SingleTokenType instances.
 
@@ -116,8 +129,21 @@ pretty :: forall a. (Data a) => a -> PrettyOptions -> String
 pretty =
   flip ext1Q (\(Enclosed x) -> prettyEnclosed $ pretty x) $
   \x -> let au = gmapQr (<++>) (pure "") pretty x in case () of
+
+#define KWD(t) ()| Just s <- cast x -> \o -> wrap (highlighter o Keyword) (show (s :: t));
+    KWD(KwdSizeof) KWD(KwdIf) KWD(KwdNew) KWD(KwdAlignof) KWD(KwdTypeid) KWD(KwdTemplate) KWD(KwdClass) KWD(KwdFor) KWD(KwdExtern) KWD(KwdWhile) KWD(KwdDo) KWD(KwdGoto) KWD(KwdContinue) KWD(KwdElse) KWD(KwdAuto) KWD(KwdDefault) KWD(KwdSwitch) KWD(KwdCase) KWD(KwdBreak) KWD(KwdNamespace) KWD(KwdTypedef) KWD(KwdThis) KWD(KwdFriend) KWD(KwdDelete) KWD(KwdStaticAssert) KWD(KwdConstexpr) KWD(KwdExport) KWD(KwdThrow) KWD(KwdUsing) KWD(KwdTry) KWD(KwdDecltype) KWD(KwdAsm) KWD(KwdCatch) KWD(KwdStruct) KWD(KwdEnum) KWD(KwdTypename) KWD(KwdOperator) KWD(KwdReturn) KWD(NewStyleCast) KWD(FunctionSpecifier) KWD(StorageClassSpecifier) KWD(CvQualifier) KWD(LengthSpec) KWD(BasicType) KWD(ClassKey) KWD(StorageClassSpecifier)
+#undef KWD
+
+    ()| Just s <- cast x -> \o -> wrap (highlighter o Literal) (show (s :: Literal))
+
+    ()| Just s <- cast x -> \o -> wrap (highlighter o CurlyParen) (show (s :: OpenCurly_))
+    ()| Just s <- cast x -> \o -> wrap (highlighter o CurlyParen) (show (s :: CloseCurly_))
+
+    ()| Just s <- cast x -> \o -> wrap (highlighter o RoundParen) (show (s :: OpenParen_))
+    ()| Just s <- cast x -> \o -> wrap (highlighter o RoundParen) (show (s :: CloseParen_))
+
 #define SHOW(t) ()| Just s <- cast x -> pure $ show (s :: t);
-    SHOW(KwdIf) SHOW(KwdSizeof) SHOW(KwdNew) SHOW(SemicolonOperator) SHOW(CommaOp) SHOW(KwdAlignof) SHOW(KwdTypeid) SHOW(KwdTemplate) SHOW(KwdClass) SHOW(KwdFor) SHOW(KwdExtern) SHOW(KwdWhile) SHOW(KwdDo) SHOW(KwdGoto) SHOW(KwdContinue) SHOW(KwdElse) SHOW(KwdAuto) SHOW(ScopeRes) SHOW(UnaryOperator) SHOW(AssignmentOperator) SHOW(RelationalOperator) SHOW(KwdZero) SHOW(QuestionOp) SHOW(ColonOp) SHOW(IncDecOperator) SHOW(AdditiveOperator) SHOW(KwdCatch) SHOW(KwdStruct) SHOW(KwdEnum) SHOW(ClassKey) SHOW(KwdTypename) SHOW(StorageClassSpecifier) SHOW(MultiplicativeOperator) SHOW(BasicType) SHOW(PmOperator) SHOW(KwdDecltype) SHOW(KwdAsm) SHOW(KwdOperator) SHOW(MemberOperator) SHOW(IsOperator) SHOW(Tilde_) SHOW(FunctionSpecifier) SHOW(StorageClassSpecifier) SHOW(Sign) SHOW(KwdUsing) SHOW(KwdTry) SHOW(KwdReturn) SHOW(OpenParen_) SHOW(CloseParen_) SHOW(OpenSquare_) SHOW(CloseSquare_) SHOW(LeftShiftOp) SHOW(OpenAngle_) SHOW(CloseAngle_) SHOW(OpenCurly_) SHOW(CloseCurly_) SHOW(AccessSpecifier) SHOW(StarOperator) SHOW(AndOperator) SHOW(LogicalAndOperator) SHOW(LogicalOrOperator) SHOW(ExclusiveOrOperator) SHOW(InclusiveOrOperator) SHOW(EqualityOperator) SHOW(ShiftOperator) SHOW(CvQualifier) SHOW(LengthSpec) SHOW(RefQualifier) SHOW(KwdThrow) SHOW(NewStyleCast) SHOW(Literal) SHOW(KwdDefault) SHOW(KwdSwitch) SHOW(KwdCase) SHOW(KwdBreak) SHOW(StringLiteral) SHOW(KwdNamespace) SHOW(KwdTypedef) SHOW(KwdThis) SHOW(KwdFriend) SHOW(KwdDelete) SHOW(KwdStaticAssert) SHOW(KwdConstexpr) SHOW(KwdExport)
+    SHOW(SemicolonOperator) SHOW(CommaOp) SHOW(ScopeRes) SHOW(UnaryOperator) SHOW(AssignmentOperator) SHOW(RelationalOperator) SHOW(QuestionOp) SHOW(ColonOp) SHOW(IncDecOperator) SHOW(AdditiveOperator) SHOW(MultiplicativeOperator) SHOW(PmOperator)  SHOW(MemberOperator) SHOW(IsOperator) SHOW(Tilde_) SHOW(Sign) SHOW(OpenSquare_) SHOW(CloseSquare_) SHOW(LeftShiftOp) SHOW(OpenAngle_) SHOW(CloseAngle_) SHOW(AccessSpecifier) SHOW(StarOperator) SHOW(AndOperator) SHOW(LogicalAndOperator) SHOW(LogicalOrOperator) SHOW(ExclusiveOrOperator) SHOW(InclusiveOrOperator) SHOW(EqualityOperator) SHOW(ShiftOperator) SHOW(RefQualifier) SHOW(StringLiteral) SHOW(KwdZero)
 #undef SHOW
     ()| Just (Identifier s (White w)) <- cast x -> pure $ s ++ w
     ()| Just s <- cast x -> pure s
@@ -154,14 +180,17 @@ extraCurliesStmt (Statement_CompoundStatement s) = pretty s
 extraCurliesStmt s = extraCurlies (pretty s)
 
 pretty_with_precedence :: Data a => a -> String
-pretty_with_precedence e = pretty e $ PrettyOptions { extra_parentheses = ChildrenExtraParens }
+pretty_with_precedence e = pretty e $ PrettyOptions { extra_parentheses = ChildrenExtraParens, highlighter = noHighlighting }
 
 show_simple :: Data a => a -> String
-show_simple x = pretty x $ PrettyOptions { extra_parentheses = NoExtraParens }
+show_simple x = pretty x $ PrettyOptions { extra_parentheses = NoExtraParens, highlighter = noHighlighting }
 
 prettyEnclosed :: PrettyA String -> PrettyA String
 prettyEnclosed x o | ExtraParens <- extra_parentheses o = x (o { extra_parentheses = ChildrenExtraParens })
 prettyEnclosed x o = x o
+
+show_pretty :: Data a => Bool -> Highlighter -> a -> String
+show_pretty x y z = pretty z $ PrettyOptions (if x then ChildrenExtraParens else NoExtraParens) y
 
 extraWrapping :: String -> String -> PrettyA String -> PrettyA String
 extraWrapping open close p o | ExtraParens <- extra_parentheses o =

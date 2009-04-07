@@ -9,6 +9,7 @@ import qualified Sys
 import qualified Data.Map as Map
 import qualified Network.BSD
 import qualified Data.List as List
+import qualified Cxx.Show
 
 import Control.Exception (bracketOnError)
 import System.IO (hGetLine, hPutStrLn, hFlush, Handle, IOMode(..))
@@ -89,7 +90,7 @@ main = do
   putStrLn $ "Connecting to " ++ server cfg ++ ":" ++ show (port cfg)
   withResource (connect (server cfg) (fromIntegral $ port cfg)) $ \h -> do
   putStrLn "Connected"
-  evalRequest <- RequestEval.evaluator
+  evalRequest <- RequestEval.evaluator Cxx.Show.noHighlighting
   limit_rate <- rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
   let send m = limit_rate >> send_irc_msg h m
   send $ msg "NICK" [nick cfg]

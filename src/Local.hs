@@ -8,6 +8,7 @@ import qualified RequestEval
 import qualified System.Console.Readline as RL
 import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Sys
+import qualified Cxx.Show
 
 import Control.Monad (forM_, when)
 import Control.Monad.Fix (fix)
@@ -53,7 +54,7 @@ main = do
   RL.initialize -- Reads stuff from files not present in the chroot.
   (opts, rest) <- getArgs
   if Help `elem` opts then putStrLn help else do
-  eval <- RequestEval.evaluator
+  eval <- RequestEval.evaluator Cxx.Show.noHighlighting
   forM_ rest $ \l -> do Request.Response _ output <- eval l (Request.Context []); putStrLn output
   addHistory <- make_history_adder
   when (rest == []) $ flip fix blankMemory $ \loop mem -> (UTF8.decodeString .) . RL.readline "geordi: " >>= case_of

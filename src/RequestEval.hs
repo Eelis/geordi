@@ -8,9 +8,9 @@ import qualified Editing.Execute
 import qualified Cxx.Parse
 import qualified Cxx.Operations
 import qualified Cxx.Show
-import Cxx.Show
-import Control.Monad.Error ()
 import qualified Data.List as List
+
+import Control.Monad.Error ()
 import Data.Char (isPrint, isSpace)
 import Data.Maybe (listToMaybe)
 import Data.Either (lefts)
@@ -18,6 +18,13 @@ import Parsers ((<|>), eof, optParser, option, spaces, getInput, kwd, kwds, Pars
 import Util ((.), (<<), (.||.), commas_and, capitalize, orElse, length_ge, replace, maybe_ne, unne, show_long_opt)
 import Request (Context(..), EvalOpt(..), Response(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
 import Prelude hiding (catch, (.))
+
+show_EditableRequest :: Cxx.Show.Highlighter -> EditableRequest -> String
+show_EditableRequest h (EditableRequest (Evaluate f) s) | Set.null f = Cxx.Parse.highlight h s
+show_EditableRequest _ (EditableRequest k s) = show k ++ (if null s then "" else ' ' : s)
+
+instance Show EditableRequest where
+  show = show_EditableRequest Cxx.Show.noHighlighting
 
 no_break_space :: Char
 no_break_space = '\x00A0'
@@ -34,8 +41,8 @@ pretty :: [String] -> String -- Todo: This is awkward.
 pretty [] = "Requests are identical."
 pretty l = capitalize (commas_and l) ++ "."
 
-evaluator :: IO (String -> Context -> IO Response)
-evaluator = do
+evaluator :: Cxx.Show.Highlighter -> IO (String -> Context -> IO Response)
+evaluator h = do
   (ev, compile_cfg) <- EvalCxx.evaluator
   let
     evf :: EvalCxx.Request -> IO String
@@ -44,7 +51,7 @@ evaluator = do
     -- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.
     prel = "#include \"prelude.hpp\"\n"
     respond :: EditableRequest -> IO String
-    respond (EditableRequest MakeType d) = return $ either ("error: " ++) show_simple $ Cxx.Parse.makeType d
+    respond (EditableRequest MakeType d) = return $ either ("error: " ++) Cxx.Show.show_simple $ Cxx.Parse.makeType d
     respond (EditableRequest Precedence t) = return $ either ("error: " ++) id $ Cxx.Parse.precedence t
     respond (EditableRequest (Evaluate opts) code) =
       case parseOrFail (Cxx.Parse.code << eof) (dropWhile isSpace code) "request" of
@@ -61,7 +68,7 @@ evaluator = do
       do
         kwd "show"; commit $ do
         eof
-        return $ return $ Response Nothing $ show . listToMaybe prevs `orElse` "<none>"
+        return $ return $ Response Nothing $ show_EditableRequest h . listToMaybe prevs `orElse` "<none>"
       <|> do
         kwd "parse"; commit $ eof >> case prevs of
           [] -> error_response "There is no previous request."
@@ -72,7 +79,7 @@ evaluator = do
         kwds ["undo", "revert"]; commit $ case prevs of
           (_:prev:_) -> do
             kwd "and"
-            (kwd "show" >> eof >> return (return $ Response Nothing $ show prev)) <|> do
+            (kwd "show" >> eof >> return (return $ Response Nothing $ show_EditableRequest h prev)) <|> do
             oe <- Editing.Parse.commandsP; eof
             case oe of
               Left e -> error_response e
@@ -81,7 +88,7 @@ evaluator = do
                 Right (EditableRequest _ edited_body) | length_ge 1000 edited_body ->
                   error_response "Request would become too large."
                 Right edited ->
-                  return $ Response (Just (edited, True)) . (if sh then return (show edited) else respond edited)
+                  return $ Response (Just (edited, True)) . (if sh then return (show_EditableRequest h edited) else respond edited)
           _ -> error_response "There is no prior request."
       <|> do
         kwds ["--precedence", "precedence"]
@@ -116,7 +123,7 @@ evaluator = do
               Right (EditableRequest _ edited_body) | length_ge 1000 edited_body ->
                 error_response "Request would become too large."
               Right edited ->
-                return $ Response (Just (edited, False)) . (if sh then return (show edited) else respond edited)
+                return $ Response (Just (edited, False)) . (if sh then return (show_EditableRequest h edited) else respond edited)
       <|> do
         mopts <- option (return []) optParser; spaces
         (\z -> either error_response z mopts) $ \opts -> do
