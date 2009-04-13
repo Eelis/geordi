@@ -45,7 +45,7 @@ instance SingleTokenType AssignmentOperator where
   token AssignmentOperator_Assign = Right Is
   token AssignmentOperator_MultiplyAssign = Right StarIs
   token AssignmentOperator_DivideAssign = Right SlashIs
-  token AssignmentOperator_PercentAssign = Right AmperIs
+  token AssignmentOperator_PercentAssign = Right PercentIs
   token AssignmentOperator_PlusAssign = Right PlusIs
   token AssignmentOperator_MinusAssign = Right MinusIs
   token AssignmentOperator_RightShiftAssign = Right CloseTwoAnglesIs
@@ -53,6 +53,9 @@ instance SingleTokenType AssignmentOperator where
   token AssignmentOperator_BitAndAssign = Right AmperIs
   token AssignmentOperator_BitXorAssign = Right HatIs
   token AssignmentOperator_BitOrAssign = Right PipeIs
+  token AssignmentOperator_AltBitAndAssign = Left "and_eq"
+  token AssignmentOperator_AltBitXorAssign = Left "xor_eq"
+  token AssignmentOperator_AltBitOrAssign = Left "or_eq"
 instance SingleTokenType ClassKey where
   token_class_name _ = "class-key"
   token Class = Left "class"; token Struct = Left "struct"; token Union = Left "union"
@@ -64,7 +67,8 @@ instance SingleTokenType UnaryOperator where
   token PrefixDecrement = Right MinusMinus; token PrefixIncrement = Right PlusPlus
   token Dereference' = Right Star; token AddressOf' = Right Amper
   token Negate' = Right MinusTok; token Positive' = Right PlusTok
-  token LogicalNot' = Right Exclamation; token Complement' = Right Tilde
+  token LogicalNot' = Right Exclamation; token AltLogicalNot = Left "not"
+  token Complement' = Right Tilde; token AltComplement = Left "compl"
 instance SingleTokenType PmOperator where
   token_class_name _ = "binary operator"
   token PmOperator_MemPtr = Right PeriodStar; token PmOperator_PtrMemPtr = Right ArrowStar
@@ -86,7 +90,9 @@ instance SingleTokenType RelationalOperator where
   token RelationalOperator_LessEqual = Right OpenAngleIs; token RelationalOperator_GreaterEqual = Right CloseAngleIs
 instance SingleTokenType EqualityOperator where
   token_class_name _ = "binary operator"
-  token EqualityOperator_Equal = Right IsIs; token EqualityOperator_Unequal = Right ExclamationIs
+  token EqualityOperator_Equal = Right IsIs
+  token EqualityOperator_Unequal = Right ExclamationIs
+  token EqualityOperator_AltUnequal = Left "not_eq"
 instance SingleTokenType NewStyleCast where
   token_class_name _ = "new-style cast"
   token StaticCast = Left "static_cast"; token DynamicCast = Left "dynamic_cast"

@@ -420,7 +420,6 @@ instance Parse ThrowExpression where parse = (<?> "throw-expression") $ auto2 Th
 instance Parse CastExpression where parse = (<?> "cast-expression") $ auto2 CastExpression_Cast <|> CastExpression_UnaryExpression . parse
 instance Parse PmExpression where parse = (<?> "pm-expression") $ simpleBinaryGroup PmExpression PmExpression_CastExpression
 instance Parse MultiplicativeExpression where parse = (<?> "multiplicative-expression") $ simpleBinaryGroup MultiplicativeExpression MultiplicativeExpression_PmExpression
-instance Parse (EqualityOperator, White) where parse = ((,) EqualityOperator_Equal . op IsIs) <|> ((,) EqualityOperator_Unequal . op ExclamationIs)
 instance Parse AdditiveExpression where parse = (<?> "additive-expression") $ simpleBinaryGroup AdditiveExpression AdditiveExpression_MultiplicativeExpression
 instance Parse ShiftExpression where parse = (<?> "shift-expression") $ simpleBinaryGroup ShiftExpression ShiftExpression_AdditiveExpression
 instance Parse RelationalExpression where parse = (<?> "relational-expression") $ simpleBinaryGroup RelationalExpression RelationalExpression_ShiftExpression

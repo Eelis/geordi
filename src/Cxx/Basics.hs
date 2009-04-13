@@ -228,11 +228,6 @@ OP(CloseSquare_, CloseSquare)
 OP(ColonOp, Colon)
 OP(CommaOp, CommaTok)
 OP(SemicolonOperator, Semicolon)
-OP(AndOperator, Amper)
-OP(LogicalOrOperator, PipePipe)
-OP(LogicalAndOperator, AmperAmper)
-OP(InclusiveOrOperator, Pipe)
-OP(ExclusiveOrOperator, Hat)
 OP(StarOperator, Star)
 OP(LeftShiftOp, OpenTwoAngles)
 OP(IsOperator, Is)
@@ -241,6 +236,36 @@ OP(Ellipsis_, Ellipsis)
 OP(ScopeRes, ColonColon)
 
 #undef OP
+
+data AndOperator = AndOperator | AltAndOperator deriving (Data, Typeable, Enum, Bounded, Eq)
+instance SingleTokenType AndOperator where
+  token_class_name _ = "and-operator"
+  token AndOperator = Right Amper
+  token AltAndOperator = Left "bitand"
+
+data LogicalOrOperator = LogicalOrOperator | AltLogicalOrOperator deriving (Data, Typeable, Enum, Bounded, Eq)
+instance SingleTokenType LogicalOrOperator where
+  token_class_name _ = "logical-or-operator"
+  token LogicalOrOperator = Right PipePipe
+  token AltLogicalOrOperator = Left "or"
+
+data InclusiveOrOperator = InclusiveOrOperator | AltInclusiveOrOperator deriving (Data, Typeable, Enum, Bounded, Eq)
+instance SingleTokenType InclusiveOrOperator where
+  token_class_name _ = "inclusive-or-operator"
+  token InclusiveOrOperator = Right Pipe
+  token AltInclusiveOrOperator = Left "bitor"
+
+data ExclusiveOrOperator = ExclusiveOrOperator | AltExclusiveOrOperator deriving (Data, Typeable, Enum, Bounded, Eq)
+instance SingleTokenType ExclusiveOrOperator where
+  token_class_name _ = "exclusive-or-operator"
+  token ExclusiveOrOperator = Right Hat
+  token AltExclusiveOrOperator = Left "xor"
+
+data LogicalAndOperator = LogicalAndOperator | AltLogicalAndOperator deriving (Data, Typeable, Enum, Bounded, Eq)
+instance SingleTokenType LogicalAndOperator where
+  token_class_name _ = "logical-and-operator"
+  token LogicalAndOperator = Right AmperAmper
+  token AltLogicalAndOperator = Left "and"
 
 data QuestionOp = QuestionOp deriving (Data, Typeable, Enum, Bounded, Eq)
 instance SingleTokenType QuestionOp where token_class_name _ = "ternary operator"; token _ = Right Question
@@ -281,7 +306,7 @@ data MultiplicativeOperator = MultiplicativeOperator_Multiply | MultiplicativeOp
 data AdditiveOperator = AdditiveOperator_Plus | AdditiveOperator_Minus deriving (Bounded, Enum, Data, Typeable, Eq)
 data ShiftOperator = ShiftOperator_Left | ShiftOperator_Right deriving (Bounded, Enum, Data, Typeable, Eq)
 data RelationalOperator = RelationalOperator_Less | RelationalOperator_Greater | RelationalOperator_LessEqual | RelationalOperator_GreaterEqual deriving (Bounded, Enum, Data, Typeable, Eq)
-data EqualityOperator = EqualityOperator_Equal | EqualityOperator_Unequal deriving (Bounded, Enum, Data, Typeable, Eq)
+data EqualityOperator = EqualityOperator_Equal | EqualityOperator_Unequal | EqualityOperator_AltUnequal deriving (Bounded, Enum, Data, Typeable, Eq)
 
 -- A.1 Keywords [gram.key]
 
@@ -330,7 +355,7 @@ data PostfixExpression
 type ExpressionList = InitializerList
 data PseudoDestructorName = PseudoDestructorName_InTypeName OptQualified TypeName (ScopeRes, White) (Tilde_, White) TypeName | PseudoDestructorName_InTemplate (Maybe (ScopeRes, White)) NestedNameSpecifier (KwdTemplate, White) SimpleTemplateId (ScopeRes, White) (Tilde_, White) TypeName | PseudoDestructorName OptQualified (Tilde_, White) TypeName deriving (Data, Typeable, Eq)
 data UnaryExpression = UnaryExpression_PostfixExpression PostfixExpression | UnaryExpression (UnaryOperator, White) CastExpression | UnaryExpression_Sizeof_UnaryExpression (KwdSizeof, White) UnaryExpression | UnaryExpression_Sizeof_TypeId (KwdSizeof, White) (Parenthesized TypeId) | UnaryExpression_Sizeof_Ellipsis (KwdSizeof, White) (Ellipsis_, White) (Parenthesized Identifier) | UnaryExpression_AlignOf (KwdAlignof, White) (Parenthesized TypeId) | UnaryExpression_NewExpression NewExpression | UnaryExpression_DeleteExpression DeleteExpression deriving (Data, Typeable, Eq)
-data UnaryOperator = Dereference' | AddressOf' | Negate' | Positive' | LogicalNot' | Complement' | PrefixIncrement | PrefixDecrement deriving (Bounded, Enum, Data, Typeable, Eq)
+data UnaryOperator = Dereference' | AddressOf' | Negate' | Positive' | LogicalNot' | AltLogicalNot | Complement' | AltComplement | PrefixIncrement | PrefixDecrement deriving (Bounded, Enum, Data, Typeable, Eq)
 data NewExpression = NewExpression (Maybe (ScopeRes, White)) (KwdNew, White) (Maybe NewPlacement) (Either NewTypeId (Parenthesized TypeId)) (Maybe NewInitializer) deriving (Data, Typeable, Eq)
 newtype NewPlacement = NewPlacement (Parenthesized ExpressionList) deriving (Data, Typeable, Eq)
 data NewTypeId = NewTypeId (NElist TypeSpecifier) (Maybe NewDeclarator) deriving (Data, Typeable, Eq)
@@ -352,7 +377,7 @@ data LogicalAndExpression = LogicalAndExpression_InclusiveOrExpression Inclusive
 data LogicalOrExpression = LogicalOrExpression_LogicalAndExpression LogicalAndExpression | LogicalOrExpression LogicalOrExpression (LogicalOrOperator, White) LogicalAndExpression deriving (Data, Typeable, Eq)
 data ConditionalExpression = ConditionalExpression_LogicalOrExpression LogicalOrExpression | ConditionalExpression LogicalOrExpression (QuestionOp, White) Expression (ColonOp, White) AssignmentExpression deriving (Data, Typeable, Eq)
 data AssignmentExpression = AssignmentExpression_ConditionalExpression ConditionalExpression | AssignmentExpression LogicalOrExpression (AssignmentOperator, White) InitializerClause | AssignmentExpression_ThrowExpression ThrowExpression deriving (Data, Typeable, Eq)
-data AssignmentOperator = AssignmentOperator_Assign | AssignmentOperator_MultiplyAssign | AssignmentOperator_DivideAssign | AssignmentOperator_PercentAssign | AssignmentOperator_PlusAssign | AssignmentOperator_MinusAssign | AssignmentOperator_RightShiftAssign | AssignmentOperator_LeftShiftAssign | AssignmentOperator_BitAndAssign | AssignmentOperator_BitXorAssign | AssignmentOperator_BitOrAssign deriving (Bounded, Enum, Data, Typeable, Eq)
+data AssignmentOperator = AssignmentOperator_Assign | AssignmentOperator_MultiplyAssign | AssignmentOperator_DivideAssign | AssignmentOperator_PercentAssign | AssignmentOperator_PlusAssign | AssignmentOperator_MinusAssign | AssignmentOperator_RightShiftAssign | AssignmentOperator_LeftShiftAssign | AssignmentOperator_BitAndAssign | AssignmentOperator_AltBitAndAssign | AssignmentOperator_BitXorAssign | AssignmentOperator_AltBitXorAssign | AssignmentOperator_BitOrAssign | AssignmentOperator_AltBitOrAssign deriving (Bounded, Enum, Data, Typeable, Eq)
 data Expression = Expression_AssignmentExpression AssignmentExpression | Expression_Comma Expression (CommaOp, White) AssignmentExpression deriving (Data, Typeable, Eq)
 type ConstantExpression = ConditionalExpression
 
