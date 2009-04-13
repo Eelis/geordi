@@ -597,6 +597,9 @@ instance ParseSpecifier MakeSpecifier where
 instance Parse [DeclSpecifier] where
   parse = liftM2 (:) parsePrimarySpec (many parseSecondarySpec) <|> liftM2 (:) parseSecondarySpec parse
 
+instance Parse (NElist TypeSpecifier) where
+  parse = do liftM2 NElist parsePrimarySpec (many parseSecondarySpec) <|> liftM2 NElist parseSecondarySpec parse
+
 instance Parse DeclSpecifier where parse = parsePrimarySpec <|> parseSecondarySpec
 
 instance Parse FunctionDefinition where

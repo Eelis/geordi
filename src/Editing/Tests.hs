@@ -181,6 +181,7 @@ basic_tests = do
   t "prepend x before everything after 4 and add y after 4" $ Right "1 2 3 2 3 4yx 5"
   t "add y after 4 and prepend x before everything after 4" $ Right "1 2 3 2 3 4xy 5"
   -- Semantic edits:
+  ct "struct X { operator bool() { return true; } };" "move declaration of operator bool to end" $ Right "struct X { };operator bool() { return true; } "
   ct "namespace N { void f(); } class C { void g() {} };" "swap body of N and body of C" $ Right "namespace N { void g() {} } class C { void f(); };"
   ct "void f() { int i; } void g() { int j; } void h() {}" "prepend BARK; in f and append BARK; in g and in h" $ Right "void f() { BARK;int i; } void g() { int j; BARK;} void h() {BARK;}"
   ct "class C { int f() {} };" "add int x; in C and add return x; in f" $ Right "class C { int f() {return x;} int x;};"
@@ -380,6 +381,7 @@ precedence_tests = do
   f "x(y" "Unexpected end of code. Expected \")\", \"(\", braced-init-list, \"::\", template-arguments, postfix operator, binary operator, ternary operator, or comma."
   f "x?y" "Unexpected end of code. Expected colon, \"(\", braced-init-list, \"::\", template-arguments, postfix operator, binary operator, or ternary operator."
   f "x[" "Unexpected end of code. Expected expression or braced-init-list."
+  f "x.operator foo bar()" "Unexpected `(` after `foo bar`. Expected \"::\" or template-arguments."
   putStrLn "All precedence tests passed."
  where
   s :: String -> String -> IO () -- Test for success.
