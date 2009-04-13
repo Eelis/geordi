@@ -120,7 +120,7 @@ type ChannelMemoryMap = Map String ChannelMemory
 
 is_request :: IrcBotConfig -> Where -> String -> Maybe String
 is_request cfg _ s | Just (n, r) <- Request.is_addressed_request s, any (\(h:t) -> n == toLower h : t || n == toUpper h : t) (nick cfg : alternate_nick cfg : also_respond_to cfg) = Just r
-is_request cfg (InChannel c) s | c `elem` allow_short_request_syntax_in cfg, Just r <- Request.is_short_request s = Just r
+is_request cfg (InChannel c) s | elemBy caselessStringEq c (allow_short_request_syntax_in cfg), Just r <- Request.is_short_request s = Just r
 is_request _ Private s = Just s
 is_request _ _ _ = Nothing
 
