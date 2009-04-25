@@ -55,10 +55,16 @@ std::string commas_and (I b, I e)
 
 // Type strings in ordinary C++ syntax
 
+struct wrapped_string { std::string s; };
+
 template <typename>
-std::string type ()
-{ std::string r (__PRETTY_FUNCTION__); r.resize(r.size() - 1); return r.substr(r.find('=') + 2); }
+wrapped_string type_helper()
+{ std::string r (__PRETTY_FUNCTION__); r.resize(r.size() - 1);
+  wrapped_string const w = { r.substr(r.find('=') + 2) }; return w; }
+
+template <typename T> std::string type() { return type_helper<T>().s; }
   // Note: Depends on specific string format used by __PRETTY_FUNCTION__.
+  // Note: The wrapped_string and helper are there because starting with gcc 4.5, things like "string = basic_string<char>" started showing up in __PRETTY_FUNCTION__.
   // Todo: Consider __func__ in C++0x.
 
 // Note: Since type relies on passing the type as a template argument, it will not work for locally defined types (in C++03).
