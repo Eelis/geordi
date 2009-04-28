@@ -85,7 +85,9 @@ namespace tracked
 
     Tracked::Tracked() { make_entry(this); }
 
-    Tracked::Tracked(Tracked const & i) { assert_status_below(&i, pillaged, "copy"); make_entry(this); }
+    Tracked::Tracked(Tag const & t): tag(t) { make_entry(this); }
+
+    Tracked::Tracked(Tracked const & i): tag((assert_status_below(&i, pillaged, "copy"), i.tag)) { make_entry(this); }
 
     void Tracked::operator=(Tracked const & r) {
       assert_status_below(this, destructed, "assign to");
@@ -137,9 +139,7 @@ namespace tracked
 
     B::B() { set_name("B"); detail::info const i; print(i()); i() << '*'; }
     B::B(B const & b): Tracked(b) { set_name("B"); detail::info const i; print(i()); i() << "*("; b.print(i()); i() << ')'; }
-    B::B(int const x) { set_name("B"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
-    B::B(char const x) { set_name("B"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
-    B::B(std::string const & x) { set_name("B"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    B::B(detail::Tag const & t): Tracked(t) { set_name("B"); detail::info const i; print(i()); i() << "*(" << t << ')'; }
       // todo: Delegating ctors should make this cleaner.
     B & B::operator=(B const & b) { Tracked::operator=(b); detail::info const i; print(i()); i() << '='; b.print(i()); return *this; }
     B::~B() { detail::info const i; print(i()); i() << '~'; }
@@ -194,6 +194,12 @@ namespace tracked
       detail::info const i; i() << '*'; print(i());
     }
 
+    detail::Tag const & B::tag() const
+    { assert_status_below(this, detail::pillaged, "read"); return detail::Tracked::tag; }
+
+    bool operator<(B const & x, B const & y) { return x.tag() < y.tag(); }
+    bool operator==(B const & x, B const & y) { return y.tag() == x.tag(); }
+
     template<typename C, typename Tr>
     void B::print(std::basic_ostream<C, Tr> & o) const
     { o << 'B' << detail::id(*this); }
@@ -210,9 +216,7 @@ namespace tracked
     D::D() { set_name("D"); detail::info const i; print(i()); i() << '*'; }
     D::D(D const & d): B(boost::implicit_cast<B const&>(d))
     { set_name("D"); detail::info const i; print(i()); i() << "*("; d.print(i()); i() << ')'; }
-    D::D(int const x): B(x) { set_name("D"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
-    D::D(char const x): B(x) { set_name("D"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
-    D::D(std::string const & x): B(x) { set_name("D"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    D::D(detail::Tag const & t): B(t) { set_name("D"); detail::info const i; print(i()); i() << "*(" << t << ')'; }
     D & D::operator=(D const & d) { B::operator=(d); detail::info const i; print(i()); i() << '='; d.print(i()); return *this; }
     D::~D() { detail::info const i; print(i()); i() << '~'; }
 

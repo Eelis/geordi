@@ -2,6 +2,7 @@
 #define TRACKED_HPP
 
 #include <boost/noncopyable.hpp>
+#include <boost/variant.hpp>
 #include <iosfwd>
 #include <string>
 
@@ -9,11 +10,16 @@ namespace tracked
 {
   namespace detail
   {
+    typedef boost::variant<int, char, std::string> Tag;
+
     class Tracked
     {
       protected:
 
+        Tag tag;
+
         Tracked();
+        Tracked(Tag const &);
         Tracked(Tracked const &);
         void operator=(Tracked const &);
         virtual ~Tracked();
@@ -67,10 +73,7 @@ namespace tracked
     B();
     B(B const &);
 
-    explicit B(int);
-    explicit B(char);
-    explicit B(std::string const &);
-      // This used to be one ctor template, but that messed up snippets like: struct S { operator tracked::B(); }; S s; tracked::B b(s);
+    explicit B(detail::Tag const &);
 
     B & operator=(B const &);
     virtual ~B();
@@ -92,6 +95,8 @@ namespace tracked
 
     void operator*() const;
 
+    detail::Tag const & tag() const;
+
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
       B(B &&);
       B & operator=(B &&);
@@ -104,14 +109,19 @@ namespace tracked
       template<typename C, typename Tr> void print(std::basic_ostream<C, Tr> &) const;
   };
 
+  bool operator<(B const &, B const &);
+  bool operator==(B const &, B const &);
+  inline bool operator<=(B const & x, B const & y) { return x == y || x < y; }
+  inline bool operator>(B const & x, B const & y) { return y < x; }
+  inline bool operator>=(B const & x, B const & y) { return y <= x; }
+  inline bool operator!=(B const & x, B const & y) { return !(x == y); }
+
   struct D: B
   {
     D();
     D(D const &);
 
-    explicit D(int);
-    explicit D(char);
-    explicit D(std::string const &);
+    explicit D(detail::Tag const &);
 
     D & operator=(D const &);
     ~D();
