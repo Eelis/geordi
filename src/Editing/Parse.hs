@@ -77,6 +77,9 @@ label s (Parser t f) = Parser t $ \l a x -> f l a x <?> s
 Parser (Terminators b t) f <||> Parser (Terminators b' t') f' =
   Parser (Terminators (b || b') (t ++ t')) $ \y t'' x -> f y t'' x <|> f' y t'' x
 
+named_characters :: [(String, String)]
+named_characters = [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~"), ("slash", "/"), ("backslash", "\\")]
+
 instance Parse String where
   parse = label "verbatim string" $ (select cs <||>) $
     Parser (Terminators False []) $ \t _ _ -> quoted <|> unquoted t
@@ -84,7 +87,7 @@ instance Parse String where
     quoted = char '`' >> fmap Right (many $ satisfy (/= '`')) << char '`' << spaces
     unquoted t = fmap (Right . unne . fst) $ many1Till' (P.silent anySymbol) $ try $ (if term_eof t then (eof <|>) else id) $ lookAhead (choice ((try . symbols . (' ':)) `fmap` term_keywords t)) >> char ' ' >> return ()
     cs :: [([String], String)]
-    cs = first opt_an `fmap` [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~")]
+    cs = first opt_an `fmap` named_characters
 
 andP :: Parser a ()
 andP = (kwd ["and"] >>>) $ Parser (Terminators True []) $ \_ a _ -> fmap Right $ notFollowedBy (choice $ try `fmap` symbols `fmap` a) >> return ()
