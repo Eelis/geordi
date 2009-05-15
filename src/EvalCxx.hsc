@@ -64,6 +64,8 @@ import qualified System.Posix.Process (getProcessID)
 import qualified SysCalls
 import qualified System.Posix.Internals
 import qualified Data.Map as Map
+import qualified Data.Char as Char
+import qualified Data.Maybe as Maybe
 
 import Sys (wait, WaitResult(..), strsignal, syscall_off, syscall_ret, fdOfFd, nonblocking_read, chroot, strerror)
 import SysCalls (SysCall(..))
@@ -231,13 +233,20 @@ data CompileConfig = CompileConfig { gxxPath :: FilePath, compileFlags, linkFlag
 
 readCompileConfig :: IO CompileConfig
 readCompileConfig = do
-  l <- lines . readFileNow "compile-config"
+  l <- lines . readFileNow file
   let
-    m = Map.fromList $ (\s -> let (k,_:v) = span (/= '=') s in (k, read v)) . l
-    var k
-      | Just x <- Map.lookup k m = return x
-      | otherwise = fail $ "Missing variable in compile-config: " ++ k
+    m = Map.fromList $ Maybe.catMaybes $ (uncurry parseLine .) $ zip [1..] l
+    var k = maybe (fail $ "Missing variable in " ++ file ++ ": " ++ k) return (Map.lookup k m)
   CompileConfig . var "GXX" <*> (words . var "COMPILE_FLAGS") <*> (words . var "LINK_FLAGS")
+ where
+  file = "compile-config"
+  parseLine :: Int -> String -> Maybe (String, String)
+  parseLine linenum line
+    | s@(c:_) <- dropWhile Char.isSpace line, c /= '#' =
+      case span (/= '=') s of
+        (key, _ : right) | [(value, _)] <- reads right -> Just (key, value)
+        _ -> error $ "Syntax error on line " ++ show linenum ++ " in " ++ file ++ "."
+    | otherwise = Nothing
 
 data Request = Request { code :: String, also_run, no_warn :: Bool }
 
