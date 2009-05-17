@@ -196,11 +196,13 @@ namespace textual_type_descriptions
 
   #endif
 
+  #define TYPE_STRINGS_EMPTY
+
   #define ARRAY_SPEC(cv) \
     template <typename T> struct type_desc_t<T cv []>: Vowel \
     { static std::string s (bool b) { return pl("array", b) + " of " + many<T cv>(); } };
 
-  ARRAY_SPEC()
+  ARRAY_SPEC(TYPE_STRINGS_EMPTY)
   ARRAY_SPEC(const)
   ARRAY_SPEC(volatile)
   ARRAY_SPEC(const volatile)
@@ -211,12 +213,14 @@ namespace textual_type_descriptions
     template <typename T, size_t N> struct type_desc_t<T cv [N]>: Vowel \
     { static std::string s (bool b) { return pl("array", b) + " of " + count<T cv>(N); } };
 
-  ARRAY_SPEC()
+  ARRAY_SPEC(TYPE_STRINGS_EMPTY)
   ARRAY_SPEC(const)
   ARRAY_SPEC(volatile)
   ARRAY_SPEC(const volatile)
 
   #undef ARRAY_SPEC
+
+  #undef TYPE_STRINGS_EMPTY
 
   #ifdef __GXX_EXPERIMENTAL_CXX0X__
 
