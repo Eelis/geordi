@@ -8,6 +8,8 @@ bug-reports: mailto:geordi@contacts.eelis.net
 package-url: http://www.eelis.net/geordi/snapshots/
 build-type: Custom
 
+data-files: jail-config compile-config
+
 executable geordi-local
   other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
   ghc-options: -Wall -fno-warn-unused-binds -fno-warn-orphans

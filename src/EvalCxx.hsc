@@ -67,6 +67,8 @@ import qualified Data.Map as Map
 import qualified Data.Char as Char
 import qualified Data.Maybe as Maybe
 
+import Paths_geordi (getDataFileName)
+
 import Sys (wait, WaitResult(..), strsignal, syscall_off, syscall_ret, fdOfFd, nonblocking_read, chroot, strerror)
 import SysCalls (SysCall(..))
 import Control.Applicative ((<*>))
@@ -217,14 +219,14 @@ prog_env =
   , ("LD_PRELOAD", "libtpreload.so.0.0")
   ]
 
-data JailConfig = JailConfig { user, group :: String, path :: FilePath } deriving Read
+data JailConfig = JailConfig { user, group :: String } deriving Read
 
 jail :: IO ()
 jail = do
-  cfg <- readTypedFile "jail-config"
+  cfg <- getDataFileName "jail-config" >>= readTypedFile
   gid <- groupID . getGroupEntryForName (group cfg)
   uid <- userID . getUserEntryForName (user cfg)
-  chroot $ path cfg
+  getDataFileName "rt" >>= chroot
   System.Directory.setCurrentDirectory "/"
   setGroupID gid
   setUserID uid
@@ -233,7 +235,7 @@ data CompileConfig = CompileConfig { gxxPath :: FilePath, compileFlags, linkFlag
 
 readCompileConfig :: IO CompileConfig
 readCompileConfig = do
-  l <- lines . readFileNow file
+  l <- lines . (getDataFileName file >>= readFileNow)
   let
     m = Map.fromList $ Maybe.catMaybes $ (uncurry parseLine .) $ zip [1..] l
     var k = maybe (fail $ "Missing variable in " ++ file ++ ": " ++ k) return (Map.lookup k m)
