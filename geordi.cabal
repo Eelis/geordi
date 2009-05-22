@@ -10,6 +10,14 @@ build-type: Custom
 
 data-files: jail-config compile-config
 
+flag irc
+  description: Build IRC front end
+  default: True
+
+flag testsuite
+  description: Build test suite
+  default: True
+
 executable geordi-local
   other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
   ghc-options: -Wall -fno-warn-unused-binds -fno-warn-orphans
@@ -19,20 +27,26 @@ executable geordi-local
   hs-source-dirs: src
 
 executable geordi-testsuite
-  other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
-  ghc-options: -Wall -fno-warn-unused-binds -fno-warn-orphans
-  build-tools: hsc2hs
-  build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat
   main-is: Testsuite.hs
-  hs-source-dirs: src
+  if flag(testsuite)
+    other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
+    ghc-options: -Wall -fno-warn-unused-binds -fno-warn-orphans
+    build-tools: hsc2hs
+    build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat
+    hs-source-dirs: src
+  else
+    buildable: False
 
 executable geordi-irc
-  other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
-  ghc-options: -Wall -fno-warn-unused-binds -fno-warn-orphans
-  build-tools: hsc2hs
-  build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, irc
   main-is: IrcBot.hs
-  hs-source-dirs: src
+  if flag(irc)
+    other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
+    ghc-options: -Wall -fno-warn-unused-binds -fno-warn-orphans
+    build-tools: hsc2hs
+    build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, irc
+    hs-source-dirs: src
+  else
+    buildable: False
 
 source-repository head
   type: darcs
