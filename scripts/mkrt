@@ -18,6 +18,7 @@ chmod 711 "${RT}"
 touch "${RT}/t.cpp" "${RT}/t.s" "${RT}/t.o" "${RT}/t" "${RT}/lock"
 chmod 666 "${RT}/t.cpp" "${RT}/t.s" "${RT}/t.o"
 chmod 777 "${RT}/t"
+chmod 444 "${RT}/lock"
 
 for N in crt1.o crti.o crtn.o crtbegin.o crtend.o libgcc.a libgcc_s.so libstdc++.so libstdc++.so.6 libmcheck.a libc.so libc_nonshared.a libm.so libm.so.6 libc.so.6 libgcc_s.so.1
 do
@@ -34,3 +35,5 @@ do
 done
 
 rtcp $EXECS `libs $EXECS`
+
+chmod -R a+rX "${RT}"
