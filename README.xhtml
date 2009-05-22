@@ -36,9 +36,9 @@
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/readline'>readline</a> &ge; 1.0.1.0</li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/Diff'>Diff</a> &ge; 0.1.2</li>
       <li><a href='http://hackage.haskell.org/cgi-bin/hackage-scripts/package/irc'>irc</a> &ge; 0.2.3 (Only needed if you want to run an IRC bot.)</li>
-      <!-- <li><a href='http://www.dtek.chalmers.se/~henoch/hsxmpp-doc/index.html'>XMPP</a> &ge; 0.0.1 (Only needed if you want to run an XMPP bot.)</li> -->
+      <li><a href='http://www.dtek.chalmers.se/~henoch/text/hsxmpp.html'>XMPP</a> &ge; 0.0.1 (Only needed if you want to run an XMPP bot.)</li>
     </ul>
-    <p>These last five are Cabal packages. Depending on where you got your GHC from (and on how your distro packaged it, if at all), some of them may already be installed. Use <kbd>ghc-pkg list</kbd> to figure out which ones you need, and consult the <a href='http://www.haskell.org/cabal/release/cabal-latest/doc/users-guide/builders.html'>Cabal manual</a> on how to install them.</p>
+    <p>These last six are Cabal packages. Depending on where you got your GHC from (and on how your distro packaged it, if at all), some of them may already be installed. Use <kbd>ghc-pkg list</kbd> to figure out which ones you need, and consult the <a href='http://www.haskell.org/cabal/release/cabal-latest/doc/users-guide/builders.html'>Cabal manual</a> on how to install them.</p>
 <!--
     <h3>1.2&emsp;Optional step for improved error messages</h3>
     <p>
@@ -52,7 +52,7 @@
     <p>Geordi's executables (<kbd>geordi-local</kbd>, <kbd>geordi-irc</kbd>, and <kbd>geordi-testsuite</kbd>) need to be built with Cabal:</p><pre>      runhaskell Setup.hs configure
       runhaskell Setup.hs build
       runhaskell Setup.hs install</pre>
-    <p>If you don't need/want the IRC bot, pass <kbd>-f-irc</kbd> in the configure step. See the <a href='http://www.haskell.org/cabal/release/cabal-latest/doc/users-guide/builders.html'>Cabal manual</a> for more information on customizing the above.</p>
+    <p>If you don't need the IRC front-end, pass <kbd>-f-irc</kbd> in the configure step. If you want the XMPP front-end, pass <kbd>-fxmpp</kbd>. See the <a href='http://www.haskell.org/cabal/release/cabal-latest/doc/users-guide/builders.html'>Cabal manual</a> for more information on customizing the above.</p>
 
     <h3>1.3&emsp;Setting up a chroot</h3>
 

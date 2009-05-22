@@ -14,6 +14,10 @@ flag irc
   description: Build IRC front end
   default: True
 
+flag xmpp
+  description: Build XMPP front end
+  default: False
+
 flag testsuite
   description: Build test suite
   default: True
@@ -44,6 +48,17 @@ executable geordi-irc
     ghc-options: -Wall -fno-warn-unused-binds -fno-warn-orphans
     build-tools: hsc2hs
     build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, irc
+    hs-source-dirs: src
+  else
+    buildable: False
+
+executable geordi-xmpp
+  main-is: XmppBot.hs
+  if flag(xmpp)
+    other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
+    ghc-options: -Wall -fno-warn-unused-binds -fno-warn-orphans
+    build-tools: hsc2hs
+    build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, XMPP
     hs-source-dirs: src
   else
     buildable: False
