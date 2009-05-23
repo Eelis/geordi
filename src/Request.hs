@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, UndecidableInstances, OverlappingInstances #-}
 
-module Request (is_addressed_request, is_short_request, EditableRequest(..), EditableRequestKind(..), Context(..), Response(..), EvalOpt(..), EphemeralOpt(..)) where
+module Request (is_addressed_request, is_short_request, EditableRequest(..), EditableRequestKind(..), Context(..), Response(..), EvalOpt(..), EphemeralOpt(..), HistoryModification(..), modify_history) where
 
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -9,7 +9,7 @@ import Control.Exception ()
 import Data.Char (isAlpha, isDigit)
 import Control.Monad.Error ()
 import Text.ParserCombinators.Parsec (getInput, (<|>), oneOf, lookAhead, spaces, satisfy, CharParser, many1, string, parse)
-import Util (Option(..), (.), (.||.))
+import Util (Option(..), (.), (.||.), total_tail)
 import Prelude hiding (catch, (.))
 
 data EvalOpt = CompileOnly | Terse | NoWarn deriving (Eq, Enum, Bounded, Ord)
@@ -56,6 +56,14 @@ instance Show EditableRequestKind where
 
 data EditableRequest = EditableRequest { kind :: EditableRequestKind, editable_body :: String }
 
+data HistoryModification = ReplaceLast EditableRequest | AddLast EditableRequest | DropLast
+
+modify_history :: HistoryModification -> Context -> Context
+modify_history m (Context l) = Context $ case m of
+  ReplaceLast e -> e : total_tail l
+  AddLast e -> e : l
+  DropLast -> total_tail l
+
 data Response = Response
-  { response_new_history :: Maybe (EditableRequest, Bool) -- The Bool indicates whether the new request replaces the most recent historic request.
+  { response_history_modification :: Maybe HistoryModification
   , response_output :: String }

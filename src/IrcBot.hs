@@ -21,7 +21,7 @@ import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, 
 import Text.Regex (Regex, subRegex, mkRegex)
 import Data.Char (toUpper, toLower, isSpace)
 import Data.Map (Map)
-import Util ((.), elemBy, caselessStringEq, maybeLast, readState, msapp, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState', total_tail)
+import Util ((.), elemBy, caselessStringEq, maybeLast, readState, msapp, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState')
 import Sys (rate_limiter)
 
 import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
@@ -115,7 +115,7 @@ describe_lines [] = ""
 describe_lines [x] = x
 describe_lines (x:xs) = x ++ discarded_lines_description (length xs)
 
-data ChannelMemory = ChannelMemory { editable_requests :: [Request.EditableRequest], last_output :: String }
+data ChannelMemory = ChannelMemory { context :: Request.Context, last_output :: String }
 type ChannelMemoryMap = Map String ChannelMemory
 
 is_request :: IrcBotConfig -> Where -> String -> Maybe String
@@ -172,13 +172,11 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
           if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after `" ++ reverse (take 15 $ reverse r) ++ "`." else do
             -- The `elem` "};" condition gains a reduction in false positives at the cost of an increase in false negatives.
           mmem <- Map.lookup wher . lift readState
-          Request.Response history_addition output <- lift $ lift $ eval r $ Request.Context (editable_requests . mmem `orElse` [])
+          let con = context . mmem `orElse` Request.Context []
+          Request.Response history_modification output <- lift $ lift $ eval r con
           let output' = describe_lines $ lines output
           lift $ mapState' $ Map.insert wher $ ChannelMemory
-            { editable_requests = let l = maybe [] editable_requests mmem in case history_addition of
-                Nothing -> l
-                Just (n, False) -> n : l
-                Just (n, True) -> n : total_tail l
+            { context = maybe id Request.modify_history history_modification con
             , last_output = output' }
           reply $ describe_new_output (last_output . mmem) output'
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do

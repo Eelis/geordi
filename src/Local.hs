@@ -3,13 +3,13 @@
 #include "Util.h"
 
 import qualified System.Environment
-import qualified Request
 import qualified RequestEval
 import qualified System.Console.Readline as RL
 import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Sys
 import qualified Cxx.Show
 
+import Request (Response(..), HistoryModification(..), Context(..), modify_history)
 import Control.Monad (forM_, when)
 import Control.Monad.Fix (fix)
 import System.IO.UTF8 (putStrLn)
@@ -43,10 +43,10 @@ make_history_adder = do
       RL.addHistory s
       writeIORef r (Just s)
 
-data Memory = Memory { editable_requests :: [Request.EditableRequest], last_output :: Maybe String }
+data Memory = Memory { context :: Context, last_output :: Maybe String }
 
 blankMemory :: Memory
-blankMemory = Memory [] Nothing
+blankMemory = Memory (Context []) Nothing
 
 main :: IO ()
 main = do
@@ -55,18 +55,18 @@ main = do
   (opts, rest) <- getArgs
   if Help `elem` opts then putStrLn help else do
   eval <- RequestEval.evaluator Cxx.Show.noHighlighting
-  forM_ rest $ \l -> do Request.Response _ output <- eval l (Request.Context []); putStrLn output
+  forM_ rest $ \l -> do Request.Response _ output <- eval l (Context []); putStrLn output
   addHistory <- make_history_adder
   when (rest == []) $ flip fix blankMemory $ \loop mem -> (UTF8.decodeString .) . RL.readline "geordi: " >>= case_of
     Nothing -> putNewLn
     Just "" -> loop mem
     Just l -> do
-      Request.Response history_addition output <- eval l $ Request.Context $ editable_requests mem
-      maybeM history_addition $ addHistory . UTF8.encodeString . show . fst
+      Response history_modification output <- eval l $ context mem
+      case history_modification of
+        Just (AddLast e) -> addHistory $ UTF8.encodeString $ show e
+        Just (ReplaceLast e) -> addHistory $ UTF8.encodeString $ show e
+        _ -> return ()
       putStrLn $ describe_new_output (last_output mem) output
       loop $ Memory
-        { editable_requests = case history_addition of
-            Nothing -> editable_requests mem
-            Just (n, False) -> n : editable_requests mem
-            Just (n, True) -> n : total_tail (editable_requests mem)
+        { context = maybe id modify_history history_modification $ context mem
         , last_output = Just output }

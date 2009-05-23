@@ -16,7 +16,7 @@ import Data.Maybe (listToMaybe)
 import Data.Either (lefts)
 import Parsers ((<|>), eof, optParser, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail, commit)
 import Util ((.), (<<), (.||.), commas_and, capitalize, orElse, length_ge, replace, maybe_ne, unne, show_long_opt)
-import Request (Context(..), EvalOpt(..), Response(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
+import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
 import Prelude hiding (catch, (.))
 
 show_EditableRequest :: Cxx.Show.Highlighter -> EditableRequest -> String
@@ -59,7 +59,7 @@ evaluator h = do
           evf $ EvalCxx.Request (prel ++ (if Set.member Terse opts then "#include \"terse.hpp\"\n" else "") ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc)) (not $ Set.member CompileOnly opts) (Set.member NoWarn opts)
         Left x -> return $ "error: " ++ x
     error_response s = return $ return $ Response Nothing $ "error: " ++ s
-    respond_and_remember er = return $ Response (Just (er, False)) . respond er
+    respond_and_remember er = return $ Response (Just $ AddLast er) . respond er
 
   return $ \r (Context prevs) -> do
   let
@@ -79,7 +79,7 @@ evaluator h = do
         kwds ["undo", "revert"]; commit $ case prevs of
           (_:prev:_) -> do
             kwd "and"
-            (kwd "show" >> eof >> return (return $ Response Nothing $ show_EditableRequest h prev)) <|> do
+            (kwd "show" >> eof >> return (return $ Response (Just DropLast) $ show_EditableRequest h prev)) <|> do
             oe <- Editing.Parse.commandsP; eof
             case oe of
               Left e -> error_response e
@@ -88,7 +88,7 @@ evaluator h = do
                 Right (EditableRequest _ edited_body) | length_ge 1000 edited_body ->
                   error_response "Request would become too large."
                 Right edited ->
-                  return $ Response (Just (edited, True)) . (if sh then return (show_EditableRequest h edited) else respond edited)
+                  return $ Response (Just $ ReplaceLast edited) . (if sh then return (show_EditableRequest h edited) else respond edited)
           _ -> error_response "There is no prior request."
       <|> do
         kwds ["--precedence", "precedence"]
@@ -123,7 +123,7 @@ evaluator h = do
               Right (EditableRequest _ edited_body) | length_ge 1000 edited_body ->
                 error_response "Request would become too large."
               Right edited ->
-                return $ Response (Just (edited, False)) . (if sh then return (show_EditableRequest h edited) else respond edited)
+                return $ Response (Just $ AddLast edited) . (if sh then return (show_EditableRequest h edited) else respond edited)
       <|> do
         mopts <- option (return []) optParser; spaces
         (\z -> either error_response z mopts) $ \opts -> do
