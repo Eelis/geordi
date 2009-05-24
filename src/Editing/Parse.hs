@@ -230,6 +230,10 @@ instance Parse Replacer where
   parse = liftA2 ReplaceOptions parse (wb >>> parse) <||> liftA2 Replacer parse (wb >>> parse)
     where wb = kwd ["with", "by"]
 
+instance Parse Changer where
+  parse = liftA2 ChangeOptions parse (wb >>> parse) <||> liftA2 Changer parse (wb >>> parse)
+    where wb = kwd ["to"]
+
 instance Parse Eraser where parse = auto2 EraseAround <||> auto1 EraseOptions <||> auto1 EraseText
 instance Parse Mover where parse = liftA2 Mover parse (kwd ["to"] >>> parse)
 instance Parse Swapper where parse = liftA2 Swapper parse (andP >>> parse)
@@ -258,6 +262,7 @@ instance Parse Command where
     (kwd ["prepend"] >>> commit ((parse >>> arr (Use `fmap` (fmap UseOptions))) <||> auto2 Prepend)) <||>
     (kwd ["erase", "remove", "kill", "cut", "omit", "delete", "drop"] >>> commit (auto1 Erase)) <||>
     (kwd ["replace"] >>> commit (auto1 Replace)) <||>
+    (kwd ["change"] >>> commit (auto1 Change)) <||>
     (kwd ["use"] >>> commit (auto1 Use)) <||>
     (kwd ["move"] >>> commit (auto1 Move)) <||>
     (kwd ["swap"] >>> commit (auto1 Swap)) <||>

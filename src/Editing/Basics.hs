@@ -84,6 +84,7 @@ type Substrs = Either (Rankeds NamedEntity) (Relative (EverythingOr (Rankeds Str
 data Position = Position BefAft Substr
 type Positions = AndList PositionsClause
 data Replacer = Replacer (AndList Substrs) String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
+data Changer = Changer (AndList Substrs) String | ChangeOptions [Request.EvalOpt] [Request.EvalOpt]
 data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around (Ranked (Either NamedEntity String)))
 data Mover = Mover (Either (Ranked NamedEntity) (Relative (EverythingOr (Ranked String)))) Position
 data BefAft = Before | After deriving Eq
@@ -100,6 +101,7 @@ data Command
   | Append String (Maybe (AndList AppendPositionsClause))
   | Prepend String (Maybe (AndList PrependPositionsClause))
   | Replace (AndList Replacer)
+  | Change (AndList Changer)
   | Erase (AndList Eraser)
   | Move (AndList Mover)
   | Swap (AndList Swapper)

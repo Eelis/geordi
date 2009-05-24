@@ -123,6 +123,7 @@ basic_tests = do
   t "erase until after second 3" $ Right " 4 5"
   t "erase from before second 3" $ Right "1 2 3 2 "
   t "replace all but first and second last space with x" $ Right "1 2x3x2x3 4x5"
+  t "change all but first and second last space to x" $ Right "1 2x3x2x3 4x5"
   t "erase between second and fourth space and 1" $ Right " 2  3 4 5"
   t "erase between the first and third space and prepend x" $ Right "x1  2 3 4 5"
   t "wrap parentheses around every space between first 2 and 4 and around 5 and erase second last 3" $ Right "1 2( )( )2( )3( )4 (5)"

@@ -106,7 +106,7 @@ evaluator h = do
         kwd "--show-compile-flags"
         return $ return $ Response Nothing $ unwords $ EvalCxx.compileFlags compile_cfg
       <|> do
-        kwds ["diff", "diffs", "differences", "change", "changes"]; commit $ eof >> case prevs of
+        kwds ["diff", "diffs", "differences", "changes"]; commit $ eof >> case prevs of
           x : y : _ -> return $ return $ Response Nothing $ diff x y
           _ -> error_response "I have not yet seen two comparable requests."
       <|> do

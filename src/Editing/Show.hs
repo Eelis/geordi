@@ -91,6 +91,9 @@ instance Show a => Show (Rankeds a) where
 instance Show Replacer where
   show (Replacer x y) = show x ++ " with " ++ show y
   show (ReplaceOptions o o') = show_long_opts o ++ " with " ++ show_long_opts o'
+instance Show Changer where
+  show (Changer x y) = show x ++ " to " ++ show y
+  show (ChangeOptions o o') = show_long_opts o ++ " to " ++ show_long_opts o'
 instance Show Eraser where
   show (EraseText l) = show l
   show (EraseOptions o) = show_long_opts o
@@ -133,6 +136,7 @@ show_command :: Tense -> Command -> String
 show_command t (Insert s p) = tense t "insert" ++ " " ++ show s ++ " " ++ show p
 show_command t (Erase l) = tense t "erase" ++ " " ++ show l
 show_command t (Replace l) = tense t "replace" ++ " " ++ show l
+show_command t (Change l) = tense t "change" ++ " " ++ show l
 show_command t (Use l) = tense t "use" ++ " " ++ show l
 show_command t (Prepend s mp) = tense t "prepend" ++ " " ++ show s ++ maybe "" ((" " ++) . show) mp
 show_command t (Append s mp) = tense t "append" ++ " " ++ show s ++ maybe "" ((" " ++) . show) mp

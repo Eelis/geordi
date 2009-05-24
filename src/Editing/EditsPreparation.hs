@@ -170,6 +170,10 @@ instance FindInStr Replacer [Edit] where
   findInStr s (Replacer p r) = (flip RangeReplaceEdit r .) . concat . ((unanchor_range .) .) . findInStr s p
   findInStr _ (ReplaceOptions o o') = return [RemoveOptions o, AddOptions o']
 
+instance FindInStr Changer [Edit] where
+  findInStr s (Changer p r) = (flip RangeReplaceEdit r .) . concat . ((unanchor_range .) .) . findInStr s p
+  findInStr _ (ChangeOptions o o') = return [RemoveOptions o, AddOptions o']
+
 instance FindInStr Eraser [Edit] where
   findInStr s (EraseText p) = ((flip RangeReplaceEdit "" . unanchor_range) .) . findInStr s p
   findInStr _ (EraseOptions o) = return [RemoveOptions o]
@@ -245,6 +249,7 @@ instance FindInStr Command [Edit] where
   findInStr s (Prepend r (Just p)) = (flip InsertEdit r .) . concat . findInStr s p
   findInStr s (Erase (AndList l)) = concat . sequence (findInStr s . unne l)
   findInStr s (Replace (AndList l)) = concat . sequence (findInStr s . unne l)
+  findInStr s (Change (AndList l)) = concat . sequence (findInStr s . unne l)
   findInStr s (Insert r p) = (flip InsertEdit r .) . concat . findInStr s p
   findInStr s (Move (AndList movers)) = sequence (findInStr s . unne movers)
   findInStr s (Swap (AndList swappers)) = concat . sequence (findInStr s . unne swappers)
