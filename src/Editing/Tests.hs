@@ -54,6 +54,7 @@ make_tests = do
   s "int i;" "make i a const array of pointers" "int *const i[];"
   s "int i[];" "make i const" "const int i[];"
   s "void f(int i, double d){}" "make i and d long" "void f(long int i, long double d){}"
+  s "int i, j, k;" "make i a float and j and k a double" "float i;double j;double k;"
   s "int i;" "make i an array of const" "const int i[];"
   s "int i;" "make i a static const function" "static int i()const ;"
   s "int i;" "make i a pointer to a function" "int (* i)();"

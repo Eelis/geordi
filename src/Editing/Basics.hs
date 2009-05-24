@@ -10,7 +10,7 @@ import qualified Data.Char as Char
 import Cxx.Basics (DeclaratorId)
 
 import Data.Monoid (Monoid(..))
-import Util (NElist(..), Convert(..), Invertible(..), Ordinal(..), (.), findMaybe, take_atleast, isIdChar)
+import Util (NElist(..), unne, Convert(..), Invertible(..), Ordinal(..), (.), findMaybe, take_atleast, isIdChar)
 
 import Prelude hiding ((.))
 
@@ -111,8 +111,12 @@ data Command
 
 newtype Identifier = Identifier { identifier_string :: String }
 
-data SemCommand = Make (AndList DeclaratorId) Cxx.Basics.MakeDeclaration
+data MakeClause = MakeClause (AndList DeclaratorId) Cxx.Basics.MakeDeclaration
+data SemCommand = Make (AndList MakeClause)
   -- This is separate from Command because SemCommands are not executed until /after/ all non-sem-commands have been executed (because the latter may fix syntactic problems that the parser would trip on.)
+
+flatten_MakeClauses :: AndList MakeClause -> [(Cxx.Basics.MakeDeclaration, DeclaratorId)]
+flatten_MakeClauses = concatMap (\(MakeClause (AndList l) d) -> map ((,) d) (unne l)) . unne . andList
 
 -- Convenience constructors
 

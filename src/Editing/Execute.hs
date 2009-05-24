@@ -11,7 +11,7 @@ import qualified Editing.Show
 
 import Control.Monad (foldM)
 import Request (EditableRequest(..), EditableRequestKind(..))
-import Util ((.), unne)
+import Util ((.))
 
 import Prelude hiding ((.))
 import Editing.Basics
@@ -122,11 +122,11 @@ exec_edits (e : t) (EditableRequest k s) = case adjustEdits e t of
       | otherwise -> fail $ "Cannot use evaluation options for \"" ++ show k ++ "\" request."
 
 execute_semcmd :: EditableRequest -> SemCommand -> Either String EditableRequest
-execute_semcmd (EditableRequest (Evaluate oldopts) oldcodeblob) (Make n d) =
+execute_semcmd (EditableRequest (Evaluate oldopts) oldcodeblob) (Make clauses) =
   case Cxx.Parse.parseRequest oldcodeblob of
     Left e -> fail $ "Could not parse code in previous request. " ++ e
     Right r -> do
-      f <- foldM (flip $ Cxx.Operations.apply_makedecl d) r (unne (andList n))
+      f <- foldM (flip $ uncurry Cxx.Operations.apply_makedecl) r $ flatten_MakeClauses clauses
       return $ EditableRequest (Evaluate oldopts) $ Cxx.Show.show_simple f
 
 execute_semcmd _ _ = fail "Last request not suitable for make_const."

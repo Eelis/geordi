@@ -290,8 +290,10 @@ instance Parse Cxx.Basics.MakeDeclaration where
 instance Parse DeclaratorId where
   parse = Parser (Terminators False []) $ \_ _ _ -> Right `fmap` Cxx.Parse.declaratorIdParser
 
+instance Parse MakeClause where parse = auto2 MakeClause
+
 instance Parse SemCommand where
-  parse = label "edit command" $ kwd ["make"] >>> commit (auto2 Make)
+  parse = label "edit command" $ kwd ["make"] >>> commit (auto1 Make)
 
 addAnd :: [AndCont] -> Parser a b -> Parser a b
 addAnd a (Parser t p) = Parser t $ \t' a' v -> p t' (a ++ a') v
