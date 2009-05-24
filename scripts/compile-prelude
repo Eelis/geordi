@@ -1,7 +1,8 @@
 #!/bin/sh
 set -eu
-. ./compile-config
-RT=`cat prefix`/share/geordi-0/rt
+DATA=`cat prefix`/share/geordi-0
+RT="${DATA}/rt"
+. "${DATA}/compile-config"
 cd prelude
 $GXX $COMPILE_FLAGS -c prelude.cpp tracked.cpp type_strings.cpp more_ostreaming.cpp
 cd ..
