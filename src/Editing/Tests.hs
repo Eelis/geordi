@@ -61,6 +61,7 @@ make_tests = do
   s "int i;" "make i a pointer to a function taking two doubles" "int (* i)(double, double);"
   s "int i;" "make i a function returning a const" "const int i();"
   s "int i;" "make i a function returning a const pointer and taking a bool" "int *const i(bool);"
+  s "{ cout << 3, 3.2, 3ul, 3e+2, 0x3, 03, .3, 3., .3e1, 3.E0; int i; }" "make i const" "{ cout << 3, 3.2, 3ul, 3e+2, 0x3, 03, .3, 3., .3e1, 3.E0; const int i; }"
   s "void f() { if(b) int i, j; }" "make j register and make f static const" "static void f() const { if(b) {int i; register int j; }}"
   s "void f(int i) { try {} catch(int j) {} }" "make f and i and j const" "void f(const int i) const { try {} catch(const int j) {} }"
   f "void f(int i) { try {} catch(int j) {} }" "make j mutable" "Invalid decl-specifier for type-specifier-seq: mutable"

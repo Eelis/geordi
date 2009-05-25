@@ -345,7 +345,7 @@ instance Parse FloatingLiteral where
       (>++>) = liftM2 (++)
       digit = satisfy Char.isDigit
       optSuffix = option "" $ (:[]) . (symbol 'f' <|> symbol 'l' <|> symbol 'F' <|> symbol 'L')
-      exponentPart = option "" $ (symbols "e" <|> symbols "E") >++> option "" (symbols "+" <|> symbols "-") >++> many1 digit
+      exponentPart = (symbols "e" <|> symbols "E") >++> option "" (symbols "+" <|> symbols "-") >++> many1 digit
 instance Parse IntegerLiteral where
   parse = (<?> "integer-literal") $ (IntegerLiteral .) $ (p <|>) $ do
     b <- makeTypeExtensions . parseOptions
