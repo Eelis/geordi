@@ -1,1 +1,1 @@
-source scripts/getsyscalls > src/SysCalls.hsc
+. scripts/getsyscalls > src/SysCalls.hsc
