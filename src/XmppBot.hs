@@ -59,6 +59,10 @@ is_request (RoomConfig mynick allow_nickless) s
   | allow_nickless, Just r <- Request.is_short_request s = Just r
   | otherwise = Nothing
 
+output_body :: BotConfig -> Request.Response -> String
+output_body cfg r = xmlEntities $ take (max_msg_length cfg) $ takeWhile (/= '\n') $
+  case Request.response_output r of "" -> no_output_msg cfg; s -> s
+
 main :: IO ()
 main = do
   Sys.setlocale_ALL_env
@@ -80,9 +84,7 @@ main = do
   when (not $ from `elem` blacklist cfg) $ do
   maybeM (XMPP.getMessageBody msg) $ \body -> do
   let
-    eval r = XMPP.liftIO $ do
-      limit_rate
-      xmlEntities . take (max_msg_length cfg) . takeWhile (/= '\n') . Request.response_output . evalRequest r (Request.Context [])
+    eval r = XMPP.liftIO $ limit_rate >> output_body cfg . evalRequest r (Request.Context [])
   case XMPP.getAttr "type" msg of
     Just "groupchat"
       | (room, '/' : from_nick) <- span (/= '/') from, Just request <- do
