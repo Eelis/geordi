@@ -15,7 +15,7 @@
   #include <type_traits>
 
   #define IS_LVALUE(...) \
-    (std::identity<decltype(lvalue_rvalue_detail::deduce((__VA_ARGS__)))>::type::value)
+    (std::identity<decltype(::lvalue_rvalue_detail::deduce(((__VA_ARGS__), ::lvalue_rvalue_detail::helper())))>::type::value)
   #define IS_RVALUE(...) (!IS_LVALUE(__VA_ARGS__))
 
   #define MAY_BE_LVALUE(...) (IS_LVALUE(__VA_ARGS__))
@@ -23,6 +23,8 @@
 
   namespace lvalue_rvalue_detail
   {
+    struct helper {};
+    template <typename T> T && operator,(T &&, helper);
     template <typename T> std::is_reference<T> deduce (T &&);
   }
 
@@ -91,12 +93,14 @@ namespace lvalue_rvalue_test
   T const f ();
   T const & g = a;
   T const & h ();
+  void v();
 
   #ifdef __GXX_EXPERIMENTAL_CXX0X__
     L(e);
     R(f()); // 3.10p5
     L(g); // 5p5
     L(h()); // 5p5
+    R(v());
   #else
 
     #define I(e) /* Indeterminate */ \
