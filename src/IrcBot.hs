@@ -19,7 +19,7 @@ import Control.Monad.State (execStateT, lift, StateT)
 import System.IO.UTF8 (putStr, putStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Text.Regex (Regex, subRegex, mkRegex)
-import Data.Char (toUpper, toLower, isSpace)
+import Data.Char (toUpper, toLower, isSpace, isPrint)
 import Data.Map (Map)
 import Util ((.), elemBy, caselessStringEq, maybeLast, readState, msapp, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState')
 import Sys (rate_limiter)
@@ -160,7 +160,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
     IRC.Message _ "PING" a -> send $ msg "PONG" a
     IRC.Message _ "PRIVMSG" [_, '\1':_] -> return ()
     IRC.Message (Just (IRC.NickName who muser mserver)) "PRIVMSG" [to, txt'] -> do
-      let txt = strip_color_codes $ strip_utf8_bom txt'
+      let txt = filter isPrint $ strip_color_codes $ strip_utf8_bom txt'
       let private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
       let w = if private then Private else InChannel to
       maybeM (dropWhile isSpace . is_request cfg w txt) $ \r -> do
