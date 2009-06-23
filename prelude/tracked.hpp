@@ -73,7 +73,9 @@ namespace tracked
     B();
     B(B const &);
 
-    explicit B(detail::Tag const &);
+    B(detail::Tag const &);
+    B(int); B(char); B(std::string const &); B(char const*);
+      // These last four seem redundant, but are needed to make B b = ...; work properly.
 
     B & operator=(B const &);
     virtual ~B();
@@ -121,7 +123,8 @@ namespace tracked
     D();
     D(D const &);
 
-    explicit D(detail::Tag const &);
+    D(detail::Tag const &);
+    D(int); D(char); D(std::string const &); D(char const*);
 
     D & operator=(D const &);
     ~D();

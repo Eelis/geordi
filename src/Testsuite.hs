@@ -131,6 +131,8 @@ tests "tracked" =
   , test "Stack overwrite" "{ using tracked::B; B b; new (&b) B; }" $ ExactMatch "B0* error: leaked: B0. Aborted"
   , test "new[]/delete[]." "{ boost::shared_array<tracked::B> a(new tracked::D[2]); }" $ ExactMatch "new(D[]) B0* D0* B1* D1* D1~ B1~ D0~ B0~ delete[D0, D1]"
   , test "Operation on non-existent object" "{ tracked::B * p = 0; p->f(); }" $ ExactMatch "error: tried to call B::f() on non-existent object. Aborted"
+  , test "Read from dead object." "-w << f(); using tracked::B; B const & f() { return B(); }" $ ExactMatch "B0* B0~ error: tried to read destructed B0. Aborted"
+  , test "Initialization" "{ tracked::B b = 1, c(1); }" $ ExactMatch "B0*(1) B1*(B0) B0~ B2*(1) B2~ B1~"
   ]
 
 tests "utilities" =

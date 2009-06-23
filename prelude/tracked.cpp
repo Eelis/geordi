@@ -140,7 +140,11 @@ namespace tracked
     B::B() { set_name("B"); detail::info const i; print(i()); i() << '*'; }
     B::B(B const & b): Tracked(b) { set_name("B"); detail::info const i; print(i()); i() << "*("; b.print(i()); i() << ')'; }
     B::B(detail::Tag const & t): Tracked(t) { set_name("B"); detail::info const i; print(i()); i() << "*(" << t << ')'; }
-      // todo: Delegating ctors should make this cleaner.
+    B::B(int const x): Tracked(x) { set_name("B"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    B::B(char const x): Tracked(x) { set_name("B"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    B::B(std::string const & x): Tracked(x) { set_name("B"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    B::B(char const * const x): Tracked(x) { set_name("B"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+      // todo: Delegating ctors should make this much cleaner.
     B & B::operator=(B const & b) { Tracked::operator=(b); detail::info const i; print(i()); i() << '='; b.print(i()); return *this; }
     B::~B() { detail::info const i; print(i()); i() << '~'; }
 
@@ -217,6 +221,11 @@ namespace tracked
     D::D(D const & d): B(boost::implicit_cast<B const&>(d))
     { set_name("D"); detail::info const i; print(i()); i() << "*("; d.print(i()); i() << ')'; }
     D::D(detail::Tag const & t): B(t) { set_name("D"); detail::info const i; print(i()); i() << "*(" << t << ')'; }
+    D::D(int const x): B(x) { set_name("D"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    D::D(char const x): B(x) { set_name("D"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    D::D(std::string const & x): B(x) { set_name("D"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+    D::D(char const * const x): B(x) { set_name("D"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
+
     D & D::operator=(D const & d) { B::operator=(d); detail::info const i; print(i()); i() << '='; d.print(i()); return *this; }
     D::~D() { detail::info const i; print(i()); i() << '~'; }
 
