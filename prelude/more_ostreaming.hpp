@@ -145,6 +145,30 @@ std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::tm co
   return o;
 }
 
+template <typename T, typename C>
+C const & underlying(std::stack<T, C> const & s) {
+  struct S: std::stack<T, C> {
+    static C const & peek(std::stack<T, C> const & s) { return s.*(&S::c); }
+  };
+  return S::peek(s);
+}
+
+template <typename T, typename C>
+C const & underlying(std::queue<T, C> const & s) {
+  struct S: std::queue<T, C> {
+    static C const & peek(std::queue<T, C> const & s) { return s.*(&S::c); }
+  };
+  return S::peek(s);
+}
+
+template <typename T, typename C, typename P>
+C const & underlying(std::priority_queue<T, C, P> const & s) {
+  struct S: std::priority_queue<T, C> {
+    static C const & peek(std::priority_queue<T, C> const & s) { return s.*(&S::c); }
+  };
+  return S::peek(s);
+}
+
 namespace std
 {
   template <typename Ch, typename Tr, typename T>
@@ -155,22 +179,20 @@ namespace std
     return o << '}';
   }
 
-  // WARNING: Evil stdlib implementation specific hacks ahead.
-
   template <typename Ch, typename Tr, typename T, typename C>
   std::basic_ostream<Ch, Tr> &
     operator<<(std::basic_ostream<Ch, Tr> & o, std::stack<T, C> const & s)
-  { return o << reinterpret_cast<C const &>(s); }
+  { return o << underlying(s); }
 
   template <typename Ch, typename Tr, typename T, typename C>
   std::basic_ostream<Ch, Tr> &
     operator<<(std::basic_ostream<Ch, Tr> & o, std::queue<T, C> const & q)
-  { return o << reinterpret_cast<C const &>(q); }
+  { return o << underlying(q); }
 
   template <typename Ch, typename Tr, typename T, typename C, typename P>
   std::basic_ostream<Ch, Tr> &
     operator<<(std::basic_ostream<Ch, Tr> & o, std::priority_queue<T, C, P> const & q)
-  { return o << reinterpret_cast<C const &>(q); }
+  { return o << underlying(q); }
 }
 
 #ifdef GEORDI_USE_CHRONO
