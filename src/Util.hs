@@ -380,6 +380,9 @@ orElse :: Maybe a -> a -> a
 orElse (Just x) _ = x
 orElse Nothing x = x
 
+apply_if :: Bool -> (a -> a) -> (a -> a)
+apply_if b f = if b then f else id
+
 putNewLn :: IO ()
 putNewLn = putStrLn ""
 

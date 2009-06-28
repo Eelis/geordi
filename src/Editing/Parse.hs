@@ -11,7 +11,7 @@ import Control.Category (Category, (.), id)
 import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA)
 import Data.Either (partitionEithers)
 import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, sepBy1', many1Till', optParser, try, many, satisfy, spaces)
-import Util (isVowel, (<<), NElist(..), unne, snd_unit, liftA2, Ordinal(..))
+import Util (isVowel, (<<), NElist(..), unne, snd_unit, liftA2, Ordinal(..), apply_if)
 import Cxx.Basics (DeclaratorId)
 import Request (EvalOpt)
 
@@ -68,7 +68,7 @@ class Parse a where parse :: Parser x a
 
 kwd :: [String] -> Parser a String
 kwd s = Parser (Terminators False s) $ \(Terminators b _) _ _ -> fmap Right $ try $
-  choice (try `fmap` symbols `fmap` s) << (if b then (eof <|>) else id) (char ' ' >> return ())
+  choice (try `fmap` symbols `fmap` s) << apply_if b (eof <|>) (P.char_unit ' ')
 
 label :: String -> Parser a b -> Parser a b
 label s (Parser t f) = Parser t $ \l a x -> f l a x <?> s
@@ -85,7 +85,8 @@ instance Parse String where
     Parser (Terminators False []) $ \t _ _ -> quoted <|> unquoted t
    where
     quoted = char '`' >> fmap Right (many $ satisfy (/= '`')) << char '`' << spaces
-    unquoted t = fmap (Right . unne . fst) $ many1Till' (P.silent anySymbol) $ try $ (if term_eof t then (eof <|>) else id) $ lookAhead (choice ((try . symbols . (' ':)) `fmap` term_keywords t)) >> char ' ' >> return ()
+    unquoted t = fmap (Right . unne . fst) $ many1Till' (P.silent anySymbol) $ try $ apply_if (term_eof t) (eof <|>) $ lookAhead
+      (choice ((\k -> try $ symbols (' ': k) >> (eof <|> P.char_unit ' ')) `fmap` term_keywords t)) >> P.char_unit ' '
     cs :: [([String], String)]
     cs = first opt_an `fmap` named_characters
 

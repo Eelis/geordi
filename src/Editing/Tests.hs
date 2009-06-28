@@ -169,6 +169,7 @@ basic_tests = do
   t "move 4 to end and insert x before 5" $ Right "1 2 3 2 3  x54"
   t "erase 4 and move 5 to begin" $ Right "51 2 3 2 3  "
   t "move 3 2 3 to front and insert x before second 2" $ Right "3 x2 31 2  4 5"
+  t "append float x; int y;" $ Right "1 2 3 2 3 4 5float x; int y;"
   t "erase 5 and move everything after last 3 to front" $ Right " 4 1 2 3 2 3"
   t "move everything before 4 to end and move first 3 to front" $ Right "34 51 2  2 3 "
   t "move 3 4 5 to before 4" $ Left "Move destination lies in source range."

@@ -109,6 +109,9 @@ kwd s = try $ symbols s << notFollowedBy (satisfy isIdChar) << spaces
 kwds :: [String] -> Parser Char String
 kwds s = choice $ kwd . s
 
+char_unit :: (Eq a, Show a) => a -> Parser a ()
+char_unit = (>> return ()) . char
+
 {-
 
 Parsec's parse error descriptions aren't very good for parsers that backtrack. Consider
