@@ -1,13 +1,10 @@
 #ifndef BARK_HPP
 #define BARK_HPP
 
-#include <vector>
 #include <utility>
-#include <string>
-#include <iostream>
+#include <cstdio>
 #include <cstring>
 #include "geordi.hpp"
-#include <boost/range.hpp>
 
 #include "more_ostreaming.hpp"
 
@@ -35,13 +32,16 @@ namespace bark_detail
 
 #ifndef BARK_TEST
 
-#define BARK (::std::cout << geordi::parsep << bark_detail::bark(__PRETTY_FUNCTION__) << ::geordi::parsep)
+#define BARK \
+  (::std::printf("%s%s%s", ::geordi::parsep, ::bark_detail::bark(__PRETTY_FUNCTION__), ::geordi::parsep), ::std::fflush(stdout))
   // We don't include a trailing semicolon, because a function body looking like { BARK } confuses geordi's C++ parser.
 
 #else
 
 #include <sstream>
 #include <cassert>
+#include <string>
+#include <boost/range.hpp>
 
 #define BARK(expected) \
   { std::string const s(bark_detail::bark(__PRETTY_FUNCTION__)); std::cout << s << '\n'; assert(s == expected); }
