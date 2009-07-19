@@ -15,7 +15,7 @@
   #include <type_traits>
 
   #define IS_LVALUE(...) \
-    (std::identity<decltype(::lvalue_rvalue_detail::deduce(((__VA_ARGS__), ::lvalue_rvalue_detail::helper())))>::type::value)
+    (std::identity<decltype(::lvalue_rvalue_detail::deduce(((::lvalue_rvalue_detail::helper(), (__VA_ARGS__)), ::lvalue_rvalue_detail::helper())))>::type::value)
   #define IS_RVALUE(...) (!IS_LVALUE(__VA_ARGS__))
 
   #define MAY_BE_LVALUE(...) (IS_LVALUE(__VA_ARGS__))
@@ -24,7 +24,13 @@
   namespace lvalue_rvalue_detail
   {
     struct helper {};
+
+    template <typename T> struct copy_ref { typedef int type; };
+    template <typename T> struct copy_ref<T&> { typedef int& type; };
+
+    template <typename T> typename copy_ref<T>::type operator,(helper, T &&);
     template <typename T> T && operator,(T &&, helper);
+
     template <typename T> std::is_reference<T> deduce (T &&);
   }
 
@@ -81,9 +87,15 @@
 
 #endif
 
+#include <iostream>
+
+template <typename T> std::ostream & operator,(std::ostream &, T const &);
+
 namespace lvalue_rvalue_test
 {
   struct T {}; // If we use something like int, const will be redundant in  int const f ();
+
+  L(std::cout);
 
   T a; L(a);
   T b (); R(b()); // 3.10p5
