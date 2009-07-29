@@ -22,9 +22,11 @@ instance Option EvalOpt where
   long Terse = "terse"
   long NoWarn = "no-warn"
 
-data EphemeralOpt = Resume deriving (Eq, Enum, Bounded)
+data EphemeralOpt = Resume | Help | Version deriving (Eq, Enum, Bounded)
 
-instance Option EphemeralOpt where short Resume = 'r'; long Resume = "resume"
+instance Option EphemeralOpt where
+  long Resume = "resume"; long Help = "help"; long Version = "version"
+  short Resume = 'r'; short Help = 'h'; short Version = 'v'
 
 type Nick = String
 

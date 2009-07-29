@@ -63,6 +63,9 @@ evaluator h = do
 
   return $ \r (Context prevs) -> do
   let
+    help_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << help; }") True False)
+    version_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << \"g++ (GCC) \" << __VERSION__; }") True False)
+
     p :: Parser Char (IO Response)
     p = (spaces >>) $
       do
@@ -96,12 +99,8 @@ evaluator h = do
       <|> do
         kwds ["--make-type", "make type"]
         respond_and_remember . EditableRequest MakeType =<< getInput
-      <|> do
-        kwds ["--help", "-h", "help"]
-        return $ Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << help; }") True False)
-      <|> do
-        kwds ["--version", "-v", "version"]
-        return $ Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << \"g++ (GCC) \" << __VERSION__; }") True False)
+      <|> do kwds ["help"]; return help_response
+      <|> do kwds ["version"]; return version_response
       <|> do
         kwd "--show-compile-flags"
         return $ return $ Response Nothing $ unwords $ EvalCxx.compileFlags compile_cfg
@@ -128,8 +127,10 @@ evaluator h = do
         mopts <- option (return []) optParser; spaces
         (\z -> either error_response z mopts) $ \opts -> do
         let evalopts = Set.fromList $ lefts opts
-        if Right Resume `elem` opts
-          then case prevs of
+        case () of { ()
+          | Right Help `elem` opts -> return help_response
+          | Right Version `elem` opts -> return version_response
+          | Right Resume `elem` opts -> case prevs of
             [] -> fail "There is no previous resumable request."
             EditableRequest (Evaluate oldopts) oldcodeblob : _ -> case run_parser (Cxx.Parse.code << eof) (dropWhile isSpace oldcodeblob) of
               ParseSuccess oldcode _ _ _ -> do
@@ -137,5 +138,5 @@ evaluator h = do
                 respond_and_remember $ EditableRequest (Evaluate $ Set.union evalopts oldopts) $ show $ Cxx.Operations.blob $ Cxx.Operations.resume (Cxx.Operations.shortcut_syntaxes oldcode) (Cxx.Operations.shortcut_syntaxes code)
               ParseFailure _ _ _ -> error_response "Previous request too malformed to resume."
             _ -> error_response "Last (editable) request was not resumable."
-          else respond_and_remember =<< EditableRequest (Evaluate evalopts) . getInput
+          | otherwise -> respond_and_remember =<< EditableRequest (Evaluate evalopts) . getInput }
   either (return . Response Nothing) id $ parseOrFail p (replace no_break_space ' ' r) "request"
