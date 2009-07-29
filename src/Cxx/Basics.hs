@@ -227,6 +227,7 @@ OP(CloseParen_, CloseParen)
 OP(CloseSquare_, CloseSquare)
 OP(ColonOp, Colon)
 OP(CommaOp, CommaTok)
+OP(ArrowOp, Arrow)
 OP(SemicolonOperator, Semicolon)
 OP(StarOperator, Star)
 OP(LeftShiftOp, OpenTwoAngles)
@@ -482,7 +483,7 @@ data MemInitializerId = MemInitializerId_ClassName OptQualified ClassName | MemI
 -- A.11 Overloading [gram.over]
 
 data OperatorFunctionId = OperatorFunctionId (KwdOperator, White) OverloadableOperator deriving (Data, Typeable, Eq)
-data OverloadableOperator = OverloadableOperator_New (KwdNew, White) (Maybe (Squared ())) | OverloadableOperator_Delete (KwdDelete, White) (Maybe (Squared ())) | OverloadableOperator_Call (Parenthesized ()) | OverloadableOperator_Index (Squared ()) | OverloadableUnaryOperator (UnaryOperator, White) | OverloadableAssignmentOperator (AssignmentOperator, White) | OverloadableRelationalOperator (RelationalOperator, White) | OverloadableMultiplicativeOperator (MultiplicativeOperator, White) | OverloadableShiftOperator (ShiftOperator, White) | OverloadableAdditiveOperator (AdditiveOperator, White) | OverloadableEqualityOperator (EqualityOperator, White) | OverloadableBitXor (ExclusiveOrOperator, White) | OverloadableBitAnd (AndOperator, White) | OverloadableBitOr (InclusiveOrOperator, White) | OverloadableLogicalAnd (LogicalAndOperator, White) | OverloadableLogicalOr (LogicalOrOperator, White) | OverloadableComma (CommaOp, White) | OverloadablePmOperator (PmOperator, White) deriving (Data, Typeable, Eq)
+data OverloadableOperator = OverloadableOperator_New (KwdNew, White) (Maybe (Squared ())) | OverloadableOperator_Delete (KwdDelete, White) (Maybe (Squared ())) | OverloadableOperator_Call (Parenthesized ()) | OverloadableOperator_Index (Squared ()) | OverloadableUnaryOperator (UnaryOperator, White) | OverloadableAssignmentOperator (AssignmentOperator, White) | OverloadableRelationalOperator (RelationalOperator, White) | OverloadableMultiplicativeOperator (MultiplicativeOperator, White) | OverloadableShiftOperator (ShiftOperator, White) | OverloadableAdditiveOperator (AdditiveOperator, White) | OverloadableEqualityOperator (EqualityOperator, White) | OverloadableBitXor (ExclusiveOrOperator, White) | OverloadableBitAnd (AndOperator, White) | OverloadableBitOr (InclusiveOrOperator, White) | OverloadableLogicalAnd (LogicalAndOperator, White) | OverloadableLogicalOr (LogicalOrOperator, White) | OverloadableComma (CommaOp, White) | OverloadablePmOperator (PmOperator, White) | OverloadableArrowOperator (ArrowOp, White) deriving (Data, Typeable, Eq)
 
 -- A.12 Templates [gram.temp]
 

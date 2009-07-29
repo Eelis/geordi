@@ -640,7 +640,7 @@ instance Parse MemInitializerId where parse = auto2 MemInitializerId_ClassName <
 instance Parse OverloadableOperator where
   parse = (<?> "overloadable operator") $
     auto2 OverloadableOperator_New <|> auto2 OverloadableOperator_Delete <|>
-    auto1 OverloadableOperator_Call <|> auto1 OverloadableOperator_Index <|> auto1 OverloadableUnaryOperator <|> auto1 OverloadableAssignmentOperator <|> auto1 OverloadableRelationalOperator <|> auto1 OverloadableMultiplicativeOperator <|> auto1 OverloadableShiftOperator <|> auto1 OverloadableAdditiveOperator <|> auto1 OverloadableEqualityOperator <|> auto1 OverloadableBitXor <|> auto1 OverloadableBitAnd <|> auto1 OverloadableBitOr <|> auto1 OverloadableLogicalAnd <|> auto1 OverloadableLogicalOr <|> auto1 OverloadableComma <|> auto1 OverloadablePmOperator
+    auto1 OverloadableOperator_Call <|> auto1 OverloadableOperator_Index <|> auto1 OverloadableUnaryOperator <|> auto1 OverloadableAssignmentOperator <|> auto1 OverloadableRelationalOperator <|> auto1 OverloadableMultiplicativeOperator <|> auto1 OverloadableShiftOperator <|> auto1 OverloadableAdditiveOperator <|> auto1 OverloadableEqualityOperator <|> auto1 OverloadableBitXor <|> auto1 OverloadableBitAnd <|> auto1 OverloadableBitOr <|> auto1 OverloadableLogicalAnd <|> auto1 OverloadableLogicalOr <|> auto1 OverloadableComma <|> auto1 OverloadablePmOperator <|> auto1 OverloadableArrowOperator
 
 instance Parse OperatorFunctionId where parse = auto2 OperatorFunctionId <?> "operator-function-id"
 
