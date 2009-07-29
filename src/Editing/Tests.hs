@@ -189,6 +189,7 @@ basic_tests = do
   ct "namespace N { void f(); } class C { void g() {} };" "swap body of N and body of C" $ Right "namespace N { void g() {} } class C { void f(); };"
   ct "void f() { int i; } void g() { int j; } void h() {}" "prepend BARK; in f and append BARK; in g and in h" $ Right "void f() { BARK;int i; } void g() { int j; BARK;} void h() {BARK;}"
   ct "class C { int f() {} };" "add int x; in C and add return x; in f" $ Right "class C { int f() {return x;} int x;};"
+  ct "void f() { cout << 3; g(); }" "erase everything from after 3; until after body of f" $ Right "void f() { cout << 3;}"
   ct "{ cout << x; } enum E { x };" "add `cout, y;` in main and add ,y in E" $ Right "{ cout << x; cout, y;} enum E { x ,y};"
   -- Edit errors:
   t "move second 2 to x" $ Left "Unexpected `x` after `second 2 to `. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."

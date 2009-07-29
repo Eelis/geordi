@@ -72,7 +72,7 @@ data EverythingOr a = Everything | NotEverything a
 data Ranked a = Ranked Ordinal a | Sole a
 data Rankeds a = Rankeds (AndList Ordinal) a | Sole' a | All a | AllBut (AndList Ordinal) a
 data Bound = Bound (Maybe BefAft) (EverythingOr (Ranked String))
-data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative (EverythingOr (Ranked String)))
+data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Either (Ranked NamedEntity) (Relative (EverythingOr (Ranked String))))
 data Relative a = Relative a BefAft (Ranked (Either NamedEntity String)) | Between a Betw | FromTill Bound RelativeBound
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
 data PositionsClause = PositionsClause BefAft (AndList Substrs)

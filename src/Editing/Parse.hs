@@ -162,7 +162,7 @@ instance Parse Betw where
       y <- parse -< ()
       do
         rank' <- andP >>> parse -< (); s <- parse -< ()
-        returnA -< Betw (Bound Nothing $ NotEverything $ Ranked y s) $ RelativeBound Nothing $ absolute $ NotEverything $ Ranked rank' s
+        returnA -< Betw (Bound Nothing $ NotEverything $ Ranked y s) $ RelativeBound Nothing $ Right $ absolute $ NotEverything $ Ranked rank' s
        <||> do
         x <- parse -< (); v <- andP >>> parse -< ()
         returnA -< Betw (Bound Nothing (NotEverything $ Ranked y x)) v
@@ -181,7 +181,7 @@ relative_everything_orA =
     kwd ["before"] -< ()
     y <- auto1 NotEverything -< ()
     x <- do z <- kwd till >>> parse -< (); returnA -< Betw (Bound (Just Before) y) z
-      <||> do returnA -< Betw front $ RelativeBound (Just Before) $ absolute y
+      <||> do returnA -< Betw front $ RelativeBound (Just Before) $ Right $ absolute y
     returnA -< Between Everything x)
   <||> auto1 (Between Everything)
   <||> proc _ -> do
