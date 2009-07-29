@@ -2,7 +2,6 @@
 #include <vector>
 #include <cassert>
 #include <cstdlib>
-#include <fstream>
 #include <sstream>
 #include <boost/implicit_cast.hpp>
 #include <boost/ref.hpp>
@@ -25,7 +24,7 @@ namespace tracked
       ~info() { if(!muted) std::cout << parsep; }
       std::ostream & operator()() const
       {
-        static std::ofstream s; // Kept closed, so writes are no-ops.
+        static std::ostream s(0); // used as null sink
         return muted ? s : std::cout;
       }
     };
