@@ -128,8 +128,7 @@ execute_semcmd (EditableRequest (Evaluate oldopts) oldcodeblob) (Make clauses) =
     Right r -> do
       f <- foldM (flip $ uncurry Cxx.Operations.apply_makedecl) r $ flatten_MakeClauses clauses
       return $ EditableRequest (Evaluate oldopts) $ Cxx.Show.show_simple f
-
-execute_semcmd _ _ = fail "Last request not suitable for make_const."
+execute_semcmd _ _ = fail "Last request not suitable."
 
 execute :: ([Command], [SemCommand]) -> EditableRequest -> Either String EditableRequest
 execute (cmds, semcmds) r@(EditableRequest _ str) = do
