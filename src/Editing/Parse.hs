@@ -237,7 +237,7 @@ instance Parse Changer where
 
 instance Parse Eraser where parse = auto2 EraseAround <||> auto1 EraseOptions <||> auto1 EraseText
 instance Parse Mover where parse = liftA2 Mover parse (kwd ["to"] >>> parse)
-instance Parse Swapper where parse = liftA2 Swapper parse (andP >>> parse)
+instance Parse Swapper where parse = liftA2 Swapper parse ((andP <||> (kwd ["with"] >>> arr (const ()))) >>> parse)
 instance Parse [EvalOpt] where parse = Parser (Terminators False []) $ \_ _ _ -> optParser
 instance Parse a => Parse (Around a) where parse = kwd ["around"] >>> auto1 Around
 instance Parse UseClause where parse = auto1 UseOptions <||> auto1 UseString
