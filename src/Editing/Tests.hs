@@ -394,6 +394,15 @@ precedence_tests = do
   f :: String -> String -> IO () -- Test for failure.
   f i o = test_cmp i (Left o) (Cxx.Parse.precedence i)
 
+parse_tests :: IO ()
+parse_tests = do
+  t "struct A<int>;"
+  t "void f(int, ...);"
+  putStrLn "All parse tests passed."
+ where
+  t :: String -> IO ()
+  t s = test_cmp s (Right s) $ fmap Cxx.Show.show_simple $ Cxx.Parse.parseRequest s
+
 main :: IO ()
 main = do
   basic_tests
@@ -402,3 +411,4 @@ main = do
   diff_tests
   make_type_tests
   precedence_tests
+  parse_tests

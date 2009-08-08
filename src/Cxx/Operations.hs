@@ -189,8 +189,8 @@ instance Convert (OptQualified, SimpleTemplateId) DeclaratorId where
   convert (OptQualified (Just s) Nothing, stid) = DeclaratorId_IdExpression Nothing $ IdExpression $ Left $ GlobalTemplateId s $ convert stid
   convert (OptQualified ms (Just nns), stid) = DeclaratorId_IdExpression Nothing $ IdExpression $ Left $ NestedUnqualifiedId ms nns Nothing $ convert stid
 instance Convert ElaboratedTypeSpecifier DeclaratorId where
-  convert (ElaboratedTypeSpecifier _ optqualified (Left identifier)) = convert (optqualified, identifier)
-  convert (ElaboratedTypeSpecifier _ optqualified (Right (_, stid))) = convert (optqualified, stid)
+  convert (ElaboratedTypeSpecifier _ optqualified (Right identifier)) = convert (optqualified, identifier)
+  convert (ElaboratedTypeSpecifier _ optqualified (Left (_, stid))) = convert (optqualified, stid)
     -- Todo: Maybe using the (KwdTemplate, White) pair in the declarator-id would be better.
 instance Convert Declarator DeclaratorId where convert (Declarator_PtrDeclarator p) = convert p
 instance Convert PtrDeclarator DeclaratorId where
