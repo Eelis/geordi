@@ -168,6 +168,7 @@ instance Convert Declaration (Maybe DeclaratorId) where
   convert (Declaration_NamespaceDefinition d) = convert d
   convert _ = Nothing
 instance Convert TemplateDeclaration (Maybe DeclaratorId) where convert (TemplateDeclaration _ _ _ d) = convert d
+instance Convert ExplicitInstantiation (Maybe DeclaratorId) where convert (ExplicitInstantiation _ _ d) = convert d
 instance Convert MemberDeclarator (Maybe DeclaratorId) where
   convert (MemberDeclarator d _) = Just $ convert d
   convert (BitField m _ _) = convert . m
@@ -248,6 +249,7 @@ findDeclaration' did i x
   | Just s <- cast x, convert (s :: Declaration) == Just did = found
   | Just s <- cast x, convert (s :: BlockDeclaration) == Just did = found
   | Just s <- cast x, convert (s :: TemplateDeclaration) == Just did = found
+  | Just s <- cast x, convert (s :: ExplicitInstantiation) == Just did = found
   | Just s <- cast x, convert (s :: MemberDeclaration) == Just did = found
   | Just s <- cast x, convert (s :: UsingDeclaration) == Just did = found
   | otherwise = gfoldl_with_lengths i (findDeclaration' did) x
