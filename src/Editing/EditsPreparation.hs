@@ -233,7 +233,7 @@ token_edit_cost (InsertOp x@(y:_)) | Char.isAlpha y = fromIntegral (length x) * 
 token_edit_cost (InsertOp (x:y)) | Char.isDigit x = 1 + fromIntegral (length y) * 0.3
 token_edit_cost (InsertOp _) = 1
 token_edit_cost (ReplaceOp x y)
-  | or $ (\c -> List.all (`elem` c) [x, y]) . [Cxx.Basics.classKeys, Cxx.Basics.accessSpecifiers, Cxx.Basics.relational_ops, Cxx.Basics.arithmetic_ops] = 0.4
+  | or $ (\c -> List.all (`elem` c) [x, y]) . [Cxx.Basics.classKeys, Cxx.Basics.accessSpecifiers, Cxx.Basics.relational_ops] = 0.4
 token_edit_cost (ReplaceOp (c:_) (d:_)) | not (Char.isAlphaNum c || Char.isAlphaNum d) = 1.1
 token_edit_cost (ReplaceOp x@(c:_) y@(d:_)) | Char.isAlpha c && Char.isAlpha d =
   if null (List.intersect x y) then 10 else levenshtein x y * 0.4
@@ -285,7 +285,6 @@ use_tests = do
   t "int a(2);" "int a;" "Inserted (2) after `{ int a`." "Erased (2) after `{ int a`."
   t "int const * w" "int * w" "Replaced `int * w` with `int const * w`." "Replaced `int const * w` with `int * w`."
   t "main(int argc) {" "main() {" "Inserted `int argc` after `void main(`." "Erased `int argc`."
-  t "operator-" "operator+" "Replaced `C & operator+` with `C & operator-`." "Replaced `C & operator-` with `C & operator+`."
   t "_cast" "_cat" "Replaced `reinterpret_cat<fish>` with `reinterpret_cast<fish>`." "Replaced `reinterpret_cast<fish>` with `reinterpret_cat<fish>`."
   t "(++a)" "(a++)" "Replaced a++ with ++a." "Replaced ++a with a++."
   t "list<int>" "vector<int>" "Replaced `vector<int> v` with `list<int> v`." "Replaced `list<int> v` with `vector<int> v`."
@@ -314,6 +313,7 @@ use_tests = do
   t "int const u =" "int x =" "Replaced `int x` with `int const u`." "Replaced `int const u` with `int x`."
   t "u - -j" "u--j" "Replaced &u--j with `&u - -j`." "Replaced `&u - -j` with &u--j."
   t "struct C{" "struct C(){" "Erased () after `struct C`." "Inserted () after `struct C`."
+  t "&ETPYE" "ETPYE" "Replaced ETPYE with &ETPYE." "Replaced &ETPYE with ETPYE."
   putStrLn "All use tests passed."
  where
   txt = "{ string::size_t- siz = 2; int x = 3; if(i == 0) cout << ETPYE(x - size); vector<int> v; v = { 3, 2 }; vector<int> i = reinterpret_cat<fish>(10000000000, v.begin()); } X(y); using tracked::B; B z = B{p}; int const u = 94; int * w = &u--j; !B && !D; vector<unsigned char> & r = v; struct C(){ C & operator+(ostream &, char(const&here)[N], C const &) }; template<typename T> voidfoo(T a) { a.~T; } void main() { int a; a.seek(1800, ios::end); foo(a++); if(x >= 7) throw runtime_exception(y); } class Qbla { public: fstream p; };"
