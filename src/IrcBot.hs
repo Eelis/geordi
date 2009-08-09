@@ -146,9 +146,9 @@ digits (x : s) | isDigit x = Just s
 digits _ = Nothing
 
 color_code :: Eraser
-color_code ('\x3' : ',' : s) = digs s
-color_code ('\x3' : s) = case digs s of
-  Just (',' : s') -> digs s'
+color_code ('\x3' : ',' : s) = digits s
+color_code ('\x3' : s) = case digits s of
+  Just (',' : s') -> digits s'
   Just s' -> Just s'
   Nothing -> Just s
 color_code _ = Nothing
