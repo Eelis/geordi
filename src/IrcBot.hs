@@ -18,8 +18,8 @@ import Control.Monad.Error ()
 import Control.Monad.State (execStateT, lift, StateT)
 import System.IO.UTF8 (putStr, putStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
-import Text.Regex (Regex, subRegex, mkRegex)
-import Data.Char (toUpper, toLower, isSpace, isPrint)
+import Text.Regex (Regex, subRegex, mkRegex) -- Todo: Text.Regex truncates Char's >256. Get rid of it.
+import Data.Char (toUpper, toLower, isSpace, isPrint, isDigit)
 import Data.Map (Map)
 import Util ((.), elemBy, caselessStringEq, maybeLast, readState, msapp, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState')
 import Sys (rate_limiter)
@@ -138,9 +138,30 @@ strip_utf8_bom :: String -> String
 strip_utf8_bom ('\239':'\187':'\191':s) = s
 strip_utf8_bom s = s
 
+type Eraser = String -> Maybe String
+
+digits :: Eraser
+digits (x : y : s) | isDigit x, isDigit y = Just s
+digits (x : s) | isDigit x = Just s
+digits _ = Nothing
+
+color_code :: Eraser
+color_code ('\x3' : ',' : s) = digs s
+color_code ('\x3' : s) = case digs s of
+  Just (',' : s') -> digs s'
+  Just s' -> Just s'
+  Nothing -> Just s
+color_code _ = Nothing
+
+apply_eraser :: Eraser -> (String -> String)
+apply_eraser _ [] = []
+apply_eraser p s@(h:t) = p s `orElse` (h : apply_eraser p t)
+
 strip_color_codes :: String -> String
-strip_color_codes s = subRegex r s ""
-  where r = mkRegex "\x3(,[[:digit:]]{1,2}|[[:digit:]]{1,2}(,[[:digit:]]{1,2})?)?"
+strip_color_codes = apply_eraser color_code
+  {- Todo: The above is *much* more naturally expressed as:
+        subRegex r s "" where r = mkRegex "\x3(,[[:digit:]]{1,2}|[[:digit:]]{1,2}(,[[:digit:]]{1,2})?)?"
+  Unfortunately, Text.Regex is broken: it truncates Char's, resulting in spurious matches. -}
 
 join_msg :: IrcBotConfig -> IRC.Message
 join_msg cfg = msg "JOIN" $ map (concat . List.intersperse ",") $
