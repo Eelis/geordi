@@ -11,6 +11,7 @@
 #include "tracked.hpp"
 #include "using.hpp"
 #include "more_ostreaming.hpp"
+#include "literal_escape.hpp"
 #include "type_strings.hpp"
 #include "delimited_ostream.hpp"
 #include "bin_iomanip.hpp"

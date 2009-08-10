@@ -16,6 +16,7 @@
 #include <boost/ref.hpp>
 #include <boost/optional.hpp>
 #include "geordi.hpp"
+#include "literal_escape.hpp"
 
 template <typename C, typename Tr>
 std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, utsname const & u)
@@ -34,7 +35,7 @@ namespace boost
 
 template <typename C, typename Tr, typename A, typename B>
 std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::pair<A, B> const & p)
-{ return o << '{' << p.first << ", " << p.second << '}'; }
+{ return o << '{' << escape(p.first) << ", " << escape(p.second) << '}'; }
 
 template <typename C, typename Tr, typename D>
 void print_div_t(std::basic_ostream<C, Tr> & o, D const d) { o << '{' << d.quot << ", " << d.rem << "}"; }
@@ -66,8 +67,8 @@ std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::ldiv_
   #include <tr1/tuple>
   #include <tuple>
 
-  namespace more_ostreaming_detail
-  {
+  namespace more_ostreaming { namespace detail {
+
     template <int O>
     struct tuple_printer
     {
@@ -75,14 +76,14 @@ std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::ldiv_
       static void print (std::basic_ostream<C, Tr> & o, std::tr1::tuple<P...> const & t)
       {
         if (O != 1) { tuple_printer<O-1>::print(o, t); o << ", "; }
-        o << std::tr1::get<O-1>(t);
+        o << escape(std::tr1::get<O-1>(t));
       }
 
       template <typename C, typename Tr, typename... P>
       static void print (std::basic_ostream<C, Tr> & o, std::tuple<P...> const & t)
       {
         if (O != 1) { tuple_printer<O-1>::print(o, t); o << ", "; }
-        o << std::get<O-1>(t);
+        o << escape(std::get<O-1>(t));
       }
     };
 
@@ -92,40 +93,39 @@ std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::ldiv_
       template <typename C, typename Tr, typename T>
       static void print (std::basic_ostream<C, Tr> &, T const &) {}
     };
-  }
+  }}
 
   template <typename C, typename Tr, typename... P>
   std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::tr1::tuple<P...> const & t)
-  { o << '{'; more_ostreaming_detail::tuple_printer<sizeof...(P)>::print(o, t); return o << '}'; }
+  { o << '{'; more_ostreaming::detail::tuple_printer<sizeof...(P)>::print(o, t); return o << '}'; }
 
   template <typename C, typename Tr, typename... P>
   std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::tuple<P...> const & t)
-  { o << '{'; more_ostreaming_detail::tuple_printer<sizeof...(P)>::print(o, t); return o << '}'; }
+  { o << '{'; more_ostreaming::detail::tuple_printer<sizeof...(P)>::print(o, t); return o << '}'; }
 
 #endif
 
 namespace more_ostreaming
 {
   template <typename C, typename Tr, typename Range>
-  void delimit(std::basic_ostream<C, Tr> & o, Range const & r, std::basic_string<C, Tr> const & d = ", ")
+  void delimit(std::basic_ostream<C, Tr> & o, Range const & r)
   {
     typename boost::range_const_iterator<Range>::type b = boost::begin(r), e = boost::end(r);
-    if (b != e) { o << *b; while (++b != e) o << d << *b; }
+    if (b != e) { o << escape(*b); while (++b != e) o << ", " << escape(*b); }
   }
 
   #ifdef GEORDI_USE_EXTERN_TEMPLATE
-    extern template void delimit<char, std::char_traits<char>, std::vector<int> >(std::ostream &, std::vector<int> const &, std::string const &);
+    extern template void delimit<char, std::char_traits<char>, std::vector<int> >(std::ostream &, std::vector<int> const &);
       // vector<int> is the most used container for demonstrations, so it's worth making it print fast.
   #endif
 }
 
-namespace more_ostreaming_detail
-{
+namespace more_ostreaming { namespace detail {
   template <typename, typename T> struct snd { typedef T type; };
-}
+}}
 
 template <typename C, typename Tr, typename R>
-typename more_ostreaming_detail::snd<typename R::iterator, std::basic_ostream<C, Tr> &>::type
+typename more_ostreaming::detail::snd<typename R::iterator, std::basic_ostream<C, Tr> &>::type
   operator<<(std::basic_ostream<C, Tr> & o, R const & r)
 { o << '{'; more_ostreaming::delimit(o, r); return o << '}'; }
 
