@@ -26,7 +26,7 @@ namespace escape_detail
   template <typename ChA, typename ChB, typename TrB>
   void conv(ChA const c, std::basic_ostream<ChB, TrB> & o) { o << c; }
 
-  void conv(wchar_t const c, std::ostream & o)
+  inline void conv(wchar_t const c, std::ostream & o)
   {
     char buf[4];
     int const i = wctomb(buf, c);
@@ -34,21 +34,21 @@ namespace escape_detail
     else copy(buf, buf + i, std::ostreambuf_iterator<char>(o));
   }
 
-  bool isprint(wchar_t const c) { return iswprint(c); }
-  bool isdigit(wchar_t const c) { return iswdigit(c); }
-  std::size_t strlen(wchar_t const * const s) { return wcslen(s); }
+  inline bool isprint(wchar_t const c) { return iswprint(c); }
+  inline bool isdigit(wchar_t const c) { return iswdigit(c); }
+  inline std::size_t strlen(wchar_t const * const s) { return wcslen(s); }
 
   template <typename C> bool ishexdigit(C const c)
   { return isdigit(c) || ('a' <= c && c <= 'f') || ('A' <= c && c <= 'F'); }
 
   template <typename Ch> char char_literal_key();
 
-  template <> char char_literal_key<char>() { return 0; }
-  template <> char char_literal_key<wchar_t>() { return 'L'; }
+  template <> inline char char_literal_key<char>() { return 0; }
+  template <> inline char char_literal_key<wchar_t>() { return 'L'; }
 
   #ifdef __GXX_EXPERIMENTAL_CXX0X__
-    template <> char char_literal_key<char16_t>() { return 'u'; }
-    template <> char char_literal_key<char32_t>() { return 'U'; }
+    template <> inline char char_literal_key<char16_t>() { return 'u'; }
+    template <> inline char char_literal_key<char32_t>() { return 'U'; }
   #endif
 
   enum unterm { unterm_hex, unterm_oct, unterm_none };
