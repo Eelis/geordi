@@ -60,7 +60,6 @@ namespace escape_detail
     using escape_detail::isdigit; using std::isdigit;
 
     switch(c) {
-      case '\0': o << "\\0"; return unterm_oct;
       case '\v': o << "\\v"; break; case '\b': o << "\\b"; break; case '\n': o << "\\n"; break;
       case '\r': o << "\\r"; break; case '\f': o << "\\f"; break; case '\a': o << "\\a"; break;
       case '\t': o << "\\t"; break; case '\\': o << "\\\\"; break; case '"': o << "\\\""; break;
@@ -71,8 +70,8 @@ namespace escape_detail
           break;
         } else {
           unsigned long const l = typename boost::make_unsigned<ChA>::type(c);
-          o << "\\x" << std::hex << l;
-          return unterm_hex;
+          if(l < 9) { o << '\\' << std::oct << l; return unterm_oct; }
+          else { o << "\\x" << std::hex << l; return unterm_hex; }
     }   }
 
     return unterm_none;
