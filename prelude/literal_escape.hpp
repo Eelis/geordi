@@ -131,8 +131,22 @@ typename boost::enable_if<escape_detail::is_character<C>, escape_detail::cstring
   escape(C const * b) { escape_detail::cstring_escaper<C> const r = { b }; return r; }
 
 template <typename C>
+typename boost::enable_if<escape_detail::is_character<C>, escape_detail::cstring_escaper<C> >::type
+  escape(C * b) { escape_detail::cstring_escaper<C> const r = { b }; return r; }
+
+template <typename C>
 typename boost::enable_if<escape_detail::is_character<C>, escape_detail::char_escaper<C> >::type
   escape(C const c) { escape_detail::char_escaper<C> const r = { c }; return r; }
+
+#define LITERAL_ESCAPE_ARRAY(C) \
+  template <std::size_t N> escape_detail::string_escaper<C, C const *> escape(C const (& a)[N]) { \
+    C const * p = a+N; while(!*--p && p >= a) ; ++p; \
+    escape_detail::string_escaper<C, C const *> const r = { a, p }; return r; \
+  }
+LITERAL_ESCAPE_ARRAY(char)
+LITERAL_ESCAPE_ARRAY(wchar_t)
+#undef LITERAL_ESCAPE_ARRAY
+  // Doing these as a single enable_if'd template would require a horrible symmetric disable_if addition in the fallback overload below.
 
 template <typename T>
 typename boost::disable_if<escape_detail::is_character<T>, T const &>::type
@@ -160,7 +174,9 @@ int main()
   { woss o; o << escape("a∀b"); assert(o.str() == L"\"a\\xe2\\x88\\x80\"\"b\""); }
   { woss o; o << escape(L"a∀b"); assert(o.str() == L"L\"a∀b\""); }
   { oss o; char const * const s = 0; o << escape(s); assert(o.str() == "0"); }
-  { oss o; o << escape(std::string("\t\n\v\f\\\0""3\b\r\"\a", 11)); assert(o.str() == BOOST_STRINGIZE("\t\n\v\f\\\0""3\b\r\"\a")); }
+  { oss o; o << escape("\t\n\v\f\\\0""3\b\r\"\a"); assert(o.str() == BOOST_STRINGIZE("\t\n\v\f\\\0""3\b\r\"\a")); }
+  { oss o; o << escape(+"a\0b"); assert(o.str() == BOOST_STRINGIZE("a")); }
+  { oss o; char c[] = "a\0b"; o << escape(c) << ' ' << escape(+c); assert(o.str() == "\"a\\0b\" \"a\""); }
 }
 
 #endif // Testing.
