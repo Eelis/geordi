@@ -135,11 +135,11 @@ parens = Parens . (symbol '(' >> code << symbol ')')
 curlies = Curlies . (symbol '{' >> code << symbol '}')
 squares = Squares . (symbol '[' >> code << symbol ']')
 multiComment = MultiComment . (symbols "/*" >> fst . manyTill anySymbol (symbols "*/"))
-singleComment = SingleComment . (symbols "//" >> manys anySymbol)
-  -- singleComment is unaware of "// ... \" funkiness.
+singleComment = SingleComment . (symbols "//" >> many (noneOf "\\"))
 
 code :: ParserLike m Char => m Code
-code = manys (multiComment <|> singleComment <|> charLit <|> parens <|> curlies <|> squares <|> stringLit <|> plain)
+code = many $ (<?> "balanced code") $
+  (multiComment <|> singleComment <|> charLit <|> parens <|> curlies <|> squares <|> stringLit <|> plain)
   -- Uncovers just enough structure for Request.hs to find the split positions in "<< ...; ..." and "{ ... } ..." requests and to implement --resume.
 
 -- Misc parsers.
