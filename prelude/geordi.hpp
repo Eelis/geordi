@@ -32,6 +32,18 @@ namespace geordi
   struct initializer_t { initializer_t (); };
 
   utsname uname();
+
+  template <typename> struct is_character { enum { value = false }; };
+  #define YES(T) template <> struct is_character<T> { enum { value = true }; };
+  YES(char) YES(wchar_t)
+  #ifdef __GXX_EXPERIMENTAL_CXX0X__
+    YES(char16_t) YES(char32_t)
+  #endif
+  #undef YES
 }
+
+std::ostream & operator<<(std::ostream &, wchar_t);
+std::ostream & operator<<(std::ostream &, wchar_t const *);
+std::ostream & operator<<(std::ostream &, std::wstring const &);
 
 #endif // header guard

@@ -11,7 +11,6 @@
 #include <ctime>
 #include <algorithm>
 #include <boost/range.hpp>
-#include <boost/type_traits/is_same.hpp>
 #include <boost/utility/enable_if.hpp>
 #include <boost/ref.hpp>
 #include <boost/optional.hpp>
@@ -134,7 +133,7 @@ typename more_ostreaming::detail::snd<typename R::iterator, std::basic_ostream<C
 namespace std { using ::operator<<; }
 
 template <typename C, typename Tr, typename T, size_t N>
-typename boost::disable_if<boost::is_same<T, char>, std::basic_ostream<C, Tr> &>::type
+typename boost::disable_if<geordi::is_character<T>, std::basic_ostream<C, Tr> &>::type
   operator<<(std::basic_ostream<C, Tr> & o, T const (& a) [N])
 { o << '{'; more_ostreaming::delimit(o, a); return o << '}'; }
 

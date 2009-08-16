@@ -1,5 +1,7 @@
 
 #include <iostream>
+#include <algorithm>
+#include <iterator>
 #include <string>
 #include <fstream>
 #include <stdexcept>
@@ -13,6 +15,7 @@
 #include <set>
 #include <functional>
 #include <clocale>
+#include <stdlib.h>
 #include <cxxabi.h>
 #include <ext/malloc_allocator.h>
 #include <boost/noncopyable.hpp>
@@ -88,3 +91,18 @@ namespace geordi
     return r;
   }
 } // namespace geordi
+
+std::ostream & operator<<(std::ostream & o, wchar_t const c)
+{
+  char buf[4];
+  int const i = wctomb(buf, c);
+  if(i < 0) o << '?';
+  else std::copy(buf, buf + i, std::ostreambuf_iterator<char>(o));
+  return o;
+}
+
+std::ostream & operator<<(std::ostream & o, wchar_t const * s)
+{ for(; *s; ++s) o << *s; return o; }
+
+std::ostream & operator<<(std::ostream & o, std::wstring const & s)
+{ for(std::wstring::const_iterator i = s.begin(); i != s.end(); ++i) o << *i; return o; }

@@ -8,6 +8,8 @@ Todo:
 #ifndef LITERAL_ESCAPE_HPP
 #define LITERAL_ESCAPE_HPP
 
+#include "geordi.hpp"
+
 #include <boost/io/ios_state.hpp>
 #include <boost/utility/enable_if.hpp>
 #include <boost/type_traits/make_unsigned.hpp>
@@ -23,17 +25,6 @@ Todo:
 
 namespace escape_detail
 {
-  template <typename ChA, typename ChB, typename TrB>
-  void conv(ChA const c, std::basic_ostream<ChB, TrB> & o) { o << c; }
-
-  inline void conv(wchar_t const c, std::ostream & o)
-  {
-    char buf[4];
-    int const i = wctomb(buf, c);
-    if(i < 0) o << '?';
-    else copy(buf, buf + i, std::ostreambuf_iterator<char>(o));
-  }
-
   inline bool isprint(wchar_t const c) { return iswprint(c); }
   inline bool isdigit(wchar_t const c) { return iswdigit(c); }
   inline std::size_t strlen(wchar_t const * const s) { return wcslen(s); }
@@ -58,6 +49,7 @@ namespace escape_detail
   {
     using escape_detail::isprint; using std::isprint;
     using escape_detail::isdigit; using std::isdigit;
+    using ::operator<<;
 
     switch(c) {
       case '\v': o << "\\v"; break; case '\b': o << "\\b"; break; case '\n': o << "\\n"; break;
@@ -66,7 +58,7 @@ namespace escape_detail
       default:
         if(isprint(c)) {
           if((u == unterm_hex && ishexdigit(c)) || (u == unterm_oct && isdigit(c))) o << "\"\"";
-          conv(c, o);
+          o << c;
           break;
         } else {
           unsigned long const l = typename boost::make_unsigned<ChA>::type(c);
@@ -87,14 +79,6 @@ namespace escape_detail
     for(; i != e; ++i) u = escape_char(u, *i, o);
     o << '"';
   }
-
-  template <typename> struct is_character { enum { value = false }; };
-  #define YES(T) template <> struct is_character<T> { enum { value = true }; };
-  YES(char) YES(wchar_t)
-  #ifdef __GXX_EXPERIMENTAL_CXX0X__
-    YES(char16_t) YES(char32_t)
-  #endif
-  #undef YES
 
   template <typename Ch, typename I> struct string_escaper { I b, e; };
   template <typename Ch> struct cstring_escaper { Ch const * s; };
@@ -119,37 +103,55 @@ namespace escape_detail
     if(char const c = char_literal_key<ChB>()) o << c;
     o << '\''; escape_char(unterm_none, e.c, o); return o << '\'';
   }
+
+  enum Kind { catchall_kind = 1, char_kind, string_kind, char_pointer_kind, char_array_kind, streambuf_kind };
+
+  char (& kind(...))[catchall_kind];
+
+  template <typename Ch, typename Tr> char (& kind(std::basic_string<Ch, Tr> const &))[string_kind];
+  template <typename C> typename boost::enable_if<geordi::is_character<C>, char>::type (& kind(C const &))[char_kind];
+  template <typename C> typename boost::enable_if<geordi::is_character<C>, char>::type (& kind(C const *))[char_pointer_kind];
+  template <typename Ch, typename Tr> char (& kind(std::basic_streambuf<Ch, Tr> *))[streambuf_kind];
+
+  template <std::size_t N> char (& kind(char const (&) [N]))[char_array_kind];
+  template <std::size_t N> char (& kind(wchar_t const (&) [N]))[char_array_kind];
+    /* For some reason, merging these last two into
+
+      template <typename C, std::size_t N>
+      typename boost::enable_if<geordi::is_character<C>, char>::type (& kind(C const (&) [N]))[char_array_kind];
+
+    results in ambiguity errors. */
+
+  template <typename T, Kind> struct impl;
+
+  template <typename Ch, typename Tr> struct impl<std::basic_string<Ch, Tr>, string_kind>
+  { typedef escape_detail::string_escaper<Ch, typename std::basic_string<Ch, Tr>::const_iterator> result_type;
+    static result_type doit(std::basic_string<Ch, Tr> const & s) { result_type const r = { s.begin(), s.end() }; return r; } };
+
+  template <typename T> struct impl<T, catchall_kind>
+  { typedef T const & result_type; static result_type doit(T const & x) { return x; } };
+
+  template <typename C> struct impl<C *, char_pointer_kind>
+  { typedef escape_detail::cstring_escaper<C> result_type;
+  static result_type doit(C const * const p) { result_type const r = { p }; return r; } };
+
+  template <typename C, std::size_t N> struct impl<C[N] , char_array_kind>
+  { typedef escape_detail::string_escaper<C, C const *> result_type;
+  static result_type doit(C const (& a) [N]) {
+    C const * p = a+N; while(!*--p && p >= a) ; ++p; \
+    result_type const r = { a, p }; return r; } };
+
+  template <typename T> struct impl<T *, streambuf_kind>
+  { typedef typename T::char_type Ch;
+    typedef escape_detail::string_escaper<Ch, std::istreambuf_iterator<Ch> > result_type;
+    template <typename Tr> static result_type doit(std::basic_streambuf<Ch, Tr> * const p) { result_type const r = { p }; return r; } };
+
+  template <typename T> T const & fake();
+
+  template <typename T> struct proxy: impl<T, Kind(sizeof kind(fake<T>()))> {};
 }
 
-template <typename Ch, typename Tr>
-escape_detail::string_escaper<Ch, typename std::basic_string<Ch, Tr>::const_iterator> escape(std::basic_string<Ch, Tr> const & s)
-{ escape_detail::string_escaper<Ch, typename std::basic_string<Ch, Tr>::const_iterator> const r = { s.begin(), s.end() }; return r; }
-
-template <typename C>
-typename boost::enable_if<escape_detail::is_character<C>, escape_detail::cstring_escaper<C> >::type
-  escape(C const * b) { escape_detail::cstring_escaper<C> const r = { b }; return r; }
-
-template <typename C>
-typename boost::enable_if<escape_detail::is_character<C>, escape_detail::cstring_escaper<C> >::type
-  escape(C * b) { escape_detail::cstring_escaper<C> const r = { b }; return r; }
-
-template <typename C>
-typename boost::enable_if<escape_detail::is_character<C>, escape_detail::char_escaper<C> >::type
-  escape(C const c) { escape_detail::char_escaper<C> const r = { c }; return r; }
-
-#define LITERAL_ESCAPE_ARRAY(C) \
-  template <std::size_t N> escape_detail::string_escaper<C, C const *> escape(C const (& a)[N]) { \
-    C const * p = a+N; while(!*--p && p >= a) ; ++p; \
-    escape_detail::string_escaper<C, C const *> const r = { a, p }; return r; \
-  }
-LITERAL_ESCAPE_ARRAY(char)
-LITERAL_ESCAPE_ARRAY(wchar_t)
-#undef LITERAL_ESCAPE_ARRAY
-  // Doing these as a single enable_if'd template would require a horrible symmetric disable_if addition in the fallback overload below.
-
-template <typename T>
-typename boost::disable_if<escape_detail::is_character<T>, T const &>::type
-  escape(T const & x) { return x; }
+template <typename T> typename escape_detail::proxy<T>::result_type escape(T const & x) { return escape_detail::proxy<T>::doit(x); }
 
 #endif // Header guard.
 
@@ -160,6 +162,7 @@ typename boost::disable_if<escape_detail::is_character<T>, T const &>::type
 #include <sstream>
 #include <cassert>
 #include <iostream>
+#include <sstream>
 #include <clocale>
 
 int main()
@@ -172,10 +175,12 @@ int main()
   { oss o; o << escape(L"a∀b"); assert(o.str() == BOOST_STRINGIZE(L"a∀b")); }
   { woss o; o << escape("a∀b"); assert(o.str() == L"\"a\\xe2\\x88\\x80\"\"b\""); }
   { woss o; o << escape(L"a∀b"); assert(o.str() == L"L\"a∀b\""); }
+  { oss o; o << escape(std::string("a\0b", 3)); assert(o.str() == BOOST_STRINGIZE("a\0b")); }
   { oss o; char const * const s = 0; o << escape(s); assert(o.str() == "0"); }
   { oss o; o << escape("\t\n\v\f\\\0""3\b\r\"\a"); assert(o.str() == BOOST_STRINGIZE("\t\n\v\f\\\0""3\b\r\"\a")); }
   { oss o; o << escape(+"a\0b"); assert(o.str() == BOOST_STRINGIZE("a")); }
   { oss o; char c[] = "a\0b"; o << escape(c) << ' ' << escape(+c); assert(o.str() == "\"a\\0b\" \"a\""); }
+  { oss o; o << escape(std::istringstream(std::string("a\0b", 3)).rdbuf()); assert(o.str() == BOOST_STRINGIZE("a\0b")); }
 }
 
 #endif // Testing.
