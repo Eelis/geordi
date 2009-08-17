@@ -58,8 +58,9 @@ instance Show Position where
 instance Show a => Show (AndList a) where
   show (AndList l) = concat $ List.intersperse " and " $ map show $ unne l
 
-instance Show PositionsClause where
-  show (PositionsClause ba l) = show ba ++ " " ++ show l
+instance Show Substrs where show (Substrs l) = show l
+
+instance Show PositionsClause where show (PositionsClause ba s) = show ba ++ " " ++ show s
 
 instance Show AppendPositionsClause where
   show (NonAppendPositionsClause pc) = show pc

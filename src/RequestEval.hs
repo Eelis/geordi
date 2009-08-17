@@ -80,7 +80,7 @@ evaluator h = do
           _ -> error_response "Last (editable) request was not an evaluation request."
       <|> do
         kwds ["undo", "revert"]; commit $ case prevs of
-          (_:prev:_) -> do
+          _:prev:_ -> do
             kwd "and"
             (kwd "show" >> eof >> return (return $ Response (Just DropLast) $ show_EditableRequest h prev)) <|> do
             oe <- Editing.Parse.commandsP; eof

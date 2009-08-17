@@ -39,7 +39,7 @@ instance (IOResource x, IOResource y) => IOResource (x, y) where
 
 -- Nonempty lists
 
-data NElist a = NElist a [a] deriving Eq
+data NElist a = NElist { ne_head :: a, ne_tail :: [a] } deriving Eq
 
 instance Functor NElist where fmap f (NElist x l) = NElist (f x) (f . l)
 instance Convert (NElist a) [a] where convert (NElist x l) = x : l
@@ -402,12 +402,11 @@ parsep :: Char
 parsep = '\x2029' -- U+2029 PARAGRAPH SEPARATOR
 
 describe_new_output :: Maybe String -> String -> String
-describe_new_output Nothing new = new
-describe_new_output (Just prev) new =
-  if prev /= new || length new <= 20 then new
-  else if any (`isPrefixOf` new) ["error:", "internal compiler error:"] then "Same error."
-  else if "warning:" `isPrefixOf` new then "Same warning."
-  else "No change in output."
+describe_new_output prev new
+  | prev /= Just new || length new <= 20 = new
+  | any (`isPrefixOf` new) ["error:", "internal compiler error:"] = "Same error."
+  | "warning:" `isPrefixOf` new = "Same warning."
+  | otherwise = "No change in output."
 
 readState :: Monad y => StateT x y x
 readState = StateT $ \x -> return (x, x)

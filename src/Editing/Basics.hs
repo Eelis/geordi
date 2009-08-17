@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, PatternGuards, FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, PatternGuards, FlexibleInstances, TypeSynonymInstances #-}
 
 module Editing.Basics where
 
@@ -80,7 +80,7 @@ data InClause = InClause (AndList (Relative (Rankeds (Either NamedEntity Declara
 data AppendPositionsClause = AppendIn InClause | NonAppendPositionsClause PositionsClause
 data PrependPositionsClause = PrependIn InClause | NonPrependPositionsClause PositionsClause
 type Substr = EverythingOr (Ranked (Either NamedEntity String))
-type Substrs = AndList (Relative (EverythingOr (Rankeds (Either NamedEntity String))))
+newtype Substrs = Substrs (AndList (Relative (EverythingOr (Rankeds (Either NamedEntity String)))))
 data Position = Position BefAft (Relative Substr)
 data Replacer = Replacer Substrs String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
 data Changer = Changer Substrs String | ChangeOptions [Request.EvalOpt] [Request.EvalOpt]
@@ -151,6 +151,10 @@ instance Convert (Ranked a) (Rankeds a) where
   convert (Ranked o x) = Rankeds (and_one o) x
   convert (Sole x) = Sole' x
 
+instance Convert (Range a) (Range a) where convert = id
+
+instance Convert Anchor (Pos a) where convert = anchor_pos
+
 instance Invertible BefAft where invert Before = After; invert After = Before
 
 instance Invertible (Ranked a) where
@@ -173,8 +177,8 @@ unrelative _ = Nothing
 merge_commands :: [Command] -> [Command]
 merge_commands [] = []
 merge_commands (Erase l : Erase l' : r) = merge_commands $ Erase (l `and_and` l') : r
-merge_commands (Replace (AndList (NElist (Replacer x []) [])) : Replace (AndList (NElist (Replacer y []) [])) : r) =
-  merge_commands $ Replace (and_one $ Replacer (x `and_and` y) []) : r
+merge_commands (Replace (AndList (NElist (Replacer (Substrs x) []) [])) : Replace (AndList (NElist (Replacer (Substrs y) []) [])) : r) =
+  merge_commands $ Replace (and_one $ Replacer (Substrs $ x `and_and` y) []) : r
 merge_commands (h:t) = h : merge_commands t
 
 describe_position_after :: Pos Char -> String -> Position

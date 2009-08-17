@@ -77,7 +77,7 @@ many :: ParserLike m t => m a -> m [a]
 many p = liftM2 (:) p (many p) <|> return []
 
 many1' :: ParserLike m t => m a -> m (NElist a)
-many1' p = liftM2 NElist p (manys p)
+many1' p = liftM2 NElist p (many p)
 
 many1 :: ParserLike m t => m a -> m [a]
 many1 p = unne . many1' p
@@ -90,9 +90,6 @@ noneOf l = satisfy $ not . (`elem` l)
 
 oneOf :: (Eq t, ParserLike m t) => [t] -> m t
 oneOf l = satisfy (`elem` l)
-
-manys :: ParserLike m t => m a -> m [a]
-manys p = liftM2 (:) p (manys p) <|> return []
 
 sep :: ParserLike m t => m a -> m b -> m (a, [(b, a)])
 sep p p' = liftM2 (,) p (many (liftM2 (,) p' p))

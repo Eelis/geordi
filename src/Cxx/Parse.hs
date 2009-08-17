@@ -45,7 +45,7 @@ import Cxx.Show (pretty_with_precedence, Highlighter)
 import Cxx.Operations (apply, squared, is_primary_TypeSpecifier, parenthesized, specT, split_all_decls, is_pointer_or_reference)
 import Prelude hiding ((.))
 import Control.Monad.Reader (ReaderT(..))
-import Parsers ((<?>), (<|>), pzero, spaces, many, optional, choice, sep, many1, symbols, noneOf, lookAhead, symbol, satisfy, optionMaybe, many1', anySymbol, manys, manyTill, many1Till', oneOf, ParserLike, eof, ParseResult(..), getInput, sepBy1, option)
+import Parsers ((<?>), (<|>), pzero, spaces, many, optional, choice, sep, many1, symbols, noneOf, lookAhead, symbol, satisfy, optionMaybe, many1', anySymbol, manyTill, many1Till', oneOf, ParserLike, eof, ParseResult(..), getInput, sepBy1, option)
 import MemoTrie (memo, Trie(..), PairTrie(..), BoolTrie(..))
 
 -- Custom parsing monad:
@@ -118,7 +118,7 @@ makeType s = P.parseOrFail (runReaderT (parse << eof) (defaultParseOptions { mak
 
 textLit :: ParserLike m Char => Char -> m String
 textLit q = (symbol q >>) $ fix $ \h -> do
-  s <- manys $ noneOf [q, '\\']
+  s <- many $ noneOf [q, '\\']
   c <- anySymbol
   if c == '\\'
     then do d <- anySymbol; r <- h; return $ s ++ ('\\':d:r)

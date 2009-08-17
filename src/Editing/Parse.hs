@@ -227,8 +227,10 @@ instance Parse AppendPositionsClause where
 instance Parse PrependPositionsClause where
   parse = auto1 PrependIn <||> auto1 NonPrependPositionsClause
 
+instance Parse Substrs where parse = auto1 Substrs
+
 instance Parse PositionsClause where
-  parse = (kwd ["at"] >>> select [(begin, Before), (end_kwds, After)] >>> arr (\ba -> PositionsClause ba $ and_one $ absolute Everything)) <||> auto2 PositionsClause
+  parse = (kwd ["at"] >>> select [(begin, Before), (end_kwds, After)] >>> arr (\ba -> PositionsClause ba $ Substrs $ and_one $ absolute Everything)) <||> auto2 PositionsClause
 
 instance Parse Replacer where
   parse = liftA2 ReplaceOptions parse (wb >>> parse) <||> liftA2 Replacer parse (wb >>> parse)
@@ -275,7 +277,7 @@ instance Parse Command where
     where
       wc :: Substrs -> Either (AndList (Around Substrs)) Wrapping -> Either String Command
       wc what (Right wrapping) = return $ WrapIn what wrapping
-      wc (AndList (NElist (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back)) [])) (Left what) =
+      wc (Substrs (AndList (NElist (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back)) []))) (Left what) =
         (\q -> WrapAround q what) `fmap` case () of
           ()| x `elem` ["curlies", "braces", "curly brackets"] -> return $ Wrapping "{" "}"
           ()| x `elem` ["parentheses", "parens", "round brackets"] -> return $ Wrapping "(" ")"
@@ -284,8 +286,8 @@ instance Parse Command where
           ()| x `elem` ["single quotes"] -> return $ Wrapping "'" "'"
           ()| x `elem` ["double quotes"] -> return $ Wrapping "\"" "\""
           ()| otherwise -> fail "Unrecognized wrapping description."
-      wc (AndList (NElist (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back))
-        [Between (NotEverything (Sole' (Right y))) (Betw (Bound (Just Before) Everything) Back)])) (Left what) =
+      wc (Substrs (AndList (NElist (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back))
+        [Between (NotEverything (Sole' (Right y))) (Betw (Bound (Just Before) Everything) Back)]))) (Left what) =
           return $ WrapAround (Wrapping x y) what
       wc _ (Left _) = fail "Malformed wrap command."
 
