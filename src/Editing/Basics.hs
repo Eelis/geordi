@@ -76,7 +76,7 @@ data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative Subst
 data Relative a = Relative a BefAft (Ranked (Either NamedEntity String)) | Between a Betw | FromTill Bound RelativeBound | In a InClause
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
 data PositionsClause = PositionsClause BefAft Substrs
-data InClause = InClause (AndList (Relative (Ranked (Either NamedEntity DeclaratorId))))
+data InClause = InClause (AndList (Relative (Rankeds (Either NamedEntity DeclaratorId))))
 data AppendPositionsClause = AppendIn InClause | NonAppendPositionsClause PositionsClause
 data PrependPositionsClause = PrependIn InClause | NonPrependPositionsClause PositionsClause
 type Substr = EverythingOr (Ranked (Either NamedEntity String))
@@ -134,6 +134,12 @@ instance Functor EverythingOr where
 instance Functor Ranked where
   fmap f (Ranked o x) = Ranked o (f x)
   fmap f (Sole x) = Sole (f x)
+
+instance Functor Rankeds where
+  fmap f (Rankeds o x) = Rankeds o $ f x
+  fmap f (Sole' x) = Sole' $ f x
+  fmap f (All x) = All $ f x
+  fmap f (AllBut o x) = AllBut o $ f x
 
 instance Functor Relative where
   fmap f (Relative x ba r) = Relative (f x) ba r

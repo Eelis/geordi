@@ -200,6 +200,8 @@ basic_tests = do
   ct "void f() {} void g() {} namespace N { void f() {} } void f(int) {}" "add int x; in f in N and in g and append y" $ Right "void f() {} void g() {int x;} namespace N { void f() {int x;} } void f(int) {}y"
   ct "void f() { int x; } void g() { int x; } void h() { int x; }" "erase declaration of x in f and h" $ Right "void f() { } void g() { int x; } void h() { }"
   ct "namespace N { int x; } int x; void f() { int x; }" "use int y; in N and f" $ Right "namespace N { int y; } int x; void f() { int y; }"
+  ct "void f() {} void f(int) {} void f(double) {} void f(char) {}" "add int x; in first f and in third and fourth body of f" $ Right "void f() {int x;} void f(int) {} void f(double) {int x;} void f(char) {int x;}"
+
   -- Edit errors:
   t "move second 2 to x" $ Left "Unexpected `x` after `second 2 to `. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
   t "replace alligators with chickens" $ Left "String `alligators` does not occur."

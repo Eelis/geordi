@@ -99,7 +99,8 @@ instance FindInStr (EverythingOr (Rankeds (Either NamedEntity String))) [ARange]
   findInStr s r Everything = return [everything_arange $ selectRange r s]
   findInStr s r (NotEverything x) = findInStr s r x
 
-instance FindInStr (Rankeds (Either NamedEntity String)) [ARange] where
+instance (FindInStr (Rankeds a) [ARange], FindInStr (Ranked a) ARange) =>
+    FindInStr (Rankeds (Either NamedEntity a)) [ARange] where
   findInStr s r (All (Right x)) = findInStr s r (All x)
   findInStr s r (All (Left x)) = findInStr s r (All x)
   findInStr s r (Sole' (Right x)) = findInStr s r (Sole' x)
@@ -150,11 +151,12 @@ instance FindInStr (Ranked NamedEntity) ARange where
       Nothing -> fail $ "Could not find a " ++ show o ++ " " ++ Editing.Show.show decl ++ "."
       Just r -> return r
 
-instance FindInStr (Ranked Cxx.Basics.DeclaratorId) ARange where findInStr s r x = findInStr s r (fmap BodyOf x)
+instance FindInStr (Ranked Cxx.Basics.DeclaratorId) ARange where findInStr s r x = findInStr s r (BodyOf . x)
+instance FindInStr (Rankeds Cxx.Basics.DeclaratorId) [ARange] where findInStr s r x = findInStr s r (BodyOf . x)
 
 instance FindInStr InClause (NElist ARange) where
   findInStr s r (InClause x) = do
-    l <- concat . (unne . ) . findInStr s r x
+    l <- concat . (concat . unne .) . findInStr s r x
     case l of
       [] -> fail "Empty 'in'-clause."
       h:t -> return $ NElist h t

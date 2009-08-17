@@ -194,7 +194,7 @@ instance Parse (Relative Substr) where
     <||> (relative -< NotEverything x)
 
 instance Parse (Relative (Ranked NamedEntity)) where parse = parse >>> relative
-instance Parse (Relative (Ranked (Either NamedEntity DeclaratorId))) where parse = parse >>> relative
+instance Parse (Relative (Rankeds (Either NamedEntity DeclaratorId))) where parse = parse >>> relative
 
 instance Parse (Relative (EverythingOr (Rankeds (Either NamedEntity String)))) where
   parse = (relative_everything_orA <||>) $ (parse >>>) $ proc x -> case x of
