@@ -125,25 +125,28 @@ namespace escape_detail
   template <typename T, Kind> struct impl;
 
   template <typename Ch, typename Tr> struct impl<std::basic_string<Ch, Tr>, string_kind>
-  { typedef escape_detail::string_escaper<Ch, typename std::basic_string<Ch, Tr>::const_iterator> result_type;
+  { typedef string_escaper<Ch, typename std::basic_string<Ch, Tr>::const_iterator> result_type;
     static result_type doit(std::basic_string<Ch, Tr> const & s) { result_type const r = { s.begin(), s.end() }; return r; } };
 
   template <typename T> struct impl<T, catchall_kind>
   { typedef T const & result_type; static result_type doit(T const & x) { return x; } };
 
+  template<typename C> struct impl<C, char_kind>
+  { typedef char_escaper<C> result_type; static result_type doit(C const c) { result_type const r = { c }; return r; } };
+
   template <typename C> struct impl<C *, char_pointer_kind>
-  { typedef escape_detail::cstring_escaper<C> result_type;
-  static result_type doit(C const * const p) { result_type const r = { p }; return r; } };
+  { typedef cstring_escaper<C> result_type;
+    static result_type doit(C const * const p) { result_type const r = { p }; return r; } };
 
   template <typename C, std::size_t N> struct impl<C[N] , char_array_kind>
-  { typedef escape_detail::string_escaper<C, C const *> result_type;
-  static result_type doit(C const (& a) [N]) {
-    C const * p = a+N; while(!*--p && p >= a) ; ++p; \
-    result_type const r = { a, p }; return r; } };
+  { typedef string_escaper<C, C const *> result_type;
+    static result_type doit(C const (& a) [N]) {
+      C const * p = a+N; while(!*--p && p >= a) ; ++p;
+      result_type const r = { a, p }; return r; } };
 
   template <typename T> struct impl<T *, streambuf_kind>
   { typedef typename T::char_type Ch;
-    typedef escape_detail::string_escaper<Ch, std::istreambuf_iterator<Ch> > result_type;
+    typedef string_escaper<Ch, std::istreambuf_iterator<Ch> > result_type;
     template <typename Tr> static result_type doit(std::basic_streambuf<Ch, Tr> * const p) { result_type const r = { p }; return r; } };
 
   template <typename T> T const & fake();
@@ -162,7 +165,6 @@ template <typename T> typename escape_detail::proxy<T>::result_type escape(T con
 #include <sstream>
 #include <cassert>
 #include <iostream>
-#include <sstream>
 #include <clocale>
 
 int main()
@@ -171,6 +173,7 @@ int main()
 
   typedef std::ostringstream oss;
   typedef std::wostringstream woss;
+  { oss o; o << escape('\n') << escape(L'\r'); assert(o.str() == "'\\n'L'\\r'"); }
   { oss o; o << escape("a∀b"); assert(o.str() == BOOST_STRINGIZE("a\xe2\x88\x80""b")); }
   { oss o; o << escape(L"a∀b"); assert(o.str() == BOOST_STRINGIZE(L"a∀b")); }
   { woss o; o << escape("a∀b"); assert(o.str() == L"\"a\\xe2\\x88\\x80\"\"b\""); }
