@@ -76,13 +76,12 @@ data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative Subst
 data Relative a = Relative a BefAft (Ranked (Either NamedEntity String)) | Between a Betw | FromTill Bound RelativeBound | In a InClause
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
 data PositionsClause = PositionsClause BefAft Substrs
-data InClause = InClause (Ranked NamedEntity)
+data InClause = InClause (Relative (Ranked NamedEntity))
 data AppendPositionsClause = AppendIn InClause | NonAppendPositionsClause PositionsClause
 data PrependPositionsClause = PrependIn InClause | NonPrependPositionsClause PositionsClause
 type Substr = EverythingOr (Ranked (Either NamedEntity String))
 type Substrs = AndList (Relative (EverythingOr (Rankeds (Either NamedEntity String))))
 data Position = Position BefAft (Relative Substr)
-type Positions = AndList PositionsClause
 data Replacer = Replacer Substrs String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
 data Changer = Changer Substrs String | ChangeOptions [Request.EvalOpt] [Request.EvalOpt]
 data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around (Ranked (Either NamedEntity String)))
@@ -134,6 +133,12 @@ instance Functor EverythingOr where
 instance Functor Ranked where
   fmap f (Ranked o x) = Ranked o (f x)
   fmap f (Sole x) = Sole (f x)
+
+instance Functor Relative where
+  fmap f (Relative x ba r) = Relative (f x) ba r
+  fmap f (Between x b) = Between (f x) b
+  fmap f (In x i) = In (f x) i
+  fmap f (FromTill a b) = FromTill a b
 
 instance Convert (Ranked a) (Rankeds a) where
   convert (Ranked o x) = Rankeds (and_one o) x

@@ -193,6 +193,8 @@ instance Parse (Relative Substr) where
       returnA -< Between Everything $ Betw (Bound (Just Before) $ NotEverything x) u
     <||> (relative -< NotEverything x)
 
+instance Parse (Relative (Ranked NamedEntity)) where parse = parse >>> relative
+
 instance Parse (Relative (EverythingOr (Rankeds (Either NamedEntity String)))) where
   parse = (relative_everything_orA <||>) $ (parse >>>) $ proc x -> case x of
     Rankeds (AndList (NElist r [])) s -> do
@@ -218,7 +220,7 @@ instance Parse a => Parse (Rankeds a) where
     <||> (kwd ["any", "every", "each"] >>> auto1 All) <||> auto2 Rankeds <||> auto1 Sole'
 
 instance Parse InClause where
-  parse = kwd ["in"] >>> (auto1 InClause <||> (auto1 (InClause . fmap BodyOf)))
+  parse = kwd ["in"] >>> (auto1 InClause <||> (parse >>> relative >>> arr (InClause . fmap (fmap BodyOf))))
 
 instance Parse AppendPositionsClause where
   parse = auto1 AppendIn <||> auto1 NonAppendPositionsClause

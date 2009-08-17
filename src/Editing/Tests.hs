@@ -196,6 +196,7 @@ basic_tests = do
   ct "namespace N { void f(); void g(); void f(); } void h();" "add int x; after declaration of g in N" $ Right "namespace N { void f(); void g(); int x;void f(); } void h();"
   ct "struct X { void f(); }; struct Y { void f(); };" "erase declaration of f in Y" $ Right "struct X { void f(); }; struct Y { };"
   ct "namespace N { void f(); void g(); void f(); } void h();" "move declaration of h to after declaration of g in N" $ Right "namespace N { void f(); void g(); void h();void f(); } "
+  ct "void f() {} namespace N { void f() {} } void f(int) {}" "add int x; in f in N" $ Right "void f() {} namespace N { void f() {int x;} } void f(int) {}"
   -- Edit errors:
   t "move second 2 to x" $ Left "Unexpected `x` after `second 2 to `. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
   t "replace alligators with chickens" $ Left "String `alligators` does not occur."
