@@ -51,8 +51,8 @@ instance Show a => Show (Ranked a) where
   show (Ranked r s) = show r ++ " " ++ show s
 
 instance Show Position where
-  show (Position Before Everything) = "at start"
-  show (Position After Everything) = "at end"
+  show (Position Before (Between Everything (Betw (Bound (Just Before) Everything) Back))) = "at start"
+  show (Position After (Between Everything (Betw (Bound (Just Before) Everything) Back))) = "at end"
   show (Position a x) = show a ++ " " ++ show x
 
 instance Show a => Show (AndList a) where
@@ -63,11 +63,11 @@ instance Show PositionsClause where
 
 instance Show AppendPositionsClause where
   show (NonAppendPositionsClause pc) = show pc
-  show (AppendIn d) = show "in " ++ show d
+  show (AppendIn d) = show d
 
 instance Show PrependPositionsClause where
   show (NonPrependPositionsClause pc) = show pc
-  show (PrependIn d) = show "in " ++ show d
+  show (PrependIn d) = show d
 
 instance Show Bound where
   show (Bound mba x) = maybe "" ((++ " ") . show) mba ++ show x
@@ -77,6 +77,9 @@ instance Show a => Show (Relative a) where
   show (Between x (Betw y z)) = show x ++ " between " ++ show y ++ " and " ++ show z
   show (Relative x y z) = show x ++ " " ++ show y ++ " " ++ show z
   show (FromTill b c) = "from " ++ show b ++ " till " ++ show c
+  show (In x did) = show x ++ " in " ++ show did
+
+instance Show InClause where show (InClause x) = "in " ++ show x
 
 instance Show RelativeBound where
   show Front = "front"; show Back = "back"

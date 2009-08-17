@@ -191,7 +191,11 @@ basic_tests = do
   ct "void f() { int i; } void g() { int j; } void h() {}" "prepend BARK; in f and append BARK; in g and in h" $ Right "void f() { BARK;int i; } void g() { int j; BARK;} void h() {BARK;}"
   ct "class C { int f() {} };" "add int x; in C and add return x; in f" $ Right "class C { int f() {return x;} int x;};"
   ct "void f() { cout << 3; g(); }" "erase everything from after 3; until after body of f" $ Right "void f() { cout << 3;}"
+  ct "int main() { cout << 3; }" "move << 3 to front and erase declaration of main" $ Right "<< 3"
   ct "{ cout << x; } enum E { x };" "add `cout, y;` in main and add ,y in E" $ Right "{ cout << x; cout, y;} enum E { x ,y};"
+  ct "namespace N { void f(); void g(); void f(); } void h();" "add int x; after declaration of g in N" $ Right "namespace N { void f(); void g(); int x;void f(); } void h();"
+  ct "struct X { void f(); }; struct Y { void f(); };" "erase declaration of f in Y" $ Right "struct X { void f(); }; struct Y { };"
+  ct "namespace N { void f(); void g(); void f(); } void h();" "move declaration of h to after declaration of g in N" $ Right "namespace N { void f(); void g(); void h();void f(); } "
   -- Edit errors:
   t "move second 2 to x" $ Left "Unexpected `x` after `second 2 to `. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
   t "replace alligators with chickens" $ Left "String `alligators` does not occur."
@@ -207,10 +211,10 @@ basic_tests = do
   t "isnert 3 before 4" $ Left "Unexpected `isnert` at start. Expected edit command."
   t "insert " $ Left "Unexpected end of command. Expected option, verbatim string, or wrapping description."
   t "insert kung fu" $ Left "Unexpected end of command. Expected \" in\", \" at\", \" before\", \" after\", or \" and\"."
-  t "move " $ Left "Unexpected end of command. Expected ordinal, \"declaration\", \"body\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", or verbatim string."
-  t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" between\", or \" to\"."
+  t "move " $ Left "Unexpected end of command. Expected \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", ordinal, \"declaration\", \"body\", or verbatim string."
+  t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" in\", \" between\", or \" to\"."
   t "move x to "$ Left "Unexpected end of command. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
-  t "erase all 2 and " $ Left "Unexpected end of command. Expected verbatim string, wrapping description, option, \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", edit command, or \"show\"."
+  t "erase all 2 and " $ Left "Unexpected end of command. Expected verbatim string, \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", wrapping description, option, edit command, or \"show\"."
   putStrLn "All basics tests passed."
  where
   t :: String -> Either String String -> IO ()

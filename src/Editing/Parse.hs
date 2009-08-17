@@ -25,9 +25,6 @@ type AndCont = String
 
 data Parser a b = Parser Terminators (Terminators -> [AndCont] -> a -> P.Parser Char (Either String b))
 
-fl :: String -> Parser a b
-fl s = Parser (Terminators False []) $ \_ _ _ -> P.drain >> return (Left s)
-
 zero_width :: Parser a b -> Bool
 zero_width (Parser (Terminators b _) _) = b
 
@@ -41,13 +38,13 @@ instance Category Parser where
   id = Parser (Terminators True []) $ \_ _ x -> return $ return x
   p' . Parser (Terminators b t) f =
     Parser (Terminators (b && zero_width p') (if null t then terminators p' else t))
-     $ \(Terminators b'' t'') a'' x -> do
+     $ \(Terminators b'' t'') a x -> do
       let (Parser (Terminators b' t') f') = p'
         -- Todo: This match is delayed for a reason, I think. Document that reason.
-      u <- f (Terminators (b' && b'') (if b' then t' ++ t'' else t')) (if null t' then a'' else []) x
+      u <- f (Terminators (b' && b'') (if b' then t' ++ t'' else t')) (if null t' then a else []) x
       case u of
         Left e -> return $ Left e
-        Right u' -> f' (Terminators b'' t'') a'' u'
+        Right u' -> f' (Terminators b'' t'') a u'
 
 instance Arrow Parser where
   arr f = Parser (Terminators True []) $ \_ _ -> return . return . f
@@ -152,6 +149,7 @@ instance Parse a => Parse (EverythingOr a) where
 
 relative :: Parser a (Relative a)
 relative = proc a -> do x <- parse -< (); y <- parse -< (); returnA -< Relative a x y
+  <||> do x <- parse -< (); returnA -< In a x
   <||> do b <- parse -< (); returnA -< Between a b
   <||> do returnA -< absolute a
 
@@ -162,7 +160,7 @@ instance Parse Betw where
       y <- parse -< ()
       do
         rank' <- andP >>> parse -< (); s <- parse -< ()
-        returnA -< Betw (Bound Nothing $ NotEverything $ Ranked y s) $ RelativeBound Nothing $ Right $ absolute $ NotEverything $ Ranked rank' s
+        returnA -< Betw (Bound Nothing $ NotEverything $ Ranked y s) $ RelativeBound Nothing $ absolute $ NotEverything $ Ranked rank' s
        <||> do
         x <- parse -< (); v <- andP >>> parse -< ()
         returnA -< Betw (Bound Nothing (NotEverything $ Ranked y x)) v
@@ -181,7 +179,7 @@ relative_everything_orA =
     kwd ["before"] -< ()
     y <- auto1 NotEverything -< ()
     x <- do z <- kwd till >>> parse -< (); returnA -< Betw (Bound (Just Before) y) z
-      <||> do returnA -< Betw front $ RelativeBound (Just Before) $ Right $ absolute y
+      <||> do returnA -< Betw front $ RelativeBound (Just Before) $ absolute y
     returnA -< Between Everything x)
   <||> auto1 (Between Everything)
   <||> proc _ -> do
@@ -189,7 +187,13 @@ relative_everything_orA =
     y <- (kwd till >>> parse -< ()) <||> (returnA -< Back)
     returnA -< Between Everything (Betw (Bound (Just After) x) y)
 
-instance Parse (Relative (EverythingOr (Rankeds String))) where
+instance Parse (Relative Substr) where
+  parse = (relative_everything_orA <||>) $ parse >>> proc x -> do
+      u <- kwd till >>> parse -< ()
+      returnA -< Between Everything $ Betw (Bound (Just Before) $ NotEverything x) u
+    <||> (relative -< NotEverything x)
+
+instance Parse (Relative (EverythingOr (Rankeds (Either NamedEntity String)))) where
   parse = (relative_everything_orA <||>) $ (parse >>>) $ proc x -> case x of
     Rankeds (AndList (NElist r [])) s -> do
         u <- kwd till >>> parse -< ()
@@ -201,31 +205,28 @@ instance Parse (Relative (EverythingOr (Rankeds String))) where
       <||> (relative -< NotEverything x)
     _ -> (relative -< NotEverything x)
 
-instance Parse (Relative (EverythingOr (Ranked String))) where
-  parse = (relative_everything_orA <||>) $ parse >>> proc x -> do
-      u <- kwd till >>> parse -< ()
-      returnA -< Between Everything $ Betw (Bound (Just Before) $ NotEverything x) u
-    <||> (relative -< NotEverything x)
-
 instance Parse NamedEntity where
   parse =
     ((label "\"declaration\"" $ kwd ["declarations", "declaration"]) >>> kwd ["of"] >>> auto1 DeclarationOf) <||>
     ((label "\"body\"" $ kwd ["bodies", "body"]) >>> kwd ["of"] >>> auto1 BodyOf)
 
 instance Parse Position where
-  parse = (select [(begin, Before), (end_kwds, After)] >>> arr (flip Position Everything)) <||> auto2 Position
+  parse = (select [(begin, Before), (end_kwds, After)] >>> arr (flip Position $ absolute Everything)) <||> auto2 Position
 
 instance Parse a => Parse (Rankeds a) where
   parse = (kwd ["all"] >>> ((kwd ["except", "but"] >>> auto2 AllBut) <||> auto1 All))
     <||> (kwd ["any", "every", "each"] >>> auto1 All) <||> auto2 Rankeds <||> auto1 Sole'
 
+instance Parse InClause where
+  parse = kwd ["in"] >>> (auto1 InClause <||> (auto1 (InClause . fmap BodyOf)))
+
 instance Parse AppendPositionsClause where
-  parse = (kwd ["in"] >>> auto1 AppendIn) <||> auto1 NonAppendPositionsClause
+  parse = auto1 AppendIn <||> auto1 NonAppendPositionsClause
 instance Parse PrependPositionsClause where
-  parse = (kwd ["in"] >>> auto1 PrependIn) <||> auto1 NonPrependPositionsClause
+  parse = auto1 PrependIn <||> auto1 NonPrependPositionsClause
 
 instance Parse PositionsClause where
-  parse = (kwd ["at"] >>> select [(begin, Before), (end_kwds, After)] >>> arr (\ba -> PositionsClause ba $ and_one $ Right $ absolute Everything)) <||> auto2 PositionsClause
+  parse = (kwd ["at"] >>> select [(begin, Before), (end_kwds, After)] >>> arr (\ba -> PositionsClause ba $ and_one $ absolute Everything)) <||> auto2 PositionsClause
 
 instance Parse Replacer where
   parse = liftA2 ReplaceOptions parse (wb >>> parse) <||> liftA2 Replacer parse (wb >>> parse)
@@ -269,9 +270,9 @@ instance Parse Command where
     (kwd ["swap"] >>> commit (auto1 Swap)) <||>
     (kwd ["wrap"] >>> commit (parse >>> snd_unit (auto1 Left <||> (kwd ["in"] >>> auto1 Right)) >>> semipure (uncurry wc)))
     where
-      wc :: (AndList Substrs) -> Either (AndList (Around (AndList Substrs))) Wrapping -> Either String Command
+      wc :: Substrs -> Either (AndList (Around Substrs)) Wrapping -> Either String Command
       wc what (Right wrapping) = return $ WrapIn what wrapping
-      wc (AndList (NElist (Right (Between (NotEverything (Sole' x)) (Betw (Bound (Just Before) Everything) Back))) [])) (Left what) =
+      wc (AndList (NElist (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back)) [])) (Left what) =
         (\q -> WrapAround q what) `fmap` case () of
           ()| x `elem` ["curlies", "braces", "curly brackets"] -> return $ Wrapping "{" "}"
           ()| x `elem` ["parentheses", "parens", "round brackets"] -> return $ Wrapping "(" ")"
@@ -280,8 +281,8 @@ instance Parse Command where
           ()| x `elem` ["single quotes"] -> return $ Wrapping "'" "'"
           ()| x `elem` ["double quotes"] -> return $ Wrapping "\"" "\""
           ()| otherwise -> fail "Unrecognized wrapping description."
-      wc (AndList (NElist (Right (Between (NotEverything (Sole' x)) (Betw (Bound (Just Before) Everything) Back)))
-        [Right (Between (NotEverything (Sole' y)) (Betw (Bound (Just Before) Everything) Back))])) (Left what) =
+      wc (AndList (NElist (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back))
+        [Between (NotEverything (Sole' (Right y))) (Betw (Bound (Just Before) Everything) Back)])) (Left what) =
           return $ WrapAround (Wrapping x y) what
       wc _ (Left _) = fail "Malformed wrap command."
 

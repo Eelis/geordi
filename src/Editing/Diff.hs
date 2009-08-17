@@ -7,7 +7,7 @@ import qualified Data.Char as Char
 import Data.Algorithm.Diff (DI(..), getDiff)
 import Data.Maybe (listToMaybe)
 import Data.Monoid (Monoid(..))
-import Util (orElse, take_atleast, convert, (.), isIdChar, invert)
+import Util (orElse, take_atleast, (.), isIdChar, invert)
 import Editing.Basics
 import Prelude hiding ((.))
 
@@ -25,7 +25,7 @@ describe_simpleEdit :: SimpleEdit Token -> [Token] -> Command
 describe_simpleEdit (SimpleEdit (Range p 0) s) t | p == length t = Append (toks_text s) Nothing
 describe_simpleEdit (SimpleEdit (Range 0 0) s) _ = Prepend (toks_text s) Nothing
 describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
-  if null s then Erase $ and_one $ EraseText $ Right describe_range else
+  if null s then Erase $ and_one $ EraseText $ and_one $ describe_range else
   if siz == 0 then case () of -- insert
     ()| repl_elem ["{", "("] || alpha After -> ins Before
     ()| repl_elem ["}", ")", ";"] || alpha Before -> ins After
@@ -34,7 +34,7 @@ describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
   else if all ((`elem` Cxx.Basics.ops) . tok_text) sr && s /= [] && not (source_elem ["{", "}", "(", ")"]) && size (se_range expanded_edit) > siz then
     describe_simpleEdit expanded_edit t
   else
-    Replace $ and_one $ Replacer (and_one $ Right describe_range) (toks_text s)
+    Replace $ and_one $ Replacer (and_one $ describe_range) (toks_text s)
   where
     repl_elem x = case s of [Token u _] -> elem u x; _ -> False
     source_elem x = sr' `elem` x
@@ -47,16 +47,15 @@ describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
     inorder_context Before = reverse $ context Before
     furthest Before = listToMaybe; furthest After = listToMaybe . reverse
     alpha ba = Char.isAlpha . (tok_text . listToMaybe (toks ba) >>= furthest (invert ba)) `orElse` False
-    ins ba = Insert (toks_text s) $ and_one $ NonAppendPositionsClause $ PositionsClause ba $ and_one $ Right $ absolute $ convert $ NotEverything $ Sole $ toks_text $ inorder_context $ invert ba
+    ins ba = Insert (toks_text s) $ and_one $ NonAppendPositionsClause $ PositionsClause ba $ and_one $ absolute $ NotEverything $ Sole' $ Right $ toks_text $ inorder_context $ invert ba
     sr = selectRange r t
-    sole = convert . NotEverything (Sole sr')
+    sole = NotEverything $ Sole' $ Right sr'
     rel ba = Relative sole ba $ Sole $ Right $ toks_text $ inorder_context $ invert ba
-    describe_range :: Relative (EverythingOr (Rankeds String))
-    describe_range =
-      case () of
-        ()| source_elem ["{", "(", "friend"] || (toks_len sr <= 4 && alpha After) -> rel Before
-        ()| source_elem ["}", ")", ";"] || (toks_len sr <= 4 && alpha Before) -> rel After
-        () -> absolute sole
+    describe_range :: Relative (EverythingOr (Rankeds (Either NamedEntity String)))
+    describe_range
+      | source_elem ["{", "(", "friend"] || (toks_len sr <= 4 && alpha After) = rel Before
+      | source_elem ["}", ")", ";"] || (toks_len sr <= 4 && alpha Before) = rel After
+      | otherwise = absolute sole
 
 diffsAsSimpleEdits :: [(DI, a)] -> [SimpleEdit a]
 diffsAsSimpleEdits = work 0 where

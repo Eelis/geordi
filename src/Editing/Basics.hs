@@ -71,30 +71,28 @@ data NamedEntity = DeclarationOf DeclaratorId | BodyOf DeclaratorId
 data EverythingOr a = Everything | NotEverything a
 data Ranked a = Ranked Ordinal a | Sole a
 data Rankeds a = Rankeds (AndList Ordinal) a | Sole' a | All a | AllBut (AndList Ordinal) a
-data Bound = Bound (Maybe BefAft) (EverythingOr (Ranked String))
-data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Either (Ranked NamedEntity) (Relative (EverythingOr (Ranked String))))
-data Relative a = Relative a BefAft (Ranked (Either NamedEntity String)) | Between a Betw | FromTill Bound RelativeBound
+data Bound = Bound (Maybe BefAft) Substr
+data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative Substr)
+data Relative a = Relative a BefAft (Ranked (Either NamedEntity String)) | Between a Betw | FromTill Bound RelativeBound | In a InClause
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
-data PositionsClause = PositionsClause BefAft (AndList Substrs)
-data AppendPositionsClause = AppendIn DeclaratorId | NonAppendPositionsClause PositionsClause
-data PrependPositionsClause = PrependIn DeclaratorId | NonPrependPositionsClause PositionsClause
+data PositionsClause = PositionsClause BefAft Substrs
+data InClause = InClause (Ranked NamedEntity)
+data AppendPositionsClause = AppendIn InClause | NonAppendPositionsClause PositionsClause
+data PrependPositionsClause = PrependIn InClause | NonPrependPositionsClause PositionsClause
 type Substr = EverythingOr (Ranked (Either NamedEntity String))
-type Substrs = Either (Rankeds NamedEntity) (Relative (EverythingOr (Rankeds String)))
-  -- We don't do relative declarations, for now.
-data Position = Position BefAft Substr
+type Substrs = AndList (Relative (EverythingOr (Rankeds (Either NamedEntity String))))
+data Position = Position BefAft (Relative Substr)
 type Positions = AndList PositionsClause
-data Replacer = Replacer (AndList Substrs) String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
-data Changer = Changer (AndList Substrs) String | ChangeOptions [Request.EvalOpt] [Request.EvalOpt]
+data Replacer = Replacer Substrs String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
+data Changer = Changer Substrs String | ChangeOptions [Request.EvalOpt] [Request.EvalOpt]
 data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around (Ranked (Either NamedEntity String)))
-data Mover = Mover (Either (Ranked NamedEntity) (Relative (EverythingOr (Ranked String)))) Position
+data Mover = Mover (Relative Substr) Position
 data BefAft = Before | After deriving Eq
 data Around a = Around a
 data Betw = Betw Bound RelativeBound
 data Wrapping = Wrapping String String
 data UseClause = UseString String | UseOptions [Request.EvalOpt]
-type Swappable = Either (Ranked NamedEntity) (Relative (EverythingOr (Ranked String)))
-  -- The EverythingOr is pretty silly for Swappable, but removing it only costs extra code in the parser.
-data Swapper = Swapper Swappable Swappable
+data Swapper = Swapper (Relative Substr) (Relative Substr)
 
 data Command
   = Insert String (AndList AppendPositionsClause)
@@ -105,8 +103,8 @@ data Command
   | Erase (AndList Eraser)
   | Move (AndList Mover)
   | Swap (AndList Swapper)
-  | WrapAround Wrapping (AndList (Around (AndList Substrs)))
-  | WrapIn (AndList Substrs) Wrapping
+  | WrapAround Wrapping (AndList (Around Substrs))
+  | WrapIn Substrs Wrapping
   | Use (AndList UseClause)
 
 newtype Identifier = Identifier { identifier_string :: String }
@@ -133,17 +131,21 @@ instance Functor EverythingOr where
   fmap _ Everything = Everything
   fmap f (NotEverything x) = NotEverything (f x)
 
+instance Functor Ranked where
+  fmap f (Ranked o x) = Ranked o (f x)
+  fmap f (Sole x) = Sole (f x)
+
 instance Convert (Ranked a) (Rankeds a) where
   convert (Ranked o x) = Rankeds (and_one o) x
   convert (Sole x) = Sole' x
 
 instance Invertible BefAft where invert Before = After; invert After = Before
 
-instance Invertible (Ranked String) where
+instance Invertible (Ranked a) where
   invert (Ranked r s) = Ranked (invert r) s
   invert x = x
 
-instance Invertible (Rankeds String) where
+instance Invertible (Rankeds a) where
   invert (Rankeds (AndList r) s) = Rankeds (AndList $ invert . r) s
   invert x = x
 
@@ -158,9 +160,9 @@ merge_commands (h:t) = h : merge_commands t
 
 describe_position_after :: Pos Char -> String -> Position
 describe_position_after n s
-  | n == 0 = Position Before Everything
-  | n == length s = Position After Everything
-  | otherwise = Position After $ NotEverything $ Sole $ Right $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s
+  | n == 0 = Position Before $ absolute Everything
+  | n == length s = Position After $ absolute Everything
+  | otherwise = Position After $ absolute $ NotEverything $ Sole $ Right $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s
 
 -- Tokenization:
 

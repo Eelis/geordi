@@ -8,6 +8,7 @@ import qualified Editing.Diff
 import qualified Data.List as List
 import qualified Data.Char as Char
 import qualified Editing.Show
+import Data.Maybe (mapMaybe)
 import Control.Monad (liftM2)
 import Cxx.Operations (findDeclaration, findBody)
 import Control.Monad.Error ()
@@ -16,10 +17,6 @@ import Util ((.), Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtei
 
 import Prelude hiding (last, (.), all, (!!))
 import Editing.Basics
-
--- Positions/ranges:
-
--- Resolving positions/occurrences/edits in the subject string:
 
 type ARange = BefAft -> Anchor
 
@@ -40,28 +37,28 @@ instance Offsettable Anchor where offset x (Anchor y z) = Anchor y (z + x)
 instance Offsettable ARange where offset x r = offset x . r
 instance Offsettable a => Offsettable [a] where offset x = (offset x .)
 
-class FindInStr a b | a -> b where findInStr :: (Functor m, Monad m) => String -> a -> m b
+class FindInStr a b | a -> b where findInStr :: (Functor m, Monad m) => String -> Range Char -> a -> m b
 
 instance Convert (Range Char) [ARange] where convert = (:[]) . anchor_range
 instance Convert (Range Char) ARange where convert = anchor_range
 
 instance Convert Anchor (Pos Char) where convert = anchor_pos
 
-instance FindInStr (Around (AndList Substrs)) [ARange] where findInStr s (Around x) = concat . findInStr s x
+instance FindInStr (Around Substrs) [ARange] where findInStr s r (Around x) = concat . findInStr s r x
 
 instance FindInStr (Ranked (Either NamedEntity String)) ARange where
-  findInStr t (Ranked o (Right s)) = findInStr t (Ranked o s)
-  findInStr y (Sole (Right x)) = findInStr y (Sole x)
-  findInStr s (Sole (Left d)) = findInStr s (Sole d)
-  findInStr s (Ranked o (Left d)) = findInStr s (Ranked o d)
+  findInStr s r (Ranked o (Left x)) = findInStr s r $ Ranked o x
+  findInStr s r (Ranked o (Right x)) = findInStr s r $ Ranked o x
+  findInStr s r (Sole (Left x)) = findInStr s r $ Sole x
+  findInStr s r (Sole (Right x)) = findInStr s r $ Sole x
 
 instance FindInStr (Ranked String) ARange where
-  findInStr t (Ranked o@(Ordinal n) s) = case find_occs s t of
+  findInStr t r (Ranked o@(Ordinal n) s) = case find_occs s (selectRange r t) of
     [] -> fail $ "String `" ++ s ++ "` does not occur."
     (a:b) -> case nth_ne o (NElist a b) of
       Just g -> return $ anchor_range $ Range g $ length s
       Nothing -> fail $ "String `" ++ s ++ "` does not occur " ++ once_twice_thrice (if n < 0 then -n else n+1) ++ "."
-  findInStr y (Sole x) = case find_occs x y of
+  findInStr s r (Sole x) = case find_occs x (selectRange r s) of
     [z] -> return $ anchor_range $ Range z (length x)
     [] -> fail $ "String `" ++ x ++ "` does not occur."
     _ -> fail $ "String `" ++ x ++ "` occurs multiple times."
@@ -69,153 +66,167 @@ instance FindInStr (Ranked String) ARange where
 instance Convert ARange (Range Char) where convert = unanchor_range
 
 instance (Offsettable b, Invertible a, FindInStr a b, Convert (Range Char) b) => FindInStr (Relative a) b where
-  findInStr s (Relative o ba w) = do
-    Range st si <- unanchor_range . findInStr s w
+  findInStr s r@(Range a b) (Relative o ba w) = do
+    Range st si <- unanchor_range . findInStr s r w
     case ba of
-      Before -> findInStr (take st s) (invert o)
-      After -> offset (st + si) . findInStr (drop (st + si) s) o
-  findInStr s (Between o (Betw b e)) = do
-    x <- convert . findInStr s b
-    y <- convert . findInStr s e
-    let (p, q) = if either start id x <= either start id (y :: Either (Range Char) (Pos Char))  then (x, y) else (y, x)
+      Before -> findInStr s (Range a st) (invert o)
+      After -> offset (st + si) . findInStr s (Range (a + st + si) (b - st - si)) o
+  findInStr s r (Between o (Betw b e)) = do
+    x <- convert . findInStr s r b
+    y <- convert . findInStr s r e
+    let (p, q) = if either start id x <= either start id (y :: Either (Range Char) (Pos Char)) then (x, y) else (y, x)
     let p' = either end id p; q' = either start id q
-    offset p' . findInStr (take (q' - p') $ drop p' s) o
-  findInStr s (FromTill b e) = do
-    x <- convert . findInStr s b
+    offset p' . findInStr s (Range (start r + p') (q' - p')) o
+  findInStr s r (In o incl) = do
+    ar <- findInStr s r incl
+    let p = convert $ ar Before; q = convert $ ar After
+    offset p . findInStr s (Range (start r + p) (q - p)) o
+  findInStr s r@(Range st si) (FromTill b e) = do
+    x <- convert . findInStr s r b
     let p = either start id (x :: Either (Range Char) (Pos Char))
-    y <- convert . findInStr (drop p s) e
+    y <- convert . findInStr s (Range (st+p) (si-p)) e
     return $ convert (Range p (either end id (y :: Either (Range Char) (Pos Char))) :: Range Char)
 
 everything_arange :: String -> ARange
 everything_arange _ Before = Anchor Before 0
 everything_arange s After = Anchor After (length s)
 
-instance FindInStr (EverythingOr (Ranked String)) ARange where
-  findInStr s Everything = return $ everything_arange s
-  findInStr s (NotEverything x) = findInStr s x
+instance FindInStr Substr ARange where
+  findInStr s r Everything = return $ everything_arange $ selectRange r s
+  findInStr s r (NotEverything x) = findInStr s r x
 
-instance FindInStr (EverythingOr (Rankeds String)) [ARange] where
-  findInStr s Everything = return [everything_arange s]
-  findInStr s (NotEverything x) = findInStr s x
+instance FindInStr (EverythingOr (Rankeds (Either NamedEntity String))) [ARange] where
+  findInStr s r Everything = return [everything_arange $ selectRange r s]
+  findInStr s r (NotEverything x) = findInStr s r x
+
+instance FindInStr (Rankeds (Either NamedEntity String )) [ARange] where
+  findInStr s r (All (Right x)) = findInStr s r (All x)
+  findInStr s r (All (Left x)) = findInStr s r (All x)
+  findInStr s r (Sole' (Right x)) = findInStr s r (Sole' x)
+  findInStr s r (Sole' (Left x)) = unne . findInStr s r x
+  findInStr x u (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x u (Ranked r s)) . unne rs
+  findInStr s r (AllBut a (Right x)) = findInStr s r (AllBut a x)
+  findInStr s r (AllBut a (Left x)) = findInStr s r (AllBut a x)
 
 instance FindInStr (Rankeds String) [ARange] where
-  findInStr y (All x) = case find_occs x y of
+  findInStr y r (All x) = case find_occs x (selectRange r y) of
     [] -> fail $ "String `" ++ x ++ "` does not occur."
     l -> return $ (anchor_range . flip Range (length x)) . l
-  findInStr y (Sole' x) = case find_occs x y of
+  findInStr y r (Sole' x) = case find_occs x (selectRange r y) of
     [z] -> return [anchor_range $ Range z (length x)]
     [] -> fail $ "String `" ++ x ++ "` does not occur."
     _ -> fail $ "String `" ++ x ++ "` occurs multiple times."
-  findInStr x (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x (Ranked r s)) . unne rs
-  findInStr x (AllBut (AndList rs) s) =
-    return $ (anchor_range . flip Range (length s)) . erase_indexed (ordinal_carrier . unne rs) (find_occs s x)
+  findInStr x u (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x u (Ranked r s)) . unne rs
+  findInStr x u (AllBut (AndList rs) s) =
+    return $ (anchor_range . flip Range (length s)) . erase_indexed (ordinal_carrier . unne rs) (find_occs s $ selectRange u x)
 
 instance FindInStr NamedEntity (NElist ARange) where
-  findInStr s d = case Cxx.Parse.parseRequest s of
+  findInStr s (Range st si) d = case Cxx.Parse.parseRequest s of
     Left e -> fail $ "Could not parse code in previous request. " ++ e
     Right r -> case d of
-      DeclarationOf did -> case findDeclaration did r of
+      DeclarationOf did -> case mapMaybe f $ findDeclaration did r of
         [] -> fail $ "Could not find free declaration of " ++ strip (show did) ++ "."
         (x:y) -> return $ fmap convert $ NElist x y
-      BodyOf did -> case findBody did r of
+      BodyOf did -> case mapMaybe f $ findBody did r of
         [] -> fail $ "Could not find body of " ++ strip (show did) ++ "."
         (x:y) -> return $ fmap convert $ NElist x y
+    where
+      f :: Range Char -> Maybe (Range Char)
+      f (Range x y)
+        | st <= x, x + y <= st + si = Just $ Range (x - st) y
+        | otherwise = Nothing
 
 show_plural :: NamedEntity -> String
 show_plural (DeclarationOf did) = "declarations of " ++ strip (show did)
 show_plural (BodyOf did) = "bodies of " ++ strip (show did)
 
 instance FindInStr (Ranked NamedEntity) ARange where
-  findInStr s (Sole decl) = do
-    NElist x y <- findInStr s decl
+  findInStr s r (Sole decl) = do
+    NElist x y <- findInStr s r decl
     if null y then return x else fail $ "Multiple " ++ show_plural decl ++ " occur."
-  findInStr s (Ranked o decl) = do
-    l <- findInStr s decl
+  findInStr s u (Ranked o decl) = do
+    l <- findInStr s u decl
     case nth_ne o l of
       Nothing -> fail $ "Could not find a " ++ show o ++ " " ++ Editing.Show.show decl ++ "."
       Just r -> return r
 
+instance FindInStr InClause ARange where findInStr s r (InClause x) = findInStr s r x
+
 instance FindInStr AppendPositionsClause [Anchor] where
-  findInStr s (NonAppendPositionsClause pc) = findInStr s pc
-  findInStr s (AppendIn did) = do
-    NElist ar z <- findInStr s (BodyOf did)
-    if null z then return [ar After] else fail $ "Multiple " ++ show_plural (BodyOf did) ++ " occur."
+  findInStr s r (NonAppendPositionsClause pc) = findInStr s r pc
+  findInStr s r (AppendIn incl) = fmap (\ar -> [ar After]) $ findInStr s r incl
 
 instance FindInStr PrependPositionsClause [Anchor] where
-  findInStr s (NonPrependPositionsClause pc) = findInStr s pc
-  findInStr s (PrependIn did) = do
-    NElist ar z <- findInStr s (BodyOf did)
-    if null z then return [ar Before] else fail $ "Multiple " ++ show_plural (BodyOf did) ++ " occur."
+  findInStr s r (NonPrependPositionsClause pc) = findInStr s r pc
+  findInStr s r (PrependIn incl) = fmap (\ar -> [ar Before]) $ findInStr s r incl
 
 instance FindInStr (Rankeds NamedEntity) [ARange] where
-  findInStr s (All decl) = unne . findInStr s decl
-  findInStr s (Sole' decl) = do
-    NElist x y <- findInStr s decl
+  findInStr s r (All decl) = unne . findInStr s r decl
+  findInStr s r (Sole' decl) = do
+    NElist x y <- findInStr s r decl
     if null y then return [x] else fail $ "Multiple " ++ show_plural decl ++ " occur."
-  findInStr x (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x (Ranked r s)) . unne rs
-  findInStr x (AllBut (AndList rs) decl) =
-    erase_indexed (ordinal_carrier . unne rs) . unne . findInStr x decl
+  findInStr x u (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x u (Ranked r s)) . unne rs
+  findInStr x r (AllBut (AndList rs) decl) =
+    erase_indexed (ordinal_carrier . unne rs) . unne . findInStr x r decl
 
 instance (FindInStr x a, FindInStr y a) => FindInStr (Either x y) a where
-  findInStr s = either (findInStr s) (findInStr s)
+  findInStr s r = either (findInStr s r) (findInStr s r)
 
 instance FindInStr PositionsClause [Anchor] where
-  findInStr s (PositionsClause Before (AndList o)) = (($ Before) .) . concat . sequence (findInStr s . unne o)
-  findInStr s (PositionsClause After (AndList o)) = (($ After) .) . concat . sequence (findInStr s . unne o)
+  findInStr s r (PositionsClause Before (AndList o)) = (($ Before) .) . concat . sequence (findInStr s r . unne o)
+  findInStr s r (PositionsClause After (AndList o)) = (($ After) .) . concat . sequence (findInStr s r . unne o)
 
 instance FindInStr a b => FindInStr (AndList a) [b] where
-  findInStr s (AndList l) = sequence (findInStr s . unne l)
+  findInStr s r (AndList l) = sequence (findInStr s r . unne l)
 
 instance FindInStr Replacer [Edit] where
-  findInStr s (Replacer p r) = (flip RangeReplaceEdit r .) . concat . ((unanchor_range .) .) . findInStr s p
-  findInStr _ (ReplaceOptions o o') = return [RemoveOptions o, AddOptions o']
+  findInStr s u (Replacer p r) = (flip RangeReplaceEdit r .) . concat . ((unanchor_range .) .) . findInStr s u p
+  findInStr _ _ (ReplaceOptions o o') = return [RemoveOptions o, AddOptions o']
 
 instance FindInStr Changer [Edit] where
-  findInStr s (Changer p r) = (flip RangeReplaceEdit r .) . concat . ((unanchor_range .) .) . findInStr s p
-  findInStr _ (ChangeOptions o o') = return [RemoveOptions o, AddOptions o']
+  findInStr s u (Changer p r) = (flip RangeReplaceEdit r .) . concat . ((unanchor_range .) .) . findInStr s u p
+  findInStr _ _ (ChangeOptions o o') = return [RemoveOptions o, AddOptions o']
 
 instance FindInStr Eraser [Edit] where
-  findInStr s (EraseText p) = ((flip RangeReplaceEdit "" . unanchor_range) .) . findInStr s p
-  findInStr _ (EraseOptions o) = return [RemoveOptions o]
-  findInStr s (EraseAround (Wrapping x y) (Around z)) = liftM2 (++) (f Before) (f After)
+  findInStr s r (EraseText (AndList l)) = ((flip RangeReplaceEdit "" . unanchor_range) .) . concat . sequence (findInStr s r . unne l)
+  findInStr _ _ (EraseOptions o) = return [RemoveOptions o]
+  findInStr s r (EraseAround (Wrapping x y) (Around z)) = liftM2 (++) (f Before) (f After)
     where
       w Before = x; w After = y
-      f ba = findInStr s $ EraseText $ Right $ Relative (NotEverything $ Rankeds (AndList $ NElist (Ordinal 0) []) (w ba)) ba z
+      f ba = findInStr s r $ EraseText $ and_one $ Relative (NotEverything $ Rankeds (AndList $ NElist (Ordinal 0) []) (Right $ w ba)) ba z
 
 instance FindInStr Bound (Either ARange Anchor) where
-  findInStr s (Bound Nothing Everything) = return $ Left $ everything_arange s
-  findInStr _ (Bound (Just Before) Everything) = return $ Right $ Anchor Before 0
-  findInStr s (Bound (Just After) Everything) = return $ Right $ Anchor After (length s)
-  findInStr s (Bound mba p) = maybe Left (\ba -> Right . ($ ba)) mba . findInStr s p
+  findInStr s r (Bound Nothing Everything) = return $ Left $ everything_arange $ selectRange r s
+  findInStr _ _ (Bound (Just Before) Everything) = return $ Right $ Anchor Before 0
+  findInStr _ r (Bound (Just After) Everything) = return $ Right $ Anchor After $ size r
+  findInStr s r (Bound mba p) = maybe Left (\ba -> Right . ($ ba)) mba . findInStr s r p
 
 instance FindInStr RelativeBound (Either ARange Anchor) where
-  findInStr _ Front = return $ Right $ Anchor Before 0
-  findInStr s Back = return $ Right $ Anchor After (length s)
-  findInStr s (RelativeBound mba p) = maybe Left (\ba -> Right . ($ ba)) mba . findInStr s p
+  findInStr _ _ Front = return $ Right $ Anchor Before 0
+  findInStr _ r Back = return $ Right $ Anchor After $ size r
+  findInStr s r (RelativeBound mba p) = maybe Left (\ba -> Right . ($ ba)) mba . findInStr s r p
 
 instance FindInStr Mover Edit where
-  findInStr s (Mover o p) = do
-    a <- findInStr s p
-    r <- unanchor_range . findInStr s o
+  findInStr s u (Mover o p) = do
+    a <- findInStr s u p
+    r <- unanchor_range . findInStr s u o
     makeMoveEdit a r
 
 instance FindInStr Swapper [Edit] where
-  findInStr s (Swapper x y) = do
-    a <- findInStr s x; b <- findInStr s y
+  findInStr s r (Swapper x y) = do
+    a <- findInStr s r x; b <- findInStr s r y
     return $ makeMoveEdit (b Before) (unanchor_range a) ++ makeMoveEdit (a Before) (unanchor_range b) -- By executing makeMoveEdit in the list monad, we nicely filter edits that would be considered overlapping (for example when swapping adjacent ranges).
 
 instance FindInStr Position Anchor where
-  findInStr _ (Position Before Everything) = return $ Anchor Before 0
-  findInStr s (Position After Everything) = return $ Anchor After (length s)
-  findInStr s (Position ba (NotEverything p)) = ($ ba) . findInStr s p
+  findInStr s r (Position ba x) = ($ ba) . findInStr s r x
 
 instance FindInStr UseClause Edit where
-  findInStr _ (UseOptions o) = return $ AddOptions o
-  findInStr s (UseString z) = do
+  findInStr _ _ (UseOptions o) = return $ AddOptions o
+  findInStr s r (UseString z) = do
     if y == 0 || ops_cost owc > fromIntegral (length z) / 1.5 then fail "No match."
       else return $ RangeReplaceEdit (Range x y) z
    where
-    text_tokens = edit_tokens Char.isAlphaNum s
+    text_tokens = edit_tokens Char.isAlphaNum $ selectRange r s
     pattern_tokens = edit_tokens Char.isAlphaNum z
     (x, y) = (sum $ length . take stt text_tokens, sum $ length . take siz (drop stt text_tokens))
     (owc, stt, siz) = head $ approx_match token_edit_cost pattern_tokens (replaceAllInfix pattern_tokens (replicate (length pattern_tokens) (replicate 100 'X')) text_tokens)
@@ -242,22 +253,22 @@ token_edit_cost (ReplaceOp _ _) = 10
   -- The precise values of these costs are fine-tuned to make the tests pass, and that is their only justification. We're trying to approximate the human intuition for what substring should be replaced, as codified in the tests.
 
 instance FindInStr Command [Edit] where
-  findInStr s (Use (AndList l)) = sequence $ findInStr s . unne l
-  findInStr s (Append x Nothing) = return [InsertEdit (Anchor After (length s)) x]
-  findInStr _ (Prepend x Nothing) = return [InsertEdit (Anchor Before 0) x]
-  findInStr s (Append r (Just p)) = (flip InsertEdit r .) . concat . findInStr s p
-  findInStr s (Prepend r (Just p)) = (flip InsertEdit r .) . concat . findInStr s p
-  findInStr s (Erase (AndList l)) = concat . sequence (findInStr s . unne l)
-  findInStr s (Replace (AndList l)) = concat . sequence (findInStr s . unne l)
-  findInStr s (Change (AndList l)) = concat . sequence (findInStr s . unne l)
-  findInStr s (Insert r p) = (flip InsertEdit r .) . concat . findInStr s p
-  findInStr s (Move (AndList movers)) = sequence (findInStr s . unne movers)
-  findInStr s (Swap (AndList swappers)) = concat . sequence (findInStr s . unne swappers)
-  findInStr s (WrapAround (Wrapping x y) z) = concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . concat . findInStr s z
-  findInStr s (WrapIn z (Wrapping x y)) = findInStr s $ WrapAround (Wrapping x y) $ and_one $ Around z
+  findInStr s r (Use (AndList l)) = sequence $ findInStr s r . unne l
+  findInStr s r (Append x Nothing) = return [InsertEdit (Anchor After (length $ selectRange r s)) x] -- todo: simplify
+  findInStr _ _ (Prepend x Nothing) = return [InsertEdit (Anchor Before 0) x]
+  findInStr s u (Append r (Just p)) = (flip InsertEdit r .) . concat . findInStr s u p
+  findInStr s u (Prepend r (Just p)) = (flip InsertEdit r .) . concat . findInStr s u p
+  findInStr s r (Erase (AndList l)) = concat . sequence (findInStr s r . unne l)
+  findInStr s r (Replace (AndList l)) = concat . sequence (findInStr s r . unne l)
+  findInStr s r (Change (AndList l)) = concat . sequence (findInStr s r . unne l)
+  findInStr s u (Insert r p) = (flip InsertEdit r .) . concat . findInStr s u p
+  findInStr s r (Move (AndList movers)) = sequence (findInStr s r . unne movers)
+  findInStr s r (Swap (AndList swappers)) = concat . sequence (findInStr s r . unne swappers)
+  findInStr s u (WrapAround (Wrapping x y) z) = concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . concat . findInStr s u z
+  findInStr s r (WrapIn z (Wrapping x y)) = findInStr s r $ WrapAround (Wrapping x y) $ and_one $ Around z
 
 prepareEdits :: (Functor m, Monad m) => String -> Command -> m [Edit]
-prepareEdits = findInStr
+prepareEdits s = findInStr s (Range 0 (length s))
 
 use_tests :: IO ()
 use_tests = do
@@ -316,11 +327,12 @@ use_tests = do
   t "&ETPYE" "ETPYE" "Replaced ETPYE with &ETPYE." "Replaced &ETPYE with ETPYE."
   putStrLn "All use tests passed."
  where
-  txt = "{ string::size_t- siz = 2; int x = 3; if(i == 0) cout << ETPYE(x - size); vector<int> v; v = { 3, 2 }; vector<int> i = reinterpret_cat<fish>(10000000000, v.begin()); } X(y); using tracked::B; B z = B{p}; int const u = 94; int * w = &u--j; !B && !D; vector<unsigned char> & r = v; struct C(){ C & operator+(ostream &, char(const&here)[N], C const &) }; template<typename T> voidfoo(T a) { a.~T; } void main() { int a; a.seek(1800, ios::end); foo(a++); if(x >= 7) throw runtime_exception(y); } class Qbla { public: fstream p; };"
-  t :: String -> String -> String -> String -> IO ()
-  t pattern match d rd = do
-    RangeReplaceEdit rng _ <- findInStr txt (UseString pattern)
+  u :: String -> String -> String -> String -> String -> IO ()
+  u txt pattern match d rd = do
+    RangeReplaceEdit rng _ <- findInStr txt (Range 0 (length txt)) (UseString pattern)
     test_cmp pattern match (selectRange rng txt)
     let r = replaceRange rng pattern txt
     test_cmp pattern d $ show $ Editing.Diff.diff txt r
     test_cmp (pattern ++ " (reverse)") rd $ show $ Editing.Diff.diff r txt
+  t :: String -> String -> String -> String -> IO ()
+  t = u "{ string::size_t- siz = 2; int x = 3; if(i == 0) cout << ETPYE(x - size); vector<int> v; v = { 3, 2 }; vector<int> i = reinterpret_cat<fish>(10000000000, v.begin()); } X(y); using tracked::B; B z = B{p}; int const u = 94; int * w = &u--j; !B && !D; vector<unsigned char> & r = v; struct C(){ C & operator+(ostream &, char(const&here)[N], C const &) }; template<typename T> voidfoo(T a) { a.~T; } void main() { int a; a.seek(1800, ios::end); foo(a++); if(x >= 7) throw runtime_exception(y); } class Qbla { public: fstream p; };"
