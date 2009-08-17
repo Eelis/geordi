@@ -194,6 +194,7 @@ instance Parse (Relative Substr) where
     <||> (relative -< NotEverything x)
 
 instance Parse (Relative (Ranked NamedEntity)) where parse = parse >>> relative
+instance Parse (Relative (Ranked (Either NamedEntity DeclaratorId))) where parse = parse >>> relative
 
 instance Parse (Relative (EverythingOr (Rankeds (Either NamedEntity String)))) where
   parse = (relative_everything_orA <||>) $ (parse >>>) $ proc x -> case x of
@@ -219,8 +220,7 @@ instance Parse a => Parse (Rankeds a) where
   parse = (kwd ["all"] >>> ((kwd ["except", "but"] >>> auto2 AllBut) <||> auto1 All))
     <||> (kwd ["any", "every", "each"] >>> auto1 All) <||> auto2 Rankeds <||> auto1 Sole'
 
-instance Parse InClause where
-  parse = kwd ["in"] >>> (auto1 InClause <||> (parse >>> relative >>> arr (InClause . fmap (fmap BodyOf))))
+instance Parse InClause where parse = kwd ["in"] >>> auto1 InClause
 
 instance Parse AppendPositionsClause where
   parse = auto1 AppendIn <||> auto1 NonAppendPositionsClause
@@ -243,7 +243,8 @@ instance Parse Mover where parse = liftA2 Mover parse (kwd ["to"] >>> parse)
 instance Parse Swapper where parse = liftA2 Swapper parse ((andP <||> (kwd ["with"] >>> arr (const ()))) >>> parse)
 instance Parse [EvalOpt] where parse = Parser (Terminators False []) $ \_ _ _ -> optParser
 instance Parse a => Parse (Around a) where parse = kwd ["around"] >>> auto1 Around
-instance Parse UseClause where parse = auto1 UseOptions <||> auto1 UseString
+instance Parse UsePattern where parse = auto1 UsePattern
+instance Parse UseClause where parse = auto1 UseOptions <||> (parse >>> relative >>> arr UseString)
 
 instance Parse Wrapping where
   parse = label "wrapping description" $

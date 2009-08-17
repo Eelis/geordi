@@ -44,6 +44,12 @@ data NElist a = NElist a [a] deriving Eq
 instance Functor NElist where fmap f (NElist x l) = NElist (f x) (f . l)
 instance Convert (NElist a) [a] where convert (NElist x l) = x : l
 
+ne_one :: a -> NElist a
+ne_one x = NElist x []
+
+ne_mapM :: Monad m => (a -> m b) -> NElist a -> m (NElist b)
+ne_mapM f (NElist x l) = liftM2 NElist (f x) (mapM f l)
+
 maybe_ne :: [a] -> Maybe (NElist a)
 maybe_ne [] = Nothing
 maybe_ne (h:t) = Just $ NElist h t

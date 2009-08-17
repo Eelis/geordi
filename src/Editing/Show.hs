@@ -102,7 +102,8 @@ instance Show Eraser where
   show (EraseOptions o) = show_long_opts o
   show (EraseAround w l) = show w ++ " " ++ show l
 
-instance Show UseClause where show (UseString s) = s; show (UseOptions o) = show_long_opts o
+instance Show UsePattern where show (UsePattern p) = p
+instance Show UseClause where show (UseString s) = show s; show (UseOptions o) = show_long_opts o
 instance Show Mover where show (Mover x y) = show x ++ " to " ++ show y
 instance Show Swapper where show (Swapper x y) = show x ++ " and " ++ show y
 

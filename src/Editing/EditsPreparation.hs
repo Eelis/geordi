@@ -13,7 +13,7 @@ import Control.Monad (liftM2)
 import Cxx.Operations (findDeclaration, findBody)
 import Control.Monad.Error ()
 
-import Util ((.), Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, strip, NElist(..), nth_ne, once_twice_thrice)
+import Util ((.), Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, strip, NElist(..), nth_ne, ne_one, ne_mapM, once_twice_thrice)
 
 import Prelude hiding (last, (.), all, (!!))
 import Editing.Basics
@@ -44,9 +44,10 @@ instance Convert (Range Char) ARange where convert = anchor_range
 
 instance Convert Anchor (Pos Char) where convert = anchor_pos
 
-instance FindInStr (Around Substrs) [ARange] where findInStr s r (Around x) = concat . findInStr s r x
+instance FindInStr (Around Substrs) [ARange] where
+  findInStr s r (Around x) = concat . concat . (unne .) . findInStr s r x
 
-instance FindInStr (Ranked (Either NamedEntity String)) ARange where
+instance FindInStr (Ranked a) ARange => FindInStr (Ranked (Either NamedEntity a)) ARange where
   findInStr s r (Ranked o (Left x)) = findInStr s r $ Ranked o x
   findInStr s r (Ranked o (Right x)) = findInStr s r $ Ranked o x
   findInStr s r (Sole (Left x)) = findInStr s r $ Sole x
@@ -65,10 +66,10 @@ instance FindInStr (Ranked String) ARange where
 
 instance Convert ARange (Range Char) where convert = unanchor_range
 
-instance (Offsettable b, Invertible a, FindInStr a b, Convert (Range Char) b) => FindInStr (Relative a) b where
+instance (Offsettable b, Invertible a, FindInStr a b, Convert (Range Char) b) => FindInStr (Relative a) (NElist b) where
   findInStr s r@(Range a b) (Relative o ba w) = do
     Range st si <- unanchor_range . findInStr s r w
-    case ba of
+    ne_one . case ba of
       Before -> findInStr s (Range a st) (invert o)
       After -> offset (st + si) . findInStr s (Range (a + st + si) (b - st - si)) o
   findInStr s r (Between o (Betw b e)) = do
@@ -76,16 +77,15 @@ instance (Offsettable b, Invertible a, FindInStr a b, Convert (Range Char) b) =>
     y <- convert . findInStr s r e
     let (p, q) = if either start id x <= either start id (y :: Either (Range Char) (Pos Char)) then (x, y) else (y, x)
     let p' = either end id p; q' = either start id q
-    offset p' . findInStr s (Range (start r + p') (q' - p')) o
-  findInStr s r (In o incl) = do
-    ar <- findInStr s r incl
-    let p = convert $ ar Before; q = convert $ ar After
-    offset p . findInStr s (Range (start r + p) (q - p)) o
+    ne_one . offset p' . findInStr s (Range (start r + p') (q' - p')) o
+  findInStr s r (In o incl) = findInStr s r incl >>= ne_mapM (\a -> do
+    let p = convert $ a Before; q = convert $ a After
+    offset p . findInStr s (Range (start r + p) (q - p)) o)
   findInStr s r@(Range st si) (FromTill b e) = do
     x <- convert . findInStr s r b
     let p = either start id (x :: Either (Range Char) (Pos Char))
     y <- convert . findInStr s (Range (st+p) (si-p)) e
-    return $ convert (Range p (either end id (y :: Either (Range Char) (Pos Char))) :: Range Char)
+    return $ ne_one $ convert (Range p (either end id (y :: Either (Range Char) (Pos Char))) :: Range Char)
 
 everything_arange :: String -> ARange
 everything_arange _ Before = Anchor Before 0
@@ -99,7 +99,7 @@ instance FindInStr (EverythingOr (Rankeds (Either NamedEntity String))) [ARange]
   findInStr s r Everything = return [everything_arange $ selectRange r s]
   findInStr s r (NotEverything x) = findInStr s r x
 
-instance FindInStr (Rankeds (Either NamedEntity String )) [ARange] where
+instance FindInStr (Rankeds (Either NamedEntity String)) [ARange] where
   findInStr s r (All (Right x)) = findInStr s r (All x)
   findInStr s r (All (Left x)) = findInStr s r (All x)
   findInStr s r (Sole' (Right x)) = findInStr s r (Sole' x)
@@ -150,15 +150,22 @@ instance FindInStr (Ranked NamedEntity) ARange where
       Nothing -> fail $ "Could not find a " ++ show o ++ " " ++ Editing.Show.show decl ++ "."
       Just r -> return r
 
-instance FindInStr InClause ARange where findInStr s r (InClause x) = findInStr s r x
+instance FindInStr (Ranked Cxx.Basics.DeclaratorId) ARange where findInStr s r x = findInStr s r (fmap BodyOf x)
+
+instance FindInStr InClause (NElist ARange) where
+  findInStr s r (InClause x) = do
+    l <- concat . (unne . ) . findInStr s r x
+    case l of
+      [] -> fail "Empty 'in'-clause."
+      h:t -> return $ NElist h t
 
 instance FindInStr AppendPositionsClause [Anchor] where
   findInStr s r (NonAppendPositionsClause pc) = findInStr s r pc
-  findInStr s r (AppendIn incl) = fmap (\ar -> [ar After]) $ findInStr s r incl
+  findInStr s r (AppendIn incl) = (($ After) .) . unne . findInStr s r incl
 
 instance FindInStr PrependPositionsClause [Anchor] where
   findInStr s r (NonPrependPositionsClause pc) = findInStr s r pc
-  findInStr s r (PrependIn incl) = fmap (\ar -> [ar Before]) $ findInStr s r incl
+  findInStr s r (PrependIn incl) = (($ Before) .) . unne . findInStr s r incl
 
 instance FindInStr (Rankeds NamedEntity) [ARange] where
   findInStr s r (All decl) = unne . findInStr s r decl
@@ -173,22 +180,22 @@ instance (FindInStr x a, FindInStr y a) => FindInStr (Either x y) a where
   findInStr s r = either (findInStr s r) (findInStr s r)
 
 instance FindInStr PositionsClause [Anchor] where
-  findInStr s r (PositionsClause Before (AndList o)) = (($ Before) .) . concat . sequence (findInStr s r . unne o)
-  findInStr s r (PositionsClause After (AndList o)) = (($ After) .) . concat . sequence (findInStr s r . unne o)
+  findInStr s r (PositionsClause Before (AndList o)) = (($ Before) .) . concat . concat . (unne .) . sequence (findInStr s r . unne o)
+  findInStr s r (PositionsClause After (AndList o)) = (($ After) .) . concat . concat . (unne .) . sequence (findInStr s r . unne o)
 
 instance FindInStr a b => FindInStr (AndList a) [b] where
   findInStr s r (AndList l) = sequence (findInStr s r . unne l)
 
 instance FindInStr Replacer [Edit] where
-  findInStr s u (Replacer p r) = (flip RangeReplaceEdit r .) . concat . ((unanchor_range .) .) . findInStr s u p
+  findInStr s u (Replacer p r) = (flip RangeReplaceEdit r .) . concat . ((unanchor_range .) . concat . unne .) . findInStr s u p
   findInStr _ _ (ReplaceOptions o o') = return [RemoveOptions o, AddOptions o']
 
 instance FindInStr Changer [Edit] where
-  findInStr s u (Changer p r) = (flip RangeReplaceEdit r .) . concat . ((unanchor_range .) .) . findInStr s u p
+  findInStr s u (Changer p r) = (flip RangeReplaceEdit r .) . concat . ((unanchor_range .) . concat . unne .) . findInStr s u p
   findInStr _ _ (ChangeOptions o o') = return [RemoveOptions o, AddOptions o']
 
 instance FindInStr Eraser [Edit] where
-  findInStr s r (EraseText (AndList l)) = ((flip RangeReplaceEdit "" . unanchor_range) .) . concat . sequence (findInStr s r . unne l)
+  findInStr s r (EraseText (AndList l)) = ((flip RangeReplaceEdit "" . unanchor_range) .) . concat . concat . (unne . ) . sequence (findInStr s r . unne l)
   findInStr _ _ (EraseOptions o) = return [RemoveOptions o]
   findInStr s r (EraseAround (Wrapping x y) (Around z)) = liftM2 (++) (f Before) (f After)
     where
@@ -204,32 +211,48 @@ instance FindInStr Bound (Either ARange Anchor) where
 instance FindInStr RelativeBound (Either ARange Anchor) where
   findInStr _ _ Front = return $ Right $ Anchor Before 0
   findInStr _ r Back = return $ Right $ Anchor After $ size r
-  findInStr s r (RelativeBound mba p) = maybe Left (\ba -> Right . ($ ba)) mba . findInStr s r p
+  findInStr s r (RelativeBound mba p) = do
+    NElist x rest <- findInStr s r p
+    if null rest then return $ maybe Left (\ba -> Right . ($ ba)) mba $ x
+     else fail "Relative bound must be singular."
 
-instance FindInStr Mover Edit where
+-- Todo: factor out the "concat . concat . (unne . )" for Substrs.
+
+instance FindInStr Mover [Edit] where
   findInStr s u (Mover o p) = do
     a <- findInStr s u p
-    r <- unanchor_range . findInStr s u o
-    makeMoveEdit a r
+    concat . concat . (unne . ) . findInStr s u o >>= mapM (makeMoveEdit a . unanchor_range) . reverse
 
 instance FindInStr Swapper [Edit] where
   findInStr s r (Swapper x y) = do
-    a <- findInStr s r x; b <- findInStr s r y
-    return $ makeMoveEdit (b Before) (unanchor_range a) ++ makeMoveEdit (a Before) (unanchor_range b) -- By executing makeMoveEdit in the list monad, we nicely filter edits that would be considered overlapping (for example when swapping adjacent ranges).
+    NElist a arest <- findInStr s r x
+    NElist b brest <- findInStr s r y
+    if null arest && null brest
+      then return $ makeMoveEdit (b Before) (unanchor_range a) ++ makeMoveEdit (a Before) (unanchor_range b) -- By executing makeMoveEdit in the list monad, we nicely filter edits that would be considered overlapping (for example when swapping adjacent ranges).
+      else fail "Swap operands must be singular."
 
 instance FindInStr Position Anchor where
-  findInStr s r (Position ba x) = ($ ba) . findInStr s r x
+  findInStr s r (Position ba x) = do
+    NElist y rest <- findInStr s r x
+    if null rest then return $ y ba else fail "Anchor position must be singular."
 
-instance FindInStr UseClause Edit where
-  findInStr _ _ (UseOptions o) = return $ AddOptions o
-  findInStr s r (UseString z) = do
-    if y == 0 || ops_cost owc > fromIntegral (length z) / 1.5 then fail "No match."
-      else return $ RangeReplaceEdit (Range x y) z
+instance FindInStr UsePattern (Range Char) where
+  findInStr s r (UsePattern z) = do
+    if y == 0 || ops_cost owc > fromIntegral (length z) / 1.5 then fail "No match." else return (Range x y)
    where
     text_tokens = edit_tokens Char.isAlphaNum $ selectRange r s
     pattern_tokens = edit_tokens Char.isAlphaNum z
     (x, y) = (sum $ length . take stt text_tokens, sum $ length . take siz (drop stt text_tokens))
     (owc, stt, siz) = head $ approx_match token_edit_cost pattern_tokens (replaceAllInfix pattern_tokens (replicate (length pattern_tokens) (replicate 100 'X')) text_tokens)
+
+instance Convert (Range Char) (Range Char) where convert = id
+instance Invertible UsePattern where invert = id
+
+instance FindInStr UseClause (NElist Edit) where
+  findInStr _ _ (UseOptions o) = return $ ne_one $ AddOptions o
+  findInStr s r (UseString ru) = case unrelative ru of
+    Nothing -> fail "Nonsensical use-command."
+    Just (UsePattern v) -> findInStr s r ru >>= ne_mapM (\a -> return $ RangeReplaceEdit a v)
 
 token_edit_cost :: Op String -> Cost
 token_edit_cost (SkipOp (' ':_)) = 0
@@ -253,7 +276,7 @@ token_edit_cost (ReplaceOp _ _) = 10
   -- The precise values of these costs are fine-tuned to make the tests pass, and that is their only justification. We're trying to approximate the human intuition for what substring should be replaced, as codified in the tests.
 
 instance FindInStr Command [Edit] where
-  findInStr s r (Use (AndList l)) = sequence $ findInStr s r . unne l
+  findInStr s r (Use (AndList l)) = concat . (unne .) . sequence (findInStr s r . unne l)
   findInStr s r (Append x Nothing) = return [InsertEdit (Anchor After (length $ selectRange r s)) x] -- todo: simplify
   findInStr _ _ (Prepend x Nothing) = return [InsertEdit (Anchor Before 0) x]
   findInStr s u (Append r (Just p)) = (flip InsertEdit r .) . concat . findInStr s u p
@@ -262,7 +285,7 @@ instance FindInStr Command [Edit] where
   findInStr s r (Replace (AndList l)) = concat . sequence (findInStr s r . unne l)
   findInStr s r (Change (AndList l)) = concat . sequence (findInStr s r . unne l)
   findInStr s u (Insert r p) = (flip InsertEdit r .) . concat . findInStr s u p
-  findInStr s r (Move (AndList movers)) = sequence (findInStr s r . unne movers)
+  findInStr s r (Move (AndList movers)) = concat . sequence (findInStr s r . unne movers)
   findInStr s r (Swap (AndList swappers)) = concat . sequence (findInStr s r . unne swappers)
   findInStr s u (WrapAround (Wrapping x y) z) = concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . concat . findInStr s u z
   findInStr s r (WrapIn z (Wrapping x y)) = findInStr s r $ WrapAround (Wrapping x y) $ and_one $ Around z
@@ -329,7 +352,7 @@ use_tests = do
  where
   u :: String -> String -> String -> String -> String -> IO ()
   u txt pattern match d rd = do
-    RangeReplaceEdit rng _ <- findInStr txt (Range 0 (length txt)) (UseString pattern)
+    NElist (RangeReplaceEdit rng _) [] <- findInStr txt (Range 0 (length txt)) $ UseString $ absolute $ UsePattern pattern
     test_cmp pattern match (selectRange rng txt)
     let r = replaceRange rng pattern txt
     test_cmp pattern d $ show $ Editing.Diff.diff txt r

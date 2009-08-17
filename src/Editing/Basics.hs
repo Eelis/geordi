@@ -76,7 +76,7 @@ data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative Subst
 data Relative a = Relative a BefAft (Ranked (Either NamedEntity String)) | Between a Betw | FromTill Bound RelativeBound | In a InClause
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
 data PositionsClause = PositionsClause BefAft Substrs
-data InClause = InClause (Relative (Ranked NamedEntity))
+data InClause = InClause (AndList (Relative (Ranked (Either NamedEntity DeclaratorId))))
 data AppendPositionsClause = AppendIn InClause | NonAppendPositionsClause PositionsClause
 data PrependPositionsClause = PrependIn InClause | NonPrependPositionsClause PositionsClause
 type Substr = EverythingOr (Ranked (Either NamedEntity String))
@@ -85,12 +85,13 @@ data Position = Position BefAft (Relative Substr)
 data Replacer = Replacer Substrs String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
 data Changer = Changer Substrs String | ChangeOptions [Request.EvalOpt] [Request.EvalOpt]
 data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around (Ranked (Either NamedEntity String)))
-data Mover = Mover (Relative Substr) Position
+data Mover = Mover Substrs Position
 data BefAft = Before | After deriving Eq
 data Around a = Around a
 data Betw = Betw Bound RelativeBound
 data Wrapping = Wrapping String String
-data UseClause = UseString String | UseOptions [Request.EvalOpt]
+data UsePattern = UsePattern String
+data UseClause = UseString (Relative UsePattern) | UseOptions [Request.EvalOpt]
 data Swapper = Swapper (Relative Substr) (Relative Substr)
 
 data Command
@@ -138,7 +139,7 @@ instance Functor Relative where
   fmap f (Relative x ba r) = Relative (f x) ba r
   fmap f (Between x b) = Between (f x) b
   fmap f (In x i) = In (f x) i
-  fmap f (FromTill a b) = FromTill a b
+  fmap _ (FromTill a b) = FromTill a b
 
 instance Convert (Ranked a) (Rankeds a) where
   convert (Ranked o x) = Rankeds (and_one o) x
@@ -155,6 +156,13 @@ instance Invertible (Rankeds a) where
   invert x = x
 
 -- Misc operations
+
+unrelative :: Relative a -> Maybe a
+unrelative (Relative x _ _) = Just x
+unrelative (Between x _) = Just x
+unrelative (In x _) = Just x
+unrelative _ = Nothing
+  -- Hm, this is slightly weird. You'd expect all "Relative a"s to contain an a.
 
 merge_commands :: [Command] -> [Command]
 merge_commands [] = []
