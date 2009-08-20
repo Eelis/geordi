@@ -441,7 +441,7 @@ instance Parse Expression where parse = (<?> "expression") $ simplerBinaryGroup 
 instance Parse Statement where
   parse = (<?> "statement") $ auto1 Statement_CompoundStatement <|> auto1 Statement_JumpStatement <|> auto1 Statement_SelectionStatement <|> auto1 Statement_IterationStatement <|> auto1 Statement_DeclarationStatement <|> auto1 Statement_ExpressionStatement <|> auto1 Statement_TryBlock <|> auto1 Statement_Labeled
 
-instance Parse LabelKind where parse = auto1 IdentifierLabel <|> auto2 CaseLabel <|> auto1 DefaultLabel
+instance Parse Label where parse = auto1 IdentifierLabel <|> auto2 CaseLabel <|> auto1 DefaultLabel
 instance Parse LabeledStatement where parse = auto3 LabeledStatement
 instance Parse IterationStatement where parse = auto3 WhileStatement <|> auto5 DoWhileStatement <|> auto3 ForStatement
 instance Parse ForInitStatement where parse = auto1 ForInitStatement_SimpleDeclaration <|> auto1 ForInitStatement_ExpressionStatement

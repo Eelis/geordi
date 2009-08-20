@@ -385,8 +385,8 @@ type ConstantExpression = ConditionalExpression
 -- A.5 Statements [gram.stmt]
 
 data Statement = Statement_Labeled LabeledStatement | Statement_ExpressionStatement ExpressionStatement | Statement_DeclarationStatement DeclarationStatement | Statement_CompoundStatement CompoundStatement | Statement_SelectionStatement SelectionStatement | Statement_IterationStatement IterationStatement | Statement_JumpStatement JumpStatement | Statement_TryBlock TryBlock deriving (Data, Typeable, Eq)
-data LabelKind = IdentifierLabel Identifier | CaseLabel (KwdCase, White) ConstantExpression | DefaultLabel (KwdDefault, White) deriving (Data, Typeable, Eq)
-data LabeledStatement = LabeledStatement LabelKind (ColonOp, White) Statement deriving (Data, Typeable, Eq)
+data Label = IdentifierLabel Identifier | CaseLabel (KwdCase, White) ConstantExpression | DefaultLabel (KwdDefault, White) deriving (Data, Typeable, Eq)
+data LabeledStatement = LabeledStatement Label (ColonOp, White) Statement deriving (Data, Typeable, Eq)
 data ExpressionStatement = ExpressionStatement (Maybe Expression) (SemicolonOperator, White) deriving (Data, Typeable, Eq)
 data CompoundStatement = CompoundStatement (Curlied [Statement]) deriving (Data, Typeable, Eq)
 data SelectionStatement = IfStatement (KwdIf, White) (Parenthesized Condition) Statement (Maybe ((KwdElse, White), Statement)) | SwitchStatement (KwdSwitch, White) (Parenthesized Condition) Statement deriving (Data, Typeable, Eq)

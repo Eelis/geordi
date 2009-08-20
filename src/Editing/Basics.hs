@@ -6,6 +6,7 @@ import qualified Cxx.Basics
 import qualified Request
 import qualified Data.List as List
 import qualified Data.Char as Char
+import Data.Data (DataType, Constr)
 
 import Cxx.Basics (DeclaratorId)
 
@@ -66,7 +67,7 @@ makeMoveEdit (Anchor ba p) r@(Range st si)
 
 -- Command grammar
 
-data NamedEntity = DeclarationOf DeclaratorId | BodyOf DeclaratorId
+data NamedEntity = DeclarationOf DeclaratorId | BodyOf DeclaratorId | Production (Either DataType Constr)
   -- Todo: "Nth parameter of", "base of", etc.
 data EverythingOr a = Everything | NotEverything a
 data Ranked a = Ranked Ordinal a | Sole a

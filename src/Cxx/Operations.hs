@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances #-}
 
-module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, findDeclaration, findBody, is_pointer_or_reference) where
+module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, findDeclaration, findBody, findProduction, is_pointer_or_reference) where
 
 import qualified Cxx.Show
 import qualified Data.List as List
@@ -11,7 +11,7 @@ import Cxx.Basics
 import Editing.Basics (Range(..))
 import Control.Monad (foldM, MonadPlus(..))
 import Control.Arrow (second)
-import Data.Generics (cast, gmapT, everywhere, somewhere, Data, Typeable, gfoldl)
+import Data.Generics (cast, gmapT, everywhere, somewhere, Data, Typeable, gfoldl, dataTypeOf, toConstr, Constr, DataType, dataTypeName, constrType)
 
 import Prelude hiding ((.))
 
@@ -240,21 +240,37 @@ findBody' did i x
       (length $ Cxx.Show.show_simple b)]
   | otherwise = gfoldl_with_lengths i (findBody' did) x
 
+findProduction :: Data d => Either DataType Constr -> d -> [Range Char]
+findProduction p = findProduction' p 0
+
+instance Eq DataType where t == t' = dataTypeName t == dataTypeName t'
+
+constr_eq :: Constr -> Constr -> Bool
+  -- The existing Eq instance only compares constructor indices for algebraic data types, so for instance the first constructors of two unrelated algebraic data types are considered equal.
+constr_eq c d = c == d && constrType c == constrType d
+
+findProduction' :: Data d => Either DataType Constr -> Int -> d -> [Range Char]
+findProduction' p i x =
+  (if case p of
+      Left t -> dataTypeOf x == t
+      Right c -> constr_eq (toConstr x) c
+    then [Range i $ length $ Cxx.Show.show_simple x]
+    else []) ++ gfoldl_with_lengths i (findProduction' p) x
+
 findDeclaration :: Data a => DeclaratorId -> a -> [Range Char]
-findDeclaration did = findDeclaration' did 0
+findDeclaration did = List.nub . findDeclaration' did 0
+  -- Todo: This nub is not nice. There must be a better solution.
 
 findDeclaration' :: Data d => DeclaratorId -> Int -> d -> [Range Char]
   -- We can't move this helper into findDeclaration, probably because of the monomorphism restriction.
-findDeclaration' did i x
-  | Just s <- cast x, convert (s :: Declaration) == Just did = found
-  | Just s <- cast x, convert (s :: BlockDeclaration) == Just did = found
-  | Just s <- cast x, convert (s :: TemplateDeclaration) == Just did = found
-  | Just s <- cast x, convert (s :: ExplicitInstantiation) == Just did = found
-  | Just s <- cast x, convert (s :: MemberDeclaration) == Just did = found
-  | Just s <- cast x, convert (s :: UsingDeclaration) == Just did = found
-  | otherwise = gfoldl_with_lengths i (findDeclaration' did) x
-  where found = [Range i $ length $ Cxx.Show.show_simple x]
-
+findDeclaration' did i x = (if case () of { ()
+  | Just s <- cast x -> convert (s :: Declaration) == Just did
+  | Just s <- cast x -> convert (s :: BlockDeclaration) == Just did
+  | Just s <- cast x -> convert (s :: TemplateDeclaration) == Just did
+  | Just s <- cast x -> convert (s :: ExplicitInstantiation) == Just did
+  | Just s <- cast x -> convert (s :: MemberDeclaration) == Just did
+  | Just s <- cast x -> convert (s :: UsingDeclaration) == Just did
+  | otherwise -> False } then [Range i $ length $ Cxx.Show.show_simple x] else []) ++ gfoldl_with_lengths i (findDeclaration' did) x
   {- With the above, the following cannot yet be found:
       - class declarations that have declarators
       - individual enumerators

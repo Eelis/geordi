@@ -5,12 +5,13 @@ module Editing.EditsPreparation (prepareEdits, use_tests) where
 import qualified Cxx.Basics
 import qualified Cxx.Parse
 import qualified Editing.Diff
+import qualified Editing.Show
 import qualified Data.List as List
 import qualified Data.Char as Char
 import qualified Editing.Show
 import Data.Maybe (mapMaybe)
 import Control.Monad (liftM2)
-import Cxx.Operations (findDeclaration, findBody)
+import Cxx.Operations (findDeclaration, findBody, findProduction)
 import Control.Monad.Error ()
 
 import Util ((.), Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, strip, NElist(..), nth_ne, ne_one, ne_mapM, once_twice_thrice)
@@ -126,6 +127,9 @@ instance FindInStr NamedEntity (NElist ARange) where
       BodyOf did -> case mapMaybe f $ findBody did r of
         [] -> fail $ "Could not find body of " ++ strip (show did) ++ "."
         (x:y) -> return $ fmap convert $ NElist x y
+      Production p -> case mapMaybe f $ findProduction p r of
+        [] -> fail $ "Could not find " ++ Editing.Show.show (Production p) ++ "."
+        (x:y) -> return $ fmap convert $ NElist x y
     where
       f :: Range Char -> Maybe (Range Char)
       f (Range x y)
@@ -135,6 +139,7 @@ instance FindInStr NamedEntity (NElist ARange) where
 show_plural :: NamedEntity -> String
 show_plural (DeclarationOf did) = "declarations of " ++ strip (show did)
 show_plural (BodyOf did) = "bodies of " ++ strip (show did)
+show_plural p@(Production _) = Editing.Show.show p ++ " productions"
 
 instance FindInStr (Ranked NamedEntity) ARange where
   findInStr s r (Sole decl) = do

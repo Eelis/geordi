@@ -5,6 +5,7 @@ module Editing.Show (showEdit, show) where
 import Cxx.Show ()
 import qualified Data.List as List
 import Data.Char as Char
+import Data.Generics (dataTypeName)
 import Util (unne, isVowel, show_long_opts, capitalize, commas_and, Ordinal, strip, none, isIdChar)
 import Cxx.Basics (DeclaratorId)
 import Editing.Basics
@@ -108,9 +109,19 @@ instance Show UseClause where show (UseString s) = show s; show (UseOptions o) =
 instance Show Mover where show (Mover x y) = show x ++ " to " ++ show y
 instance Show Swapper where show (Swapper x y) = show x ++ " and " ++ show y
 
+camel_components :: String -> [String]
+camel_components s = case s of
+  (x:xs) -> let (y, z) = span isLower xs in [toLower x : y] ++ camel_components z
+  _ -> []
+
+camel_to_prod :: String -> String
+camel_to_prod = concat . List.intersperse "-" . camel_components
+
 instance Show NamedEntity where
   show (DeclarationOf d) = "declaration of " ++ strip (show d)
   show (BodyOf d) = "body of " ++ strip (show d)
+  show (Production (Left dt)) = camel_to_prod $ reverse $ takeWhile (/= '.') $ reverse $ dataTypeName dt
+  show (Production (Right c)) = camel_to_prod $ Prelude.show c
 
 instance Show String where
   show " " = "space"

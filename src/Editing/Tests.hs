@@ -202,6 +202,7 @@ basic_tests = do
   ct "namespace N { int x; } int x; void f() { int x; }" "use int y; in N and f" $ Right "namespace N { int y; } int x; void f() { int y; }"
   ct "void f() {} void f(int) {} void f(double) {} void f(char) {}" "add int x; in first f and in third and fourth body of f" $ Right "void f() {int x;} void f(int) {} void f(double) {int x;} void f(char) {int x;}"
   ct "namespace A { int x; namespace B { int x; namespace C { int x; namespace D { int x; } } } }" "erase declaration of x in D in C in B in A" $ Right "namespace A { int x; namespace B { int x; namespace C { int x; namespace D { } } } }"
+  ct "struct X { X(int); };" "erase second declaration of X" $ Right "struct X { };"
   -- Edit errors:
   t "move second 2 to x" $ Left "Unexpected `x` after `second 2 to `. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
   t "replace alligators with chickens" $ Left "String `alligators` does not occur."
@@ -217,10 +218,10 @@ basic_tests = do
   t "isnert 3 before 4" $ Left "Unexpected `isnert` at start. Expected edit command."
   t "insert " $ Left "Unexpected end of command. Expected option, verbatim string, or wrapping description."
   t "insert kung fu" $ Left "Unexpected end of command. Expected \" in\", \" at\", \" before\", \" after\", or \" and\"."
-  t "move " $ Left "Unexpected end of command. Expected \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", or verbatim string."
+  t "move " $ Left "Unexpected end of command. Expected \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", production-name, or verbatim string."
   t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" in\", \" between\", \" and\", or \" to\"."
   t "move x to "$ Left "Unexpected end of command. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
-  t "erase all 2 and " $ Left "Unexpected end of command. Expected verbatim string, \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", wrapping description, option, edit command, or \"show\"."
+  t "erase all 2 and " $ Left "Unexpected end of command. Expected verbatim string, \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", production-name, wrapping description, option, edit command, or \"show\"."
   putStrLn "All basics tests passed."
  where
   t :: String -> Either String String -> IO ()
