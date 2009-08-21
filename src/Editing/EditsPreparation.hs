@@ -83,7 +83,7 @@ instance (FindInStr (Rankeds a) [ARange], FindInStr (Ranked a) ARange) =>
   findInStr s r (All (Right x)) = findInStr s r (All x)
   findInStr s r (All (Left x)) = findInStr s r (All x)
   findInStr s r (Sole' (Right x)) = findInStr s r (Sole' x)
-  findInStr s r (Sole' (Left x)) = unne . findInStr s r x
+  findInStr s r (Sole' (Left x)) = findInStr s r (Sole' x)
   findInStr x u (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x u (Ranked r s)) . unne rs
   findInStr s r (AllBut a (Right x)) = findInStr s r (AllBut a x)
   findInStr s r (AllBut a (Left x)) = findInStr s r (AllBut a x)
@@ -139,7 +139,7 @@ instance FindInStr NamedEntity (NElist ARange) where
 show_plural :: NamedEntity -> String
 show_plural (DeclarationOf did) = "declarations of " ++ strip (show did)
 show_plural (BodyOf did) = "bodies of " ++ strip (show did)
-show_plural p@(Production _) = Editing.Show.show p ++ " productions"
+show_plural p@(Production _) = Editing.Show.show p ++ "s"
 
 instance FindInStr (Ranked NamedEntity) ARange where
   findInStr s r (Sole decl) = do
