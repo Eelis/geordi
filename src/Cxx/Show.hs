@@ -215,7 +215,7 @@ instance Show Literal where
   show (Literal_CharacterLiteral l w) = show l ++ show w
   show (Literal_StringLiteral l) = show l
   show (Literal_FloatingLiteral l w) = show l ++ show w; show (Literal_IntegerLiteral l w) = show l ++ show w
-  show (Literal_BooleanLiteral b w) = (if b then "true" else "false") ++ show w
+  show (BooleanLiteral b w) = (if b then "true" else "false") ++ show w
   show (PointerLiteral w) = "nullptr" ++ show w
 instance Show CharacterLiteral where show (CharacterLiteral k s) = show k ++ '\'' : s ++ "'"
 instance Show SingleStringLiteral where show (SingleStringLiteral k s) = show k ++ '"' : s ++ "\""

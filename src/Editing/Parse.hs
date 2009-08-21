@@ -284,8 +284,8 @@ instance Parse DataType where
 instance Parse Constr where
   parse = select $ map (\c -> ([Editing.Show.show $ Production $ Right c], c))
 #define P(n) to_constr Cxx.Basics.n
-    [ P(IfStatement), P(SwitchStatement), P(WhileStatement), P(DoWhileStatement), P(ForStatement)
-    , P(BreakStatement), P(ContinueStatement), P(ReturnStatement), P(GotoStatement) ]
+    [ P(BooleanLiteral), P(PointerLiteral), P(IfStatement), P(SwitchStatement), P(WhileStatement), P(DoWhileStatement)
+    , P(ForStatement), P(BreakStatement), P(ContinueStatement), P(ReturnStatement), P(GotoStatement) ]
 #undef P
 
 -- Todo: Handle "-list" productions which are not reflected in our AST properly.

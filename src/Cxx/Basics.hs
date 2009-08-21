@@ -322,7 +322,7 @@ newtype TemplateName = TemplateName Identifier deriving (Data, Typeable, Eq)
 -- A.2 Lexical conventions [gram.lex]
 
 data Identifier = Identifier String White deriving (Data, Typeable, Eq)
-data Literal = Literal_IntegerLiteral IntegerLiteral White | Literal_CharacterLiteral CharacterLiteral White | Literal_FloatingLiteral FloatingLiteral White | Literal_StringLiteral StringLiteral | Literal_BooleanLiteral Bool White | PointerLiteral White deriving (Data, Typeable, Eq)
+data Literal = Literal_IntegerLiteral IntegerLiteral White | Literal_CharacterLiteral CharacterLiteral White | Literal_FloatingLiteral FloatingLiteral White | Literal_StringLiteral StringLiteral | BooleanLiteral Bool White | PointerLiteral White deriving (Data, Typeable, Eq)
 data IntegerLiteral = IntegerLiteral String deriving (Data, Typeable, Eq)
 data CharacterLiteralKind = CharacterLiteral_Plain | CharacterLiteralKind_u | CharacterLiteralKind_U | CharacterLiteralKind_L deriving (Data, Typeable, Eq)
 data CharacterLiteral = CharacterLiteral CharacterLiteralKind String deriving (Data, Typeable, Eq)

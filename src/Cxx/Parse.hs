@@ -358,7 +358,7 @@ instance Parse StringLiteral where parse = StringLiteral . many1' (auto2 (,)) <?
 instance Parse CharacterLiteralKind where parse = (symbol 'u' >> return CharacterLiteralKind_u) <|> (symbol 'U' >> return CharacterLiteralKind_U) <|> (symbol 'L' >> return CharacterLiteralKind_L) <|> return CharacterLiteral_Plain
 instance Parse CharacterLiteral where parse = liftM2 CharacterLiteral parse (textLit '\'')
 instance Parse Literal where
-  parse = (<?> "literal") $ auto2 Literal_CharacterLiteral <|> auto1 Literal_StringLiteral <|> auto2 Literal_FloatingLiteral <|> auto2 Literal_IntegerLiteral <|> liftM2 Literal_BooleanLiteral ((kwd "true" >> return True) <|> (kwd "false" >> return False)) parse <|> (kwd "nullptr" >> PointerLiteral . parse)
+  parse = (<?> "literal") $ auto2 Literal_CharacterLiteral <|> auto1 Literal_StringLiteral <|> auto2 Literal_FloatingLiteral <|> auto2 Literal_IntegerLiteral <|> BooleanLiteral True . kwd "true" <|> BooleanLiteral False . kwd "false" <|> PointerLiteral . kwd "nullptr"
 
 -- A.3 Basic concepts [gram.basic]
 
