@@ -245,8 +245,7 @@ instance Parse DataType where
     , P(SelectionStatement), P(Condition), P(IterationStatement), P(ForInitStatement), P(JumpStatement), P(DeclarationStatement)
 
     -- A.6 Declarations [gram.dcl]
-      -- We deliberately skip "declaration" here because there are possible complications with the existing "declaration of" clause.
-    , P(BlockDeclaration), P(AliasDeclaration), P(SimpleDeclaration), P(StaticAssertDeclaration)
+    , P(Declaration), P(BlockDeclaration), P(AliasDeclaration), P(SimpleDeclaration), P(StaticAssertDeclaration)
     , P(DeclSpecifier), P(StorageClassSpecifier), P(FunctionSpecifier), P(TypeSpecifier), P(SimpleTypeSpecifier)
     , P(TypeName), P(ElaboratedTypeSpecifier), P(EnumSpecifier), P(EnumHead), P(EnumKey), P(EnumeratorDefinition)
     , P(Enumerator), P(NamespaceDefinition), P(UsingDeclaration), P(UsingDirective), P(AsmDefinition), P(LinkageSpecification)
