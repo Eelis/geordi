@@ -6,7 +6,6 @@ module Editing.Parse (commandsP) where
 import qualified Cxx.Parse
 import qualified Cxx.Basics
 import qualified Parsers as P
-import qualified Editing.Show
 import Control.Monad (liftM2)
 import Control.Monad.Error ()
 import Control.Category (Category, (.), id)
@@ -196,10 +195,10 @@ instance Parse (Relative Substr) where
       returnA -< Between Everything $ Betw (Bound (Just Before) $ NotEverything x) u
     <||> (relative -< NotEverything x)
 
-instance Parse (Relative (Ranked NamedEntity)) where parse = parse >>> relative
-instance Parse (Relative (Rankeds (Either NamedEntity DeclaratorId))) where parse = parse >>> relative
+instance Parse (Relative (Ranked Cxx.Basics.Findable)) where parse = parse >>> relative
+instance Parse (Relative (Rankeds (Either Cxx.Basics.Findable DeclaratorId))) where parse = parse >>> relative
 
-instance Parse (Relative (EverythingOr (Rankeds (Either NamedEntity String)))) where
+instance Parse (Relative (EverythingOr (Rankeds (Either Cxx.Basics.Findable String)))) where
   parse = (relative_everything_orA <||>) $ (parse >>>) $ proc x -> case x of
     Rankeds (AndList (NElist r [])) s -> do
         u <- kwd till >>> parse -< ()
@@ -211,18 +210,25 @@ instance Parse (Relative (EverythingOr (Rankeds (Either NamedEntity String)))) w
       <||> (relative -< NotEverything x)
     _ -> (relative -< NotEverything x)
 
-instance Parse NamedEntity where
+with_plurals :: [String] -> [String]
+with_plurals l = map (++"s") l ++ l
+
+instance Parse Cxx.Basics.Findable where
   parse =
-    ((label "\"declaration\"" $ kwd ["declarations", "declaration"]) >>> kwd ["of"] >>> auto1 DeclarationOf) <||>
-    ((label "\"body\"" $ kwd ["bodies", "body"]) >>> kwd ["of"] >>> auto1 BodyOf) <||>
-    (label "production-name" $ auto1 Production)
+    ((label "\"declaration\"" $ kwd ["declarations", "declaration"]) >>> kwd ["of"] >>> auto1 Cxx.Basics.DeclarationOf) <||>
+    ((label "\"body\"" $ kwd ["bodies", "body"]) >>> kwd ["of"] >>> auto1 Cxx.Basics.BodyOf) <||>
+    label "production-name" (
+      auto1 Cxx.Basics.FindableDataType <||>
+      auto1 Cxx.Basics.FindableConstr <||>
+      (kwd (with_plurals ["constructor", "ctor"]) >>> arr (const Cxx.Basics.Constructor)) <||>
+      (kwd (with_plurals ["destructor", "dtor"]) >>> arr (const Cxx.Basics.Destructor)))
 
 class Constructor a where to_constr :: a -> Constr
 instance Data a => Constructor a where to_constr x = toConstr x
 instance Constructor b => Constructor (a -> b) where to_constr f = to_constr $ f undefined
 
 instance Parse DataType where
-  parse = select $ map (\t -> ([Editing.Show.show $ Production $ Left t], t))
+  parse = select $ map (\t -> (with_plurals [show $ Cxx.Basics.FindableDataType t], t))
 #define P(n) dataTypeOf (undefined :: Cxx.Basics.n)
     -- A.1 Keywords [gram.key]
     [ P(TypedefName), P(NamespaceName), P(OriginalNamespaceName), P(NamespaceAlias)
@@ -281,7 +287,7 @@ instance Parse DataType where
 #undef P
 
 instance Parse Constr where
-  parse = select $ map (\c -> ([Editing.Show.show $ Production $ Right c], c))
+  parse = select $ map (\c -> (with_plurals [show $ Cxx.Basics.FindableConstr c], c))
 #define P(n) to_constr Cxx.Basics.n
     [ P(BooleanLiteral), P(PointerLiteral), P(IfStatement), P(SwitchStatement), P(WhileStatement), P(DoWhileStatement)
     , P(ForStatement), P(BreakStatement), P(ContinueStatement), P(ReturnStatement), P(GotoStatement) ]

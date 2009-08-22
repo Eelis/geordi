@@ -51,7 +51,7 @@ describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
     sr = selectRange r t
     sole = NotEverything $ Sole' $ Right sr'
     rel ba = Relative sole ba $ Sole $ Right $ toks_text $ inorder_context $ invert ba
-    describe_range :: Relative (EverythingOr (Rankeds (Either NamedEntity String)))
+    describe_range :: Relative (EverythingOr (Rankeds (Either Cxx.Basics.Findable String)))
     describe_range
       | source_elem ["{", "(", "friend"] || (toks_len sr <= 4 && alpha After) = rel Before
       | source_elem ["}", ")", ";"] || (toks_len sr <= 4 && alpha Before) = rel After

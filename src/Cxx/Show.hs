@@ -1,11 +1,13 @@
 {-# LANGUAGE Rank2Types, FlexibleInstances, UndecidableInstances, RelaxedPolyRec, PatternGuards, OverlappingInstances #-}
 {-# OPTIONS -cpp #-}
 
-module Cxx.Show (pretty_with_precedence, show_simple, show_pretty, Highlighter, Highlightable(..), noHighlighting) where
+module Cxx.Show (pretty_with_precedence, show_simple, show_plural, show_pretty, Highlighter, Highlightable(..), noHighlighting) where
 
-import Util ((.), unne)
+import qualified Data.List as List
+import qualified Data.Char as Char
+import Util ((.), unne, strip)
 import Control.Applicative (Applicative(..))
-import Data.Generics (cast, Data, gmapQr, ext1Q)
+import Data.Generics (cast, Data, gmapQr, ext1Q, dataTypeName)
 
 import Cxx.Basics
 import Prelude hiding ((.))
@@ -37,6 +39,30 @@ data PrettyOptions = PrettyOptions
   { extra_parentheses :: ExtraParenOpts
   , highlighter :: Highlighter
   }
+
+camel_components :: String -> [String]
+camel_components s = case s of
+  (x:xs) -> let (y, z) = span Char.isLower xs in [Char.toLower x : y] ++ camel_components z
+  _ -> []
+
+camel_to_prod :: String -> String
+camel_to_prod = concat . List.intersperse "-" . camel_components
+
+instance Show Findable where
+  show (DeclarationOf d) = "free declaration of " ++ strip (show d)
+  show (BodyOf d) = "body of " ++ strip (show d)
+  show (FindableDataType dt) = camel_to_prod $ reverse $ takeWhile (/= '.') $ reverse $ dataTypeName dt
+  show (FindableConstr c) = camel_to_prod $ show c
+  show Constructor = "free constructor"
+  show Destructor = "free destructor"
+
+show_plural :: Findable -> String
+show_plural (DeclarationOf did) = "free declarations of " ++ strip (show did)
+show_plural (BodyOf did) = "bodies of " ++ strip (show did)
+show_plural (FindableDataType d) = show d ++ "s"
+show_plural (FindableConstr c) = show c ++ "s"
+show_plural Constructor = "free constructors"
+show_plural Destructor = "free destructors"
 
 -- SingleTokenType instances.
 

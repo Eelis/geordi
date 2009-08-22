@@ -6,9 +6,8 @@ import qualified Cxx.Basics
 import qualified Request
 import qualified Data.List as List
 import qualified Data.Char as Char
-import Data.Data (DataType, Constr)
 
-import Cxx.Basics (DeclaratorId)
+import Cxx.Basics (DeclaratorId, Findable)
 
 import Data.Monoid (Monoid(..))
 import Util (NElist(..), unne, Convert(..), Invertible(..), Ordinal(..), (.), findMaybe, take_atleast, isIdChar)
@@ -42,6 +41,9 @@ selectRange (Range st si) = take si . drop st
 replaceRange :: Range a -> [a] -> [a] -> [a]
 replaceRange (Range p l) r s = take p s ++ r ++ drop (p + l) s
 
+offsetRange :: Int -> Range a -> Range a
+offsetRange i (Range st si) = Range (st + i) si
+
 find_occs :: Eq a => [a] -> [a] -> [Pos a]
 find_occs x = map fst . filter (List.isPrefixOf x . snd) . zip [0..] . List.tails
 
@@ -67,25 +69,23 @@ makeMoveEdit (Anchor ba p) r@(Range st si)
 
 -- Command grammar
 
-data NamedEntity = DeclarationOf DeclaratorId | BodyOf DeclaratorId | Production (Either DataType Constr)
-  -- Todo: "Nth parameter of", "base of", etc.
 data EverythingOr a = Everything | NotEverything a
 data Ranked a = Ranked Ordinal a | Sole a
 data Rankeds a = Rankeds (AndList Ordinal) a | Sole' a | All a | AllBut (AndList Ordinal) a
 data Bound = Bound (Maybe BefAft) Substr
 data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative Substr)
-data Relative a = Relative a BefAft (Ranked (Either NamedEntity String)) | Between a Betw | FromTill Bound RelativeBound | In a InClause
+data Relative a = Relative a BefAft (Ranked (Either Findable String)) | Between a Betw | FromTill Bound RelativeBound | In a InClause
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
 data PositionsClause = PositionsClause BefAft Substrs
-data InClause = InClause (AndList (Relative (Rankeds (Either NamedEntity DeclaratorId))))
+data InClause = InClause (AndList (Relative (Rankeds (Either Findable DeclaratorId))))
 data AppendPositionsClause = AppendIn InClause | NonAppendPositionsClause PositionsClause
 data PrependPositionsClause = PrependIn InClause | NonPrependPositionsClause PositionsClause
-type Substr = EverythingOr (Ranked (Either NamedEntity String))
-newtype Substrs = Substrs (AndList (Relative (EverythingOr (Rankeds (Either NamedEntity String)))))
+type Substr = EverythingOr (Ranked (Either Findable String))
+newtype Substrs = Substrs (AndList (Relative (EverythingOr (Rankeds (Either Findable String)))))
 data Position = Position BefAft (Relative Substr)
 data Replacer = Replacer Substrs String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
 data Changer = Changer Substrs String | ChangeOptions [Request.EvalOpt] [Request.EvalOpt]
-data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around (Ranked (Either NamedEntity String)))
+data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around (Ranked (Either Findable String)))
 data Mover = Mover Substrs Position
 data BefAft = Before | After deriving Eq
 data Around a = Around a

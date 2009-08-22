@@ -4,6 +4,8 @@ module Editing.EditsPreparation (prepareEdits, use_tests) where
 
 import qualified Cxx.Basics
 import qualified Cxx.Parse
+import qualified Cxx.Show
+import qualified Cxx.Operations
 import qualified Editing.Diff
 import qualified Editing.Show
 import qualified Data.List as List
@@ -11,10 +13,9 @@ import qualified Data.Char as Char
 import qualified Editing.Show
 import Data.Maybe (mapMaybe)
 import Control.Monad (liftM2)
-import Cxx.Operations (findDeclaration, findBody, findProduction)
 import Control.Monad.Error ()
 
-import Util ((.), Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, strip, NElist(..), nth_ne, ne_one, ne_mapM, once_twice_thrice)
+import Util ((.), Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, NElist(..), nth_ne, ne_one, ne_mapM, once_twice_thrice)
 
 import Prelude hiding (last, (.), all, (!!))
 import Editing.Basics
@@ -72,14 +73,14 @@ instance FindInStr (Rankeds String) [ARange] where
   findInStr x u (AllBut (AndList rs) s) =
     return $ (anchor_range . flip Range (length s)) . erase_indexed (ordinal_carrier . unne rs) (find_occs s $ selectRange u x)
 
-instance FindInStr (Ranked a) ARange => FindInStr (Ranked (Either NamedEntity a)) ARange where
+instance FindInStr (Ranked a) ARange => FindInStr (Ranked (Either Cxx.Basics.Findable a)) ARange where
   findInStr s r (Ranked o (Left x)) = findInStr s r $ Ranked o x
   findInStr s r (Ranked o (Right x)) = findInStr s r $ Ranked o x
   findInStr s r (Sole (Left x)) = findInStr s r $ Sole x
   findInStr s r (Sole (Right x)) = findInStr s r $ Sole x
 
 instance (FindInStr (Rankeds a) [ARange], FindInStr (Ranked a) ARange) =>
-    FindInStr (Rankeds (Either NamedEntity a)) [ARange] where
+    FindInStr (Rankeds (Either Cxx.Basics.Findable a)) [ARange] where
   findInStr s r (All (Right x)) = findInStr s r (All x)
   findInStr s r (All (Left x)) = findInStr s r (All x)
   findInStr s r (Sole' (Right x)) = findInStr s r (Sole' x)
@@ -113,22 +114,15 @@ instance FindInStr Substr ARange where
   findInStr _ r Everything = return $ arange (Anchor Before 0) (Anchor After $ size r)
   findInStr s r (NotEverything x) = findInStr s r x
 
-instance FindInStr (EverythingOr (Rankeds (Either NamedEntity String))) [ARange] where
+instance FindInStr (EverythingOr (Rankeds (Either Cxx.Basics.Findable String))) [ARange] where
   findInStr _ r Everything = return [arange (Anchor Before 0) (Anchor After $ size r)]
   findInStr s r (NotEverything x) = findInStr s r x
 
-instance FindInStr NamedEntity (NElist ARange) where
+instance FindInStr Cxx.Basics.Findable (NElist ARange) where
   findInStr s (Range st si) d = case Cxx.Parse.parseRequest s of
     Left e -> fail $ "Could not parse code in previous request. " ++ e
-    Right r -> case d of
-      DeclarationOf did -> case mapMaybe f $ findDeclaration did r of
-        [] -> fail $ "Could not find free declaration of " ++ strip (show did) ++ "."
-        (x:y) -> return $ fmap convert $ NElist x y
-      BodyOf did -> case mapMaybe f $ findBody did r of
-        [] -> fail $ "Could not find body of " ++ strip (show did) ++ "."
-        (x:y) -> return $ fmap convert $ NElist x y
-      Production p -> case mapMaybe f $ findProduction p r of
-        [] -> fail $ "Could not find " ++ Editing.Show.show (Production p) ++ "."
+    Right r -> case mapMaybe f $ Cxx.Operations.find d r of
+        [] -> fail $ "Could not find " ++ show d ++ "."
         (x:y) -> return $ fmap convert $ NElist x y
     where
       f :: Range Char -> Maybe (Range Char)
@@ -136,23 +130,18 @@ instance FindInStr NamedEntity (NElist ARange) where
         | st <= x, x + y <= st + si = Just $ Range (x - st) y
         | otherwise = Nothing
 
-show_plural :: NamedEntity -> String
-show_plural (DeclarationOf did) = "declarations of " ++ strip (show did)
-show_plural (BodyOf did) = "bodies of " ++ strip (show did)
-show_plural p@(Production _) = Editing.Show.show p ++ "s"
-
-instance FindInStr (Ranked NamedEntity) ARange where
+instance FindInStr (Ranked Cxx.Basics.Findable) ARange where
   findInStr s r (Sole decl) = do
     NElist x y <- findInStr s r decl
-    if null y then return x else fail $ "Multiple " ++ show_plural decl ++ " occur."
+    if null y then return x else fail $ "Multiple " ++ Cxx.Show.show_plural decl ++ " occur."
   findInStr s u (Ranked o decl) = do
     l <- findInStr s u decl
     case nth_ne o l of
       Nothing -> fail $ "Could not find a " ++ show o ++ " " ++ Editing.Show.show decl ++ "."
       Just r -> return r
 
-instance FindInStr (Ranked Cxx.Basics.DeclaratorId) ARange where findInStr s r x = findInStr s r (BodyOf . x)
-instance FindInStr (Rankeds Cxx.Basics.DeclaratorId) [ARange] where findInStr s r x = findInStr s r (BodyOf . x)
+instance FindInStr (Ranked Cxx.Basics.DeclaratorId) ARange where findInStr s r x = findInStr s r (Cxx.Basics.BodyOf . x)
+instance FindInStr (Rankeds Cxx.Basics.DeclaratorId) [ARange] where findInStr s r x = findInStr s r (Cxx.Basics.BodyOf . x)
 
 instance FindInStr InClause (NElist ARange) where
   findInStr s r (InClause x) = do
@@ -169,11 +158,11 @@ instance FindInStr PrependPositionsClause [Anchor] where
   findInStr s r (NonPrependPositionsClause pc) = findInStr s r pc
   findInStr s r (PrependIn incl) = (($ Before) .) . unne . findInStr s r incl
 
-instance FindInStr (Rankeds NamedEntity) [ARange] where
+instance FindInStr (Rankeds Cxx.Basics.Findable) [ARange] where
   findInStr s r (All decl) = unne . findInStr s r decl
   findInStr s r (Sole' decl) = do
     NElist x y <- findInStr s r decl
-    if null y then return [x] else fail $ "Multiple " ++ show_plural decl ++ " occur."
+    if null y then return [x] else fail $ "Multiple " ++ Cxx.Show.show_plural decl ++ " occur."
   findInStr x u (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x u (Ranked r s)) . unne rs
   findInStr x r (AllBut (AndList rs) decl) =
     erase_indexed (ordinal_carrier . unne rs) . unne . findInStr x r decl

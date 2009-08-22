@@ -29,7 +29,7 @@ Missing:
 
 module Cxx.Basics where
 
-import Data.Generics (Data, Typeable, Typeable1, Typeable2, typeOf1Default, typeOf2, typeOf1, typeOf, indexConstr, dataTypeOf, toConstr, mkConstr, mkDataType, mkTyCon, mkTyConApp, constrIndex, typeOfDefault, gfoldl, gunfold, Fixity(..), TyCon, dataCast1, gcast1)
+import Data.Generics (Data, Typeable, Typeable1, Typeable2, typeOf1Default, typeOf2, typeOf1, typeOf, indexConstr, dataTypeOf, toConstr, mkConstr, mkDataType, mkTyCon, mkTyConApp, constrIndex, typeOfDefault, gfoldl, gunfold, Fixity(..), TyCon, dataCast1, gcast1, DataType, Constr)
 import Util (NElist(..), Phantom(..), TriBool(..))
 
 relational_ops, accessSpecifiers, classKeys, basic_simple_type_specifiers, casts, keywords, make_type_keywords, arithmetic_ops, ops, long_ops :: [String]
@@ -47,6 +47,8 @@ keywords = accessSpecifiers ++ classKeys ++ basic_simple_type_specifiers ++ cast
 make_type_keywords = words "function functions pointer pointers reference references returning and lvalue rvalue constant chars character characters floats doubles bools booleans ints integer integers array arrays of from to noninline nonvirtual nonexplicit nonmutable nonstatic nonpure pure impure nonconst nonvolatile implicit nonlong nonshort nonsigned nonunsigned"
 
 -- Todo: The stuff above is old, and could be expressed more properly.
+
+data Findable = FindableDataType DataType | FindableConstr Constr | BodyOf DeclaratorId | DeclarationOf DeclaratorId | Constructor | Destructor
 
 data ShortCode
   = LongForm Code

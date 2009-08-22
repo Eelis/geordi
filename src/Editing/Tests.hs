@@ -203,6 +203,7 @@ basic_tests = do
   ct "void f() {} void f(int) {} void f(double) {} void f(char) {}" "add int x; in first f and in third and fourth body of f" $ Right "void f() {int x;} void f(int) {} void f(double) {int x;} void f(char) {int x;}"
   ct "namespace A { int x; namespace B { int x; namespace C { int x; namespace D { int x; } } } }" "erase declaration of x in D in C in B in A" $ Right "namespace A { int x; namespace B { int x; namespace C { int x; namespace D { } } } }"
   ct "struct X { X(int); };" "erase second declaration of X" $ Right "struct X { };"
+  ct "struct X { int x; X(); void f(); ~X(); struct Y {}; operator int(); X(int); };" "erase all constructors and replace destructor with int y;" $ Right "struct X { int x; void f(); int y;struct Y {}; operator int(); };"
   -- Edit errors:
   t "move second 2 to x" $ Left "Unexpected `x` after `second 2 to `. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
   t "replace alligators with chickens" $ Left "String `alligators` does not occur."

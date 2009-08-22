@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances #-}
 
-module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, findDeclaration, findBody, findProduction, is_pointer_or_reference) where
+module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, find, is_pointer_or_reference) where
 
 import qualified Cxx.Show
 import qualified Data.List as List
@@ -8,7 +8,7 @@ import qualified Data.Char as Char
 import qualified Data.Maybe as Maybe
 import Util (NElist(..), unne, (.), Convert(..), total_tail, strip, filter_ne, isIdChar, TriBool(..), maybe_ne, MaybeEitherString(..))
 import Cxx.Basics
-import Editing.Basics (Range(..))
+import Editing.Basics (Range(..), offsetRange)
 import Control.Monad (foldM, MonadPlus(..))
 import Control.Arrow (second)
 import Data.Generics (cast, gmapT, everywhere, somewhere, Data, Typeable, gfoldl, dataTypeOf, toConstr, Constr, DataType, dataTypeName, constrType)
@@ -158,6 +158,7 @@ instance Convert BlockDeclaration (Maybe DeclaratorId) where
   convert (BlockDeclaration_NamespaceAliasDefinition d) = Just $ convert d
   convert (BlockDeclaration_AliasDeclaration d) = Just $ convert d
   convert _ = Nothing
+instance Convert ExplicitSpecialization (Maybe DeclaratorId) where convert (ExplicitSpecialization _ _ d) = convert d
 instance Convert FunctionDefinition DeclaratorId where convert (FunctionDefinition _ d _) = convert d
 instance Convert NamespaceDefinition (Maybe DeclaratorId) where convert (NamespaceDefinition _ _ m _) = convert . m
 instance Convert AliasDeclaration DeclaratorId where convert (AliasDeclaration _ i _ _ _) = convert i
@@ -166,6 +167,7 @@ instance Convert Declaration (Maybe DeclaratorId) where
   convert (Declaration_FunctionDefinition d) = Just $ convert d
   convert (Declaration_TemplateDeclaration d) = convert d
   convert (Declaration_NamespaceDefinition d) = convert d
+  convert (Declaration_ExplicitSpecialization d) = convert d
   convert _ = Nothing
 instance Convert TemplateDeclaration (Maybe DeclaratorId) where convert (TemplateDeclaration _ _ _ d) = convert d
 instance Convert ExplicitInstantiation (Maybe DeclaratorId) where convert (ExplicitInstantiation _ _ d) = convert d
@@ -219,29 +221,19 @@ data GfoldlWithLengthsIntermediary r a = GfoldlWithLengthsIntermediary { gwli_re
 gfoldl_with_lengths :: Data a => Int -> (forall d. Data d => Int -> d -> [r]) -> a -> [r]
 gfoldl_with_lengths i f = gwli_result . gfoldl (\(GfoldlWithLengthsIntermediary m o) y -> GfoldlWithLengthsIntermediary (m ++ f o y) (o + length (Cxx.Show.show_simple y))) (\_ -> GfoldlWithLengthsIntermediary [] i)
 
-findBody :: Data a => DeclaratorId -> a -> [Range Char]
-findBody did = findBody' did 0
-
-findBody' :: Data d => DeclaratorId -> Int -> d -> [Range Char]
-findBody' did i x
+bodyOf :: Data d => d -> DeclaratorId -> Maybe (Range Char)
+bodyOf x did
   | Just (GeordiRequest_Block (CompoundStatement (Curlied o b _)) _) <- cast x, strip (show did) == "main" =
-    [Range (i + length (Cxx.Show.show_simple o)) (length $ Cxx.Show.show_simple b)]
+    Just $ Range (length $ Cxx.Show.show_simple o) (length $ Cxx.Show.show_simple b)
   | Just (ClassSpecifier classHead (Curlied o b _)) <- cast x, convert classHead == Just did =
-    [Range (i + length (Cxx.Show.show_simple (classHead, o)))
-      (length $ Cxx.Show.show_simple b)]
+    Just $ Range (length $ Cxx.Show.show_simple (classHead, o)) (length $ Cxx.Show.show_simple b)
   | Just (EnumSpecifier enumHead (Curlied o b _)) <- cast x, convert enumHead == Just did =
-    [Range (i + length (Cxx.Show.show_simple (enumHead, o)))
-      (length $ Cxx.Show.show_simple b)]
+    Just $ Range (length $ Cxx.Show.show_simple (enumHead, o)) (length $ Cxx.Show.show_simple b)
   | Just (FunctionDefinition specs declarator (FunctionBody ctorInitializer (CompoundStatement (Curlied o b _)))) <- cast x, convert declarator == did =
-    [Range (i + length (Cxx.Show.show_simple (specs, declarator, ctorInitializer, o)))
-      (length $ Cxx.Show.show_simple b)]
+    Just $ Range (length $ Cxx.Show.show_simple (specs, declarator, ctorInitializer, o)) (length $ Cxx.Show.show_simple b)
   | Just (NamespaceDefinition inline kwd (Just identifier) (Curlied o b _)) <- cast x, convert identifier == did =
-    [Range (i + length (Cxx.Show.show_simple (inline, kwd, identifier, o)))
-      (length $ Cxx.Show.show_simple b)]
-  | otherwise = gfoldl_with_lengths i (findBody' did) x
-
-findProduction :: Data d => Either DataType Constr -> d -> [Range Char]
-findProduction p = findProduction' p 0
+    Just $ Range (length $ Cxx.Show.show_simple (inline, kwd, identifier, o)) (length $ Cxx.Show.show_simple b)
+  | otherwise = Nothing
 
 instance Eq DataType where t == t' = dataTypeName t == dataTypeName t'
 
@@ -249,34 +241,50 @@ constr_eq :: Constr -> Constr -> Bool
   -- The existing Eq instance only compares constructor indices for algebraic data types, so for instance the first constructors of two unrelated algebraic data types are considered equal.
 constr_eq c d = c == d && constrType c == constrType d
 
-findProduction' :: Data d => Either DataType Constr -> Int -> d -> [Range Char]
-findProduction' p i x =
-  (if case p of
-      Left t -> dataTypeOf x == t
-      Right c -> constr_eq (toConstr x) c
-    then [Range i $ length $ Cxx.Show.show_simple x]
-    else []) ++ gfoldl_with_lengths i (findProduction' p) x
+finder :: Findable -> forall d . Data d => d -> Maybe (Range Char)
+finder f = case f of
+  FindableDataType t -> simpleFinder $ (== t) . dataTypeOf
+  FindableConstr c -> simpleFinder $ constr_eq c . toConstr
+  BodyOf d -> (`bodyOf` d)
+  DeclarationOf d -> simpleFinder (`isDeclarationOf` d)
+  Constructor -> simpleFinder isConstructor
+  Destructor -> simpleFinder isDestructor
+ where
+  simpleFinder p x = if p x then Just $ Range 0 $ length $ Cxx.Show.show_simple x else Nothing
 
-findDeclaration :: Data a => DeclaratorId -> a -> [Range Char]
-findDeclaration did = List.nub . findDeclaration' did 0
-  -- Todo: This nub is not nice. There must be a better solution.
+find :: Data d => Findable -> d -> [Range Char]
+find f = findRange (finder f) 0
 
-findDeclaration' :: Data d => DeclaratorId -> Int -> d -> [Range Char]
-  -- We can't move this helper into findDeclaration, probably because of the monomorphism restriction.
-findDeclaration' did i x = (if case () of { ()
-  | Just s <- cast x -> convert (s :: Declaration) == Just did
-  | Just s <- cast x -> convert (s :: BlockDeclaration) == Just did
-  | Just s <- cast x -> convert (s :: TemplateDeclaration) == Just did
-  | Just s <- cast x -> convert (s :: ExplicitInstantiation) == Just did
-  | Just s <- cast x -> convert (s :: MemberDeclaration) == Just did
-  | Just s <- cast x -> convert (s :: UsingDeclaration) == Just did
-  | otherwise -> False } then [Range i $ length $ Cxx.Show.show_simple x] else []) ++ gfoldl_with_lengths i (findDeclaration' did) x
-  {- With the above, the following cannot yet be found:
-      - class declarations that have declarators
-      - individual enumerators
-      - things part of multi-declarator declarations
-    Futhermore, one cannot yet distinguish between non-definition declarations and definitions when both occur.
-  -}
+findRange :: Data d => (forall e . Data e => e -> Maybe (Range Char)) -> Int -> d -> [Range Char]
+findRange p i x = Maybe.maybeToList (offsetRange i . p x) ++ gfoldl_with_lengths i (findRange p) x
+
+isConstructor :: Data d => d -> Bool
+isConstructor x
+  | Just s@(MemberDeclaration [] _ _) <- cast x,
+    Just (DeclaratorId_IdExpression Nothing (IdExpression (Right (UnqualifiedId_Identifier _)))) <- convert s = True
+  | otherwise = False
+
+isDestructor :: Data d => d -> Bool
+isDestructor x
+  | Just s <- cast x :: Maybe MemberDeclaration,
+    Just (DeclaratorId_IdExpression Nothing (IdExpression (Right (UnqualifiedId_Destructor _ _)))) <- convert s = True
+  | otherwise = False
+
+isDeclarationOf :: Data d => d -> DeclaratorId -> Bool
+isDeclarationOf x did = Just did == case () of { ()
+  -- The alternatives below must not "overlap", because that way things will be found as multiple kinds of declarations. Hence, we only use the most specialized declaration productions in the grammar, shying away from umbrella productions like "declaration" and "block-declaration".
+  | Just s <- cast x -> Just $ convert (s :: FunctionDefinition)
+  | Just s <- cast x -> convert (s :: TemplateDeclaration)
+  | Just s <- cast x -> convert (s :: ExplicitInstantiation)
+  | Just s <- cast x -> convert (s :: ExplicitSpecialization)
+  | Just s <- cast x -> convert (s :: NamespaceDefinition)
+  | Just s <- cast x -> convert (s :: SimpleDeclaration)
+  | Just s <- cast x -> Just $ convert (s :: NamespaceAliasDefinition)
+  | Just s <- cast x -> convert (s :: UsingDeclaration)
+  | Just s <- cast x -> Just $ convert (s :: AliasDeclaration)
+  | Just s@(MemberDeclaration _ _ _) <- cast x -> convert s
+      -- The pattern is there because the other MemberDeclaration constructors are already covered.
+  | otherwise -> Nothing }
 
 -- Specifier/qualifier compatibility.
 
