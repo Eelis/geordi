@@ -221,7 +221,8 @@ instance Parse Cxx.Basics.Findable where
       auto1 Cxx.Basics.FindableDataType <||>
       auto1 Cxx.Basics.FindableConstr <||>
       (kwd (with_plurals ["constructor", "ctor"]) >>> arr (const Cxx.Basics.Constructor)) <||>
-      (kwd (with_plurals ["destructor", "dtor"]) >>> arr (const Cxx.Basics.Destructor)))
+      (kwd (with_plurals ["destructor", "dtor"]) >>> arr (const Cxx.Basics.Destructor)) <||>
+      (kwd (with_plurals ["conversion-function"]) >>> arr (const Cxx.Basics.ConversionFunction)))
 
 class Constructor a where to_constr :: a -> Constr
 instance Data a => Constructor a where to_constr x = toConstr x

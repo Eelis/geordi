@@ -462,10 +462,18 @@ instance Parse StaticAssertDeclaration where parse = auto3 StaticAssertDeclarati
 instance Parse NamespaceAliasDefinition where parse = auto6 NamespaceAliasDefinition
 instance Parse NamespaceName where parse = NamespaceName_OriginalNamespaceName . OriginalNamespaceName . parse
 instance Parse AsmDefinition where parse = auto3 AsmDefinition
+
+-- A simple-declaration may have no decl-specifiers, for example in "template <typename T> X(T);". However, if we just naively use manyTill, we will accidentally parse the two statements in { i; i = 0; } as declarations. We therefore first try to parse declarators valid for simple-declarations without decl-specifiers, and if that fails, we unconditionally parse at least one decl-specifier and proceed with arbitrary declarators.
+
+data SpecialNoptrDeclarator = SpecialNoptrDeclarator { specialNoptrDeclarator :: NoptrDeclarator }
+
+instance Parse SpecialNoptrDeclarator where
+  parse = auto2 $ \x y -> SpecialNoptrDeclarator $ NoptrDeclarator_WithParams (NoptrDeclarator_Id x) y
+
 instance Parse SimpleDeclaration where
-  parse = do
+  parse = liftM2 (SimpleDeclaration []) (Just . (convert . specialNoptrDeclarator .) . parse) parse <|> do
     (specs, (decls, semicolon)) <- many1Till' parse (liftM2 (,) parse parse)
-    return $ SimpleDeclaration specs decls semicolon
+    return $ SimpleDeclaration (unne specs) decls semicolon
 
 instance Parse UsingDeclaration where parse = parse >>= \w -> auto5 (UsingDeclaration_Nested w) <|> auto3 (UsingDeclaration_NonNested w)
 instance Parse AlignmentSpecifier where parse = auto2 AlignmentSpecifier <?> "alignment-specifier"

@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances #-}
+{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ExistentialQuantification #-}
 
 module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, find, is_pointer_or_reference) where
 
@@ -150,7 +150,7 @@ instance Convert DeclSpecifier (Maybe DeclaratorId) where
   convert _ = Nothing
 instance Convert SimpleDeclaration (Maybe DeclaratorId) where
   convert (SimpleDeclaration _ (Just (Commad (InitDeclarator d _) [])) _) = Just $ convert d
-  convert (SimpleDeclaration (NElist d []) Nothing _) = convert d
+  convert (SimpleDeclaration [d] Nothing _) = convert d
   convert _ = Nothing
 instance Convert NamespaceAliasDefinition DeclaratorId where convert (NamespaceAliasDefinition _ i _ _ _ _) = convert i
 instance Convert BlockDeclaration (Maybe DeclaratorId) where
@@ -241,38 +241,78 @@ constr_eq :: Constr -> Constr -> Bool
   -- The existing Eq instance only compares constructor indices for algebraic data types, so for instance the first constructors of two unrelated algebraic data types are considered equal.
 constr_eq c d = c == d && constrType c == constrType d
 
-finder :: Findable -> forall d . Data d => d -> Maybe (Range Char)
+data AnyData = forall d . Data d => AnyData d
+
+type TreePath = NElist AnyData
+
+applyAny :: (forall a. Data a => a -> b) -> (AnyData -> b)
+applyAny p (AnyData x) = p x
+
+finder :: Findable -> TreePath -> Maybe (Range Char)
 finder f = case f of
-  FindableDataType t -> simpleFinder $ (== t) . dataTypeOf
-  FindableConstr c -> simpleFinder $ constr_eq c . toConstr
-  BodyOf d -> (`bodyOf` d)
-  DeclarationOf d -> simpleFinder (`isDeclarationOf` d)
-  Constructor -> simpleFinder isConstructor
-  Destructor -> simpleFinder isDestructor
+  FindableDataType t -> simpleFinder $ (== t) . applyAny dataTypeOf . ne_head
+  FindableConstr c -> simpleFinder $ constr_eq c . applyAny toConstr . ne_head
+  BodyOf d -> applyAny (`bodyOf` d) . ne_head
+  DeclarationOf d -> simpleFinder $ complete (`isDeclarationOf` d)
+  Constructor -> simpleFinder $ complete $ isSpecialFuncWith isConstructorId
+  Destructor -> simpleFinder $ complete $ isSpecialFuncWith isDestructorId
+  ConversionFunction -> simpleFinder $ complete $ isSpecialFuncWith isConversionFunctionId
  where
-  simpleFinder p x = if p x then Just $ Range 0 $ length $ Cxx.Show.show_simple x else Nothing
+  simpleFinder p t@(NElist (AnyData x) _) = if p t then Just $ Range 0 $ length $ Cxx.Show.show_simple x else Nothing
 
 find :: Data d => Findable -> d -> [Range Char]
-find f = findRange (finder f) 0
+find f = findRange (finder f) [] 0
 
-findRange :: Data d => (forall e . Data e => e -> Maybe (Range Char)) -> Int -> d -> [Range Char]
-findRange p i x = Maybe.maybeToList (offsetRange i . p x) ++ gfoldl_with_lengths i (findRange p) x
+complete :: (forall d . Data d => d -> Bool) -> TreePath -> Bool
+complete p (NElist (AnyData x) y) = p x &&
+  case y of [] -> True; AnyData h : _ -> not $ p h
 
-isConstructor :: Data d => d -> Bool
-isConstructor x
-  | Just s@(MemberDeclaration [] _ _) <- cast x,
-    Just (DeclaratorId_IdExpression Nothing (IdExpression (Right (UnqualifiedId_Identifier _)))) <- convert s = True
+findRange :: Data d => (TreePath -> Maybe (Range Char)) -> [AnyData] -> Int -> d -> [Range Char]
+findRange p tp i x = Maybe.maybeToList (offsetRange i . p (NElist (AnyData x) tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
+
+instance Convert [DeclSpecifier] [TypeSpecifier] where
+  convert = Maybe.mapMaybe $ \ds ->
+    case ds of
+      DeclSpecifier_TypeSpecifier t -> Just t
+      _ -> Nothing
+
+isSpecialFunc :: Data d => d -> Maybe DeclaratorId
+  -- "special" meaning: without any type-specifiers.
+isSpecialFunc x
+  | Just s@(MemberDeclaration l _ _) <- cast x, null (convert l :: [TypeSpecifier]) = convert s
+  | Just (MemberFunctionDefinition f@(FunctionDefinition [] _ _) _) <- cast x = Just $ convert f
+  | Just (MemberTemplateDeclaration d) <- cast x = isSpecialFunc d
+  | Just f@(FunctionDefinition l _ _) <- cast x, null (convert l :: [TypeSpecifier]) = Just $ convert f
+  | Just (TemplateDeclaration _ _ _ d) <- cast x = isSpecialFunc d
+  | Just (Declaration_FunctionDefinition d) <- cast x = isSpecialFunc d
+  | Just (Declaration_TemplateDeclaration d) <- cast x = isSpecialFunc d
+  | Just (Declaration_BlockDeclaration d) <- cast x = isSpecialFunc d
+  | Just (BlockDeclaration_SimpleDeclaration d) <- cast x = isSpecialFunc d
+  | Just s@(SimpleDeclaration l _ _) <- cast x, null (convert l :: [TypeSpecifier]) = convert s
+  | otherwise = Nothing
+
+isSpecialFuncWith :: Data d => (DeclaratorId -> Bool) -> d -> Bool
+isSpecialFuncWith p x
+  | Just did <- isSpecialFunc x = p did
   | otherwise = False
 
-isDestructor :: Data d => d -> Bool
-isDestructor x
-  | Just s <- cast x :: Maybe MemberDeclaration,
-    Just (DeclaratorId_IdExpression Nothing (IdExpression (Right (UnqualifiedId_Destructor _ _)))) <- convert s = True
-  | otherwise = False
+isConstructorId :: DeclaratorId -> Bool
+isConstructorId i = not (isDestructorId i || isConversionFunctionId i)
+
+isDestructorId :: DeclaratorId -> Bool
+isDestructorId (DeclaratorId_IdExpression Nothing (IdExpression e)) = case e of
+  Right (UnqualifiedId_Destructor _ _) -> True
+  Left (NestedUnqualifiedId _ _ _ (UnqualifiedId_Destructor _ _)) -> True
+  _ -> False
+isDestructorId _ = False
+
+isConversionFunctionId :: DeclaratorId -> Bool
+isConversionFunctionId = Maybe.isJust . (convert :: DeclaratorId -> Maybe ConversionFunctionId)
 
 isDeclarationOf :: Data d => d -> DeclaratorId -> Bool
 isDeclarationOf x did = Just did == case () of { ()
-  -- The alternatives below must not "overlap", because that way things will be found as multiple kinds of declarations. Hence, we only use the most specialized declaration productions in the grammar, shying away from umbrella productions like "declaration" and "block-declaration".
+  | Just s <- cast x -> convert (s :: Declaration)
+  | Just s <- cast x -> convert (s :: BlockDeclaration)
   | Just s <- cast x -> Just $ convert (s :: FunctionDefinition)
   | Just s <- cast x -> convert (s :: TemplateDeclaration)
   | Just s <- cast x -> convert (s :: ExplicitInstantiation)
@@ -282,8 +322,7 @@ isDeclarationOf x did = Just did == case () of { ()
   | Just s <- cast x -> Just $ convert (s :: NamespaceAliasDefinition)
   | Just s <- cast x -> convert (s :: UsingDeclaration)
   | Just s <- cast x -> Just $ convert (s :: AliasDeclaration)
-  | Just s@(MemberDeclaration _ _ _) <- cast x -> convert s
-      -- The pattern is there because the other MemberDeclaration constructors are already covered.
+  | Just s <- cast x -> convert (s :: MemberDeclaration)
   | otherwise -> Nothing }
 
 -- Specifier/qualifier compatibility.
@@ -383,6 +422,21 @@ instance Convert LengthSpec SimpleTypeSpecifier where convert x = LengthSpec (x,
 instance Convert LengthSpec TypeSpecifier where convert = convert . (convert :: LengthSpec -> SimpleTypeSpecifier)
 instance Convert LengthSpec DeclSpecifier where convert = convert . (convert :: LengthSpec -> TypeSpecifier)
 instance Convert LengthSpec MakeSpecifier where convert = convert . (convert :: LengthSpec -> DeclSpecifier)
+
+-- Misc conversions
+
+instance Convert PtrDeclarator Declarator where convert = Declarator_PtrDeclarator
+instance Convert NoptrDeclarator PtrDeclarator where convert = PtrDeclarator_NoptrDeclarator
+instance Convert NoptrDeclarator Declarator where convert = convert . (convert :: NoptrDeclarator -> PtrDeclarator)
+instance Convert NoptrDeclarator InitDeclarator where convert = flip InitDeclarator Nothing . convert
+
+instance Convert DeclaratorId (Maybe ConversionFunctionId) where
+  convert (DeclaratorId_IdExpression Nothing (IdExpression e)) =
+    case e of
+      Left (NestedUnqualifiedId _ _ _ (UnqualifiedId_ConversionFunctionId i)) -> Just i
+      Right (UnqualifiedId_ConversionFunctionId i) -> Just i
+      _ -> Nothing
+  convert _ = Nothing
 
 -- Declaration splitting
 

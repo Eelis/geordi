@@ -31,6 +31,7 @@ module Cxx.Basics where
 
 import Data.Generics (Data, Typeable, Typeable1, Typeable2, typeOf1Default, typeOf2, typeOf1, typeOf, indexConstr, dataTypeOf, toConstr, mkConstr, mkDataType, mkTyCon, mkTyConApp, constrIndex, typeOfDefault, gfoldl, gunfold, Fixity(..), TyCon, dataCast1, gcast1, DataType, Constr)
 import Util (NElist(..), Phantom(..), TriBool(..))
+import Control.Arrow (second)
 
 relational_ops, accessSpecifiers, classKeys, basic_simple_type_specifiers, casts, keywords, make_type_keywords, arithmetic_ops, ops, long_ops :: [String]
 relational_ops = words "< > <= >= == !="
@@ -48,7 +49,7 @@ make_type_keywords = words "function functions pointer pointers reference refere
 
 -- Todo: The stuff above is old, and could be expressed more properly.
 
-data Findable = FindableDataType DataType | FindableConstr Constr | BodyOf DeclaratorId | DeclarationOf DeclaratorId | Constructor | Destructor
+data Findable = FindableDataType DataType | FindableConstr Constr | BodyOf DeclaratorId | DeclarationOf DeclaratorId | Constructor | Destructor | ConversionFunction
 
 data ShortCode
   = LongForm Code
@@ -287,6 +288,8 @@ data Parenthesized a = Parenthesized (OpenParen_, White) (Enclosed a) (ClosePare
 newtype White = White String deriving (Data, Typeable)
 instance Eq White where _ == _ = True
 
+instance Functor Commad where fmap f (Commad x l) = Commad (f x) $ map (second f) l
+
 data AnyMixOf a b = MixNone | MixA a | MixB b | MixAB a b | MixBA b a deriving Eq
 
 data OptQualified = OptQualified (Maybe (ScopeRes, White)) (Maybe NestedNameSpecifier) deriving (Data, Typeable, Eq)
@@ -403,7 +406,7 @@ data DeclarationStatement = DeclarationStatement BlockDeclaration deriving (Data
 data Declaration = Declaration_BlockDeclaration BlockDeclaration | Declaration_FunctionDefinition FunctionDefinition | Declaration_TemplateDeclaration TemplateDeclaration | Declaration_ExplicitInstantiation ExplicitInstantiation | Declaration_ExplicitSpecialization ExplicitSpecialization | Declaration_LinkageSpecification LinkageSpecification | Declaration_NamespaceDefinition NamespaceDefinition deriving (Data, Typeable, Eq)
 data BlockDeclaration = BlockDeclaration_SimpleDeclaration SimpleDeclaration | BlockDeclaration_AsmDefinition AsmDefinition | BlockDeclaration_NamespaceAliasDefinition NamespaceAliasDefinition | BlockDeclaration_UsingDeclaration UsingDeclaration | BlockDeclaration_UsingDirective UsingDirective | BlockDeclaration_StaticAssertDeclaration StaticAssertDeclaration | BlockDeclaration_AliasDeclaration AliasDeclaration deriving (Data, Typeable, Eq)
 data AliasDeclaration = AliasDeclaration (KwdUsing, White) Identifier (IsOperator, White) TypeId (SemicolonOperator, White) deriving (Data, Typeable, Eq)
-data SimpleDeclaration = SimpleDeclaration (NElist DeclSpecifier) (Maybe (Commad InitDeclarator)) (SemicolonOperator, White) deriving (Data, Typeable, Eq)
+data SimpleDeclaration = SimpleDeclaration [DeclSpecifier] (Maybe (Commad InitDeclarator)) (SemicolonOperator, White) deriving (Data, Typeable, Eq)
   -- In the spec, the decl-specifier-list is optional. This means that "x=3;" would be a valid simple-declaration. Since this complicates things, and since I don't see when one could actually have a meaningful simple-declaration without any decl-specifiers, I have made it non-optional.
 data StaticAssertDeclaration = StaticAssertDeclaration (KwdStaticAssert, White) (Parenthesized (ConstantExpression, (CommaOp, White), StringLiteral)) (SemicolonOperator, White) deriving (Data, Typeable, Eq)
 data DeclSpecifier = DeclSpecifier_StorageClassSpecifier (StorageClassSpecifier, White) | DeclSpecifier_TypeSpecifier TypeSpecifier | DeclSpecifier_FunctionSpecifier (FunctionSpecifier, White) | DeclSpecifier_Friend (KwdFriend, White) | DeclSpecifier_Typedef (KwdTypedef, White) | DeclSpecifier_ConstExpr (KwdConstexpr, White) | DeclSpecifier_AlignmentSpecifier AlignmentSpecifier deriving (Data, Typeable, Eq)

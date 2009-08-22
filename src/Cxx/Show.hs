@@ -55,6 +55,7 @@ instance Show Findable where
   show (FindableConstr c) = camel_to_prod $ show c
   show Constructor = "free constructor"
   show Destructor = "free destructor"
+  show ConversionFunction = "free conversion-function"
 
 show_plural :: Findable -> String
 show_plural (DeclarationOf did) = "free declarations of " ++ strip (show did)
@@ -63,6 +64,7 @@ show_plural (FindableDataType d) = show d ++ "s"
 show_plural (FindableConstr c) = show c ++ "s"
 show_plural Constructor = "free constructors"
 show_plural Destructor = "free destructors"
+show_plural ConversionFunction = "free conversion-functions"
 
 -- SingleTokenType instances.
 
