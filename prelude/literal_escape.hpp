@@ -110,17 +110,9 @@ namespace escape_detail
 
   template <typename Ch, typename Tr> char (& kind(std::basic_string<Ch, Tr> const &))[string_kind];
   template <typename C> typename boost::enable_if<geordi::is_character<C>, char>::type (& kind(C const &))[char_kind];
-  template <typename C> typename boost::enable_if<geordi::is_character<C>, char>::type (& kind(C const *))[char_pointer_kind];
+  template <typename C> typename boost::enable_if<geordi::is_character<C>, char>::type (& kind(C const * const &))[char_pointer_kind];
   template <typename Ch, typename Tr> char (& kind(std::basic_streambuf<Ch, Tr> *))[streambuf_kind];
-
-  template <std::size_t N> char (& kind(char const (&) [N]))[char_array_kind];
-  template <std::size_t N> char (& kind(wchar_t const (&) [N]))[char_array_kind];
-    /* For some reason, merging these last two into
-
-      template <typename C, std::size_t N>
-      typename boost::enable_if<geordi::is_character<C>, char>::type (& kind(C const (&) [N]))[char_array_kind];
-
-    results in ambiguity errors. */
+  template <typename C, std::size_t N> typename boost::enable_if<geordi::is_character<C>, char>::type (& kind(C const (&) [N]))[char_array_kind];
 
   template <typename T, Kind> struct impl;
 
