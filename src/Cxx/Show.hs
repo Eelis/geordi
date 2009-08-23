@@ -60,11 +60,7 @@ instance Show Findable where
 show_plural :: Findable -> String
 show_plural (DeclarationOf did) = "free declarations of " ++ strip (show did)
 show_plural (BodyOf did) = "bodies of " ++ strip (show did)
-show_plural (FindableDataType d) = show d ++ "s"
-show_plural (FindableConstr c) = show c ++ "s"
-show_plural Constructor = "free constructors"
-show_plural Destructor = "free destructors"
-show_plural ConversionFunction = "free conversion-functions"
+show_plural f = show f ++ "s"
 
 -- SingleTokenType instances.
 
