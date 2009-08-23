@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeSynonymInstances, FlexibleContexts, UndecidableInstances, OverlappingInstances, PatternGuards #-}
 
-module Editing.EditsPreparation (prepareEdits, use_tests) where
+module Editing.EditsPreparation (prepareEdits, use_tests, findInStr) where
 
 import qualified Cxx.Basics
 import qualified Cxx.Parse
@@ -19,18 +19,6 @@ import Util ((.), Convert(..), Op(..), ops_cost, unne, erase_indexed, levenshtei
 
 import Prelude hiding (last, (.), all, (!!))
 import Editing.Basics
-
-type ARange = BefAft -> Anchor
-
-arange :: Anchor -> Anchor -> ARange
-arange x _ Before = x
-arange _ x After = x
-
-anchor_range :: Range a -> ARange
-anchor_range (Range x y) = arange (Anchor After x) (Anchor Before (x + y))
-
-unanchor_range :: ARange -> Range a
-unanchor_range r | Anchor _ x <- r Before, Anchor _ y <- r After = Range x (y - x)
 
 class Offsettable a where offset :: Int -> a -> a
 

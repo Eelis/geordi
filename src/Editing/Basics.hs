@@ -47,6 +47,18 @@ offsetRange i (Range st si) = Range (st + i) si
 find_occs :: Eq a => [a] -> [a] -> [Pos a]
 find_occs x = map fst . filter (List.isPrefixOf x . snd) . zip [0..] . List.tails
 
+type ARange = BefAft -> Anchor
+
+arange :: Anchor -> Anchor -> ARange
+arange x _ Before = x
+arange _ x After = x
+
+anchor_range :: Range a -> ARange
+anchor_range (Range x y) = arange (Anchor After x) (Anchor Before (x + y))
+
+unanchor_range :: ARange -> Range a
+unanchor_range r | Anchor _ x <- r Before, Anchor _ y <- r After = Range x (y - x)
+
 -- Edits
 
 data Anchor = Anchor { anchor_befAft :: BefAft, anchor_pos :: Pos Char } deriving Eq

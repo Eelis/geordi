@@ -5,6 +5,8 @@ import qualified EvalCxx
 import qualified Editing.Parse
 import qualified Editing.Diff
 import qualified Editing.Execute
+import qualified Editing.Basics
+import qualified Editing.EditsPreparation
 import qualified Cxx.Parse
 import qualified Cxx.Operations
 import qualified Cxx.Show
@@ -12,10 +14,9 @@ import qualified Data.List as List
 
 import Control.Monad.Error ()
 import Data.Char (isPrint, isSpace)
-import Data.Maybe (listToMaybe)
 import Data.Either (lefts)
 import Parsers ((<|>), eof, optParser, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail, commit)
-import Util ((.), (<<), (.||.), commas_and, capitalize, orElse, length_ge, replace, maybe_ne, unne, show_long_opt)
+import Util ((.), (<<), (.||.), commas_and, capitalize, length_ge, replace, maybe_ne, unne, show_long_opt, strip, convert)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
 import Prelude hiding (catch, (.))
 
@@ -69,9 +70,16 @@ evaluator h = do
     p :: Parser Char (IO Response)
     p = (spaces >>) $
       do
-        kwd "show"; commit $ do
-        eof
-        return $ return $ Response Nothing $ show_EditableRequest h . listToMaybe prevs `orElse` "<none>"
+        kwd "show"; commit $ case prevs of
+          [] -> error_response "There is no previous request."
+          er : _ -> (eof >> return (return $ Response Nothing $ show_EditableRequest h er)) <|> do
+            oe <- Editing.Parse.substrsP
+            flip (either error_response) oe $ \findable -> eof >> case er of
+              EditableRequest (Evaluate _) c ->
+                flip (either error_response) (Editing.EditsPreparation.findInStr c (Editing.Basics.Range 0 $ length c) findable) $ \l ->
+                  return $ return $ Response Nothing $ commas_and
+                    (map (\x -> '`' : strip (Editing.Basics.selectRange (convert x) c) ++ "`") ( l)) ++ "."
+              _ -> error_response "Last (editable) request was not an evaluation request."
       <|> do
         kwd "parse"; commit $ eof >> case prevs of
           [] -> error_response "There is no previous request."

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverlappingInstances, UndecidableInstances, Arrows, FlexibleInstances, TypeSynonymInstances #-}
 {-# OPTIONS -cpp #-}
 
-module Editing.Parse (commandsP) where
+module Editing.Parse (commandsP, substrsP) where
 
 import qualified Cxx.Parse
 import qualified Cxx.Basics
@@ -394,3 +394,6 @@ commandsP = uncool p (Terminators True []) []
     p = liftA2 (,)
       (addAnd ["show"] $ parse >>> arr (partitionEithers . unne . andList))
       ((andP >>> kwd ["show"] >>> arr (const True)) <||> arr (const False))
+
+substrsP :: P.Parser Char (Either String Substrs)
+substrsP = uncool parse (Terminators True []) []
