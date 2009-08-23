@@ -120,6 +120,20 @@ namespace more_ostreaming
 }
 
 namespace more_ostreaming { namespace detail {
+  template <typename T> struct bytes_t { T const & value; };
+  template <typename C, typename Tr, typename T>
+  std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, bytes_t<T> const b)
+  {
+    unsigned char const * i = reinterpret_cast<unsigned char const *>(&b.value), * const e = i + sizeof(T);
+    typedef unsigned int uint;
+    o << '{' << uint(*i); while (++i != e) o << ", " << uint(*i); return o << '}';
+  }
+}}
+
+template <typename T>
+more_ostreaming::detail::bytes_t<T> bytes(T const & x) { more_ostreaming::detail::bytes_t<T> const r = { x }; return r; }
+
+namespace more_ostreaming { namespace detail {
   template <typename, typename T> struct snd { typedef T type; };
 }}
 
