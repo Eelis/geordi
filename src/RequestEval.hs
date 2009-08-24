@@ -75,12 +75,23 @@ evaluator h = do
           [] -> error_response "There is no previous request."
           er : _ -> (eof >> return (return $ Response Nothing $ show_EditableRequest h er)) <|> do
             oe <- Editing.Parse.substrsP
-            flip (either error_response) oe $ \findable -> eof >> case er of
+            flip (either error_response) oe $ \substrs -> eof >> case er of
               EditableRequest (Evaluate _) c ->
-                flip (either error_response) (Editing.EditsPreparation.findInStr c (Editing.Basics.Range 0 $ length c) findable) $ \l ->
+                flip (either error_response) (Editing.EditsPreparation.findInStr c (Editing.Basics.Range 0 $ length c) substrs) $ \l ->
                   return $ return $ Response Nothing $ commas_and
                     (map (\x -> '`' : strip (Editing.Basics.selectRange (convert x) c) ++ "`") ( l)) ++ "."
               _ -> error_response "Last (editable) request was not an evaluation request."
+      <|> do
+        kwd "identify"; commit $ case prevs of
+          [] -> error_response "There is no previous request."
+          EditableRequest (Evaluate _) c : _ -> do
+            flip (either error_response) (Cxx.Parse.parseRequest c) $ \tree -> do
+            oe <- Editing.Parse.substrsP; eof
+            flip (either error_response) oe $ \substrs -> do
+            flip (either error_response) (Editing.EditsPreparation.findInStr c (Editing.Basics.Range 0 $ length c) substrs) $ \l -> do
+            return $ return $ Response Nothing $ concat $ List.intersperse ", " $
+              map (concat . List.intersperse " -> " . Cxx.Operations.namedPathTo tree . convert) l
+          _ -> error_response "Last (editable) request was not an evaluation request."
       <|> do
         kwd "parse"; commit $ eof >> case prevs of
           [] -> error_response "There is no previous request."

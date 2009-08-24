@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# OPTIONS -cpp #-}
-{-# OPTIONS_GHC -O0 #-}
 
 {- Notes:
 
@@ -333,10 +332,10 @@ newtype TemplateName = TemplateName Identifier deriving (Data, Typeable, Eq)
 
 data Identifier = Identifier String White deriving (Data, Typeable, Eq)
 data Literal = Literal_IntegerLiteral IntegerLiteral White | Literal_CharacterLiteral CharacterLiteral White | Literal_FloatingLiteral FloatingLiteral White | Literal_StringLiteral StringLiteral | BooleanLiteral Bool White | PointerLiteral White deriving (Data, Typeable, Eq)
-data IntegerLiteral = IntegerLiteral String deriving (Data, Typeable, Eq)
+newtype IntegerLiteral = IntegerLiteral String deriving (Data, Typeable, Eq)
 data CharacterLiteralKind = CharacterLiteral_Plain | CharacterLiteralKind_u | CharacterLiteralKind_U | CharacterLiteralKind_L deriving (Data, Typeable, Eq)
 data CharacterLiteral = CharacterLiteral CharacterLiteralKind String deriving (Data, Typeable, Eq)
-data FloatingLiteral = FloatingLiteral String deriving (Data, Typeable, Eq)
+newtype FloatingLiteral = FloatingLiteral String deriving (Data, Typeable, Eq)
 data StringLiteralKind = StringLiteral_Plain | StringLiteral_u8 | StringLiteral_u | StringLiteral_U | StringLiteral_L deriving (Data, Typeable, Eq)
 data SingleStringLiteral = SingleStringLiteral StringLiteralKind String deriving (Data, Typeable, Eq)
 data StringLiteral = StringLiteral (NElist (SingleStringLiteral, White)) deriving (Data, Typeable, Eq)
@@ -398,7 +397,7 @@ data Statement = Statement_Labeled LabeledStatement | Statement_ExpressionStatem
 data Label = IdentifierLabel Identifier | CaseLabel (KwdCase, White) ConstantExpression | DefaultLabel (KwdDefault, White) deriving (Data, Typeable, Eq)
 data LabeledStatement = LabeledStatement Label (ColonOp, White) Statement deriving (Data, Typeable, Eq)
 data ExpressionStatement = ExpressionStatement (Maybe Expression) (SemicolonOperator, White) deriving (Data, Typeable, Eq)
-data CompoundStatement = CompoundStatement (Curlied [Statement]) deriving (Data, Typeable, Eq)
+newtype CompoundStatement = CompoundStatement (Curlied [Statement]) deriving (Data, Typeable, Eq)
 data SelectionStatement = IfStatement (KwdIf, White) (Parenthesized Condition) Statement (Maybe ((KwdElse, White), Statement)) | SwitchStatement (KwdSwitch, White) (Parenthesized Condition) Statement deriving (Data, Typeable, Eq)
 data Condition = Condition_Expression Expression | Condition_Declarator Declarator (IsOperator, White) InitializerClause deriving (Data, Typeable, Eq)
 data IterationStatement = WhileStatement (KwdWhile, White) (Parenthesized Condition) Statement | DoWhileStatement (KwdDo, White) Statement (KwdWhile, White) (Parenthesized Expression) (SemicolonOperator, White) | ForStatement (KwdFor, White) (Parenthesized (ForInitStatement, Maybe Condition, (SemicolonOperator, White), (Maybe Expression))) Statement deriving (Data, Typeable, Eq)

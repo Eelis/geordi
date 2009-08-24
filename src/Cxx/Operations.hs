@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ExistentialQuantification #-}
 
-module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, find, is_pointer_or_reference) where
+module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, find, is_pointer_or_reference, namedPathTo) where
 
 import qualified Cxx.Show
 import qualified Data.List as List
@@ -219,7 +219,12 @@ instance Convert UsingDeclaration (Maybe DeclaratorId) where
 data GfoldlWithLengthsIntermediary r a = GfoldlWithLengthsIntermediary { gwli_result :: [r], off :: Int }
 
 gfoldl_with_lengths :: Data a => Int -> (forall d. Data d => Int -> d -> [r]) -> a -> [r]
-gfoldl_with_lengths i f = gwli_result . gfoldl (\(GfoldlWithLengthsIntermediary m o) y -> GfoldlWithLengthsIntermediary (m ++ f o y) (o + length (Cxx.Show.show_simple y))) (\_ -> GfoldlWithLengthsIntermediary [] i)
+gfoldl_with_lengths i f = gfoldl_with_ranges i (f . start)
+
+gfoldl_with_ranges :: Data a => Int -> (forall d. Data d => Range Char -> d -> [r]) -> a -> [r]
+gfoldl_with_ranges i f = gwli_result . gfoldl (\(GfoldlWithLengthsIntermediary m o) y ->
+  let n = length (Cxx.Show.show_simple y) in
+  GfoldlWithLengthsIntermediary (m ++ f (Range o n) y) (o + n)) (\_ -> GfoldlWithLengthsIntermediary [] i)
 
 bodyOf :: Data d => d -> DeclaratorId -> Maybe (Range Char)
 bodyOf x did
@@ -266,6 +271,29 @@ find f = findRange (finder f) [] 0
 complete :: (forall d . Data d => d -> Bool) -> TreePath -> Bool
 complete p (NElist (AnyData x) y) = p x &&
   case y of [] -> True; AnyData h : _ -> not $ p h
+
+wraps :: Range a -> Range a -> Bool
+wraps (Range st si) (Range st' si') = st <= st' && st' + si' <= st + si
+
+pathTo :: Data d => d -> Range Char -> Int -> TreePath
+  -- Precondition: the range is entirely within [0, length (show d)]
+pathTo x r i = NElist (AnyData x) $ case gfoldl_with_ranges i f x of
+  [] -> []
+  l : _ -> unne l
+  where
+    f r'@(Range st _) y = if r' `wraps` r then [pathTo y r st] else []
+
+clear_successive_exprs :: [String] -> [String]
+clear_successive_exprs [] = []
+clear_successive_exprs l@(h:t)
+  | (m@(_:_:_), r) <- span p l = h : "..." : last m : clear_successive_exprs r
+  | otherwise = h : clear_successive_exprs t
+  where p = List.isSuffixOf "expression"
+
+namedPathTo :: Data d => d -> Range Char -> [String]
+namedPathTo d r = clear_successive_exprs $
+  filter (not . flip elem ["either", "[-]", "maybe", "curlied", "enclosed", "commad", "parenthesized", "squared", "geordi-request"]) $
+    unne $ fmap (applyAny $ Cxx.Show.dataType_productionName . dataTypeOf) (pathTo d r 0)
 
 findRange :: Data d => (TreePath -> Maybe (Range Char)) -> [AnyData] -> Int -> d -> [Range Char]
 findRange p tp i x = Maybe.maybeToList (offsetRange i . p (NElist (AnyData x) tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
