@@ -66,6 +66,7 @@ evaluator h = do
   let
     help_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << help; }") True False)
     version_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << \"g++ (GCC) \" << __VERSION__; }") True False)
+    uname_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << geordi::uname(); }") True False)
 
     p :: Parser Char (IO Response)
     p = (spaces >>) $
@@ -109,6 +110,7 @@ evaluator h = do
         respond_and_remember . EditableRequest MakeType =<< getInput
       <|> do kwds ["help"]; return help_response
       <|> do kwds ["version"]; return version_response
+      <|> do kwds ["uname"]; return uname_response
       <|> do
         kwd "--show-compile-flags"
         return $ return $ Response Nothing $ unwords $ EvalCxx.compileFlags compile_cfg
