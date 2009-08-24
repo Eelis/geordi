@@ -292,7 +292,7 @@ clear_successive_exprs l@(h:t)
 
 namedPathTo :: Data d => d -> Range Char -> [String]
 namedPathTo d r = clear_successive_exprs $
-  filter (not . flip elem ["either", "[-]", "maybe", "curlied", "enclosed", "commad", "parenthesized", "squared", "geordi-request"]) $
+  filter (not . flip elem ["either", "[-]", "maybe", "curlied", "enclosed", "commad", "parenthesized", "squared", "geordi-request", "(-,-)", "(-,-,-)", "(-,-,-,-)"]) $
     unne $ fmap (applyAny $ Cxx.Show.dataType_abbreviated_productionName . dataTypeOf) (pathTo d r 0)
 
 findRange :: Data d => (TreePath -> Maybe (Range Char)) -> [AnyData] -> Int -> d -> [Range Char]
