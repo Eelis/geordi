@@ -1,7 +1,7 @@
 {-# LANGUAGE Rank2Types, FlexibleInstances, UndecidableInstances, RelaxedPolyRec, PatternGuards, OverlappingInstances #-}
 {-# OPTIONS -cpp #-}
 
-module Cxx.Show (pretty_with_precedence, show_simple, show_plural, show_pretty, Highlighter, Highlightable(..), noHighlighting, dataType_productionName) where
+module Cxx.Show (pretty_with_precedence, show_simple, show_plural, show_pretty, Highlighter, Highlightable(..), noHighlighting, dataType_productionName, dataType_abbreviated_productionName) where
 
 import qualified Data.List as List
 import qualified Data.Char as Char
@@ -48,8 +48,45 @@ camel_components s = case s of
 camel_to_prod :: String -> String
 camel_to_prod = concat . List.intersperse "-" . camel_components
 
+abbreviate :: String -> String
+abbreviate w = case w of
+  "expression" -> "expr"
+  "statement" -> "stmt"
+  "initializer" -> "init"
+  "assignment" -> "ass"
+  "primary" -> "prim"
+  "qualified" -> "qual"
+  "qualifier" -> "qual"
+  "unqualified" -> "unqual"
+  "destructor" -> "dtor"
+  "operator" -> "op"
+  "definition" -> "def"
+  "function" -> "func"
+  "specifier" -> "spec"
+  "specification" -> "spec"
+  "declaration" -> "decl'ion"
+  "declarator" -> "decl'or"
+  "elaborated" -> "elab"
+  "enumerator" -> "enum"
+  "abstract" -> "abs"
+  "member" -> "mem"
+  "translation" -> "trans"
+  "parameter" -> "param"
+  "parameters" -> "params"
+  "argument" -> "arg"
+  "arguments" -> "args"
+  "identifier" -> "ident"
+  _ -> w
+
+dataType_to_camelProd :: DataType -> String
+dataType_to_camelProd dt = reverse $ takeWhile (/= '.') $ reverse $ dataTypeName dt
+
 dataType_productionName :: DataType -> String
-dataType_productionName dt = camel_to_prod $ reverse $ takeWhile (/= '.') $ reverse $ dataTypeName dt
+dataType_productionName = camel_to_prod . dataType_to_camelProd
+
+dataType_abbreviated_productionName :: DataType -> String
+dataType_abbreviated_productionName =
+  concat . List.intersperse "-" . map abbreviate . camel_components . dataType_to_camelProd
 
 constr_productionName :: Constr -> String
 constr_productionName c = camel_to_prod $ show c

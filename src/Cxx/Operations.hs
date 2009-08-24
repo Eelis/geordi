@@ -288,12 +288,12 @@ clear_successive_exprs [] = []
 clear_successive_exprs l@(h:t)
   | (m@(_:_:_), r) <- span p l = h : "..." : last m : clear_successive_exprs r
   | otherwise = h : clear_successive_exprs t
-  where p = List.isSuffixOf "expression"
+  where p = List.isSuffixOf "expr"
 
 namedPathTo :: Data d => d -> Range Char -> [String]
 namedPathTo d r = clear_successive_exprs $
   filter (not . flip elem ["either", "[-]", "maybe", "curlied", "enclosed", "commad", "parenthesized", "squared", "geordi-request"]) $
-    unne $ fmap (applyAny $ Cxx.Show.dataType_productionName . dataTypeOf) (pathTo d r 0)
+    unne $ fmap (applyAny $ Cxx.Show.dataType_abbreviated_productionName . dataTypeOf) (pathTo d r 0)
 
 findRange :: Data d => (TreePath -> Maybe (Range Char)) -> [AnyData] -> Int -> d -> [Range Char]
 findRange p tp i x = Maybe.maybeToList (offsetRange i . p (NElist (AnyData x) tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
