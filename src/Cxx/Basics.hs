@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# OPTIONS -cpp #-}
+{-# OPTIONS_GHC -O0 #-}
 
 {- Notes:
 
@@ -8,6 +9,10 @@
   * (Either a b) is not equivalent to (Either b a) in grammar rule definitions, because we use a Parse (Either a b) instance which tries the left side first.
 
   * The Eq instances are all modulo whitespace.
+
+  * We diverge from the grammar in the standard by factoring out things like -list and -seq.
+
+  * In some places we use `newtype A = B` instead of plain `type A = B` when not all Bs are As, because otherwise some non-A Bs would be found as A's in edit commands.
 
 Missing:
 
@@ -23,8 +28,8 @@ Missing:
     attributes
     variadic templates
     lambda expressions
-    concepts
     "->"-style declarators
+    ellipsis in various lists
 -}
 
 module Cxx.Basics where
@@ -296,8 +301,8 @@ data OptQualified = OptQualified (Maybe (ScopeRes, White)) (Maybe NestedNameSpec
 
 data GeordiRequest = GeordiRequest_TU TranslationUnit | GeordiRequest_Print (LeftShiftOp, White) Expression (Maybe ((SemicolonOperator, White), TranslationUnit)) | GeordiRequest_Block CompoundStatement TranslationUnit deriving (Data, Typeable)
 
-data MakeSpecifier = NonStorageClassSpecifier StorageClassSpecifier | NonFunctionSpecifier FunctionSpecifier | MakeSpecifier_DeclSpecifier DeclSpecifier | NonSign Sign | NonLength LengthSpec | NonCv CvQualifier | LongLong deriving Eq
-data MakeDeclaration = MakeDeclaration [MakeSpecifier] (Maybe PtrAbstractDeclarator) TriBool
+data MakeSpecifier = NonStorageClassSpecifier StorageClassSpecifier | NonFunctionSpecifier FunctionSpecifier | MakeSpecifier_DeclSpecifier DeclSpecifier | NonSign Sign | NonLength LengthSpec | NonCv CvQualifier | LongLong deriving (Data, Typeable, Eq)
+data MakeDeclaration = MakeDeclaration [MakeSpecifier] (Maybe PtrAbstractDeclarator) TriBool deriving (Data, Typeable)
   -- The tribool indicates purity.
 
 data OperatorTok =
@@ -358,7 +363,7 @@ data PostfixExpression
   | PostfixExpression_NewStyleCast (NewStyleCast, White) (Angled TypeId) (Parenthesized Expression)
   | PostfixExpression_TypeId (KwdTypeid, White) (Parenthesized (Either Expression TypeId))
   deriving (Data, Typeable, Eq)
-type ExpressionList = InitializerList
+newtype ExpressionList = ExpressionList InitializerList deriving (Data, Typeable, Eq)
 data PseudoDestructorName = PseudoDestructorName_InTypeName OptQualified TypeName (ScopeRes, White) (Tilde_, White) TypeName | PseudoDestructorName_InTemplate (Maybe (ScopeRes, White)) NestedNameSpecifier (KwdTemplate, White) SimpleTemplateId (ScopeRes, White) (Tilde_, White) TypeName | PseudoDestructorName OptQualified (Tilde_, White) TypeName deriving (Data, Typeable, Eq)
 data UnaryExpression = UnaryExpression_PostfixExpression PostfixExpression | UnaryExpression (UnaryOperator, White) CastExpression | UnaryExpression_Sizeof_UnaryExpression (KwdSizeof, White) UnaryExpression | UnaryExpression_Sizeof_TypeId (KwdSizeof, White) (Parenthesized TypeId) | UnaryExpression_Sizeof_Ellipsis (KwdSizeof, White) (Ellipsis_, White) (Parenthesized Identifier) | UnaryExpression_AlignOf (KwdAlignof, White) (Parenthesized TypeId) | UnaryExpression_NewExpression NewExpression | UnaryExpression_DeleteExpression DeleteExpression deriving (Data, Typeable, Eq)
 data UnaryOperator = Dereference' | AddressOf' | Negate' | Positive' | LogicalNot' | AltLogicalNot | Complement' | AltComplement | PrefixIncrement | PrefixDecrement deriving (Bounded, Enum, Data, Typeable, Eq)
@@ -385,7 +390,7 @@ data ConditionalExpression = ConditionalExpression_LogicalOrExpression LogicalOr
 data AssignmentExpression = AssignmentExpression_ConditionalExpression ConditionalExpression | AssignmentExpression LogicalOrExpression (AssignmentOperator, White) InitializerClause | AssignmentExpression_ThrowExpression ThrowExpression deriving (Data, Typeable, Eq)
 data AssignmentOperator = AssignmentOperator_Assign | AssignmentOperator_MultiplyAssign | AssignmentOperator_DivideAssign | AssignmentOperator_PercentAssign | AssignmentOperator_PlusAssign | AssignmentOperator_MinusAssign | AssignmentOperator_RightShiftAssign | AssignmentOperator_LeftShiftAssign | AssignmentOperator_BitAndAssign | AssignmentOperator_AltBitAndAssign | AssignmentOperator_BitXorAssign | AssignmentOperator_AltBitXorAssign | AssignmentOperator_BitOrAssign | AssignmentOperator_AltBitOrAssign deriving (Bounded, Enum, Data, Typeable, Eq)
 data Expression = Expression_AssignmentExpression AssignmentExpression | Expression_Comma Expression (CommaOp, White) AssignmentExpression deriving (Data, Typeable, Eq)
-type ConstantExpression = ConditionalExpression
+newtype ConstantExpression = ConstantExpression ConditionalExpression deriving (Data, Typeable, Eq)
 
 -- A.5 Statements [gram.stmt]
 
@@ -406,7 +411,7 @@ data DeclarationStatement = DeclarationStatement BlockDeclaration deriving (Data
 data Declaration = Declaration_BlockDeclaration BlockDeclaration | Declaration_FunctionDefinition FunctionDefinition | Declaration_TemplateDeclaration TemplateDeclaration | Declaration_ExplicitInstantiation ExplicitInstantiation | Declaration_ExplicitSpecialization ExplicitSpecialization | Declaration_LinkageSpecification LinkageSpecification | Declaration_NamespaceDefinition NamespaceDefinition deriving (Data, Typeable, Eq)
 data BlockDeclaration = BlockDeclaration_SimpleDeclaration SimpleDeclaration | BlockDeclaration_AsmDefinition AsmDefinition | BlockDeclaration_NamespaceAliasDefinition NamespaceAliasDefinition | BlockDeclaration_UsingDeclaration UsingDeclaration | BlockDeclaration_UsingDirective UsingDirective | BlockDeclaration_StaticAssertDeclaration StaticAssertDeclaration | BlockDeclaration_AliasDeclaration AliasDeclaration deriving (Data, Typeable, Eq)
 data AliasDeclaration = AliasDeclaration (KwdUsing, White) Identifier (IsOperator, White) TypeId (SemicolonOperator, White) deriving (Data, Typeable, Eq)
-data SimpleDeclaration = SimpleDeclaration [DeclSpecifier] (Maybe (Commad InitDeclarator)) (SemicolonOperator, White) deriving (Data, Typeable, Eq)
+data SimpleDeclaration = SimpleDeclaration [DeclSpecifier] (Maybe InitDeclaratorList) (SemicolonOperator, White) deriving (Data, Typeable, Eq)
   -- In the spec, the decl-specifier-list is optional. This means that "x=3;" would be a valid simple-declaration. Since this complicates things, and since I don't see when one could actually have a meaningful simple-declaration without any decl-specifiers, I have made it non-optional.
 data StaticAssertDeclaration = StaticAssertDeclaration (KwdStaticAssert, White) (Parenthesized (ConstantExpression, (CommaOp, White), StringLiteral)) (SemicolonOperator, White) deriving (Data, Typeable, Eq)
 data DeclSpecifier = DeclSpecifier_StorageClassSpecifier (StorageClassSpecifier, White) | DeclSpecifier_TypeSpecifier TypeSpecifier | DeclSpecifier_FunctionSpecifier (FunctionSpecifier, White) | DeclSpecifier_Friend (KwdFriend, White) | DeclSpecifier_Typedef (KwdTypedef, White) | DeclSpecifier_ConstExpr (KwdConstexpr, White) | DeclSpecifier_AlignmentSpecifier AlignmentSpecifier deriving (Data, Typeable, Eq)
@@ -419,10 +424,11 @@ data TypeSpecifier = TypeSpecifier_SimpleTypeSpecifier SimpleTypeSpecifier | Typ
 data SimpleTypeSpecifier = SimpleTypeSpecifier_BasicType (BasicType, White) | SimpleTypeSpecifier_Auto (KwdAuto, White) | SimpleTypeSpecifier_DeclType (KwdDecltype, White) (Parenthesized Expression) | LengthSpec (LengthSpec, White) | SignSpec (Sign, White) | SimpleTypeSpecifier_TypeName OptQualified TypeName | SimpleTypeSpecifier_SimpleTemplateId (Maybe (ScopeRes, White)) NestedNameSpecifier White SimpleTemplateId deriving (Data, Typeable, Eq)
 data TypeName = TypeName_ClassName ClassName | TypeName_EnumName EnumName | TypeName_TypedefName TypedefName deriving (Data, Typeable, Eq)
 data ElaboratedTypeSpecifier = ElaboratedTypeSpecifier (ClassKey, White) OptQualified (Either (Maybe (KwdTemplate, White), SimpleTemplateId) Identifier) deriving (Data, Typeable, Eq)
-data EnumSpecifier = EnumSpecifier EnumHead (Curlied (Maybe (Commad EnumeratorDefinition, Maybe (CommaOp, White)))) deriving (Data, Typeable, Eq)
+data EnumSpecifier = EnumSpecifier EnumHead (Curlied (Maybe (EnumeratorList, Maybe (CommaOp, White)))) deriving (Data, Typeable, Eq)
 data EnumHead = EnumHead EnumKey (Maybe Identifier) (Maybe EnumBase) deriving (Data, Typeable, Eq)
 data EnumKey = EnumKey (KwdEnum, White) | EnumKey_Class (KwdEnum, White) (KwdClass, White) | EnumKey_Struct (KwdEnum, White) (KwdStruct, White) deriving (Data, Typeable, Eq)
 data EnumBase = EnumBase (ColonOp, White) (NElist TypeSpecifier) deriving (Data, Typeable, Eq)
+newtype EnumeratorList = EnumeratorList (Commad EnumeratorDefinition) deriving (Data, Typeable, Eq)
 data EnumeratorDefinition = EnumeratorDefinition Enumerator (Maybe ((IsOperator, White), ConstantExpression)) deriving (Data, Typeable, Eq)
 newtype Enumerator = Enumerator Identifier deriving (Data, Typeable, Eq)
 data NamespaceDefinition = NamespaceDefinition (Maybe (KwdInline, White)) (KwdNamespace, White) (Maybe Identifier) (Curlied [Declaration]) deriving (Data, Typeable, Eq)
@@ -435,8 +441,9 @@ data AlignmentSpecifier = AlignmentSpecifier (KwdAlignas, White) (Parenthesized 
 
 -- A.7 Declarators [gram.decl]
 
+newtype InitDeclaratorList = InitDeclaratorList (Commad InitDeclarator) deriving (Data, Typeable, Eq)
 data InitDeclarator = InitDeclarator Declarator (Maybe Initializer) deriving (Data, Typeable, Eq)
-data Declarator = Declarator_PtrDeclarator PtrDeclarator deriving (Data, Typeable, Eq)
+newtype Declarator = Declarator_PtrDeclarator PtrDeclarator deriving (Data, Typeable, Eq)
 data PtrDeclarator = PtrDeclarator_NoptrDeclarator NoptrDeclarator | PtrDeclarator PtrOperator PtrDeclarator deriving (Data, Typeable, Eq)
 data NoptrDeclarator = NoptrDeclarator_Id DeclaratorId | NoptrDeclarator_WithParams NoptrDeclarator ParametersAndQualifiers | NoptrDeclarator_Squared NoptrDeclarator (Squared (Maybe ConstantExpression)) | NoptrDeclarator_Parenthesized (Parenthesized PtrDeclarator) deriving (Data, Typeable, Eq)
 data ParametersAndQualifiers = ParametersAndQualifiers (Parenthesized ParameterDeclarationClause) [(CvQualifier, White)] (Maybe (RefQualifier, White)) (Maybe ExceptionSpecification) deriving (Data, Typeable, Eq)
@@ -449,15 +456,16 @@ data AbstractDeclarator = AbstractDeclarator_PtrAbstractDeclarator PtrAbstractDe
 data PtrAbstractDeclarator = PtrAbstractDeclarator_NoptrAbstractDeclarator NoptrAbstractDeclarator | PtrAbstractDeclarator PtrOperator (Maybe PtrAbstractDeclarator) deriving (Data, Typeable, Eq)
 data NoptrAbstractDeclarator = NoptrAbstractDeclarator (Maybe NoptrAbstractDeclarator) (Either ParametersAndQualifiers (Squared (Maybe ConstantExpression))) | NoptrAbstractDeclarator_PtrAbstractDeclarator (Parenthesized PtrAbstractDeclarator) deriving (Data, Typeable, Eq)
   -- In the latest draft, this constant expression isn't optional, which I think may be a bug. Todo: check again in the next draft.
-data ParameterDeclarationClause = ParameterDeclarationClause (Maybe (Commad ParameterDeclaration)) (Maybe (Ellipsis_, White)) | ParameterDeclarationClauseWithEllipsis (Commad ParameterDeclaration) (CommaOp, White) (Ellipsis_, White) deriving (Data, Typeable, Eq)
+data ParameterDeclarationClause = ParameterDeclarationClause (Maybe ParameterDeclarationList) (Maybe (Ellipsis_, White)) | ParameterDeclarationClauseWithEllipsis ParameterDeclarationList (CommaOp, White) (Ellipsis_, White) deriving (Data, Typeable, Eq)
+newtype ParameterDeclarationList = ParameterDeclarationList (Commad ParameterDeclaration) deriving (Data, Typeable, Eq)
 data ParameterDeclaration = ParameterDeclaration (NElist DeclSpecifier) (Either Declarator (Maybe AbstractDeclarator)) (Maybe ((IsOperator, White), AssignmentExpression)) deriving (Data, Typeable, Eq)
 data FunctionDefinition = FunctionDefinition [DeclSpecifier] Declarator FunctionBody deriving (Data, Typeable, Eq)
 data FunctionBody = FunctionBody (Maybe CtorInitializer) CompoundStatement deriving (Data, Typeable, Eq)
 data Initializer = Initializer_Parenthesized (Parenthesized ExpressionList) | Initializer_BraceOrEqualInitializer BraceOrEqualInitializer deriving (Data, Typeable, Eq)
 data BraceOrEqualInitializer = EqualInitializer (IsOperator, White) InitializerClause | BraceInitializer BracedInitList deriving (Data, Typeable, Eq)
-data InitializerClause = InitializerClause (Either BracedInitList AssignmentExpression) deriving (Data, Typeable, Eq)
-data InitializerList = InitializerList (Commad InitializerClause) deriving (Data, Typeable, Eq)
-data BracedInitList = BracedInitList (Curlied (Maybe (InitializerList, Maybe (CommaOp, White)))) deriving (Data, Typeable, Eq)
+newtype InitializerClause = InitializerClause (Either BracedInitList AssignmentExpression) deriving (Data, Typeable, Eq)
+newtype InitializerList = InitializerList (Commad InitializerClause) deriving (Data, Typeable, Eq)
+newtype BracedInitList = BracedInitList (Curlied (Maybe (InitializerList, Maybe (CommaOp, White)))) deriving (Data, Typeable, Eq)
 
 -- A.8 Classes [gram.class]
 
@@ -467,13 +475,15 @@ data ClassHead = ClassHead (ClassKey, White) ClassHeadKind (Maybe BaseClause) de
 data ClassKey = Class | Struct | Union deriving (Enum, Bounded, Data, Typeable, Eq)
 data MemberAccessSpecifier = MemberAccessSpecifier (AccessSpecifier, White) (ColonOp, White) deriving (Data, Typeable, Eq)
 data MemberSpecification = MemberSpecification [Either MemberDeclaration MemberAccessSpecifier] deriving (Data, Typeable, Eq)
-data MemberDeclaration = MemberDeclaration [DeclSpecifier] (Maybe (Commad MemberDeclarator)) (SemicolonOperator, White) | MemberFunctionDefinition FunctionDefinition (Maybe (SemicolonOperator, White)) | MemberUsingDeclaration UsingDeclaration | MemberTemplateDeclaration TemplateDeclaration deriving (Data, Typeable, Eq)
+data MemberDeclaration = MemberDeclaration [DeclSpecifier] (Maybe MemberDeclaratorList) (SemicolonOperator, White) | MemberFunctionDefinition FunctionDefinition (Maybe (SemicolonOperator, White)) | MemberUsingDeclaration UsingDeclaration | MemberTemplateDeclaration TemplateDeclaration deriving (Data, Typeable, Eq)
+newtype MemberDeclaratorList = MemberDeclaratorList (Commad MemberDeclarator) deriving (Data, Typeable, Eq)
 data MemberDeclarator = MemberDeclarator Declarator (Maybe (Either PureSpecifier BraceOrEqualInitializer)) | BitField (Maybe Identifier) (ColonOp, White) ConstantExpression deriving (Data, Typeable, Eq)
 data PureSpecifier = PureSpecifier (IsOperator, White) (KwdZero, White) deriving (Data, Typeable, Eq)
 
 -- A.9 Derived classes [gram.derived]
 
-data BaseClause = BaseClause (ColonOp, White) (Commad BaseSpecifier) deriving (Data, Typeable, Eq)
+data BaseClause = BaseClause (ColonOp, White) BaseSpecifierList deriving (Data, Typeable, Eq)
+newtype BaseSpecifierList = BaseSpecifierList (Commad BaseSpecifier) deriving (Data, Typeable, Eq)
 data BaseSpecifier = BaseSpecifier (AnyMixOf (AccessSpecifier, White) (KwdVirtual, White)) OptQualified ClassName deriving (Data, Typeable, Eq)
 data AccessSpecifier = Private | Protected | Public deriving (Bounded, Enum, Data, Typeable, Eq)
 
@@ -481,7 +491,8 @@ data AccessSpecifier = Private | Protected | Public deriving (Bounded, Enum, Dat
 
 data ConversionFunctionId = ConversionFunctionId (KwdOperator, White) ConversionTypeId deriving (Data, Typeable, Eq)
 data ConversionTypeId = ConversionTypeId (NElist TypeSpecifier) [PtrOperator] deriving (Data, Typeable, Eq)
-data CtorInitializer = CtorInitializer (ColonOp, White) (Commad MemInitializer) deriving (Data, Typeable, Eq)
+data CtorInitializer = CtorInitializer (ColonOp, White) MemInitializerList deriving (Data, Typeable, Eq)
+newtype MemInitializerList = MemInitializerList (Commad MemInitializer) deriving (Data, Typeable, Eq)
 data MemInitializer = MemInitializer MemInitializerId (Either (Parenthesized (Maybe ExpressionList)) BracedInitList) deriving (Data, Typeable, Eq)
 data MemInitializerId = MemInitializerId_ClassName OptQualified ClassName | MemInitializerId_Identifier Identifier deriving (Data, Typeable, Eq)
 
@@ -492,13 +503,14 @@ data OverloadableOperator = OverloadableOperator_New (KwdNew, White) (Maybe (Squ
 
 -- A.12 Templates [gram.temp]
 
-data TemplateDeclaration = TemplateDeclaration (Maybe (KwdExport, White)) (KwdTemplate, White) (Angled (Commad TemplateParameter)) Declaration deriving (Data, Typeable, Eq)
+data TemplateDeclaration = TemplateDeclaration (Maybe (KwdExport, White)) (KwdTemplate, White) (Angled TemplateParameterList) Declaration deriving (Data, Typeable, Eq)
+newtype TemplateParameterList = TemplateParameterList (Commad TemplateParameter) deriving (Data, Typeable, Eq)
 data TemplateParameter = TemplateParameter_TypeParameter TypeParameter | TemplateParameter_ParameterDeclaration ParameterDeclaration deriving (Data, Typeable, Eq)
-data TypeParameter = TypeParameter_Class (Either (KwdClass, White) (KwdTypename, White)) (Maybe Identifier) (Maybe ((IsOperator, White), TypeId)) | TypeParameter_Template (KwdTemplate, White) (Angled (Commad TemplateParameter)) (KwdClass, White) (Maybe Identifier) (Maybe (White, IdExpression)) deriving (Data, Typeable, Eq)
+data TypeParameter = TypeParameter_Class (Either (KwdClass, White) (KwdTypename, White)) (Maybe Identifier) (Maybe ((IsOperator, White), TypeId)) | TypeParameter_Template (KwdTemplate, White) (Angled TemplateParameterList) (KwdClass, White) (Maybe Identifier) (Maybe (White, IdExpression)) deriving (Data, Typeable, Eq)
 data TemplateArguments = TemplateArguments (Angled (Maybe TemplateArgumentList)) deriving (Data, Typeable, Eq)
 data SimpleTemplateId = SimpleTemplateId TemplateName TemplateArguments deriving (Data, Typeable, Eq)
 data TemplateId = TemplateId_SimpleTemplateId SimpleTemplateId | TemplateId_OperatorFunctionId OperatorFunctionId TemplateArguments deriving (Data, Typeable, Eq)
-data TemplateArgumentList = TemplateArgumentList (Commad TemplateArgument) deriving (Data, Typeable, Eq)
+newtype TemplateArgumentList = TemplateArgumentList (Commad TemplateArgument) deriving (Data, Typeable, Eq)
 data TemplateArgument = TemplateArgument_ConstantExpression ConstantExpression | TemplateArgument_TypeId TypeId | TemplateArgument_IdExpression IdExpression deriving (Data, Typeable, Eq)
 data TypenameSpecifier = TypenameSpecifier (KwdTypename, White) (Maybe (ScopeRes, White)) NestedNameSpecifier (Either Identifier (Maybe (KwdTemplate, White), SimpleTemplateId)) deriving (Data, Typeable, Eq)
 data ExplicitInstantiation = ExplicitInstantiation (Maybe (KwdExtern, White)) (KwdTemplate, White) Declaration deriving (Data, Typeable, Eq)
@@ -512,6 +524,6 @@ data Handler = Handler (KwdCatch, White) (Parenthesized ExceptionDeclaration) Co
 data ExceptionDeclaration = ExceptionDeclaration_Ellipsis (Ellipsis_, White) | ExceptionDeclaration (NElist TypeSpecifier) (Maybe (Either Declarator AbstractDeclarator)) deriving (Data, Typeable, Eq)
 data ThrowExpression = ThrowExpression (KwdThrow, White) (Maybe AssignmentExpression) deriving (Data, Typeable, Eq)
 data ExceptionSpecification = ExceptionSpecification (KwdThrow, White) (Parenthesized (Maybe TypeIdList)) deriving (Data, Typeable, Eq)
-data TypeIdList = TypeIdList (Commad TypeId) deriving (Data, Typeable, Eq)
+newtype TypeIdList = TypeIdList (Commad TypeId) deriving (Data, Typeable, Eq)
 
 -- A.14 Preprocessing directives [gram.cpp]

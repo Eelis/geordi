@@ -86,11 +86,11 @@ apply_makedecl md did r = case apply_makedecl_to did md(split_all_decls r) of
 apply_makedecl_to :: Data d => DeclaratorId -> MakeDeclaration -> d -> MaybeEitherString d
 apply_makedecl_to s makedecl = somewhere $ Maybe.fromMaybe (const mzero) $ Maybe.listToMaybe . Maybe.catMaybes $
   [ cast ((\d -> case d of
-    SimpleDeclaration specs (Just (Commad (InitDeclarator x mi) [])) w | convert x == s ->
+    SimpleDeclaration specs (Just (InitDeclaratorList (Commad (InitDeclarator x mi) []))) w | convert x == s ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify simple-declaration."
         MakeDeclaration specs' mpad _ -> return $ let (specs'', x') = apply (specs', mpad) (specs, x) in
-          SimpleDeclaration specs'' (Just (Commad (InitDeclarator x' mi) [])) w
+          SimpleDeclaration specs'' (Just (InitDeclaratorList (Commad (InitDeclarator x' mi) []))) w
     _ -> mzero) :: SimpleDeclaration -> MaybeEitherString SimpleDeclaration)
   , cast ((\d -> case d of
     ParameterDeclaration specs (Left x) m | convert x == s ->
@@ -107,9 +107,9 @@ apply_makedecl_to s makedecl = somewhere $ Maybe.fromMaybe (const mzero) $ Maybe
           (\(u', e') -> ExceptionDeclaration u' $ Just $ Left e') . mapply (specs, mpad) (u, e)
     _ -> mzero) :: ExceptionDeclaration -> MaybeEitherString ExceptionDeclaration)
   , cast ((\d -> case d of
-    MemberDeclaration specs (Just (Commad (MemberDeclarator decl ps) [])) semicolon | convert decl == s ->
+    MemberDeclaration specs (Just (MemberDeclaratorList (Commad (MemberDeclarator decl ps) []))) semicolon | convert decl == s ->
       return $ let (specs', decl', ps') = apply makedecl (specs, decl, ps) in
-        MemberDeclaration specs' (Just (Commad (MemberDeclarator decl' ps') [])) semicolon
+        MemberDeclaration specs' (Just (MemberDeclaratorList (Commad (MemberDeclarator decl' ps') []))) semicolon
     _ -> mzero) :: MemberDeclaration -> MaybeEitherString MemberDeclaration)
   , cast ((\d -> case d of
     FunctionDefinition specs decl body | convert decl == s ->
@@ -149,7 +149,7 @@ instance Convert DeclSpecifier (Maybe DeclaratorId) where
   convert (DeclSpecifier_TypeSpecifier (TypeSpecifier_ElaboratedTypeSpecifier c)) = Just $ convert c
   convert _ = Nothing
 instance Convert SimpleDeclaration (Maybe DeclaratorId) where
-  convert (SimpleDeclaration _ (Just (Commad (InitDeclarator d _) [])) _) = Just $ convert d
+  convert (SimpleDeclaration _ (Just (InitDeclaratorList (Commad (InitDeclarator d _) []))) _) = Just $ convert d
   convert (SimpleDeclaration [d] Nothing _) = convert d
   convert _ = Nothing
 instance Convert NamespaceAliasDefinition DeclaratorId where convert (NamespaceAliasDefinition _ i _ _ _ _) = convert i
@@ -178,7 +178,7 @@ instance Convert MemberDeclaration (Maybe DeclaratorId) where
   convert (MemberFunctionDefinition d _) = Just $ convert d
   convert (MemberUsingDeclaration _) = Nothing
   convert (MemberTemplateDeclaration d) = convert d
-  convert (MemberDeclaration _ (Just (Commad d [])) _) = convert d
+  convert (MemberDeclaration _ (Just (MemberDeclaratorList (Commad d []))) _) = convert d
   convert (MemberDeclaration [d] Nothing _) = convert d
   convert (MemberDeclaration _ _ _) = Nothing
 instance Convert (OptQualified, Identifier) DeclaratorId where
@@ -452,8 +452,8 @@ instance SplitDecls BlockDeclaration where
 
 instance SplitDecls SimpleDeclaration where
   split_decls d@(SimpleDeclaration _ Nothing _) = [d]
-  split_decls (SimpleDeclaration specs (Just (Commad x l)) w) =
-    (\y -> SimpleDeclaration specs (Just (Commad y [])) w) . (x : snd . l)
+  split_decls (SimpleDeclaration specs (Just (InitDeclaratorList (Commad x l))) w) =
+    (\y -> SimpleDeclaration specs (Just (InitDeclaratorList (Commad y []))) w) . (x : snd . l)
 
 instance SplitDecls Statement where
   split_decls (Statement_DeclarationStatement (DeclarationStatement d)) =
@@ -466,8 +466,8 @@ instance SplitDecls Statement where
   split_decls s = [gmapT split_all_decls s]
 
 instance SplitDecls MemberDeclaration where
-  split_decls (MemberDeclaration specs (Just (Commad d ds)) s) =
-    (\d' -> MemberDeclaration specs (Just (Commad d' [])) s) . (d : snd . ds)
+  split_decls (MemberDeclaration specs (Just (MemberDeclaratorList (Commad d ds))) s) =
+    (\d' -> MemberDeclaration specs (Just (MemberDeclaratorList (Commad d' []))) s) . (d : snd . ds)
   split_decls d = [gmapT split_all_decls d]
 
 compound_split_decls :: Statement -> Statement

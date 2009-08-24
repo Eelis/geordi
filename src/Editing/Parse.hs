@@ -254,31 +254,31 @@ instance Parse DataType where
     -- A.6 Declarations [gram.dcl]
     , P(Declaration), P(BlockDeclaration), P(AliasDeclaration), P(SimpleDeclaration), P(StaticAssertDeclaration)
     , P(DeclSpecifier), P(StorageClassSpecifier), P(FunctionSpecifier), P(TypeSpecifier), P(SimpleTypeSpecifier)
-    , P(TypeName), P(ElaboratedTypeSpecifier), P(EnumSpecifier), P(EnumHead), P(EnumKey), P(EnumeratorDefinition)
+    , P(TypeName), P(ElaboratedTypeSpecifier), P(EnumSpecifier), P(EnumHead), P(EnumKey), P(EnumeratorList), P(EnumeratorDefinition)
     , P(Enumerator), P(NamespaceDefinition), P(UsingDeclaration), P(UsingDirective), P(AsmDefinition), P(LinkageSpecification)
     , P(AlignmentSpecifier)
 
     -- A.7 Declarators [gram.decl]
-    , P(InitDeclarator), P(Declarator), P(PtrDeclarator), P(NoptrDeclarator), P(ParametersAndQualifiers)
+    , P(InitDeclaratorList), P(InitDeclarator), P(Declarator), P(PtrDeclarator), P(NoptrDeclarator), P(ParametersAndQualifiers)
     , P(PtrOperator), P(CvQualifier), P(DeclaratorId), P(TypeId), P(AbstractDeclarator), P(PtrAbstractDeclarator)
-    , P(NoptrAbstractDeclarator), P(ParameterDeclarationClause), P(ParameterDeclaration), P(FunctionDefinition)
+    , P(NoptrAbstractDeclarator), P(ParameterDeclarationClause), P(ParameterDeclarationList), P(ParameterDeclaration), P(FunctionDefinition)
     , P(FunctionBody), P(Initializer), P(BraceOrEqualInitializer), P(InitializerClause), P(InitializerList), P(BracedInitList)
 
     -- A.8 Classes [gram.class]
     , P(ClassSpecifier), P(ClassHead), P(ClassKey), P(MemberAccessSpecifier)
-    , P(MemberSpecification), P(MemberDeclaration), P(MemberDeclarator), P(PureSpecifier)
+    , P(MemberSpecification), P(MemberDeclaration), P(MemberDeclaratorList), P(MemberDeclarator), P(PureSpecifier)
 
     -- A.9 Derived classes [gram.derived]
-    , P(BaseClause), P(BaseSpecifier), P(AccessSpecifier)
+    , P(BaseClause), P(BaseSpecifierList), P(BaseSpecifier), P(AccessSpecifier)
 
     -- A.10 Special member functions [gram.special]
-    , P(ConversionFunctionId), P(ConversionTypeId), P(CtorInitializer), P(MemInitializer), P(MemInitializerId)
+    , P(ConversionFunctionId), P(ConversionTypeId), P(CtorInitializer), P(MemInitializerList), P(MemInitializer), P(MemInitializerId)
 
     -- A.11 Overloading [gram.over]
     , P(OperatorFunctionId)
 
     -- A.12 Templates [gram.temp]
-    , P(TemplateDeclaration), P(TemplateParameter), P(TypeParameter), P(TemplateArguments), P(SimpleTemplateId)
+    , P(TemplateDeclaration), P(TemplateParameterList), P(TemplateParameter), P(TypeParameter), P(TemplateArguments), P(SimpleTemplateId)
     , P(TemplateId), P(TemplateArgumentList), P(TemplateArgument), P(TypenameSpecifier), P(ExplicitInstantiation)
     , P(ExplicitSpecialization)
 

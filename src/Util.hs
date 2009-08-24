@@ -11,7 +11,7 @@ import Data.Monoid (Monoid(..))
 import Data.List (sortBy, minimumBy, isPrefixOf, tails, all, stripPrefix)
 import Data.Char (isSpace, isAlphaNum, toLower, toUpper)
 import Data.Function (on)
-import Data.Generics (Typeable)
+import Data.Generics (Data, Typeable)
 import Control.Exception (bracket, evaluate)
 import Control.Arrow (Arrow, (>>>), arr, first, second, (&&&))
 import Control.Monad (liftM2, when, MonadPlus(..))
@@ -414,7 +414,7 @@ readState = StateT $ \x -> return (x, x)
 mapState' :: Monad y => (x -> x) -> StateT x y ()
 mapState' f = StateT $ \s -> return ((), f s)
 
-data TriBool = Definitely | Indeterminate | DefinitelyNot
+data TriBool = Definitely | Indeterminate | DefinitelyNot deriving (Data, Typeable, Eq)
 
 newtype MaybeEitherString a = MaybeEitherString (Maybe (Either String a)) deriving (Show, Typeable)
 

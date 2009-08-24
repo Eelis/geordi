@@ -1,13 +1,13 @@
 {-# LANGUAGE Rank2Types, FlexibleInstances, UndecidableInstances, RelaxedPolyRec, PatternGuards, OverlappingInstances #-}
 {-# OPTIONS -cpp #-}
 
-module Cxx.Show (pretty_with_precedence, show_simple, show_plural, show_pretty, Highlighter, Highlightable(..), noHighlighting) where
+module Cxx.Show (pretty_with_precedence, show_simple, show_plural, show_pretty, Highlighter, Highlightable(..), noHighlighting, dataType_productionName) where
 
 import qualified Data.List as List
 import qualified Data.Char as Char
 import Util ((.), unne, strip)
 import Control.Applicative (Applicative(..))
-import Data.Generics (cast, Data, gmapQr, ext1Q, dataTypeName)
+import Data.Generics (cast, Data, gmapQr, ext1Q, dataTypeName, Constr, DataType)
 
 import Cxx.Basics
 import Prelude hiding ((.))
@@ -48,11 +48,17 @@ camel_components s = case s of
 camel_to_prod :: String -> String
 camel_to_prod = concat . List.intersperse "-" . camel_components
 
+dataType_productionName :: DataType -> String
+dataType_productionName dt = camel_to_prod $ reverse $ takeWhile (/= '.') $ reverse $ dataTypeName dt
+
+constr_productionName :: Constr -> String
+constr_productionName c = camel_to_prod $ show c
+
 instance Show Findable where
   show (DeclarationOf d) = "free declaration of " ++ strip (show d)
   show (BodyOf d) = "body of " ++ strip (show d)
-  show (FindableDataType dt) = camel_to_prod $ reverse $ takeWhile (/= '.') $ reverse $ dataTypeName dt
-  show (FindableConstr c) = camel_to_prod $ show c
+  show (FindableDataType dt) = dataType_productionName dt
+  show (FindableConstr c) = constr_productionName c
   show Constructor = "free constructor"
   show Destructor = "free destructor"
   show ConversionFunction = "free conversion-function"

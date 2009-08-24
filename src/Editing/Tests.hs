@@ -398,7 +398,7 @@ precedence_tests = do
   f "x--x" "Unexpected `x` after x--. Expected postfix operator, binary operator, ternary operator, or end of code."
   f "x." "Unexpected end of code. Expected id-expression, \"template\", or pseudo-destructor-name."
   f "x-" "Unexpected end of code. Expected multiplicative-expression."
-  f "x( " "Unexpected end of code. Expected \")\" or initializer-list."
+  f "x( " "Unexpected end of code. Expected \")\" or expression-list."
   f "x(y" "Unexpected end of code. Expected \")\", \"(\", braced-init-list, \"::\", template-arguments, postfix operator, binary operator, ternary operator, or comma."
   f "x?y" "Unexpected end of code. Expected colon, \"(\", braced-init-list, \"::\", template-arguments, postfix operator, binary operator, or ternary operator."
   f "x[" "Unexpected end of code. Expected expression or braced-init-list."
