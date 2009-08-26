@@ -223,6 +223,8 @@ instance Parse (CvQualifier, White) where
     b <- makeTypeExtensions . parseOptions
     (if b then (,) Const . kwd "constant" else pzero) <|> (,) Const . kwd "const" <|> (,) Volatile . kwd "volatile"
 
+instance Parse CvQualifierSeq where autoname_parse = auto1 CvQualifierSeq
+
 takingClause :: Parser Char [ParameterDeclaration]
 takingClause = (do
   IntegerLiteral s <- parse
@@ -260,7 +262,7 @@ literalArrayBound = ConstantExpression . ConditionalExpression_LogicalOrExpressi
 type_desc :: Parser Char ([TypeSpecifier], Either TypeSpecifier PtrAbstractDeclarator)
   -- Todo: Document this type
 type_desc = (<?> "type description") $ do
-      o <- (pluralP "pointer" >> return (PtrOperator_Ptr (StarOperator, White "") []))
+      o <- (pluralP "pointer" >> return (PtrOperator_Ptr (StarOperator, White "") Nothing))
         <|> (\k -> PtrOperator_Ref (k, White "")) . (((kwd "rvalue" >> return Rvalue) <|> (optional (kwd "lvalue") >> return Lvalue)) << pluralP "reference")
       (kwd "to" >> an >> second Right . apply o . specdDesc) <|> ((,) [] . Right . flip apply (PtrAbstractDeclarator o Nothing) . (parse :: Parser Char (Maybe PtrAbstractDeclarator)))
     <|> do
@@ -275,7 +277,7 @@ type_desc = (<?> "type description") $ do
     <|> liftM2 (flip apply) (op OpenParen >> specdDesc << op CloseParen) (parse :: Parser Char (Maybe PtrAbstractDeclarator))
     <|> do
       pluralP "function"
-      let function_declarator taking = PtrAbstractDeclarator_NoptrAbstractDeclarator $ NoptrAbstractDeclarator Nothing (Left $ ParametersAndQualifiers (parenthesized taking) [] Nothing Nothing)
+      let function_declarator taking = PtrAbstractDeclarator_NoptrAbstractDeclarator $ NoptrAbstractDeclarator Nothing (Left $ ParametersAndQualifiers (parenthesized taking) Nothing Nothing Nothing)
       do
         taking <- kwd "taking" >> takingP
         do
@@ -418,6 +420,7 @@ instance Parse UnaryExpression where
   autoname_parse =
     (parse >>= \w -> (UnaryExpression_Sizeof_TypeId w . parse <|> (UnaryExpression_Sizeof_UnaryExpression w . parse))) <|>
     auto2 UnaryExpression_AlignOf <|> auto2 UnaryExpression <|> UnaryExpression_NewExpression . parse <|> UnaryExpression_DeleteExpression . parse <|> UnaryExpression_PostfixExpression . parse
+instance Parse NewInitializer where autoname_parse = auto1 NewInitializer_ExpressionList <|> auto1 NewInitializer_BracedInitList
 instance Parse NewExpression where autoname_parse = auto5 NewExpression
 instance Parse NewPlacement where autoname_parse = auto1 NewPlacement
 instance Parse NewTypeId where autoname_parse = auto2 NewTypeId
@@ -457,12 +460,14 @@ instance Parse ForInitStatement where autoname_parse = auto1 ForInitStatement_Si
 instance Parse SelectionStatement where autoname_parse = auto4 IfStatement <|> auto3 SwitchStatement
 instance Parse JumpStatement where autoname_parse = auto2 BreakStatement <|> auto2 ContinueStatement <|> auto3 ReturnStatement
 instance Parse ExpressionStatement where autoname_parse = auto2 ExpressionStatement
-instance Parse Condition where autoname_parse = auto1 Condition_Expression <|> auto3 Condition_Declarator
-instance Parse CompoundStatement where autoname_parse = CompoundStatement . parse
+instance Parse Condition where autoname_parse = auto1 Condition_Expression <|> auto3 Condition_Declaration
+instance Parse StatementSeq where autoname_parse = auto1 StatementSeq
+instance Parse CompoundStatement where autoname_parse = auto1 CompoundStatement
 instance Parse DeclarationStatement where autoname_parse = auto1 DeclarationStatement
 
 -- A.6 Declarations [gram.dcl]
 
+instance Parse DeclarationSeq where autoname_parse = auto1 DeclarationSeq
 instance Parse Declaration where autoname_parse = auto1 Declaration_BlockDeclaration <|> auto1 Declaration_FunctionDefinition <|> auto1 Declaration_ExplicitSpecialization <|> auto1 Declaration_ExplicitInstantiation <|> auto1 Declaration_LinkageSpecification <|> auto1 Declaration_NamespaceDefinition <|> auto1 Declaration_TemplateDeclaration
 instance Parse BlockDeclaration where autoname_parse = auto1 BlockDeclaration_SimpleDeclaration <|> auto1 BlockDeclaration_AsmDefinition <|> auto1 BlockDeclaration_NamespaceAliasDefinition <|> auto1 BlockDeclaration_UsingDeclaration <|> auto1 BlockDeclaration_UsingDirective <|> auto1 BlockDeclaration_StaticAssertDeclaration <|> auto1 BlockDeclaration_AliasDeclaration
 instance Parse UsingDirective where parse = auto5 UsingDirective
@@ -482,9 +487,9 @@ instance Parse SpecialNoptrDeclarator where
     -- Todo: This is too simplistic. It will fail to parse (obscure) things like "(X)();" and "(X());".
 
 instance Parse SimpleDeclaration where
-  parse = liftM2 (SimpleDeclaration []) (Just . InitDeclaratorList . (convert . specialNoptrDeclarator .) . parse) parse <|> do
+  parse = liftM2 (SimpleDeclaration Nothing) (Just . InitDeclaratorList . (convert . specialNoptrDeclarator .) . parse) parse <|> do
     (specs, (decls, semicolon)) <- many1Till' parse (liftM2 (,) parse parse)
-    return $ SimpleDeclaration (unne specs) decls semicolon
+    return $ SimpleDeclaration (Just $ DeclSpecifierSeq specs) decls semicolon
 
 instance Parse UsingDeclaration where parse = parse >>= \w -> auto5 (UsingDeclaration_Nested w) <|> auto3 (UsingDeclaration_NonNested w)
 instance Parse AlignmentSpecifier where autoname_parse = auto2 AlignmentSpecifier
@@ -516,6 +521,7 @@ instance Parse EnumeratorDefinition where autoname_parse = auto2 EnumeratorDefin
 instance Parse Enumerator where autoname_parse = auto1 Enumerator
 instance Parse EnumKey where autoname_parse = parse >>= \e -> EnumKey_Class e . parse <|> EnumKey_Struct e . parse <|> return (EnumKey e)
 instance Parse NamespaceDefinition where autoname_parse = auto4 NamespaceDefinition
+instance Parse NamespaceBody where autoname_parse = auto1 NamespaceBody
 instance Parse LinkageSpecification where autoname_parse = auto3 LinkageSpecification
 instance Parse EnumSpecifier where autoname_parse = auto2 EnumSpecifier
 
@@ -546,7 +552,7 @@ instance Parse NoptrDeclarator where
 instance Parse DeclaratorId where autoname_parse = auto2 DeclaratorId_IdExpression
   -- We don't even try to parse a DeclaratorId_Nested, because we can't tell it apart from an IdExpression anyway.
 
-instance Parse TypeId where autoname_parse = typeP id (\x y -> TypeId x $ AbstractDeclarator_PtrAbstractDeclarator . y)
+instance Parse TypeId where autoname_parse = typeP id (\x y -> TypeId (TypeSpecifierSeq x) $ AbstractDeclarator_PtrAbstractDeclarator . y)
 
 typeP :: (Parse c, Convert b (Maybe (CvQualifier, White)), Convert TypeSpecifier b, ParseSpecifier b) =>
   (Maybe PtrAbstractDeclarator -> c) -> (NElist b -> c -> a) -> Parser Char a
@@ -585,11 +591,11 @@ instance Parse ParameterDeclarationClause where
       ) <|> return (ParameterDeclarationClause Nothing Nothing)
 
 instance Parse ParameterDeclarationList where autoname_parse = auto1 ParameterDeclarationList
-instance Parse ParameterDeclaration where autoname_parse = typeP (Right . (AbstractDeclarator_PtrAbstractDeclarator .)) ParameterDeclaration >>= auto1
+instance Parse ParameterDeclaration where autoname_parse = typeP (Right . (AbstractDeclarator_PtrAbstractDeclarator .)) (ParameterDeclaration . DeclSpecifierSeq) >>= auto1
 
 -- Consider the simple-declaration  x y();  . If we just start by parsing a list of decl/type-specifiers, we get [x, y], and consequently we will never succeed in parsing a simple-declaration. For this reason, we distinguish between primary and secondary specifiers, where the former may only occur once in specifier lists. We then parse specifier lists in such a way that we stop when a second primary specifier is encountered (and don't include it in the resulting list). In the example, both x and y are primary specifiers, and so only x becomes part of the list, leaving y to be (correctly) parsed as part of the declarator.
 -- There is one context in which this is not sufficient: constructor declarations. In a constructor declaration  T();  , the T is not part of the specifier sequence, but part of the declarator. There, we use a manyTill to stop parsing specifiers as soon as what follows is a valid declarator.
--- Todo: Doesn't the use of manyTill obviate the need for this distinction altogether?
+-- We could also use manyTill everywhere and get rid of the primary/secondy distinction, but having the distinction is easier, because it greatly simplifies treatment of other decl-specifier-seq/type-specifier-seq occurrences (because they can just rely on the Parse instances for those respective productions).
 
 class ParseSpecifier s where parsePrimarySpec, parseSecondarySpec :: Parser Char s
 
@@ -616,18 +622,17 @@ instance ParseSpecifier MakeSpecifier where
     (symbols "implicit" >> return (NonFunctionSpecifier Explicit)) <|>
     MakeSpecifier_DeclSpecifier . parseSecondarySpec
 
-instance Parse [DeclSpecifier] where
-  parse = liftM2 (:) parsePrimarySpec (many parseSecondarySpec) <|> liftM2 (:) parseSecondarySpec parse
-
-instance Parse (NElist TypeSpecifier) where
-  parse = do liftM2 NElist parsePrimarySpec (many parseSecondarySpec) <|> liftM2 NElist parseSecondarySpec parse
+instance Parse TypeSpecifierSeq where
+  autoname_parse =
+    TypeSpecifierSeq . (liftM2 NElist parsePrimarySpec (many parseSecondarySpec) <|> liftM2 NElist parseSecondarySpec lp)
+    where lp = liftM2 (:) parsePrimarySpec (many parseSecondarySpec) <|> liftM2 (:) parseSecondarySpec lp <|> return []
 
 instance Parse DeclSpecifier where autoname_parse = parsePrimarySpec <|> parseSecondarySpec
 
 instance Parse FunctionDefinition where
   autoname_parse = do
     (declspecs, (declarator, body)) <- manyTill parse (liftM2 (,) parse parse)
-    return $ FunctionDefinition declspecs declarator body
+    return $ FunctionDefinition (convert (declspecs :: [DeclSpecifier])) declarator body
 
 instance Parse FunctionBody where autoname_parse = auto2 FunctionBody
 
@@ -641,7 +646,7 @@ instance Parse MemberAccessSpecifier where autoname_parse = auto2 MemberAccessSp
 instance Parse MemberDeclaration where
   autoname_parse = do
       (x, (y, z)) <- manyTill parse (liftM2 (,) parse parse)
-      return $ MemberDeclaration x y z
+      return $ MemberDeclaration (convert (x :: [DeclSpecifier])) y z
     <|> auto2 MemberFunctionDefinition <|> auto1 MemberUsingDeclaration <|> auto1 MemberTemplateDeclaration
 instance Parse MemberDeclaratorList where autoname_parse = auto1 MemberDeclaratorList
 instance Parse MemberDeclarator where autoname_parse = auto3 BitField <|> auto2 MemberDeclarator
@@ -698,7 +703,8 @@ instance Parse ExplicitSpecialization where autoname_parse = auto3 ExplicitSpeci
 instance Parse ExceptionSpecification where autoname_parse = auto2 ExceptionSpecification
 instance Parse TypeIdList where autoname_parse = auto1 TypeIdList
 instance Parse TryBlock where autoname_parse = auto3 TryBlock
+instance Parse HandlerSeq where autoname_parse = auto1 HandlerSeq
 instance Parse Handler where autoname_parse = auto3 Handler
-instance Parse ExceptionDeclaration where autoname_parse = auto1 ExceptionDeclaration_Ellipsis <|> liftM2 ExceptionDeclaration parseSpecs parse
+instance Parse ExceptionDeclaration where autoname_parse = auto1 ExceptionDeclaration_Ellipsis <|> auto2 ExceptionDeclaration
 
 -- A.14 Preprocessing directives [gram.cpp]

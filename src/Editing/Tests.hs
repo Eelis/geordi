@@ -53,7 +53,9 @@ make_tests = do
   s "int i(3), j(x);" "make i and j const" "const int i(3);int j(x)const ;"
   s "int i;" "make i a const array of pointers" "int *const i[];"
   s "int i[];" "make i const" "const int i[];"
+  s "{ try{}catch(const int i){} }" "make i volatile" "{ try{}catch(volatile const int i){} }"
   s "void f(int i, double d){}" "make i and d long" "void f(long int i, long double d){}"
+  s "{ if(int i = 3) ; }" "make i const" "{ if(const int i = 3) ; }"
   s "int i, j, k;" "make i a float and j and k a double" "float i;double j;double k;"
   s "int i;" "make i an array of const" "const int i[];"
   s "int i;" "make i a static const function" "static int i()const ;"
@@ -414,6 +416,7 @@ parse_tests :: IO ()
 parse_tests = do
   t "struct A<int>;"
   t "void f(int, ...);"
+  t "{ if(int i = 3); }"
   putStrLn "All parse tests passed."
  where
   t :: String -> IO ()

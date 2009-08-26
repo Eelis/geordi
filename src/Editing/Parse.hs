@@ -5,13 +5,14 @@ module Editing.Parse (commandsP, substrsP) where
 
 import qualified Cxx.Parse
 import qualified Cxx.Basics
+import qualified Cxx.Operations
 import qualified Parsers as P
 import Control.Monad (liftM2)
 import Control.Monad.Error ()
 import Control.Category (Category, (.), id)
 import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA)
 import Data.Either (partitionEithers)
-import Data.Generics (DataType, Constr, dataTypeOf, toConstr, Data)
+import Data.Generics (DataType, Constr, toConstr, Data)
 import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, sepBy1', many1Till', optParser, try, many, satisfy, spaces)
 import Util (isVowel, (<<), NElist(..), unne, snd_unit, liftA2, Ordinal(..), apply_if)
 import Cxx.Basics (DeclaratorId)
@@ -229,63 +230,7 @@ instance Data a => Constructor a where to_constr x = toConstr x
 instance Constructor b => Constructor (a -> b) where to_constr f = to_constr $ f undefined
 
 instance Parse DataType where
-  parse = select $ map (\t -> (with_plurals [show $ Cxx.Basics.FindableDataType t], t))
-#define P(n) dataTypeOf (undefined :: Cxx.Basics.n)
-    -- A.1 Keywords [gram.key]
-    [ P(TypedefName), P(NamespaceName), P(OriginalNamespaceName), P(NamespaceAlias)
-    , P(ClassName), P(EnumName), P(TemplateName)
-
-    -- A.2 Lexical conventions [gram.lex]
-    , P(Identifier), P(Literal), P(IntegerLiteral), P(CharacterLiteral), P(FloatingLiteral), P(StringLiteral)
-
-    -- A.4 Expressions [gram.expr]
-    , P(PrimaryExpression), P(IdExpression), P(UnqualifiedId), P(QualifiedId), P(NestedNameSpecifier), P(PostfixExpression)
-    , P(ExpressionList), P(PseudoDestructorName), P(UnaryExpression), P(UnaryOperator), P(NewExpression), P(NewPlacement)
-    , P(NewTypeId), P(NewDeclarator), P(NoptrNewDeclarator), P(NewInitializer), P(DeleteExpression)
-    , P(CastExpression), P(PmExpression), P(MultiplicativeExpression), P(AdditiveExpression), P(ShiftExpression)
-    , P(RelationalExpression), P(EqualityExpression), P(AndExpression), P(ExclusiveOrExpression)
-    , P(InclusiveOrExpression), P(LogicalAndExpression), P(LogicalOrExpression), P(ConditionalExpression)
-    , P(AssignmentExpression), P(AssignmentOperator), P(Expression), P(ConstantExpression)
-
-    -- A.5 Statements [gram.stmt]
-    , P(Statement), P(Label), P(LabeledStatement), P(ExpressionStatement), P(CompoundStatement)
-    , P(SelectionStatement), P(Condition), P(IterationStatement), P(ForInitStatement), P(JumpStatement), P(DeclarationStatement)
-
-    -- A.6 Declarations [gram.dcl]
-    , P(Declaration), P(BlockDeclaration), P(AliasDeclaration), P(SimpleDeclaration), P(StaticAssertDeclaration)
-    , P(DeclSpecifier), P(StorageClassSpecifier), P(FunctionSpecifier), P(TypeSpecifier), P(SimpleTypeSpecifier)
-    , P(TypeName), P(ElaboratedTypeSpecifier), P(EnumSpecifier), P(EnumHead), P(EnumKey), P(EnumeratorList), P(EnumeratorDefinition)
-    , P(Enumerator), P(NamespaceDefinition), P(UsingDeclaration), P(UsingDirective), P(AsmDefinition), P(LinkageSpecification)
-    , P(AlignmentSpecifier)
-
-    -- A.7 Declarators [gram.decl]
-    , P(InitDeclaratorList), P(InitDeclarator), P(Declarator), P(PtrDeclarator), P(NoptrDeclarator), P(ParametersAndQualifiers)
-    , P(PtrOperator), P(CvQualifier), P(DeclaratorId), P(TypeId), P(AbstractDeclarator), P(PtrAbstractDeclarator)
-    , P(NoptrAbstractDeclarator), P(ParameterDeclarationClause), P(ParameterDeclarationList), P(ParameterDeclaration), P(FunctionDefinition)
-    , P(FunctionBody), P(Initializer), P(BraceOrEqualInitializer), P(InitializerClause), P(InitializerList), P(BracedInitList)
-
-    -- A.8 Classes [gram.class]
-    , P(ClassSpecifier), P(ClassHead), P(ClassKey), P(MemberAccessSpecifier)
-    , P(MemberSpecification), P(MemberDeclaration), P(MemberDeclaratorList), P(MemberDeclarator), P(PureSpecifier)
-
-    -- A.9 Derived classes [gram.derived]
-    , P(BaseClause), P(BaseSpecifierList), P(BaseSpecifier), P(AccessSpecifier)
-
-    -- A.10 Special member functions [gram.special]
-    , P(ConversionFunctionId), P(ConversionTypeId), P(CtorInitializer), P(MemInitializerList), P(MemInitializer), P(MemInitializerId)
-
-    -- A.11 Overloading [gram.over]
-    , P(OperatorFunctionId)
-
-    -- A.12 Templates [gram.temp]
-    , P(TemplateDeclaration), P(TemplateParameterList), P(TemplateParameter), P(TypeParameter), P(TemplateArguments), P(SimpleTemplateId)
-    , P(TemplateId), P(TemplateArgumentList), P(TemplateArgument), P(TypenameSpecifier), P(ExplicitInstantiation)
-    , P(ExplicitSpecialization)
-
-    -- A.13 Exception handling [gram.except]
-    , P(TryBlock), P(FunctionTryBlock), P(Handler), P(ExceptionDeclaration), P(ThrowExpression), P(ExceptionSpecification)
-    , P(TypeIdList) ]
-#undef P
+  parse = select $ map (\t -> (with_plurals [show $ Cxx.Basics.FindableDataType t], t)) Cxx.Operations.productions
 
 instance Parse Constr where
   parse = select $ map (\c -> (with_plurals [show $ Cxx.Basics.FindableConstr c], c))
@@ -293,8 +238,6 @@ instance Parse Constr where
     [ P(BooleanLiteral), P(PointerLiteral), P(IfStatement), P(SwitchStatement), P(WhileStatement), P(DoWhileStatement)
     , P(ForStatement), P(BreakStatement), P(ContinueStatement), P(ReturnStatement), P(GotoStatement) ]
 #undef P
-
--- Todo: Handle "-list" productions which are not reflected in our AST properly.
 
 instance Parse Position where
   parse = (select [(begin, Before), (end_kwds, After)] >>> arr (flip Position $ absolute Everything)) <||> auto2 Position
