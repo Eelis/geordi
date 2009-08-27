@@ -19,6 +19,9 @@ tail (NeList _ x) = x
 
 instance Functor NeList where fmap f (NeList x l) = NeList (f x) (map f l)
 
+cons :: a -> NeList a -> NeList a
+cons h = NeList h . to_plain
+
 one :: a -> NeList a
 one x = NeList x []
 

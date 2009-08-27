@@ -7,6 +7,7 @@ import qualified Cxx.Parse
 import qualified Cxx.Basics
 import qualified Cxx.Operations
 import qualified Parsers as P
+import qualified Data.List as List
 import qualified Data.NonEmptyList as NeList
 import Data.NonEmptyList (NeList(..))
 import Control.Monad (liftM2)
@@ -16,7 +17,7 @@ import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA
 import Data.Either (partitionEithers)
 import Data.Generics (DataType, Constr, toConstr, Data)
 import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, sepBy1', many1Till, optParser, try, many, satisfy, spaces)
-import Util (isVowel, (<<), snd_unit, liftA2, Ordinal(..), apply_if)
+import Util (isVowel, (<<), snd_unit, liftA2, Ordinal(..), apply_if, cardinals)
 import Cxx.Basics (DeclaratorId)
 import Request (EvalOpt)
 
@@ -116,6 +117,9 @@ select = foldl1 (<||>) . map (\(s, r) -> if null s then arr (const r) else kwd s
 optional :: Parser a b -> Parser a ()
 optional p = (p >>> arr (const ())) <||> arr (const ())
 
+option :: Parser a b -> Parser a (Maybe b)
+option p = (p >>> arr Just) <||> arr (const Nothing)
+
 auto1 :: Parse a => (a -> b) -> Parser x b
 auto1 f = parse >>> arr f
 
@@ -148,6 +152,15 @@ instance Parse Ordinal where
     n <- select $ fmap (\n -> ([show (Ordinal n)], n)) [1..9] -< ()
     b <- select [(["last"], True), ([], False)] -< ()
     returnA -< if b then - n - 1 else n
+
+parseSmallPositiveCardinal :: Parser a Int
+parseSmallPositiveCardinal = select $ map (\(x,y) -> ([x {-, show y-}], y)) $ tail $ zip cardinals [0..]
+
+instance Parse OccurrencesClause where
+  parse = label "ordinal" $ (>>> arr OccurrencesClause) $  -- Todo: FIx inappropriate label.
+    (optional (kwd ["the"]) >>> kwd ["first"] >>> parseSmallPositiveCardinal >>> arr (\n -> fmap Ordinal $ NeList 0 [1 .. n-1])) <||>
+    (optional (kwd ["the"]) >>> kwd ["last"] >>> parseSmallPositiveCardinal >>> arr (\n -> fmap Ordinal $ NeList (-1) [-n .. -2])) <||>
+    auto1 NeList.one
 
 instance Parse a => Parse (EverythingOr a) where
   parse = select [(["everything"], Everything)] <||> auto1 NotEverything
@@ -203,7 +216,7 @@ instance Parse (Relative (Rankeds (Either Cxx.Basics.Findable DeclaratorId))) wh
 
 instance Parse (Relative (EverythingOr (Rankeds (Either Cxx.Basics.Findable String)))) where
   parse = (relative_everything_orA <||>) $ (parse >>>) $ proc x -> case x of
-    Rankeds (AndList (NeList r [])) s -> do
+    Rankeds (AndList (NeList (OccurrencesClause (NeList r [])) [])) s -> do
         u <- kwd till >>> parse -< ()
         returnA -< Between Everything (Betw (Bound (Just Before) $ NotEverything $ Ranked r s) u)
       <||> (relative -< NotEverything x)
@@ -270,23 +283,23 @@ instance Parse Changer where
 
 instance Parse Eraser where parse = auto2 EraseAround <||> auto1 EraseOptions <||> auto1 EraseText
 instance Parse Mover where parse = liftA2 Mover parse (kwd ["to"] >>> parse)
-instance Parse Swapper where parse = liftA2 Swapper parse ((andP <||> (kwd ["with"] >>> arr (const ()))) >>> parse)
 instance Parse [EvalOpt] where parse = Parser (Terminators False []) $ \_ _ _ -> optParser
 instance Parse a => Parse (Around a) where parse = kwd ["around"] >>> auto1 Around
 instance Parse UsePattern where parse = auto1 UsePattern
 instance Parse UseClause where parse = auto1 UseOptions <||> (parse >>> relative >>> arr UseString)
 
+namedWrappings :: [([String], Wrapping)]
+namedWrappings =
+  [ (["curlies", "braces", "curly brackets"], Wrapping "{" "}")
+  , (["parentheses", "parens", "round brackets"], Wrapping "(" ")")
+  , (["square brackets"], Wrapping "[" "]")
+  , (["angle brackets"], Wrapping "<" ">")
+  , (["single quotes"], Wrapping "'" "'")
+  , (["double quotes"], Wrapping "\"" "\"")
+  , (["spaces"], Wrapping " " " ") ]
+
 instance Parse Wrapping where
-  parse = label "wrapping description" $
-    (kwd ["curlies", "braces", "curly brackets"] >>> arr (const (Wrapping "{" "}")))
-    <||> (kwd ["parentheses", "parens", "round brackets"] >>> arr (const (Wrapping "(" ")")))
-    <||> (kwd ["square brackets"] >>> arr (const (Wrapping "[" "]")))
-    <||> (kwd ["angle brackets"] >>> arr (const (Wrapping "<" ">")))
-    <||> (kwd ["single quotes"] >>> arr (const (Wrapping "'" "'")))
-    <||> (kwd ["double quotes"] >>> arr (const (Wrapping "\"" "\"")))
-    <||> (kwd ["spaces"] >>> arr (const (Wrapping " " " ")))
-    <||> liftA2 Wrapping parse (andP >>> parse)
-  -- Todo: This is duplicated below.
+  parse = label "wrapping description" $ select namedWrappings <||> liftA2 Wrapping parse (andP >>> parse)
 
 instance Parse a => Parse (Maybe a) where parse = (parse >>> arr Just) <||> arr (const Nothing)
 
@@ -300,20 +313,15 @@ instance Parse Command where
     (kwd ["change"] >>> commit (auto1 Change)) <||>
     (kwd ["use"] >>> commit (auto1 Use)) <||>
     (kwd ["move"] >>> commit (auto1 Move)) <||>
-    (kwd ["swap"] >>> commit (auto1 Swap)) <||>
+    (kwd ["swap"] >>> commit (liftA2 Swap parse (option (kwd ["with"] >>> parse)))) <||>
     (kwd ["wrap"] >>> commit (parse >>> snd_unit (auto1 Left <||> (kwd ["in"] >>> auto1 Right)) >>> semipure (uncurry wc)))
     where
       wc :: Substrs -> Either (AndList (Around Substrs)) Wrapping -> Either String Command
       wc what (Right wrapping) = return $ WrapIn what wrapping
       wc (Substrs (AndList (NeList (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back)) []))) (Left what) =
-        (\q -> WrapAround q what) `fmap` case () of
-          ()| x `elem` ["curlies", "braces", "curly brackets"] -> return $ Wrapping "{" "}"
-          ()| x `elem` ["parentheses", "parens", "round brackets"] -> return $ Wrapping "(" ")"
-          ()| x `elem` ["square brackets"] -> return $ Wrapping "[" "]"
-          ()| x `elem` ["angle brackets"] -> return $ Wrapping "<" ">"
-          ()| x `elem` ["single quotes"] -> return $ Wrapping "'" "'"
-          ()| x `elem` ["double quotes"] -> return $ Wrapping "\"" "\""
-          ()| otherwise -> fail "Unrecognized wrapping description."
+        (\q -> WrapAround q what) `fmap` case fmap snd $ List.find (elem x . fst) namedWrappings of
+          Just w -> return w
+          Nothing -> fail "Unrecognized wrapping description."
       wc (Substrs (AndList (NeList (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back))
         [Between (NotEverything (Sole' (Right y))) (Betw (Bound (Just Before) Everything) Back)]))) (Left what) =
           return $ WrapAround (Wrapping x y) what

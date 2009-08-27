@@ -89,6 +89,8 @@ instance Show RelativeBound where
   show Front = "front"; show Back = "back"
   show (RelativeBound mba x) = maybe "" ((++ " ") . show) mba ++ show x
 
+instance Show OccurrencesClause where show (OccurrencesClause l) = show (AndList l)
+
 instance Show a => Show (Rankeds a) where
   show (Sole' x) = show x
   show (All x) = "all " ++ show x
@@ -109,7 +111,6 @@ instance Show Eraser where
 instance Show UsePattern where show (UsePattern p) = p
 instance Show UseClause where show (UseString s) = show s; show (UseOptions o) = show_long_opts o
 instance Show Mover where show (Mover x y) = show x ++ " to " ++ show y
-instance Show Swapper where show (Swapper x y) = show x ++ " and " ++ show y
 
 instance Show String where
   show " " = "space"
@@ -145,7 +146,8 @@ show_command t (Use l) = tense t "use" ++ " " ++ show l
 show_command t (Prepend s mp) = tense t "prepend" ++ " " ++ show s ++ maybe "" ((" " ++) . show) mp
 show_command t (Append s mp) = tense t "append" ++ " " ++ show s ++ maybe "" ((" " ++) . show) mp
 show_command t (Move l) = tense t "move" ++ " " ++ show l
-show_command t (Swap l) = tense t "swap" ++ " " ++ show l
+show_command t (Swap l Nothing) = tense t "swap" ++ " " ++ show l
+show_command t (Swap l (Just y)) = tense t "swap" ++ " " ++ show l ++ " with " ++ show y
 show_command t (WrapIn l w) = tense t "wrap" ++ " " ++ show l ++ " in " ++ show w
 show_command t (WrapAround w l) = tense t "wrap" ++ " " ++ show w ++ " " ++ show l
 

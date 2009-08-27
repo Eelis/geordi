@@ -6,6 +6,7 @@ import qualified Cxx.Basics
 import qualified Request
 import qualified Data.List as List
 import qualified Data.Char as Char
+import Data.Function (on)
 
 import Cxx.Basics (DeclaratorId, Findable)
 
@@ -43,6 +44,36 @@ selectRange (Range st si) = take si . drop st
 replaceRange :: Range a -> [a] -> [a] -> [a]
 replaceRange (Range p l) r s = take p s ++ r ++ drop (p + l) s
 
+touch :: Range a -> Range a -> Bool
+touch x y = end x >= start y && end y >= start x
+
+findWithRest :: (a -> Maybe b) -> [a] -> Maybe (b, [a])
+findWithRest p = work []
+  where
+    work _ [] = Nothing
+    work old (h:t)
+      | Just b <- p h = Just (b, old ++ t)
+      | otherwise = work (h:old) t
+
+two_contiguous :: ARange -> ARange -> Maybe ARange
+two_contiguous x y
+  | touch (unanchor_range x) (unanchor_range y) = Just $ arange (min (x Before) (y Before)) (max (x After) (y After))
+  | otherwise = Nothing
+
+contiguous :: NeList ARange -> Maybe ARange
+contiguous (NeList h []) = Just h
+contiguous (NeList h t) = findWithRest (two_contiguous h) t >>= contiguous . uncurry NeList
+
+ne_merge_contiguous :: NeList ARange -> NeList ARange
+ne_merge_contiguous (NeList h []) = NeList h []
+ne_merge_contiguous (NeList h t@(x:xs)) = case findWithRest (two_contiguous h) t of
+  Nothing -> NeList.cons h $ ne_merge_contiguous $ NeList x xs
+  Just (h', t') -> ne_merge_contiguous $ NeList h' t'
+
+merge_contiguous :: [ARange] -> [ARange]
+merge_contiguous [] = []
+merge_contiguous (h:t) = NeList.to_plain $ ne_merge_contiguous $ NeList h t
+
 offsetRange :: Int -> Range a -> Range a
 offsetRange i (Range st si) = Range (st + i) si
 
@@ -62,6 +93,8 @@ unanchor_range :: ARange -> Range a
 unanchor_range r | Anchor _ x <- r Before, Anchor _ y <- r After = Range x (y - x)
 
 -- Edits
+
+instance Ord Anchor where compare = compare `on` (\a -> (anchor_pos a, anchor_befAft a))
 
 data Anchor = Anchor { anchor_befAft :: BefAft, anchor_pos :: Pos Char } deriving Eq
   -- This BefAft will probably need to be generalized to Before|After|Both for "insert x between 3 and 4".
@@ -85,7 +118,8 @@ makeMoveEdit (Anchor ba p) r@(Range st si)
 
 data EverythingOr a = Everything | NotEverything a
 data Ranked a = Ranked Ordinal a | Sole a
-data Rankeds a = Rankeds (AndList Ordinal) a | Sole' a | All a | AllBut (AndList Ordinal) a
+newtype OccurrencesClause = OccurrencesClause (NeList Ordinal)
+data Rankeds a = Rankeds (AndList OccurrencesClause) a | Sole' a | All a | AllBut (AndList Ordinal) a
 data Bound = Bound (Maybe BefAft) Substr
 data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative Substr)
 data Relative a = Relative a BefAft (Ranked (Either Findable String)) | Between a Betw | FromTill Bound RelativeBound | In a InClause
@@ -107,7 +141,6 @@ data Betw = Betw Bound RelativeBound
 data Wrapping = Wrapping String String
 data UsePattern = UsePattern String
 data UseClause = UseString (Relative UsePattern) | UseOptions [Request.EvalOpt]
-data Swapper = Swapper (Relative Substr) (Relative Substr)
 
 data Command
   = Insert String (AndList AppendPositionsClause)
@@ -117,7 +150,7 @@ data Command
   | Change (AndList Changer)
   | Erase (AndList Eraser)
   | Move (AndList Mover)
-  | Swap (AndList Swapper)
+  | Swap Substrs (Maybe Substrs)
   | WrapAround Wrapping (AndList (Around Substrs))
   | WrapIn Substrs Wrapping
   | Use (AndList UseClause)
@@ -163,7 +196,7 @@ instance Functor Relative where
   fmap _ (FromTill a b) = FromTill a b
 
 instance Convert (Ranked a) (Rankeds a) where
-  convert (Ranked o x) = Rankeds (and_one o) x
+  convert (Ranked o x) = Rankeds (and_one $ OccurrencesClause $ NeList.one o) x
   convert (Sole x) = Sole' x
 
 instance Convert (Range a) (Range a) where convert = id
@@ -176,11 +209,19 @@ instance Invertible (Ranked a) where
   invert (Ranked r s) = Ranked (invert r) s
   invert x = x
 
+instance Invertible OccurrencesClause where
+  invert (OccurrencesClause l) = OccurrencesClause $ invert . l
+
 instance Invertible (Rankeds a) where
   invert (Rankeds (AndList r) s) = Rankeds (AndList $ invert . r) s
   invert x = x
 
 -- Misc operations
+
+instance Ord BefAft where
+  compare Before After = LT
+  compare After Before = GT
+  compare _ _ = EQ
 
 unrelative :: Relative a -> Maybe a
 unrelative (Relative x _ _) = Just x

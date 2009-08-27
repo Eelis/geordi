@@ -58,9 +58,13 @@ instance FindInStr (Rankeds String) [ARange] where
     [z] -> return [anchor_range $ Range z (length x)]
     [] -> fail $ "String `" ++ x ++ "` does not occur."
     _ -> fail $ "String `" ++ x ++ "` occurs multiple times."
-  findInStr x u (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x u (Ranked r s)) . NeList.to_plain rs
+  findInStr x u (Rankeds rs s) =
+    sequence $ (\r -> findInStr x u (Ranked r s)) . flatten_occ_clauses rs
   findInStr x u (AllBut (AndList rs) s) =
     return $ (anchor_range . flip Range (length s)) . erase_indexed (ordinal_carrier . NeList.to_plain rs) (find_occs s $ selectRange u x)
+
+flatten_occ_clauses :: AndList OccurrencesClause -> [Ordinal]
+flatten_occ_clauses (AndList rs) = concat (NeList.to_plain $ (\(OccurrencesClause l) -> NeList.to_plain l) . rs)
 
 instance FindInStr (Ranked a) ARange => FindInStr (Ranked (Either Cxx.Basics.Findable a)) ARange where
   findInStr s r (Ranked o (Left x)) = findInStr s r $ Ranked o x
@@ -74,7 +78,7 @@ instance (FindInStr (Rankeds a) [ARange], FindInStr (Ranked a) ARange) =>
   findInStr s r (All (Left x)) = findInStr s r (All x)
   findInStr s r (Sole' (Right x)) = findInStr s r (Sole' x)
   findInStr s r (Sole' (Left x)) = findInStr s r (Sole' x)
-  findInStr x u (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x u (Ranked r s)) . NeList.to_plain rs
+  findInStr x u (Rankeds rs s) = sequence $ (\r -> findInStr x u (Ranked r s)) . flatten_occ_clauses rs
   findInStr s r (AllBut a (Right x)) = findInStr s r (AllBut a x)
   findInStr s r (AllBut a (Left x)) = findInStr s r (AllBut a x)
 
@@ -152,14 +156,14 @@ instance FindInStr (Rankeds Cxx.Basics.Findable) [ARange] where
   findInStr s r (Sole' decl) = do
     NeList x y <- findInStr s r decl
     if null y then return [x] else fail $ "Multiple " ++ Cxx.Show.show_plural decl ++ " occur."
-  findInStr x u (Rankeds (AndList rs) s) = sequence $ (\r -> findInStr x u (Ranked r s)) . NeList.to_plain rs
+  findInStr x u (Rankeds rs s) = sequence $ (\r -> findInStr x u (Ranked r s)) . flatten_occ_clauses rs
   findInStr x r (AllBut (AndList rs) decl) =
     erase_indexed (ordinal_carrier . NeList.to_plain rs) . NeList.to_plain . findInStr x r decl
 
 instance FindInStr PositionsClause [Anchor] where findInStr s r (PositionsClause ba x) = (($ ba) .) . findInStr s r x
 
 instance FindInStr Replacer [Edit] where
-  findInStr s u (Replacer p r) = (flip RangeReplaceEdit r .) . (unanchor_range .) . findInStr s u p
+  findInStr s u (Replacer p r) = (flip RangeReplaceEdit r .) . (unanchor_range .) . merge_contiguous . findInStr s u p
   findInStr _ _ (ReplaceOptions o o') = return [RemoveOptions o, AddOptions o']
 
 instance FindInStr Changer [Edit] where
@@ -172,7 +176,7 @@ instance FindInStr Eraser [Edit] where
   findInStr s r (EraseAround (Wrapping x y) (Around z)) = liftM2 (++) (f Before) (f After)
     where
       w Before = x; w After = y
-      f ba = findInStr s r $ EraseText $ Substrs $ and_one $ Relative (NotEverything $ Rankeds (AndList $ NeList (Ordinal 0) []) (Right $ w ba)) ba z
+      f ba = findInStr s r $ EraseText $ Substrs $ and_one $ Relative (NotEverything $ Rankeds (and_one $ OccurrencesClause $ NeList.one $ Ordinal 0) (Right $ w ba)) ba z
 
 instance FindInStr Bound (Either ARange Anchor) where
   findInStr _ r (Bound Nothing Everything) = return $ Left $ arange (Anchor Before 0) (Anchor After $ size r)
@@ -192,14 +196,6 @@ instance FindInStr Mover [Edit] where
   findInStr s u (Mover o p) = do
     a <- findInStr s u p
     findInStr s u o >>= mapM (makeMoveEdit a . unanchor_range) . reverse
-
-instance FindInStr Swapper [Edit] where
-  findInStr s r (Swapper x y) = do
-    NeList a arest <- findInStr s r x
-    NeList b brest <- findInStr s r y
-    if null arest && null brest
-      then return $ makeMoveEdit (b Before) (unanchor_range a) ++ makeMoveEdit (a Before) (unanchor_range b) -- By executing makeMoveEdit in the list monad, we nicely filter edits that would be considered overlapping (for example when swapping adjacent ranges).
-      else fail "Swap operands must be singular."
 
 instance FindInStr Position Anchor where
   findInStr s r (Position ba x) = do
@@ -255,8 +251,23 @@ instance FindInStr Command [Edit] where
   findInStr s r (Change (AndList l)) = concat . sequence (findInStr s r . NeList.to_plain l)
   findInStr s u (Insert r p) = (flip InsertEdit r .) . concat . findInStr s u p
   findInStr s r (Move (AndList movers)) = concat . sequence (findInStr s r . NeList.to_plain movers)
-  findInStr s r (Swap (AndList swappers)) = concat . sequence (findInStr s r . NeList.to_plain swappers)
-  findInStr s u (WrapAround (Wrapping x y) z) = concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . concat . findInStr s u z
+  findInStr s r (Swap substrs Nothing) = findInStr s r substrs >>= f
+    where
+      f [] = return []
+      f (a:b:c) = do
+        edits <- f c
+        return $ makeMoveEdit (b Before) (unanchor_range a) ++ makeMoveEdit (a Before) (unanchor_range b) ++ edits
+      f _ = fail "Cannot swap uneven number of operands."
+  findInStr s r (Swap substrs (Just substrs')) = do
+    l <- findInStr s r substrs
+    l' <- findInStr s r substrs'
+    case (NeList.from_plain l, NeList.from_plain l') of
+      (Just nl, Just nl') | (Just a, Just b) <- (contiguous nl, contiguous nl') ->
+        return $ makeMoveEdit (b Before) (unanchor_range a) ++ makeMoveEdit (a Before) (unanchor_range b)
+      _ -> fail "Swap operands must be contiguous regions."
+  findInStr s u (WrapAround (Wrapping x y) (AndList z)) =
+    fmap concat $ sequence $ NeList.to_plain $ flip fmap z $ \z' ->
+      concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . merge_contiguous . findInStr s u z'
   findInStr s r (WrapIn z (Wrapping x y)) = findInStr s r $ WrapAround (Wrapping x y) $ and_one $ Around z
 
 prepareEdits :: (Functor m, Monad m) => String -> Command -> m [Edit]

@@ -209,6 +209,13 @@ basic_tests = do
   ct "struct X { template <typename U> X(U); };" "erase second declaration of X" $ Right "struct X { };"
   ct "struct X { int x; X(); void f(); ~X(); struct Y {}; operator int(); X(int); };" "erase all constructors and replace destructor with int y;" $ Right "struct X { int x; void f(); int y;struct Y {}; operator int(); };"
   ct "template <typename T> struct X { template <typename U> inline X(T, U); ~X(); }; template <typename T> template <typename U> X<T>::X(T, U) {} template<typename T> X<T>::~X() {}" "erase second constructor and second destructor" $ Right "template <typename T> struct X { template <typename U> inline X(T, U); ~X(); }; "
+  ct "{ 3; 4; 5; }" "swap first and last statement" $ Right "{ 5; 4; 3; }"
+  ct "{ 3; 4; 5; 6; }" "swap all statements before 5 with last statement" $ Right "{ 6; 5; 3; 4; }"
+  ct "{ if(b) 3; 4; 5; }" "wrap curlies around first two statements after if" $ Right "{ if(b) {3; 4; }5; }"
+  ct "{ 3; 4; 5; }" "wrap curlies around first and second statement" $ Right "{ {3; 4; }5; }"
+  ct "{ 3; 4; 5; }" "wrap curlies around first statement and around second statement" $ Right "{ {3; }{4; }5; }"
+  ct "{ 1;2;3;4;5; }" "swap first two statements with last two statements" $ Right "{ 4;5; 3;1;2;}"
+  ct "void f() { 1; } void g() { 1; 2; 3; 4; }" "replace first two and last statement in g with 0;" $ Right "void f() { 1; } void g() { 0;3; 0;}"
   -- Edit errors:
   t "move second 2 to x" $ Left "Unexpected `x` after `second 2 to `. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
   t "replace alligators with chickens" $ Left "String `alligators` does not occur."
