@@ -200,6 +200,11 @@ strip = dropWhile isSpace . reverse . dropWhile isSpace . reverse
 caselessStringEq :: String -> String -> Bool
 caselessStringEq a b = (toLower . a) == (toLower . b)
 
+plural :: String -> String
+plural "slash" = "slashes"
+plural "backslash" = "backslashes"
+plural s = s ++ "s"
+
 -- Inversion
 
 class Invertible a where invert :: a -> a

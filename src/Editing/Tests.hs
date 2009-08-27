@@ -167,6 +167,7 @@ basic_tests = do
   t "move everything after last 3 to front and erase 5" $ Right " 4 1 2 3 2 3"
   t "erase spaces around first 2" $ Right "123 2 3 4 5"
   t "erase 1 and 2 around first space" $ Right "  3 2 3 4 5"
+  t "erase all but first two spaces" $ Right "1 2 32345"
   t "add x after 4 and add y after 4" $ Right "1 2 3 2 3 4yx 5"
   t "erase 4 and add y before 4 and add x after 4" $ Right "1 2 3 2 3 yx 5"
   t "move 4 to end and insert x before 5" $ Right "1 2 3 2 3  x54"

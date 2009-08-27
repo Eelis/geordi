@@ -119,7 +119,7 @@ makeMoveEdit (Anchor ba p) r@(Range st si)
 data EverythingOr a = Everything | NotEverything a
 data Ranked a = Ranked Ordinal a | Sole a
 newtype OccurrencesClause = OccurrencesClause (NeList Ordinal)
-data Rankeds a = Rankeds (AndList OccurrencesClause) a | Sole' a | All a | AllBut (AndList Ordinal) a
+data Rankeds a = Rankeds (AndList OccurrencesClause) a | Sole' a | All a | AllBut (AndList OccurrencesClause) a
 data Bound = Bound (Maybe BefAft) Substr
 data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative Substr)
 data Relative a = Relative a BefAft (Ranked (Either Findable String)) | Between a Betw | FromTill Bound RelativeBound | In a InClause

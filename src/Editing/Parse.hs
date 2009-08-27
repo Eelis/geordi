@@ -17,7 +17,7 @@ import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA
 import Data.Either (partitionEithers)
 import Data.Generics (DataType, Constr, toConstr, Data)
 import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, sepBy1', many1Till, optParser, try, many, satisfy, spaces)
-import Util (isVowel, (<<), snd_unit, liftA2, Ordinal(..), apply_if, cardinals)
+import Util (isVowel, (<<), snd_unit, liftA2, Ordinal(..), apply_if, cardinals, plural)
 import Cxx.Basics (DeclaratorId)
 import Request (EvalOpt)
 
@@ -91,7 +91,7 @@ instance Parse String where
     unquoted t = fmap (Right . NeList.to_plain . fst) $ many1Till (P.silent anySymbol) $ try $ apply_if (term_eof t) (eof <|>) $ lookAhead
       (choice ((\k -> try $ symbols (' ': k) >> (eof <|> P.char_unit ' ')) `fmap` term_keywords t)) >> P.char_unit ' '
     cs :: [([String], String)]
-    cs = first opt_an `fmap` named_characters
+    cs = map (\(x, y) -> ([plural x, x, (if isVowel (head x) then "an " else "a ") ++ x], y)) named_characters
 
 andP :: Parser a ()
 andP = (kwd ["and"] >>>) $ Parser (Terminators True []) $ \_ a _ -> fmap Right $ notFollowedBy (choice $ try `fmap` symbols `fmap` a) >> return ()
@@ -130,10 +130,6 @@ till, begin, end_kwds :: [String]
 till = ["till", "until"]
 begin = ["beginning", "begin", "front", "start"]
 end_kwds = ["end", "back"]
-
-opt_an :: String -> [String]
-opt_an s@(c:_) | isVowel c = [s, "an " ++ s]
-opt_an s = [s, "a " ++ s]
 
 uncool :: Parser () a -> Terminators -> [AndCont] -> P.Parser Char (Either String a)
 uncool (Parser _ f) t a = f t a ()

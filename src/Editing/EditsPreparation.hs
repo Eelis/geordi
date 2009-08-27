@@ -60,8 +60,8 @@ instance FindInStr (Rankeds String) [ARange] where
     _ -> fail $ "String `" ++ x ++ "` occurs multiple times."
   findInStr x u (Rankeds rs s) =
     sequence $ (\r -> findInStr x u (Ranked r s)) . flatten_occ_clauses rs
-  findInStr x u (AllBut (AndList rs) s) =
-    return $ (anchor_range . flip Range (length s)) . erase_indexed (ordinal_carrier . NeList.to_plain rs) (find_occs s $ selectRange u x)
+  findInStr x u (AllBut rs s) =
+    return $ (anchor_range . flip Range (length s)) . erase_indexed (ordinal_carrier . flatten_occ_clauses rs) (find_occs s $ selectRange u x)
 
 flatten_occ_clauses :: AndList OccurrencesClause -> [Ordinal]
 flatten_occ_clauses (AndList rs) = concat (NeList.to_plain $ (\(OccurrencesClause l) -> NeList.to_plain l) . rs)
@@ -157,8 +157,8 @@ instance FindInStr (Rankeds Cxx.Basics.Findable) [ARange] where
     NeList x y <- findInStr s r decl
     if null y then return [x] else fail $ "Multiple " ++ Cxx.Show.show_plural decl ++ " occur."
   findInStr x u (Rankeds rs s) = sequence $ (\r -> findInStr x u (Ranked r s)) . flatten_occ_clauses rs
-  findInStr x r (AllBut (AndList rs) decl) =
-    erase_indexed (ordinal_carrier . NeList.to_plain rs) . NeList.to_plain . findInStr x r decl
+  findInStr x r (AllBut rs decl) =
+    erase_indexed (ordinal_carrier . flatten_occ_clauses rs) . NeList.to_plain . findInStr x r decl
 
 instance FindInStr PositionsClause [Anchor] where findInStr s r (PositionsClause ba x) = (($ ba) .) . findInStr s r x
 
