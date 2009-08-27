@@ -24,7 +24,7 @@ newtype AndList a = AndList { andList :: NeList a }
 instance Functor AndList where fmap f (AndList l) = AndList (fmap f l)
 
 and_one :: a -> AndList a
-and_one x = AndList (NeList x [])
+and_one = AndList . NeList.one
 
 and_and :: AndList a -> AndList a -> AndList a
 and_and (AndList (NeList x y)) (AndList (NeList a b)) = AndList $ NeList x (y ++ a : b)
@@ -122,15 +122,16 @@ newtype OccurrencesClause = OccurrencesClause (NeList Ordinal)
 data Rankeds a = Rankeds (AndList OccurrencesClause) a | Sole' a | All a | AllBut (AndList OccurrencesClause) a
 data Bound = Bound (Maybe BefAft) Substr
 data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative Substr)
-data Relative a = Relative a BefAft (Ranked (Either Findable String)) | Between a Betw | FromTill Bound RelativeBound | In a InClause
+data Relative a = Relative a BefAft (Ranked (Either Findable String)) | Between a Betw | FromTill Bound RelativeBound
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
+data In a = In a (Maybe InClause)
 data PositionsClause = PositionsClause BefAft Substrs
-data InClause = InClause (AndList (Relative (Rankeds (Either Findable DeclaratorId))))
+data InClause = InClause (AndList (In (Relative (Rankeds (Either Findable DeclaratorId)))))
 data AppendPositionsClause = AppendIn InClause | NonAppendPositionsClause PositionsClause
 data PrependPositionsClause = PrependIn InClause | NonPrependPositionsClause PositionsClause
 type Substr = EverythingOr (Ranked (Either Findable String))
-newtype Substrs = Substrs (AndList (Relative (EverythingOr (Rankeds (Either Findable String)))))
-data Position = Position BefAft (Relative Substr)
+newtype Substrs = Substrs (AndList (In (Relative (EverythingOr (Rankeds (Either Findable String))))))
+data Position = Position BefAft (In (Relative Substr))
 data Replacer = Replacer Substrs String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
 data Changer = Changer Substrs String | ChangeOptions [Request.EvalOpt] [Request.EvalOpt]
 data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around (Ranked (Either Findable String)))
@@ -140,7 +141,7 @@ data Around a = Around a
 data Betw = Betw Bound RelativeBound
 data Wrapping = Wrapping String String
 data UsePattern = UsePattern String
-data UseClause = UseString (Relative UsePattern) | UseOptions [Request.EvalOpt]
+data UseClause = UseString (In (Relative UsePattern)) | UseOptions [Request.EvalOpt]
 
 data Command
   = Insert String (AndList AppendPositionsClause)
@@ -192,7 +193,6 @@ instance Functor Rankeds where
 instance Functor Relative where
   fmap f (Relative x ba r) = Relative (f x) ba r
   fmap f (Between x b) = Between (f x) b
-  fmap f (In x i) = In (f x) i
   fmap _ (FromTill a b) = FromTill a b
 
 instance Convert (Ranked a) (Rankeds a) where
@@ -226,7 +226,6 @@ instance Ord BefAft where
 unrelative :: Relative a -> Maybe a
 unrelative (Relative x _ _) = Just x
 unrelative (Between x _) = Just x
-unrelative (In x _) = Just x
 unrelative _ = Nothing
   -- Hm, this is slightly weird. You'd expect all "Relative a"s to contain an a.
 
@@ -239,9 +238,9 @@ merge_commands (h:t) = h : merge_commands t
 
 describe_position_after :: Pos Char -> String -> Position
 describe_position_after n s
-  | n == 0 = Position Before $ absolute Everything
-  | n == length s = Position After $ absolute Everything
-  | otherwise = Position After $ absolute $ NotEverything $ Sole $ Right $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s
+  | n == 0 = Position Before $ In (absolute Everything) Nothing
+  | n == length s = Position After $ In (absolute Everything) Nothing
+  | otherwise = Position After $ In (absolute $ NotEverything $ Sole $ Right $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s) Nothing
 
 -- Tokenization:
 

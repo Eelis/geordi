@@ -217,6 +217,7 @@ basic_tests = do
   ct "{ 3; 4; 5; }" "wrap curlies around first statement and around second statement" $ Right "{ {3; }{4; }5; }"
   ct "{ 1;2;3;4;5; }" "swap first two statements with last two statements" $ Right "{ 4;5; 3;1;2;}"
   ct "void f() { 1; } void g() { 1; 2; 3; 4; }" "replace first two and last statement in g with 0;" $ Right "void f() { 1; } void g() { 0;3; 0;}"
+  ct "void f() { int x = 3; cout << x; } int i;" "replace everything after first statement in f with BARK;" $ Right "void f() { int x = 3; BARK;} int i;"
   -- Edit errors:
   t "move second 2 to x" $ Left "Unexpected `x` after `second 2 to `. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
   t "replace alligators with chickens" $ Left "String `alligators` does not occur."
@@ -233,7 +234,7 @@ basic_tests = do
   t "insert " $ Left "Unexpected end of command. Expected option, verbatim string, or wrapping description."
   t "insert kung fu" $ Left "Unexpected end of command. Expected \" in\", \" at\", \" before\", \" after\", or \" and\"."
   t "move " $ Left "Unexpected end of command. Expected \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", production-name, or verbatim string."
-  t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" in\", \" between\", \" and\", or \" to\"."
+  t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" between\", \" in\", \" and\", or \" to\"."
   t "move x to "$ Left "Unexpected end of command. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
   t "erase all 2 and " $ Left "Unexpected end of command. Expected verbatim string, \"till\", \"until\", \"from\", \"everything\", \"begin\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", production-name, wrapping description, option, edit command, or \"show\"."
   putStrLn "All basics tests passed."

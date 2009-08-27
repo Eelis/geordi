@@ -163,9 +163,10 @@ instance Parse a => Parse (EverythingOr a) where
 
 relative :: Parser a (Relative a)
 relative = proc a -> do x <- parse -< (); y <- parse -< (); returnA -< Relative a x y
-  <||> do x <- parse -< (); returnA -< In a x
   <||> do b <- parse -< (); returnA -< Between a b
   <||> do returnA -< absolute a
+
+instance Parse a => Parse (In a) where parse = auto2 In
 
 instance Parse Bound where parse = select [(begin, front), (end_kwds, back)] <||> auto2 Bound
 
@@ -251,7 +252,7 @@ instance Parse Constr where
 #undef P
 
 instance Parse Position where
-  parse = (select [(begin, Before), (end_kwds, After)] >>> arr (flip Position $ absolute Everything)) <||> auto2 Position
+  parse = (select [(begin, Before), (end_kwds, After)] >>> arr (flip Position $ flip In Nothing $ absolute Everything)) <||> auto2 Position
 
 instance Parse a => Parse (Rankeds a) where
   parse = (kwd ["all"] >>> ((kwd ["except", "but"] >>> auto2 AllBut) <||> auto1 All))
@@ -267,7 +268,7 @@ instance Parse PrependPositionsClause where
 instance Parse Substrs where parse = auto1 Substrs
 
 instance Parse PositionsClause where
-  parse = (kwd ["at"] >>> select [(begin, Before), (end_kwds, After)] >>> arr (\ba -> PositionsClause ba $ Substrs $ and_one $ absolute Everything)) <||> auto2 PositionsClause
+  parse = (kwd ["at"] >>> select [(begin, Before), (end_kwds, After)] >>> arr (\ba -> PositionsClause ba $ Substrs $ and_one $ flip In Nothing $ absolute Everything)) <||> auto2 PositionsClause
 
 instance Parse Replacer where
   parse = liftA2 ReplaceOptions parse (wb >>> parse) <||> liftA2 Replacer parse (wb >>> parse)
@@ -282,7 +283,9 @@ instance Parse Mover where parse = liftA2 Mover parse (kwd ["to"] >>> parse)
 instance Parse [EvalOpt] where parse = Parser (Terminators False []) $ \_ _ _ -> optParser
 instance Parse a => Parse (Around a) where parse = kwd ["around"] >>> auto1 Around
 instance Parse UsePattern where parse = auto1 UsePattern
-instance Parse UseClause where parse = auto1 UseOptions <||> (parse >>> relative >>> arr UseString)
+instance Parse (Relative UsePattern) where parse = parse >>> relative
+
+instance Parse UseClause where parse = auto1 UseOptions <||> (parse {- >>> relative-} >>> arr UseString)
 
 namedWrappings :: [([String], Wrapping)]
 namedWrappings =
@@ -314,12 +317,12 @@ instance Parse Command where
     where
       wc :: Substrs -> Either (AndList (Around Substrs)) Wrapping -> Either String Command
       wc what (Right wrapping) = return $ WrapIn what wrapping
-      wc (Substrs (AndList (NeList (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back)) []))) (Left what) =
+      wc (Substrs (AndList (NeList (In (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back)) Nothing) []))) (Left what) =
         (\q -> WrapAround q what) `fmap` case fmap snd $ List.find (elem x . fst) namedWrappings of
           Just w -> return w
           Nothing -> fail "Unrecognized wrapping description."
-      wc (Substrs (AndList (NeList (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back))
-        [Between (NotEverything (Sole' (Right y))) (Betw (Bound (Just Before) Everything) Back)]))) (Left what) =
+      wc (Substrs (AndList (NeList (In (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back)) Nothing)
+        [In (Between (NotEverything (Sole' (Right y))) (Betw (Bound (Just Before) Everything) Back)) Nothing]))) (Left what) =
           return $ WrapAround (Wrapping x y) what
       wc _ (Left _) = fail "Malformed wrap command."
 

@@ -54,8 +54,8 @@ instance Show a => Show (Ranked a) where
 instance Show Findable where show = Prelude.show
 
 instance Show Position where
-  show (Position Before (Between Everything (Betw (Bound (Just Before) Everything) Back))) = "at start"
-  show (Position After (Between Everything (Betw (Bound (Just Before) Everything) Back))) = "at end"
+  show (Position Before (In (Between Everything (Betw (Bound (Just Before) Everything) Back)) Nothing)) = "at start"
+  show (Position After (In (Between Everything (Betw (Bound (Just Before) Everything) Back)) Nothing)) = "at end"
   show (Position a x) = show a ++ " " ++ show x
 
 instance Show a => Show (AndList a) where
@@ -81,7 +81,10 @@ instance Show a => Show (Relative a) where
   show (Between x (Betw y z)) = show x ++ " between " ++ show y ++ " and " ++ show z
   show (Relative x y z) = show x ++ " " ++ show y ++ " " ++ show z
   show (FromTill b c) = "from " ++ show b ++ " till " ++ show c
-  show (In x did) = show x ++ " in " ++ show did
+
+instance Show a => Show (In a) where
+  show (In x Nothing) = show x
+  show (In x (Just y)) = show x ++ " in " ++ show y
 
 instance Show InClause where show (InClause x) = "in " ++ show x
 

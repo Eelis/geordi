@@ -26,7 +26,7 @@ class Offsettable a where offset :: Int -> a -> a
 instance Offsettable (Range Char) where offset x (Range y z) = Range (y + x) z
 instance Offsettable Anchor where offset x (Anchor y z) = Anchor y (z + x)
 instance Offsettable ARange where offset x r = offset x . r
-instance Offsettable a => Offsettable [a] where offset x = (offset x .)
+instance (Offsettable a, Functor f) => Offsettable (f a) where offset = fmap . offset
 
 instance Convert (Range a) [ARange] where convert = (:[]) . anchor_range
 instance Convert (Range a) ARange where convert = anchor_range
@@ -94,14 +94,19 @@ instance (Offsettable b, Invertible a, FindInStr a b, Convert (Range Char) b) =>
     let (p, q) = if either start id x <= either start id (y :: Either (Range Char) (Pos Char)) then (x, y) else (y, x)
     let p' = either end id p; q' = either start id q
     NeList.one . offset p' . findInStr s (Range (start r + p') (q' - p')) o
-  findInStr s r (In o incl) = findInStr s r incl >>= NeList.mapM (\a -> do
-    let p = convert $ a Before; q = convert $ a After
-    offset p . findInStr s (Range (start r + p) (q - p)) o)
   findInStr s r@(Range st si) (FromTill b e) = do
     x <- convert . findInStr s r b
     let p = either start id (x :: Either (Range Char) (Pos Char))
     y <- convert . findInStr s (Range (st+p) (si-p)) e
     return $ NeList.one $ convert (Range p (either end id (y :: Either (Range Char) (Pos Char))) :: Range Char)
+
+instance (Offsettable (NeList b), FindInStr a (NeList b)) => FindInStr (In a) (NeList b) where
+  findInStr s r (In o Nothing) = findInStr s r o
+  findInStr s r (In o (Just incl)) = do
+    u <- findInStr s r incl
+    NeList.concat . NeList.mapM (\a -> do
+    let p = convert $ a Before; q = convert $ a After
+    offset p . findInStr s (Range (start r + p) (q - p)) o) u
 
 instance FindInStr Substr ARange where
   findInStr _ r Everything = return $ arange (Anchor Before 0) (Anchor After $ size r)
@@ -176,7 +181,7 @@ instance FindInStr Eraser [Edit] where
   findInStr s r (EraseAround (Wrapping x y) (Around z)) = liftM2 (++) (f Before) (f After)
     where
       w Before = x; w After = y
-      f ba = findInStr s r $ EraseText $ Substrs $ and_one $ Relative (NotEverything $ Rankeds (and_one $ OccurrencesClause $ NeList.one $ Ordinal 0) (Right $ w ba)) ba z
+      f ba = findInStr s r $ EraseText $ Substrs $ and_one $ flip In Nothing $ Relative (NotEverything $ Rankeds (and_one $ OccurrencesClause $ NeList.one $ Ordinal 0) (Right $ w ba)) ba z
 
 instance FindInStr Bound (Either ARange Anchor) where
   findInStr _ r (Bound Nothing Everything) = return $ Left $ arange (Anchor Before 0) (Anchor After $ size r)
@@ -215,7 +220,7 @@ instance Invertible UsePattern where invert = id
 
 instance FindInStr UseClause (NeList Edit) where
   findInStr _ _ (UseOptions o) = return $ NeList.one $ AddOptions o
-  findInStr s r (UseString ru) = case unrelative ru of
+  findInStr s r (UseString ru@(In b _)) = case unrelative b of
     Nothing -> fail "Nonsensical use-command."
     Just (UsePattern v) -> (flip RangeReplaceEdit v .) . findInStr s r ru
 
@@ -332,7 +337,7 @@ use_tests = do
  where
   u :: String -> String -> String -> String -> String -> IO ()
   u txt pattern match d rd = do
-    NeList (RangeReplaceEdit rng _) [] <- findInStr txt (Range 0 (length txt)) $ UseString $ absolute $ UsePattern pattern
+    NeList (RangeReplaceEdit rng _) [] <- findInStr txt (Range 0 (length txt)) $ UseString $ flip In Nothing $ absolute $ UsePattern pattern
     test_cmp pattern match (selectRange rng txt)
     let r = replaceRange rng pattern txt
     test_cmp pattern d $ show $ Editing.Diff.diff txt r
