@@ -7,14 +7,16 @@ import qualified Cxx.Parse
 import qualified Cxx.Basics
 import qualified Cxx.Operations
 import qualified Parsers as P
+import qualified Data.NonEmptyList as NeList
+import Data.NonEmptyList (NeList(..))
 import Control.Monad (liftM2)
 import Control.Monad.Error ()
 import Control.Category (Category, (.), id)
 import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA)
 import Data.Either (partitionEithers)
 import Data.Generics (DataType, Constr, toConstr, Data)
-import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, sepBy1', many1Till', optParser, try, many, satisfy, spaces)
-import Util (isVowel, (<<), NElist(..), unne, snd_unit, liftA2, Ordinal(..), apply_if)
+import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, sepBy1', many1Till, optParser, try, many, satisfy, spaces)
+import Util (isVowel, (<<), snd_unit, liftA2, Ordinal(..), apply_if)
 import Cxx.Basics (DeclaratorId)
 import Request (EvalOpt)
 
@@ -85,7 +87,7 @@ instance Parse String where
     Parser (Terminators False []) $ \t _ _ -> quoted <|> unquoted t
    where
     quoted = char '`' >> fmap Right (many $ satisfy (/= '`')) << char '`' << spaces
-    unquoted t = fmap (Right . unne . fst) $ many1Till' (P.silent anySymbol) $ try $ apply_if (term_eof t) (eof <|>) $ lookAhead
+    unquoted t = fmap (Right . NeList.to_plain . fst) $ many1Till (P.silent anySymbol) $ try $ apply_if (term_eof t) (eof <|>) $ lookAhead
       (choice ((\k -> try $ symbols (' ': k) >> (eof <|> P.char_unit ' ')) `fmap` term_keywords t)) >> P.char_unit ' '
     cs :: [([String], String)]
     cs = first opt_an `fmap` named_characters
@@ -96,11 +98,11 @@ andP = (kwd ["and"] >>>) $ Parser (Terminators True []) $ \_ a _ -> fmap Right $
 instance Parse a => Parse (AndList a) where
   parse = sepP parse andP >>> arr AndList
     where
-      sepP :: Parser a t -> Parser a t1 -> Parser a (NElist t)
+      sepP :: Parser a t -> Parser a t1 -> Parser a (NeList t)
       sepP (Parser u@(Terminators _ t) p) (Parser (Terminators _ t') p') = Parser (Terminators False t) $
         \(Terminators b'' t'') a v -> fmap f $ p (Terminators b'' (t' ++ t'')) (t ++ t'' ++ a) v `sepBy1'` p' u a v
-      f :: NElist (Either String t) -> Either String (NElist t)
-      f (NElist x l) = liftM2 NElist x $ case l of [] -> return []; (h : t) -> fmap unne $ f (NElist h t)
+      f :: NeList (Either String t) -> Either String (NeList t)
+      f (NeList x l) = liftM2 NeList x $ case l of [] -> return []; (h : t) -> fmap NeList.to_plain $ f (NeList h t)
 
 instance (Parse a, Parse b) => Parse (Either a b) where
   parse = (parse >>> arr Left) <||> (parse >>> arr Right)
@@ -201,7 +203,7 @@ instance Parse (Relative (Rankeds (Either Cxx.Basics.Findable DeclaratorId))) wh
 
 instance Parse (Relative (EverythingOr (Rankeds (Either Cxx.Basics.Findable String)))) where
   parse = (relative_everything_orA <||>) $ (parse >>>) $ proc x -> case x of
-    Rankeds (AndList (NElist r [])) s -> do
+    Rankeds (AndList (NeList r [])) s -> do
         u <- kwd till >>> parse -< ()
         returnA -< Between Everything (Betw (Bound (Just Before) $ NotEverything $ Ranked r s) u)
       <||> (relative -< NotEverything x)
@@ -303,7 +305,7 @@ instance Parse Command where
     where
       wc :: Substrs -> Either (AndList (Around Substrs)) Wrapping -> Either String Command
       wc what (Right wrapping) = return $ WrapIn what wrapping
-      wc (Substrs (AndList (NElist (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back)) []))) (Left what) =
+      wc (Substrs (AndList (NeList (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back)) []))) (Left what) =
         (\q -> WrapAround q what) `fmap` case () of
           ()| x `elem` ["curlies", "braces", "curly brackets"] -> return $ Wrapping "{" "}"
           ()| x `elem` ["parentheses", "parens", "round brackets"] -> return $ Wrapping "(" ")"
@@ -312,7 +314,7 @@ instance Parse Command where
           ()| x `elem` ["single quotes"] -> return $ Wrapping "'" "'"
           ()| x `elem` ["double quotes"] -> return $ Wrapping "\"" "\""
           ()| otherwise -> fail "Unrecognized wrapping description."
-      wc (Substrs (AndList (NElist (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back))
+      wc (Substrs (AndList (NeList (Between (NotEverything (Sole' (Right x))) (Betw (Bound (Just Before) Everything) Back))
         [Between (NotEverything (Sole' (Right y))) (Betw (Bound (Just Before) Everything) Back)]))) (Left what) =
           return $ WrapAround (Wrapping x y) what
       wc _ (Left _) = fail "Malformed wrap command."
@@ -335,7 +337,7 @@ commandsP :: P.Parser Char (Either String (([Command], [SemCommand]), Bool))
 commandsP = uncool p (Terminators True []) []
   where
     p = liftA2 (,)
-      (addAnd ["show"] $ parse >>> arr (partitionEithers . unne . andList))
+      (addAnd ["show"] $ parse >>> arr (partitionEithers . NeList.to_plain . andList))
       ((andP >>> kwd ["show"] >>> arr (const True)) <||> arr (const False))
 
 substrsP :: P.Parser Char (Either String Substrs)

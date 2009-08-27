@@ -3,6 +3,8 @@
 module Parsers where
 
 import qualified Data.List as List
+import qualified Data.NonEmptyList as NeList
+import Data.NonEmptyList (NeList(..))
 import qualified Text.ParserCombinators.Parsec as PS
 import qualified Editing.Basics
 import qualified Editing.Show ()
@@ -12,7 +14,7 @@ import Control.Monad (liftM2)
 import Control.Arrow (first)
 import Data.List ((\\))
 import Data.Maybe (fromMaybe)
-import Util ((.), NElist(..), unne, Finite(..), commas_or, Option(..), (.||.), isIdChar, (<<))
+import Util ((.), Finite(..), commas_or, Option(..), (.||.), isIdChar, (<<))
 
 import Prelude hiding ((.))
 
@@ -55,8 +57,8 @@ instance ParserLike (PS.GenParser Char st) Char where
 manyTill :: ParserLike m t => m a -> m b -> m ([a], b)
 manyTill p e = ((,) [] . e) <|> liftM2 (\x (y, z) -> (x:y, z)) p (manyTill p e)
 
-many1Till' :: ParserLike m t => m a -> m b -> m (NElist a, b)
-many1Till' p e = p >>= \v -> first (NElist v) . manyTill p e
+many1Till :: ParserLike m t => m a -> m b -> m (NeList a, b)
+many1Till p e = p >>= \v -> first (NeList v) . manyTill p e
 
 optionMaybe :: ParserLike m t => m a -> m (Maybe a)
 optionMaybe p = Just . p <|> return Nothing
@@ -76,11 +78,8 @@ choice = foldl (<|>) pzero
 many :: ParserLike m t => m a -> m [a]
 many p = liftM2 (:) p (many p) <|> return []
 
-many1' :: ParserLike m t => m a -> m (NElist a)
-many1' p = liftM2 NElist p (many p)
-
-many1 :: ParserLike m t => m a -> m [a]
-many1 p = unne . many1' p
+many1 :: ParserLike m t => m a -> m (NeList a)
+many1 p = liftM2 NeList p (many p)
 
 spaces :: ParserLike m Char => m String
 spaces = many $ symbol ' '
@@ -94,8 +93,8 @@ oneOf l = satisfy (`elem` l)
 sep :: ParserLike m t => m a -> m b -> m (a, [(b, a)])
 sep p p' = liftM2 (,) p (many (liftM2 (,) p' p))
 
-sepBy1' :: ParserLike m t => m a -> m b -> m (NElist a)
-sepBy1' x y = (\(h,t) -> NElist h $ map snd t) . sep x y
+sepBy1' :: ParserLike m t => m a -> m b -> m (NeList a)
+sepBy1' x y = (\(h,t) -> NeList h $ map snd t) . sep x y
 
 sepBy1 :: ParserLike m t => m a -> m b -> m [a]
 sepBy1 p e = liftM2 (:) p ((e >> sepBy1 p e) <|> return [])
@@ -208,7 +207,7 @@ silent (Parser p) = Parser $ \s -> case p s of
 optParser :: (Monad m, Functor m, Finite o, Option o) => Parser Char (m [o])
 optParser = (<?> "option") $ (char '-' >>) $ do
     char '-'
-    n <- (many1 $ satisfy $ isIdChar .||. (== '-')) <?> "option name"
+    n <- (<?> "option name") $ NeList.to_plain . many1 (satisfy $ isIdChar .||. (== '-'))
     spaces
     case List.find ((== n) . long) all_values of
       Nothing -> return $ fail $ "No such option: --" ++ n
@@ -221,7 +220,7 @@ optParser = (<?> "option") $ (char '-' >>) $ do
         Just o -> return $ return o
     spaces
     y <- option (return []) optParser
-    return (liftM2 (++) (sequence x) y)
+    return (liftM2 (++) (sequence $ NeList.to_plain x) y)
 
 -- Misc:
 

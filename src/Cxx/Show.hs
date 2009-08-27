@@ -4,8 +4,9 @@
 module Cxx.Show (pretty_with_precedence, show_simple, show_plural, show_pretty, Highlighter, Highlightable(..), noHighlighting, dataType_productionName, dataType_abbreviated_productionName) where
 
 import qualified Data.List as List
+import qualified Data.NonEmptyList as NeList
 import qualified Data.Char as Char
-import Util ((.), unne, strip)
+import Util ((.), strip)
 import Control.Applicative (Applicative(..))
 import Data.Generics (cast, Data, gmapQr, ext1Q, dataTypeName, Constr, DataType)
 
@@ -286,7 +287,7 @@ instance Show Literal where
   show (PointerLiteral w) = "nullptr" ++ show w
 instance Show CharacterLiteral where show (CharacterLiteral k s) = show k ++ '\'' : s ++ "'"
 instance Show SingleStringLiteral where show (SingleStringLiteral k s) = show k ++ '"' : s ++ "\""
-instance Show StringLiteral where show (StringLiteral l) = concatMap (\(x, y) -> show x ++ show y) (unne l)
+instance Show StringLiteral where show (StringLiteral l) = concatMap (\(x, y) -> show x ++ show y) $ NeList.to_plain l
 instance Show IntegerLiteral where show (IntegerLiteral s) = s
 instance Show CharacterLiteralKind where
   show CharacterLiteral_Plain = ""; show CharacterLiteralKind_u = "u"

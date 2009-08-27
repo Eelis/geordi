@@ -27,6 +27,7 @@ This C++ parser is probably extremely inefficient. Fortunately, geordi only ever
 module Cxx.Parse (Code, Chunk(..), code, charLit, stringLit, makeType, precedence, parseRequest, makeDeclParser, declaratorIdParser, highlight) where
 
 import qualified Data.List as List
+import qualified Data.NonEmptyList as NeList
 import qualified Parsers as P
 import qualified Cxx.Show
 
@@ -38,16 +39,17 @@ import Control.Monad.Instances ()
 import Control.Monad.Error ()
 import Control.Monad (liftM2, liftM3)
 import Data.List ((\\))
+import Data.NonEmptyList (NeList(..))
 import Data.Generics (Data, Typeable, dataTypeOf)
 import Data.Maybe (mapMaybe)
 import Data.Function (on)
-import Util ((<<), (.), Convert(..), isIdChar, NElist(..), Finite(..), Phantom(..), reverse_ne, cardinals, partitionMaybe, nonne_ne_app, unne, lastAndRest, TriBool(..), (.||.))
+import Util ((<<), (.), Convert(..), isIdChar, Finite(..), Phantom(..), cardinals, partitionMaybe, TriBool(..), (.||.))
 import Cxx.Basics
 import Cxx.Show (pretty_with_precedence, Highlighter)
 import Cxx.Operations (apply, squared, is_primary_TypeSpecifier, parenthesized, specT, split_all_decls, is_pointer_or_reference)
 import Prelude hiding ((.))
 import Control.Monad.Reader (ReaderT(..))
-import Parsers ((<?>), (<|>), pzero, spaces, many, optional, choice, sep, many1, symbols, noneOf, lookAhead, symbol, satisfy, optionMaybe, many1', anySymbol, manyTill, many1Till', oneOf, ParserLike, eof, ParseResult(..), getInput, sepBy1, option)
+import Parsers ((<?>), (<|>), pzero, spaces, many, optional, choice, sep, many1, symbols, noneOf, lookAhead, symbol, satisfy, optionMaybe, anySymbol, manyTill, many1Till, oneOf, ParserLike, eof, ParseResult(..), getInput, sepBy1, option)
 import MemoTrie (memo, Trie(..), PairTrie(..), BoolTrie(..))
 
 -- Custom parsing monad:
@@ -132,7 +134,7 @@ charLit, stringLit, plain, parens, curlies, squares, multiComment, singleComment
 
 charLit = CharLiteral . textLit '\''
 stringLit = StringLiteral' . textLit '"'
-plain = Plain . ((:[]) . oneOf ";\\" <|> (many1 (noneOf "'\"{([])}/;\\" <|> (symbol '/' << lookAhead (noneOf "*/")))))
+plain = Plain . ((:[]) . oneOf ";\\" <|> (NeList.to_plain . many1 (noneOf "'\"{([])}/;\\" <|> (symbol '/' << lookAhead (noneOf "*/")))))
 parens = Parens . (symbol '(' >> code << symbol ')')
 curlies = Curlies . (symbol '{' >> code << symbol '}')
 squares = Squares . (symbol '[' >> code << symbol ']')
@@ -193,7 +195,7 @@ instance Parse a => Parse (Squared a) where parse = liftM3 Squared parse (Reader
 instance Parse a => Parse (Curlied a) where parse = liftM3 Curlied parse (ReaderT $ \o -> runReaderT parse $ o { pendingCloseAngleBracket = False }) parse
 instance Parse a => Parse (Parenthesized a) where parse = parseParenthesized parse
 instance Parse () where parse = return ()
-instance Parse a => Parse (NElist a) where parse = many1' parse
+instance Parse a => Parse (NeList a) where parse = many1 parse
 
 parseParenthesized :: Parser Char (Enclosed a) -> Parser Char (Parenthesized a)
 parseParenthesized p = liftM3 Parenthesized parse (ReaderT $ \o -> runReaderT p $ o { pendingCloseAngleBracket = False }) parse
@@ -211,12 +213,12 @@ takingP :: Parser Char ParameterDeclarationClause
 takingP =
   ((kwd "nothing" <|> (kwd "no" >> kwd "arguments")) >> return (ParameterDeclarationClause Nothing Nothing)) <|> mkParameterDeclarationClause . concat . sepBy1 takingClause (delim >> ((kwd "returning" >> pzero) <|> return ()))
 
-commad :: NElist x -> Commad x
-commad (NElist h t) = Commad h $ (,) (CommaOp, White " ") . t
+commad :: NeList x -> Commad x
+commad (NeList h t) = Commad h $ (,) (CommaOp, White " ") . t
 
 mkParameterDeclarationClause :: [ParameterDeclaration] -> ParameterDeclarationClause
 mkParameterDeclarationClause l =
-  ParameterDeclarationClause (case l of [] -> Nothing; h:t -> (Just $ ParameterDeclarationList $ commad $ NElist h t)) Nothing
+  ParameterDeclarationClause (case l of [] -> Nothing; h:t -> (Just $ ParameterDeclarationList $ commad $ NeList h t)) Nothing
 
 instance Parse (CvQualifier, White) where
   parse = (<?> "cv-qualifier") $ do
@@ -289,12 +291,12 @@ type_desc = (<?> "type description") $ do
   where
     specdDesc :: Parser Char ([TypeSpecifier], Either TypeSpecifier PtrAbstractDeclarator)
     specdDesc = (<?> "type description") $ flip fix [] $ \self specs -> do
-      morespecs <- liftM2 NElist parsePrimarySpec (many parseSecondarySpec)
-      let ne = nonne_ne_app specs morespecs
+      morespecs <- liftM2 NeList parsePrimarySpec (many parseSecondarySpec)
+      let ne = NeList.app_plain_left specs morespecs
       mad <- parse :: Parser Char (Maybe PtrAbstractDeclarator)
       return $ case mad of
-        Nothing -> let (x, y) = lastAndRest ne in (x, Left y)
-        Just ad -> (unne ne, Right ad)
+        Nothing -> let (x, y) = NeList.init_last ne in (x, Left y)
+        Just ad -> (NeList.to_plain ne, Right ad)
      <|> do
       sspec <- parseSecondarySpec
       self (specs ++ [sspec]) <|> return ([], Left sspec)
@@ -302,9 +304,9 @@ type_desc = (<?> "type description") $ do
       let (noncvs, cvs) = partitionMaybe (convert :: TypeSpecifier -> Maybe (CvQualifier, White)) specs
       first (noncvs ++) . apply (map fst cvs) . type_desc
 
-with_default :: [TypeSpecifier] -> NElist TypeSpecifier
-with_default [] = NElist specT []
-with_default l@(h:t) = if any is_primary_TypeSpecifier l then NElist h t else NElist specT l
+with_default :: [TypeSpecifier] -> NeList TypeSpecifier
+with_default [] = NeList specT []
+with_default l@(h:t) = if any is_primary_TypeSpecifier l then NeList h t else NeList specT l
 
 instance Parse GeordiRequest where parse = auto3 GeordiRequest_Print <|> auto2 GeordiRequest_Block <|> auto1 GeordiRequest_TU
 
@@ -348,13 +350,13 @@ instance Parse TypeName where autoname_parse = auto1 TypeName_ClassName
 
 instance Parse FloatingLiteral where
   autoname_parse = (FloatingLiteral .) $ (>++> optSuffix) $
-    (symbols "." >++> many1 digit >++> option "" exponentPart) <|>
-    (many1 digit >++> ((symbols "." >++> many digit >++> option "" exponentPart >++> optSuffix) <|> exponentPart))
+    (symbols "." >++> (NeList.to_plain . many1 digit) >++> option "" exponentPart) <|>
+    ((NeList.to_plain . many1 digit) >++> ((symbols "." >++> many digit >++> option "" exponentPart >++> optSuffix) <|> exponentPart))
     where
       (>++>) = liftM2 (++)
       digit = satisfy Char.isDigit
       optSuffix = option "" $ (:[]) . (symbol 'f' <|> symbol 'l' <|> symbol 'F' <|> symbol 'L')
-      exponentPart = (symbols "e" <|> symbols "E") >++> option "" (symbols "+" <|> symbols "-") >++> many1 digit
+      exponentPart = (symbols "e" <|> symbols "E") >++> option "" (symbols "+" <|> symbols "-") >++> (NeList.to_plain . many1 digit)
 instance Parse IntegerLiteral where
   autoname_parse = (IntegerLiteral .) $ (p <|>) $ do
     b <- makeTypeExtensions . parseOptions
@@ -363,7 +365,7 @@ instance Parse IntegerLiteral where
 instance Parse StringLiteralKind where
   parse = (symbols "u8" >> return StringLiteral_u8) <|> (symbol 'u' >> return StringLiteral_u) <|> (symbol 'U' >> return StringLiteral_U) <|> (symbol 'L' >> return StringLiteral_L) <|> return StringLiteral_Plain
 instance Parse SingleStringLiteral where parse = liftM2 SingleStringLiteral parse (textLit '"')
-instance Parse StringLiteral where autoname_parse = StringLiteral . many1' (auto2 (,))
+instance Parse StringLiteral where autoname_parse = StringLiteral . many1 (auto2 (,))
 instance Parse CharacterLiteralKind where parse = (symbol 'u' >> return CharacterLiteralKind_u) <|> (symbol 'U' >> return CharacterLiteralKind_U) <|> (symbol 'L' >> return CharacterLiteralKind_L) <|> return CharacterLiteral_Plain
 instance Parse CharacterLiteral where parse = liftM2 CharacterLiteral parse (textLit '\'')
 instance Parse Literal where
@@ -488,7 +490,7 @@ instance Parse SpecialNoptrDeclarator where
 
 instance Parse SimpleDeclaration where
   parse = liftM2 (SimpleDeclaration Nothing) (Just . InitDeclaratorList . (convert . specialNoptrDeclarator .) . parse) parse <|> do
-    (specs, (decls, semicolon)) <- many1Till' parse (liftM2 (,) parse parse)
+    (specs, (decls, semicolon)) <- many1Till parse (liftM2 (,) parse parse)
     return $ SimpleDeclaration (Just $ DeclSpecifierSeq specs) decls semicolon
 
 instance Parse UsingDeclaration where parse = parse >>= \w -> auto5 (UsingDeclaration_Nested w) <|> auto3 (UsingDeclaration_NonNested w)
@@ -555,25 +557,25 @@ instance Parse DeclaratorId where autoname_parse = auto2 DeclaratorId_IdExpressi
 instance Parse TypeId where autoname_parse = typeP id (\x y -> TypeId (TypeSpecifierSeq x) $ AbstractDeclarator_PtrAbstractDeclarator . y)
 
 typeP :: (Parse c, Convert b (Maybe (CvQualifier, White)), Convert TypeSpecifier b, ParseSpecifier b) =>
-  (Maybe PtrAbstractDeclarator -> c) -> (NElist b -> c -> a) -> Parser Char a
+  (Maybe PtrAbstractDeclarator -> c) -> (NeList b -> c -> a) -> Parser Char a
 typeP g h = makeTypeExtensions . parseOptions >>= \b -> flip fix [] $ \self specs -> do
     pspec <- parsePrimarySpec; sspecs <- many parseSecondarySpec
-    let (NElist p q) = reverse_ne (NElist pspec specs)
+    let (NeList p q) = NeList.reverse (NeList pspec specs)
     r <- parse
-    return $ h (NElist p (q ++ sspecs)) r
+    return $ h (NeList p (q ++ sspecs)) r
    <|> (((: specs) . parseSecondarySpec) >>= self)
    <|> if not b then pzero else do
     let (noncvs, cvs) = partitionMaybe (\x -> convert x :: Maybe (CvQualifier, White)) specs
     (x, y) <- apply (map fst cvs) . type_desc
     return $ uncurry h $ second g $ case y of
-      Left s ->  (nonne_ne_app noncvs (fmap convert $ with_default (s:x)), Nothing)
-      Right ad -> (nonne_ne_app noncvs (fmap convert $ with_default x), Just ad)
+      Left s ->  (NeList.app_plain_left noncvs (fmap convert $ with_default (s:x)), Nothing)
+      Right ad -> (NeList.app_plain_left noncvs (fmap convert $ with_default x), Just ad)
 
-parseSpecs :: ParseSpecifier b => Parser Char (NElist b)
+parseSpecs :: ParseSpecifier b => Parser Char (NeList b)
 parseSpecs = do
   (l, p) <- manyTill parseSecondarySpec parsePrimarySpec
   l' <- many parseSecondarySpec
-  return $ nonne_ne_app l (NElist p l')
+  return $ NeList.app_plain_left l (NeList p l')
 
 instance Parse Initializer where autoname_parse = auto1 Initializer_Parenthesized <|> auto1 Initializer_BraceOrEqualInitializer
 instance Parse BraceOrEqualInitializer where autoname_parse = auto2 EqualInitializer <|> auto1 BraceInitializer
@@ -624,7 +626,7 @@ instance ParseSpecifier MakeSpecifier where
 
 instance Parse TypeSpecifierSeq where
   autoname_parse =
-    TypeSpecifierSeq . (liftM2 NElist parsePrimarySpec (many parseSecondarySpec) <|> liftM2 NElist parseSecondarySpec lp)
+    TypeSpecifierSeq . (liftM2 NeList parsePrimarySpec (many parseSecondarySpec) <|> liftM2 NeList parseSecondarySpec lp)
     where lp = liftM2 (:) parsePrimarySpec (many parseSecondarySpec) <|> liftM2 (:) parseSecondarySpec lp <|> return []
 
 instance Parse DeclSpecifier where autoname_parse = parsePrimarySpec <|> parseSecondarySpec

@@ -11,12 +11,13 @@ import qualified Cxx.Parse
 import qualified Cxx.Operations
 import qualified Cxx.Show
 import qualified Data.List as List
+import qualified Data.NonEmptyList as NeList
 
 import Control.Monad.Error ()
 import Data.Char (isPrint, isSpace)
 import Data.Either (lefts)
 import Parsers ((<|>), eof, optParser, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail, commit)
-import Util ((.), (<<), (.||.), commas_and, capitalize, length_ge, replace, maybe_ne, unne, show_long_opt, strip, convert)
+import Util ((.), (<<), (.||.), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
 import Prelude hiding (catch, (.))
 
@@ -35,7 +36,7 @@ diff (EditableRequest MakeType y) (EditableRequest MakeType x) = pretty $ show .
 diff (EditableRequest Precedence y) (EditableRequest Precedence x) = pretty $ show . Editing.Diff.diff x y
 diff (EditableRequest (Evaluate flags) y) (EditableRequest (Evaluate flags') x) =
   pretty $ f "removed" flags' flags ++ f "added" flags flags' ++ show . Editing.Diff.diff x y
-    where f n fl fl' = maybe [] (\l -> [n ++ " " ++ concat (List.intersperse " and " $ map show_long_opt $ unne l)]) (maybe_ne $ Set.elems $ (Set.\\) fl fl')
+    where f n fl fl' = maybe [] (\l -> [n ++ " " ++ concat (List.intersperse " and " $ map show_long_opt $ NeList.to_plain l)]) (NeList.from_plain $ Set.elems $ (Set.\\) fl fl')
 diff _ _ = "Requests differ in kind."
 
 pretty :: [String] -> String -- Todo: This is awkward.

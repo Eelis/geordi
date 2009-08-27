@@ -37,48 +37,6 @@ instance IOResource Fd where dealloc = System.Posix.IO.closeFd
 instance (IOResource x, IOResource y) => IOResource (x, y) where
   dealloc (x, y) = noThrow (dealloc x) >> dealloc y
 
--- Nonempty lists
-
-data NElist a = NElist { ne_head :: a, ne_tail :: [a] } deriving Eq
-
-instance Functor NElist where fmap f (NElist x l) = NElist (f x) (f . l)
-instance Convert (NElist a) [a] where convert (NElist x l) = x : l
-
-ne_one :: a -> NElist a
-ne_one x = NElist x []
-
-ne_mapM :: Monad m => (a -> m b) -> NElist a -> m (NElist b)
-ne_mapM f (NElist x l) = liftM2 NElist (f x) (mapM f l)
-
-maybe_ne :: [a] -> Maybe (NElist a)
-maybe_ne [] = Nothing
-maybe_ne (h:t) = Just $ NElist h t
-
-nth_ne :: Ordinal -> NElist a -> Maybe a
-nth_ne (Ordinal n) l | (- length (unne l)) <= n, n < length (unne l) = return $ unne l !! n
-nth_ne _ _ = Nothing
-
-reverse_ne :: NElist a -> NElist a
-reverse_ne = work []
-  where
-    work l (NElist a []) = NElist a l
-    work l (NElist a (h:t)) = work (a : l) (NElist h t)
-
-unne :: NElist a -> [a]
-unne (NElist x l) = x : l
-
-nonne_ne_app :: [a] -> NElist a -> NElist a
-nonne_ne_app [] l = l
-nonne_ne_app (h:t) (NElist h' t') = NElist h (t ++ h' : t')
-
-lastAndRest :: NElist a -> ([a], a)
-lastAndRest (NElist x []) = ([], x)
-lastAndRest (NElist x (h:t)) = first (x:) $ lastAndRest (NElist h t)
-
-filter_ne :: (a -> Bool) -> NElist a -> NElist a
-  -- Keeps an element if required to remain nonempty.
-filter_ne p (NElist x y) = maybe_ne (filter p (x : y)) `orElse` NElist x []
-
 -- Conversions
 
 class Convert a b where convert :: a -> b

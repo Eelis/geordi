@@ -4,8 +4,9 @@ module Editing.Show (showEdit, show) where
 
 import Cxx.Show ()
 import qualified Data.List as List
+import qualified Data.NonEmptyList as NeList
 import Data.Char as Char
-import Util (unne, isVowel, show_long_opts, capitalize, commas_and, Ordinal, none, isIdChar)
+import Util (isVowel, show_long_opts, capitalize, commas_and, Ordinal, none, isIdChar)
 import Cxx.Basics (DeclaratorId, Findable)
 import Editing.Basics
 import qualified Prelude
@@ -58,7 +59,7 @@ instance Show Position where
   show (Position a x) = show a ++ " " ++ show x
 
 instance Show a => Show (AndList a) where
-  show (AndList l) = concat $ List.intersperse " and " $ map show $ unne l
+  show (AndList l) = concat $ List.intersperse " and " $ map show $ NeList.to_plain l
 
 instance Show Substrs where show (Substrs l) = show l
 

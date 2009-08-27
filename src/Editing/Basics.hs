@@ -10,21 +10,23 @@ import qualified Data.Char as Char
 import Cxx.Basics (DeclaratorId, Findable)
 
 import Data.Monoid (Monoid(..))
-import Util (NElist(..), unne, Convert(..), Invertible(..), Ordinal(..), (.), findMaybe, take_atleast, isIdChar)
+import qualified Data.NonEmptyList as NeList
+import Data.NonEmptyList (NeList(..))
+import Util (Convert(..), Invertible(..), Ordinal(..), (.), findMaybe, take_atleast, isIdChar)
 
 import Prelude hiding ((.))
 
 -- AndLists
 
-newtype AndList a = AndList { andList :: NElist a }
+newtype AndList a = AndList { andList :: NeList a }
 
 instance Functor AndList where fmap f (AndList l) = AndList (fmap f l)
 
 and_one :: a -> AndList a
-and_one x = AndList (NElist x [])
+and_one x = AndList (NeList x [])
 
 and_and :: AndList a -> AndList a -> AndList a
-and_and (AndList (NElist x y)) (AndList (NElist a b)) = AndList $ NElist x (y ++ a : b)
+and_and (AndList (NeList x y)) (AndList (NeList a b)) = AndList $ NeList x (y ++ a : b)
 
 -- Positions and ranges
 
@@ -127,7 +129,7 @@ data SemCommand = Make (AndList MakeClause)
   -- This is separate from Command because SemCommands are not executed until /after/ all non-sem-commands have been executed (because the latter may fix syntactic problems that the parser would trip on.)
 
 flatten_MakeClauses :: AndList MakeClause -> [(Cxx.Basics.MakeDeclaration, DeclaratorId)]
-flatten_MakeClauses = concatMap (\(MakeClause (AndList l) d) -> map ((,) d) (unne l)) . unne . andList
+flatten_MakeClauses = concatMap (\(MakeClause (AndList l) d) -> map ((,) d) (NeList.to_plain l)) . NeList.to_plain . andList
 
 -- Convenience constructors
 
@@ -190,7 +192,7 @@ unrelative _ = Nothing
 merge_commands :: [Command] -> [Command]
 merge_commands [] = []
 merge_commands (Erase l : Erase l' : r) = merge_commands $ Erase (l `and_and` l') : r
-merge_commands (Replace (AndList (NElist (Replacer (Substrs x) []) [])) : Replace (AndList (NElist (Replacer (Substrs y) []) [])) : r) =
+merge_commands (Replace (AndList (NeList (Replacer (Substrs x) []) [])) : Replace (AndList (NeList (Replacer (Substrs y) []) [])) : r) =
   merge_commands $ Replace (and_one $ Replacer (Substrs $ x `and_and` y) []) : r
 merge_commands (h:t) = h : merge_commands t
 
