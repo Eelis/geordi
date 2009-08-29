@@ -35,6 +35,9 @@ from_plain (h:t) = Just $ NeList h t
 mapM :: Monad m => (a -> m b) -> NeList a -> m (NeList b)
 mapM f (NeList x l) = liftM2 NeList (f x) (Prelude.mapM f l)
 
+sequence :: Monad m => NeList (m a) -> m (NeList a)
+sequence (NeList x l) = liftM2 NeList x $ Prelude.sequence l
+
 concat :: NeList (NeList a) -> NeList a
 concat (NeList (NeList x y) z) = NeList x $ y ++ Prelude.concatMap to_plain z
 

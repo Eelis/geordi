@@ -132,6 +132,6 @@ execute_semcmd _ _ = fail "Last request not suitable."
 
 execute :: ([Command], [SemCommand]) -> EditableRequest -> Either String EditableRequest
 execute (cmds, semcmds) r@(EditableRequest _ str) = do
-  edits <- concat . sequence (Editing.EditsPreparation.prepareEdits str . cmds)
+  edits <- concat . sequence (Editing.EditsPreparation.findInStr str . cmds)
   r' <- exec_edits edits r
   foldM execute_semcmd r' semcmds

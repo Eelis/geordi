@@ -171,8 +171,8 @@ cardinals = words "zero one two three four five six seven eight nine ten"
 
 -- Misc English/textual
 
-once_twice_thrice :: Int -> String
-once_twice_thrice i = case i of
+multiplicative_numeral :: Int -> String
+multiplicative_numeral i = case i of
   1 -> "once"; 2 -> "twice"; 3 -> "thrice"
   n -> show n ++ " times"
 

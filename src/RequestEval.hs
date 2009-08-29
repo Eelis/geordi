@@ -78,7 +78,7 @@ evaluator h = do
             oe <- Editing.Parse.substrsP
             flip (either error_response) oe $ \substrs -> eof >> case er of
               EditableRequest (Evaluate _) c ->
-                flip (either error_response) (Editing.EditsPreparation.findInStr c (Editing.Basics.Range 0 $ length c) substrs) $ \l ->
+                flip (either error_response) (NeList.to_plain . Editing.EditsPreparation.findInStr c substrs) $ \l ->
                   return $ return $ Response Nothing $ commas_and
                     (map (\x -> '`' : strip (Editing.Basics.selectRange (convert x) c) ++ "`") ( l)) ++ "."
               _ -> error_response "Last (editable) request was not an evaluation request."
@@ -89,7 +89,7 @@ evaluator h = do
             flip (either error_response) (Cxx.Parse.parseRequest c) $ \tree -> do
             oe <- Editing.Parse.substrsP; eof
             flip (either error_response) oe $ \substrs -> do
-            flip (either error_response) (Editing.EditsPreparation.findInStr c (Editing.Basics.Range 0 $ length c) substrs) $ \l -> do
+            flip (either error_response) (NeList.to_plain . Editing.EditsPreparation.findInStr c substrs) $ \l -> do
             return $ return $ Response Nothing $ concat $ List.intersperse ", " $
               map (concat . List.intersperse " -> " . Cxx.Operations.namedPathTo tree . convert) l
           _ -> error_response "Last (editable) request was not an evaluation request."

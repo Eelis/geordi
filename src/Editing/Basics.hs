@@ -64,15 +64,11 @@ contiguous :: NeList ARange -> Maybe ARange
 contiguous (NeList h []) = Just h
 contiguous (NeList h t) = findWithRest (two_contiguous h) t >>= contiguous . uncurry NeList
 
-ne_merge_contiguous :: NeList ARange -> NeList ARange
-ne_merge_contiguous (NeList h []) = NeList h []
-ne_merge_contiguous (NeList h t@(x:xs)) = case findWithRest (two_contiguous h) t of
-  Nothing -> NeList.cons h $ ne_merge_contiguous $ NeList x xs
-  Just (h', t') -> ne_merge_contiguous $ NeList h' t'
-
-merge_contiguous :: [ARange] -> [ARange]
-merge_contiguous [] = []
-merge_contiguous (h:t) = NeList.to_plain $ ne_merge_contiguous $ NeList h t
+merge_contiguous :: NeList ARange -> NeList ARange
+merge_contiguous (NeList h []) = NeList h []
+merge_contiguous (NeList h t@(x:xs)) = case findWithRest (two_contiguous h) t of
+  Nothing -> NeList.cons h $ merge_contiguous $ NeList x xs
+  Just (h', t') -> merge_contiguous $ NeList h' t'
 
 offsetRange :: Int -> Range a -> Range a
 offsetRange i (Range st si) = Range (st + i) si
@@ -122,8 +118,9 @@ newtype OccurrencesClause = OccurrencesClause (NeList Ordinal)
 data Rankeds a = Rankeds (AndList OccurrencesClause) a | Sole' a | All a | AllBut (AndList OccurrencesClause) a
 data Bound = Bound (Maybe BefAft) Substr
 data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative Substr)
-data Relative a = Relative a BefAft (Ranked (Either Findable String)) | Between a Betw | FromTill Bound RelativeBound
+data Relative a = Absolute a | Relative a BefAft (Ranked (Either Findable String)) | Between a Betw | FromTill Bound RelativeBound
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
+  -- Strictly speaking, Absolute can be (and was at some point) encoded by (Between blabla). However, it isn't worth the trouble of the necessary special cases in Show, Parse, etc.
 data In a = In a (Maybe InClause)
 data PositionsClause = PositionsClause BefAft Substrs
 data InClause = InClause (AndList (In (Relative (Rankeds (Either Findable DeclaratorId)))))
@@ -171,9 +168,6 @@ front, back :: Bound
 front = Bound (Just Before) Everything
 back = Bound (Just After) Everything
 
-absolute :: a -> Relative a
-absolute x = Between x $ Betw front Back
-
 -- Convert/Invertible/Functor Instances
 
 instance Functor EverythingOr where
@@ -191,6 +185,7 @@ instance Functor Rankeds where
   fmap f (AllBut o x) = AllBut o $ f x
 
 instance Functor Relative where
+  fmap f (Absolute x) = Absolute $ f x
   fmap f (Relative x ba r) = Relative (f x) ba r
   fmap f (Between x b) = Between (f x) b
   fmap _ (FromTill a b) = FromTill a b
@@ -224,6 +219,7 @@ instance Ord BefAft where
   compare _ _ = EQ
 
 unrelative :: Relative a -> Maybe a
+unrelative (Absolute x) = Just x
 unrelative (Relative x _ _) = Just x
 unrelative (Between x _) = Just x
 unrelative _ = Nothing
@@ -238,9 +234,9 @@ merge_commands (h:t) = h : merge_commands t
 
 describe_position_after :: Pos Char -> String -> Position
 describe_position_after n s
-  | n == 0 = Position Before $ In (absolute Everything) Nothing
-  | n == length s = Position After $ In (absolute Everything) Nothing
-  | otherwise = Position After $ In (absolute $ NotEverything $ Sole $ Right $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s) Nothing
+  | n == 0 = Position Before $ In (Absolute Everything) Nothing
+  | n == length s = Position After $ In (Absolute Everything) Nothing
+  | otherwise = Position After $ In (Absolute $ NotEverything $ Sole $ Right $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s) Nothing
 
 -- Tokenization:
 

@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances, PatternGuards #-}
 
-module Editing.Show (showEdit, show) where
+module Editing.Show (showEdit, Show(..)) where
 
 import Cxx.Show ()
 import qualified Data.List as List
@@ -54,8 +54,8 @@ instance Show a => Show (Ranked a) where
 instance Show Findable where show = Prelude.show
 
 instance Show Position where
-  show (Position Before (In (Between Everything (Betw (Bound (Just Before) Everything) Back)) Nothing)) = "at start"
-  show (Position After (In (Between Everything (Betw (Bound (Just Before) Everything) Back)) Nothing)) = "at end"
+  show (Position Before (In (Absolute Everything) Nothing)) = "at start"
+  show (Position After (In (Absolute Everything) Nothing)) = "at end"
   show (Position a x) = show a ++ " " ++ show x
 
 instance Show a => Show (AndList a) where
@@ -76,15 +76,15 @@ instance Show PrependPositionsClause where
 instance Show Bound where
   show (Bound mba x) = maybe "" ((++ " ") . show) mba ++ show x
 
+instance Show Betw where show (Betw x y) = "between " ++ show x ++ " and " ++ show y
+
 instance Show a => Show (Relative a) where
-  show (Between x (Betw (Bound (Just Before) Everything) Back)) = show x
-  show (Between x (Betw y z)) = show x ++ " between " ++ show y ++ " and " ++ show z
+  show (Absolute x) = show x
+  show (Between x y) = show x ++ " " ++ show y
   show (Relative x y z) = show x ++ " " ++ show y ++ " " ++ show z
   show (FromTill b c) = "from " ++ show b ++ " till " ++ show c
 
-instance Show a => Show (In a) where
-  show (In x Nothing) = show x
-  show (In x (Just y)) = show x ++ " in " ++ show y
+instance Show a => Show (In a) where show (In x incl) = show x ++ maybe "" show incl
 
 instance Show InClause where show (InClause x) = "in " ++ show x
 

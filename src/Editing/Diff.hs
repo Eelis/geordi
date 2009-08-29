@@ -47,7 +47,7 @@ describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
     inorder_context Before = reverse $ context Before
     furthest Before = listToMaybe; furthest After = listToMaybe . reverse
     alpha ba = Char.isAlpha . (tok_text . listToMaybe (toks ba) >>= furthest (invert ba)) `orElse` False
-    ins ba = Insert (toks_text s) $ and_one $ NonAppendPositionsClause $ PositionsClause ba $ Substrs $ and_one $ In (absolute $ NotEverything $ Sole' $ Right $ toks_text $ inorder_context $ invert ba) Nothing
+    ins ba = Insert (toks_text s) $ and_one $ NonAppendPositionsClause $ PositionsClause ba $ Substrs $ and_one $ In (Absolute $ NotEverything $ Sole' $ Right $ toks_text $ inorder_context $ invert ba) Nothing
     sr = selectRange r t
     sole = NotEverything $ Sole' $ Right sr'
     rel ba = Relative sole ba $ Sole $ Right $ toks_text $ inorder_context $ invert ba
@@ -55,7 +55,7 @@ describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
     describe_range
       | source_elem ["{", "(", "friend"] || (toks_len sr <= 4 && alpha After) = rel Before
       | source_elem ["}", ")", ";"] || (toks_len sr <= 4 && alpha Before) = rel After
-      | otherwise = absolute sole
+      | otherwise = Absolute sole
 
 diffsAsSimpleEdits :: [(DI, a)] -> [SimpleEdit a]
 diffsAsSimpleEdits = work 0 where
