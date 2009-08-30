@@ -1,5 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ExistentialQuantification, TypeSynonymInstances #-}
-{-# OPTIONS -cpp #-}
+{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ExistentialQuantification, TypeSynonymInstances, CPP #-}
 
 module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, find, is_pointer_or_reference, namedPathTo, productions) where
 
@@ -13,6 +12,7 @@ import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEi
 import Cxx.Basics
 import Editing.Basics (Range(..), offsetRange)
 import Control.Monad (foldM, MonadPlus(..))
+import Data.Function (on)
 import Control.Arrow (first, second)
 import Data.Generics (cast, gmapT, everywhere, somewhere, Data, Typeable, gfoldl, dataTypeOf, toConstr, Constr, DataType, dataTypeName, constrType)
 
@@ -226,7 +226,7 @@ instance Convert UsingDeclaration (Maybe DeclaratorId) where
 
 -- Finding declarations
 
-data GfoldlWithLengthsIntermediary r a = GfoldlWithLengthsIntermediary { gwli_result :: [r], off :: Int }
+data GfoldlWithLengthsIntermediary r a = GfoldlWithLengthsIntermediary { gwli_result :: [r], _off :: Int }
 
 gfoldl_with_lengths :: Data a => Int -> (forall d. Data d => Int -> d -> [r]) -> a -> [r]
 gfoldl_with_lengths i f = gfoldl_with_ranges i (f . start)
@@ -250,7 +250,7 @@ bodyOf x did
     Just $ Range (length $ Cxx.Show.show_simple (inline, kwd, identifier, o)) (length $ Cxx.Show.show_simple b)
   | otherwise = Nothing
 
-instance Eq DataType where t == t' = dataTypeName t == dataTypeName t'
+instance Eq DataType where (==) = (==) `on` dataTypeName
 
 constr_eq :: Constr -> Constr -> Bool
   -- The existing Eq instance only compares constructor indices for algebraic data types, so for instance the first constructors of two unrelated algebraic data types are considered equal.
@@ -290,8 +290,7 @@ pathTo :: Data d => d -> Range Char -> Int -> TreePath
 pathTo x r i = NeList (AnyData x) $ case gfoldl_with_ranges i f x of
   [] -> []
   l : _ -> NeList.to_plain l
-  where
-    f r'@(Range st _) y = if r' `wraps` r then [pathTo y r st] else []
+  where f r'@(Range st _) y = [pathTo y r st | r' `wraps` r]
 
 clear_successive_exprs :: [String] -> [String]
 clear_successive_exprs [] = []
@@ -361,7 +360,7 @@ productions =
 
 namedPathTo :: Data d => d -> Range Char -> [String]
 namedPathTo d r = clear_successive_exprs $ map Cxx.Show.dataType_abbreviated_productionName $
-  filter (`elem` productions) $ NeList.to_plain $ fmap (applyAny $ dataTypeOf) (pathTo d r 0)
+  filter (`elem` productions) $ NeList.to_plain $ fmap (applyAny dataTypeOf) (pathTo d r 0)
 
 findRange :: Data d => (TreePath -> Maybe (Range Char)) -> [AnyData] -> Int -> d -> [Range Char]
 findRange p tp i x = Maybe.maybeToList (offsetRange i . p (NeList (AnyData x) tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
@@ -472,7 +471,7 @@ instance Compatible DeclSpecifier DeclSpecifier where
 
 -- Making sure things end with whitespace.
 
-data WithAlternate a = WithoutAlternate a | WithAlternate { wa_primary :: a, wa_alternate :: a } deriving Typeable
+data WithAlternate a = WithoutAlternate a | WithAlternate { _wa_primary :: a, _wa_alternate :: a } deriving Typeable
 
 instance Functor WithAlternate where
   fmap f (WithoutAlternate x) = WithoutAlternate $ f x
@@ -549,7 +548,7 @@ instance SplitDecls BlockDeclaration where
 instance SplitDecls SimpleDeclaration where
   split_decls d@(SimpleDeclaration _ Nothing _) = NeList d []
   split_decls (SimpleDeclaration specs (Just (InitDeclaratorList (Commad x l))) w) =
-    (\y -> SimpleDeclaration specs (Just (InitDeclaratorList (Commad y []))) w) . (NeList x (snd . l))
+    (\y -> SimpleDeclaration specs (Just (InitDeclaratorList (Commad y []))) w) . NeList x (snd . l)
 
 instance SplitDecls Statement where
   split_decls (Statement_DeclarationStatement (DeclarationStatement d)) =
@@ -563,7 +562,7 @@ instance SplitDecls Statement where
 
 instance SplitDecls MemberDeclaration where
   split_decls (MemberDeclaration specs (Just (MemberDeclaratorList (Commad d ds))) s) =
-    (\d' -> MemberDeclaration specs (Just (MemberDeclaratorList (Commad d' []))) s) . (NeList d (snd . ds))
+    (\d' -> MemberDeclaration specs (Just (MemberDeclaratorList (Commad d' []))) s) . NeList d (snd . ds)
   split_decls d = NeList (gmapT split_all_decls d) []
 
 compound_split_decls :: Statement -> Statement

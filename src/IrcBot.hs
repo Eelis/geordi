@@ -14,6 +14,7 @@ import qualified Cxx.Show
 import Control.Exception (bracketOnError)
 import System.IO (hGetLine, hPutStrLn, hFlush, Handle, IOMode(..))
 import Control.Monad (forever, when)
+import Control.Arrow (first)
 import Control.Monad.Error ()
 import Control.Monad.State (execStateT, lift, StateT)
 import System.IO.UTF8 (putStr, putStrLn, print)
@@ -42,7 +43,7 @@ data IrcBotConfig = IrcBotConfig
   } deriving Read
 
 instance Read Regex where
-  readsPrec i s = (\(a, r) -> (mkRegex a, r)) . readsPrec i s
+  readsPrec i s = first mkRegex . readsPrec i s
 
 instance Read Net.PortNumber where
   readsPrec i s = (\(x, s') -> (fromIntegral (x :: Int), s')) . readsPrec i s
@@ -196,7 +197,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
           let con = context . mmem `orElse` Request.Context []
           Request.Response history_modification output <- lift $ lift $ eval r con
           let output' = describe_lines $ lines output
-          lift $ mapState' $ Map.insert wher $ ChannelMemory
+          lift $ mapState' $ Map.insert wher ChannelMemory
             { context = maybe id Request.modify_history history_modification con
             , last_output = output' }
           reply $ describe_new_output (last_output . mmem) output'

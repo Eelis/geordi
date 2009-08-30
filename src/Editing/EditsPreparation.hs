@@ -1,5 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeSynonymInstances, FlexibleContexts, UndecidableInstances, OverlappingInstances, PatternGuards #-}
-{-# OPTIONS -cpp #-}
+{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeSynonymInstances, FlexibleContexts, UndecidableInstances, OverlappingInstances, PatternGuards, CPP #-}
 
 module Editing.EditsPreparation (use_tests, findInStr) where
 
@@ -12,7 +11,6 @@ import qualified Editing.Show
 import qualified Data.List as List
 import qualified Data.NonEmptyList as NeList
 import qualified Data.Char as Char
-import qualified Editing.Show
 import Data.Maybe (mapMaybe)
 import Control.Monad (liftM2)
 import Control.Monad.Error ()
@@ -99,7 +97,7 @@ instance (OccurrenceError a, Find a (NeList ARange)) => Find (Rankeds a) (NeList
   find (Sole' x) =
     find x >>= case_of l@(NeList _ []) -> return l; _ -> fail_with_context $ multipleOccur x
   find (Rankeds rs s) = NeList.sequence ((\r -> find (Ranked r s)) . flatten_occ_clauses rs)
-  find (AllBut rs s) = do
+  find (AllBut rs s) =
     erase_indexed (ordinal_carrier . NeList.to_plain (flatten_occ_clauses rs)) . NeList.to_plain . find s >>= case_of
       [] -> fail "All occurrences excluded." -- Todo: Better error.
       x:y -> return $ NeList x y
@@ -201,7 +199,7 @@ instance Find RelativeBound (Either ARange Anchor) where
   find Front = return $ Right $ Anchor Before 0
   find Back = Right . Anchor After . size . search_range . ask
   find (RelativeBound mba p) = find p >>= case_of
-    NeList x [] -> return $ maybe Left (\ba -> Right . ($ ba)) mba $ x
+    NeList x [] -> return $ maybe Left (\ba -> Right . ($ ba)) mba x
     _ -> fail "Relative bound must be singular."
 
 instance Find Mover [Edit] where

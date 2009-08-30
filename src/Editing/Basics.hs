@@ -7,6 +7,7 @@ import qualified Request
 import qualified Data.List as List
 import qualified Data.Char as Char
 import Data.Function (on)
+import Control.Arrow ((&&&))
 
 import Cxx.Basics (DeclaratorId, Findable)
 
@@ -90,7 +91,7 @@ unanchor_range r | Anchor _ x <- r Before, Anchor _ y <- r After = Range x (y - 
 
 -- Edits
 
-instance Ord Anchor where compare = compare `on` (\a -> (anchor_pos a, anchor_befAft a))
+instance Ord Anchor where compare = compare `on` (anchor_pos &&& anchor_befAft)
 
 data Anchor = Anchor { anchor_befAft :: BefAft, anchor_pos :: Pos Char } deriving Eq
   -- This BefAft will probably need to be generalized to Before|After|Both for "insert x between 3 and 4".
@@ -259,7 +260,7 @@ edit_tokens p = work
 
 data Token = Token { tok_text, tok_white :: String }
 
-instance Eq Token where t == t' = tok_text t == tok_text t'
+instance Eq Token where (==) = (==) `on` tok_text
 
 tok_len :: Token -> Int
 tok_len (Token x y) = length x + length y

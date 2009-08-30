@@ -1,5 +1,4 @@
-{-# LANGUAGE OverlappingInstances, UndecidableInstances, Arrows, FlexibleInstances, TypeSynonymInstances #-}
-{-# OPTIONS -cpp #-}
+{-# LANGUAGE OverlappingInstances, UndecidableInstances, Arrows, FlexibleInstances, TypeSynonymInstances, CPP #-}
 
 module Editing.Parse (commandsP, finalCommandP) where
 

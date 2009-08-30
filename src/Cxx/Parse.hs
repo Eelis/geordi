@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, FlexibleInstances, TypeSynonymInstances, MultiParamTypeClasses, FlexibleContexts, OverlappingInstances, GADTs, TypeOperators, TypeFamilies, ScopedTypeVariables, PatternGuards, DeriveDataTypeable #-}
+{-# LANGUAGE ScopedTypeVariables, FlexibleInstances, TypeSynonymInstances, MultiParamTypeClasses, FlexibleContexts, OverlappingInstances, GADTs, TypeOperators, TypeFamilies, PatternGuards, DeriveDataTypeable #-}
 {-# OPTIONS_GHC -O0 #-}
 
 {- C++ is notoriously hard to parse. There are ambiguities in the grammar that can only be resolved through things like name lookup, which in turn require things like overloading and template instantiation, and so one basically has to implement a complete compiler front-end just to be able to parse.
@@ -80,7 +80,7 @@ parseOptions :: Parser t ParseOptions
 parseOptions = ReaderT return
 
 run_parser :: Parser t a -> ParseOptions -> [t] -> ParseResult t a
-run_parser p o = P.run_parser (runReaderT p o)
+run_parser p = P.run_parser . runReaderT p
 
 -- Some combinators:
 
@@ -143,7 +143,7 @@ singleComment = SingleComment . (symbols "//" >> many (noneOf "\\"))
 
 code :: ParserLike m Char => m Code
 code = many $ (<?> "balanced code") $
-  (multiComment <|> singleComment <|> charLit <|> parens <|> curlies <|> squares <|> stringLit <|> plain)
+  multiComment <|> singleComment <|> charLit <|> parens <|> curlies <|> squares <|> stringLit <|> plain
   -- Uncovers just enough structure for Request.hs to find the split positions in "<< ...; ..." and "{ ... } ..." requests and to implement --resume.
 
 -- Misc parsers.
@@ -162,8 +162,8 @@ anyOperator = (<?> "operator") $ do
   o <- parseOptions
   liftM2 (,) (choice $ if pendingCloseAngleBracket o then pcab else normal) parse
   where
-    normal = map (\x -> (symbols $ show x) >> return x) $ List.sortBy (flip compare `on` length . show) (all_values :: [OperatorTok])
-    pcab = map (\x -> (symbols $ show x) >> return x) $ List.sortBy (flip compare `on` length . show) $ (all_values :: [OperatorTok]) \\ [CloseTwoAngles, CloseAngle]
+    normal = map (\x -> symbols (show x) >> return x) $ List.sortBy (flip compare `on` length . show) (all_values :: [OperatorTok])
+    pcab = map (\x -> symbols (show x) >> return x) $ List.sortBy (flip compare `on` length . show) $ (all_values :: [OperatorTok]) \\ [CloseTwoAngles, CloseAngle]
       -- Profiling showed that having these two separate makes a huge difference in space/time efficiency.
 
 op :: OperatorTok -> Parser Char White
@@ -178,7 +178,7 @@ class Data a => Parse a where
 
 instance (Data a, Finite a, SingleTokenType a) => Parse (a, White) where parse = (<?> token_class_name (Phantom :: Phantom a)) $ choice $ (\v -> (,) v . either kwd op (token v)) . all_values
 instance Parse White where
-  parse = silent $ White . concat . (many $
+  parse = silent $ White . concat . many (
     (symbols "/*" >> ("/*" ++) . (++ "*/") . fst . manyTill anySymbol (symbols "*/")) <|>
     (symbols "//" >> ("//" ++) . getInput) <|> symbols " ")
 
@@ -407,7 +407,7 @@ instance Parse PseudoDestructorName where
   autoname_parse = do
     w <- parse
     mnns <- parse
-    maybe pzero (\nns -> auto5 (PseudoDestructorName_InTemplate w nns)) mnns <|>
+    maybe pzero (auto5 . PseudoDestructorName_InTemplate w) mnns <|>
       auto2 (PseudoDestructorName (OptQualified w mnns)) <|>
       auto4 (PseudoDestructorName_InTypeName (OptQualified w mnns))
 simpleBinaryGroup :: (Parse (b, White), Parse a) => (a1 -> (b, White) -> a -> a1) -> (a -> a1) -> Parser Char a1
@@ -532,7 +532,7 @@ instance Parse EnumSpecifier where autoname_parse = auto2 EnumSpecifier
 instance Parse (RefQualifier, White) where parse = (<?> "ref-qualifier") $ ((,) Rvalue . op AmperAmper) <|> ((,) Lvalue . op Amper)
 instance Parse PtrOperator where autoname_parse = auto2 PtrOperator_Ptr <|> PtrOperator_Ref . parse <|> auto4 PtrOperator_Nested
 instance Parse PtrAbstractDeclarator where parse = auto2 PtrAbstractDeclarator <|> PtrAbstractDeclarator_NoptrAbstractDeclarator . parse
-instance Parse NoptrAbstractDeclarator where parse = liftM2 (foldl $ \x y -> NoptrAbstractDeclarator (Just x) y) ((NoptrAbstractDeclarator_PtrAbstractDeclarator . parse) <|> NoptrAbstractDeclarator Nothing . parse) (many parse)
+instance Parse NoptrAbstractDeclarator where parse = liftM2 (foldl $ NoptrAbstractDeclarator . Just) ((NoptrAbstractDeclarator_PtrAbstractDeclarator . parse) <|> NoptrAbstractDeclarator Nothing . parse) (many parse)
 instance Parse AbstractDeclarator where autoname_parse = auto1 AbstractDeclarator_PtrAbstractDeclarator
 instance Parse InitializerList where autoname_parse = auto1 InitializerList
 instance Parse InitializerClause where autoname_parse = auto1 InitializerClause
@@ -541,7 +541,7 @@ instance Parse InitDeclarator where
   autoname_parse = do
     declarator <- parse
     if is_pointer_or_reference declarator
-      then InitDeclarator declarator . (optionMaybe $ (<?> "initializer") $ Initializer_Parenthesized . parseParenthesized (Enclosed . ExpressionList . InitializerList . flip Commad [] . parse) <|> auto1 Initializer_BraceOrEqualInitializer)
+      then InitDeclarator declarator . optionMaybe ((<?> "initializer") $ Initializer_Parenthesized . parseParenthesized (Enclosed . ExpressionList . InitializerList . flip Commad [] . parse) <|> auto1 Initializer_BraceOrEqualInitializer)
       else auto1 (InitDeclarator declarator)
 
 instance Parse Declarator where autoname_parse = auto1 Declarator_PtrDeclarator
@@ -570,12 +570,6 @@ typeP g h = makeTypeExtensions . parseOptions >>= \b -> flip fix [] $ \self spec
     return $ uncurry h $ second g $ case y of
       Left s ->  (NeList.app_plain_left noncvs (fmap convert $ with_default (s:x)), Nothing)
       Right ad -> (NeList.app_plain_left noncvs (fmap convert $ with_default x), Just ad)
-
-parseSpecs :: ParseSpecifier b => Parser Char (NeList b)
-parseSpecs = do
-  (l, p) <- manyTill parseSecondarySpec parsePrimarySpec
-  l' <- many parseSecondarySpec
-  return $ NeList.app_plain_left l (NeList p l')
 
 instance Parse Initializer where autoname_parse = auto1 Initializer_Parenthesized <|> auto1 Initializer_BraceOrEqualInitializer
 instance Parse BraceOrEqualInitializer where autoname_parse = auto2 EqualInitializer <|> auto1 BraceInitializer

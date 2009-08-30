@@ -19,22 +19,21 @@ diff pre post =
   merge_nearby_edits pre_toks $
   diffsAsSimpleEdits $ getDiff pre_toks (diff_tokenize post)
 
-data SimpleEdit a = SimpleEdit { se_range :: Range a, se_repl :: [a] }
+data SimpleEdit a = SimpleEdit { se_range :: Range a, _se_repl :: [a] }
 
 describe_simpleEdit :: SimpleEdit Token -> [Token] -> Command
 describe_simpleEdit (SimpleEdit (Range p 0) s) t | p == length t = Append (toks_text s) Nothing
 describe_simpleEdit (SimpleEdit (Range 0 0) s) _ = Prepend (toks_text s) Nothing
-describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t =
-  if null s then Erase $ and_one $ EraseText $ Substrs $ and_one $ In describe_range Nothing else
-  if siz == 0 then case () of -- insert
+describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t
+  | null s = Erase $ and_one $ EraseText $ Substrs $ and_one $ In describe_range Nothing
+  | siz == 0 = case () of -- insert
     ()| repl_elem ["{", "("] || alpha After -> ins Before
     ()| repl_elem ["}", ")", ";"] || alpha Before -> ins After
     ()| toks_len s <= 4 && size (se_range expanded_edit) > siz -> describe_simpleEdit expanded_edit t
     () -> ins $ if toks_len (context After) > toks_len (context Before) then Before else After
-  else if all ((`elem` Cxx.Basics.ops) . tok_text) sr && s /= [] && not (source_elem ["{", "}", "(", ")"]) && size (se_range expanded_edit) > siz then
+  | all ((`elem` Cxx.Basics.ops) . tok_text) sr && s /= [] && not (source_elem ["{", "}", "(", ")"]) && size (se_range expanded_edit) > siz =
     describe_simpleEdit expanded_edit t
-  else
-    Replace $ and_one $ Replacer (Substrs $ and_one $ In describe_range Nothing) (toks_text s)
+  | otherwise = Replace $ and_one $ Replacer (Substrs $ and_one $ In describe_range Nothing) (toks_text s)
   where
     repl_elem x = case s of [Token u _] -> elem u x; _ -> False
     source_elem x = sr' `elem` x
@@ -69,7 +68,7 @@ merge_nearby_edits :: [a] -> [SimpleEdit a] -> [SimpleEdit a]
 merge_nearby_edits _ [] = []
 merge_nearby_edits _ [x] = [x]
 merge_nearby_edits s (SimpleEdit (Range b e) r : SimpleEdit (Range b' e') r' : m) | b' - e - b <= 1 =
-  merge_nearby_edits s $ SimpleEdit (Range b (b' - b + e')) (r ++ (take (max 0 $ b' - e - b) $ drop (b + e) s) ++ r') : m
+  merge_nearby_edits s $ SimpleEdit (Range b (b' - b + e')) (r ++ take (max 0 $ b' - e - b) (drop (b + e) s) ++ r') : m
 merge_nearby_edits s (e : m) = e : merge_nearby_edits s m
 
 diff_tokenize :: String -> [Token]
@@ -85,6 +84,6 @@ diff_tokenize = g . f . edit_tokens isIdChar
     g (t@(Token "<<" _) : r) = case g r of [] -> [t]; (u : m) -> mappend t u : m
     g (t : r) | separator (tok_text t) = t : g r
     g a =
-      let (b, c) = span (not . separator . tok_text) a in
+      let (b, c) = break (separator . tok_text) a in
       let (d, e) = splitAt 5 b in
       mconcat d : g (e ++ c)

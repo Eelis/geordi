@@ -85,8 +85,7 @@ replace :: Eq a => a -> a -> [a] -> [a]
 replace x y = map (\c -> if c == x then y else c)
 
 (!!) :: [a] -> Int -> a
-l !! i | i < 0 = (Prelude.!!) (reverse l) (-i - 1)
-l !! i = (Prelude.!!) l i
+l !! i = (Prelude.!!) l (i `mod` length l)
 
 erase_indexed :: [Int] -> [a] -> [a]
 erase_indexed i l = f 0 l

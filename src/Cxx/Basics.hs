@@ -1,5 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# OPTIONS -cpp #-}
+{-# LANGUAGE DeriveDataTypeable, CPP #-}
 
 {- Notes:
 

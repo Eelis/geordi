@@ -10,7 +10,7 @@ import qualified Editing.Basics
 import qualified Editing.Show ()
 import qualified Data.Char as Ch
 
-import Control.Monad (liftM2)
+import Control.Monad (liftM, liftM2)
 import Control.Arrow (first)
 import Data.List ((\\))
 import Data.Maybe (fromMaybe)
@@ -24,8 +24,7 @@ class (Functor m, Monad m) => ParserLike m t | m -> t where
   anySymbol :: m t
   anySymbol = satisfy $ const True
   symbols :: (Eq t, Show t) => [t] -> m [t]
-  symbols [] = return []
-  symbols (h:t) = liftM2 (:) (satisfy (== h)) (symbols t)
+  symbols = foldr (\ h -> liftM2 (:) (satisfy (== h))) (return [])
   satisfy :: (t -> Bool) -> m t
   (<|>) :: m a -> m a -> m a
   (<?>) :: m a -> String -> m a
@@ -103,7 +102,7 @@ kwd :: String -> Parser Char String
 kwd s = try $ symbols s << notFollowedBy (satisfy isIdChar) << spaces
 
 kwds :: [String] -> Parser Char String
-kwds s = choice $ kwd . s
+kwds = choice . (kwd .)
 
 char_unit :: (Eq a, Show a) => a -> Parser a ()
 char_unit = (>> return ()) . char
@@ -144,7 +143,7 @@ drain = Parser $ \s -> ParseSuccess s [] (length s) Nothing
 
 -- Parser is a Functor, a Monad, and ParserLike:
 
-instance Functor (Parser t) where fmap f p = p >>= return . f
+instance Functor (Parser t) where fmap = liftM
 
 instance Monad (Parser t) where
   return x = Parser $ \s -> ParseSuccess x s 0 Nothing

@@ -67,6 +67,6 @@ main = do
         Just (ReplaceLast e) -> addHistory $ UTF8.encodeString $ show e
         _ -> return ()
       putStrLn $ describe_new_output (last_output mem) output
-      loop $ Memory
+      loop Memory
         { context = maybe id modify_history history_modification $ context mem
         , last_output = Just output }

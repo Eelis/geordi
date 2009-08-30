@@ -1,5 +1,4 @@
-{-# LANGUAGE Rank2Types, FlexibleInstances, UndecidableInstances, RelaxedPolyRec, PatternGuards, OverlappingInstances #-}
-{-# OPTIONS -cpp #-}
+{-# LANGUAGE Rank2Types, FlexibleInstances, UndecidableInstances, RelaxedPolyRec, PatternGuards, OverlappingInstances, CPP #-}
 
 module Cxx.Show (pretty_with_precedence, show_simple, show_plural, show_pretty, Highlighter, Highlightable(..), noHighlighting, dataType_productionName, dataType_abbreviated_productionName) where
 
@@ -43,7 +42,7 @@ data PrettyOptions = PrettyOptions
 
 camel_components :: String -> [String]
 camel_components s = case s of
-  (x:xs) -> let (y, z) = span Char.isLower xs in [Char.toLower x : y] ++ camel_components z
+  (x:xs) -> let (y, z) = span Char.isLower xs in (Char.toLower x : y) : camel_components z
   _ -> []
 
 camel_to_prod :: String -> String
@@ -80,7 +79,7 @@ abbreviate w = case w of
   _ -> w
 
 dataType_to_camelProd :: DataType -> String
-dataType_to_camelProd dt = reverse $ takeWhile (/= '.') $ reverse $ dataTypeName dt
+dataType_to_camelProd = reverse . takeWhile (/= '.') . reverse . dataTypeName
 
 dataType_productionName :: DataType -> String
 dataType_productionName = camel_to_prod . dataType_to_camelProd
@@ -90,7 +89,7 @@ dataType_abbreviated_productionName =
   concat . List.intersperse "-" . map abbreviate . camel_components . dataType_to_camelProd
 
 constr_productionName :: Constr -> String
-constr_productionName c = camel_to_prod $ show c
+constr_productionName = camel_to_prod . show
 
 instance Show Findable where
   show (DeclarationOf d) = "free declaration of " ++ strip (show d)
@@ -254,10 +253,10 @@ extraCurliesStmt (Statement_CompoundStatement s) = pretty s
 extraCurliesStmt s = extraCurlies (pretty s)
 
 pretty_with_precedence :: Data a => a -> String
-pretty_with_precedence e = pretty e $ PrettyOptions { extra_parentheses = ChildrenExtraParens, highlighter = noHighlighting }
+pretty_with_precedence e = pretty e PrettyOptions{ extra_parentheses = ChildrenExtraParens, highlighter = noHighlighting }
 
 show_simple :: Data a => a -> String
-show_simple x = pretty x $ PrettyOptions { extra_parentheses = NoExtraParens, highlighter = noHighlighting }
+show_simple x = pretty x PrettyOptions{ extra_parentheses = NoExtraParens, highlighter = noHighlighting }
 
 prettyEnclosed :: PrettyA String -> PrettyA String
 prettyEnclosed x o | ExtraParens <- extra_parentheses o = x (o { extra_parentheses = ChildrenExtraParens })

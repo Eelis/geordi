@@ -107,10 +107,10 @@ exec_edits (e : t) (EditableRequest k s) = case adjustEdits e t of
       let (x, y) = splitAt p s in exec_edits t' $ EditableRequest k $ x ++ repl ++ y
     MoveEdit _ p r@(Range st si)
       | p < 0 -> do
-        let (x, y) = splitAt (st + p) s; (a, b, c) = splitRange (Range (-p) si) y
+        let (x, y) = splitAt (st + p) s; (a, _, c) = splitRange (Range (-p) si) y
         exec_edits t' $ EditableRequest k $ x ++ selectRange r s ++ a ++ c
       | otherwise -> do
-        let (x, y) = splitAt (st + si + p) s; (a, b, c) = splitRange r x
+        let (x, y) = splitAt (st + si + p) s; (a, _, c) = splitRange r x
         exec_edits t' $ EditableRequest k $ a ++ c ++ selectRange r s ++ y
     RemoveOptions opts
       | Evaluate f <- k ->

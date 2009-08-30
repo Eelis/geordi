@@ -88,7 +88,7 @@ evaluator h = do
     final_cmd (Show Nothing) (Just er) = return $ show_EditableRequest h er
     final_cmd (Show (Just substrs)) (Just (EditableRequest (Evaluate _) c)) = do
       l <- NeList.to_plain . Editing.EditsPreparation.findInStr c substrs
-      return $ commas_and (map (\x -> '`' : strip (Editing.Basics.selectRange (convert x) c) ++ "`") ( l)) ++ "."
+      return $ commas_and (map (\x -> '`' : strip (Editing.Basics.selectRange (convert x) c) ++ "`") l) ++ "."
     final_cmd (Show (Just _)) (Just _) = fail "Last (editable) request was not an evaluation request."
     final_cmd (Identify substrs) (Just (EditableRequest (Evaluate _) c)) = do
       tree <- Cxx.Parse.parseRequest c
@@ -152,8 +152,7 @@ evaluator h = do
                 [] -> return $ fail "There is no previous resumable request."
                 EditableRequest (Evaluate oldopts) oldcodeblob : _ -> case run_parser (Cxx.Parse.code << eof) (dropWhile isSpace oldcodeblob) of
                   ParseSuccess oldcode _ _ _ -> do
-                    code <- Cxx.Parse.code; eof; return $ do
-                    respond_and_remember $ EditableRequest (Evaluate $ Set.union evalopts oldopts) $ show $ Cxx.Operations.blob $ Cxx.Operations.resume (Cxx.Operations.shortcut_syntaxes oldcode) (Cxx.Operations.shortcut_syntaxes code)
+                    code <- Cxx.Parse.code; eof; return $ respond_and_remember $ EditableRequest (Evaluate $ Set.union evalopts oldopts) $ show $ Cxx.Operations.blob $ Cxx.Operations.resume (Cxx.Operations.shortcut_syntaxes oldcode) (Cxx.Operations.shortcut_syntaxes code)
                   ParseFailure _ _ _ -> return $ fail "Previous request too malformed to resume."
                 _ -> return $ fail "Last (editable) request was not resumable."
               | otherwise -> return . respond_and_remember =<< EditableRequest (Evaluate evalopts) . getInput }
