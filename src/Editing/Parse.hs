@@ -1,7 +1,7 @@
 {-# LANGUAGE OverlappingInstances, UndecidableInstances, Arrows, FlexibleInstances, TypeSynonymInstances #-}
 {-# OPTIONS -cpp #-}
 
-module Editing.Parse (commandsP, substrsP) where
+module Editing.Parse (commandsP, finalCommandP) where
 
 import qualified Cxx.Parse
 import qualified Cxx.Basics
@@ -10,82 +10,79 @@ import qualified Parsers as P
 import qualified Data.List as List
 import qualified Data.NonEmptyList as NeList
 import Data.NonEmptyList (NeList(..))
-import Control.Monad (liftM2)
 import Control.Monad.Error ()
 import Control.Category (Category, (.), id)
 import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA)
 import Data.Either (partitionEithers)
 import Data.Generics (DataType, Constr, toConstr, Data)
-import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, sepBy1', many1Till, optParser, try, many, satisfy, spaces)
+import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, many1Till, optParser, try, many, satisfy, spaces)
 import Util (isVowel, (<<), snd_unit, liftA2, Ordinal(..), apply_if, cardinals, plural)
 import Cxx.Basics (DeclaratorId)
 import Request (EvalOpt)
 
-import Prelude hiding ((.), id)
+import Prelude hiding ((.), id, and)
 import Editing.Basics
 
-data Terminators = Terminators { term_eof :: Bool, term_keywords :: [String] } deriving Eq
-  -- term_eof states whether eof is a valid termination
+data Terminators = Terminators { term_eof :: Bool, term_keywords :: [String], and_conts :: [String] } deriving Eq
+  -- term_eof states whether eof is a valid termination of a directly preceding verbatim stings.
+  -- term_keywords lists keywords that should terminate directly preceding verbatim strings.
+  -- and_conts lists keywords that should terminate directly preceding "and"-lists (when appearing after "and ").
 
-type AndCont = String
+data Parser a b = Parser Terminators (Terminators -> a -> P.Parser Char (Either String b))
 
-data Parser a b = Parser Terminators (Terminators -> [AndCont] -> a -> P.Parser Char (Either String b))
-
-zero_width :: Parser a b -> Bool
-zero_width (Parser (Terminators b _) _) = b
-
-terminators :: Parser a b -> [String]
-terminators (Parser (Terminators _ t) _) = t
+terminators :: Parser a b -> Terminators
+terminators (Parser t _) = t
 
 commit :: Parser a b -> Parser a b
-commit (Parser t f) = Parser t $ \t' n v -> P.commit (f t' n v)
+commit (Parser t f) = Parser t $ \t' v -> P.commit (f t' v)
 
 instance Category Parser where
-  id = Parser (Terminators True []) $ \_ _ x -> return $ return x
-  p' . Parser (Terminators b t) f =
-    Parser (Terminators (b && zero_width p') (if null t then terminators p' else t))
-     $ \(Terminators b'' t'') a x -> do
-      let (Parser (Terminators b' t') f') = p'
+  id = Parser (Terminators True [] []) $ const $ return . return
+  p' . Parser (Terminators b t na) f =
+    Parser (Terminators (b && term_eof (terminators p')) (if null t then term_keywords $ terminators p' else t)
+        (if null t then and_conts $ terminators p' else na))
+     $ \(Terminators b'' t'' a) x -> do
+      let (Parser (Terminators b' t' na') f') = p'
         -- Todo: This match is delayed for a reason, I think. Document that reason.
-      u <- f (Terminators (b' && b'') (if b' then t' ++ t'' else t')) (if null t' then a else []) x
+      u <- f (Terminators (b' && b'') (if b' then t' ++ t'' else t') (if b' then a++na' else na')) x
       case u of
         Left e -> return $ Left e
-        Right u' -> f' (Terminators b'' t'') a u'
+        Right u' -> f' (Terminators b'' t'' a) u'
 
 instance Arrow Parser where
-  arr f = Parser (Terminators True []) $ \_ _ -> return . return . f
-  first (Parser ac f) = Parser ac $ \y ac' (b, d) -> fmap (fmap (\c' -> (c', d))) (f y ac' b)
-  second (Parser ac f) = Parser ac $ \y ac' (d, b) -> fmap (fmap (\c' -> (d, c'))) (f y ac' b)
+  arr f = Parser (Terminators True [] []) $ \_ -> return . return . f
+  first (Parser ac f) = Parser ac $ \y (b, d) -> fmap (fmap (\c' -> (c', d))) (f y b)
+  second (Parser ac f) = Parser ac $ \y (d, b) -> fmap (fmap (\c' -> (d, c'))) (f y b)
 
 instance ArrowChoice Parser where
-  left (Parser (Terminators b t) p) = Parser (Terminators b t) $ \(Terminators b' t') a x ->
+  left (Parser t p) = Parser t $ \t' x ->
     case x of
-      Left y -> fmap Left `fmap` p (Terminators b' t') a y
+      Left y -> fmap Left `fmap` p t' y
       Right y -> return $ Right $ Right y
-  right (Parser (Terminators b t) p) = Parser (Terminators b t) $ \(Terminators b' t') a x ->
+  right (Parser t p) = Parser t $ \t' x ->
     case x of
       Left y -> return $ Right $ Left y
-      Right y -> fmap Right `fmap` p (Terminators b' t') a y
+      Right y -> fmap Right `fmap` p t' y
 
 class Parse a where parse :: Parser x a
 
 kwd :: [String] -> Parser a String
-kwd s = Parser (Terminators False s) $ \(Terminators b _) _ _ -> fmap Right $ try $
+kwd s = Parser (Terminators False s []) $ \(Terminators b _ _) _ -> fmap Right $ try $
   choice (try `fmap` symbols `fmap` s) << apply_if b (eof <|>) (P.char_unit ' ')
 
 label :: String -> Parser a b -> Parser a b
-label s (Parser t f) = Parser t $ \l a x -> f l a x <?> s
+label s (Parser t f) = Parser t $ \l x -> f l x <?> s
 
 (<||>) :: Parser a b -> Parser a b -> Parser a b
-Parser (Terminators b t) f <||> Parser (Terminators b' t') f' =
-  Parser (Terminators (b || b') (t ++ t')) $ \y t'' x -> f y t'' x <|> f' y t'' x
+Parser (Terminators b t a) f <||> Parser (Terminators b' t' a') f' =
+  Parser (Terminators (b || b') (t ++ t') (a ++ a')) $ \y x -> f y x <|> f' y x
 
 named_characters :: [(String, String)]
 named_characters = [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~"), ("slash", "/"), ("backslash", "\\")]
 
 instance Parse String where
   parse = label "verbatim string" $ (select cs <||>) $
-    Parser (Terminators False []) $ \t _ _ -> quoted <|> unquoted t
+    Parser (Terminators False [] []) $ \t _ -> quoted <|> unquoted t
    where
     quoted = char '`' >> fmap Right (many $ satisfy (/= '`')) << char '`' << spaces
     unquoted t = fmap (Right . NeList.to_plain . fst) $ many1Till (P.silent anySymbol) $ try $ apply_if (term_eof t) (eof <|>) $ lookAhead
@@ -93,23 +90,20 @@ instance Parse String where
     cs :: [([String], String)]
     cs = map (\(x, y) -> ([plural x, x, (if isVowel (head x) then "an " else "a ") ++ x], y)) named_characters
 
-andP :: Parser a ()
-andP = (kwd ["and"] >>>) $ Parser (Terminators True []) $ \_ a _ -> fmap Right $ notFollowedBy (choice $ try `fmap` symbols `fmap` a) >> return ()
-
 instance Parse a => Parse (AndList a) where
-  parse = sepP parse andP >>> arr AndList
-    where
-      sepP :: Parser a t -> Parser a t1 -> Parser a (NeList t)
-      sepP (Parser u@(Terminators _ t) p) (Parser (Terminators _ t') p') = Parser (Terminators False t) $
-        \(Terminators b'' t'') a v -> fmap f $ p (Terminators b'' (t' ++ t'')) (t ++ t'' ++ a) v `sepBy1'` p' u a v
-      f :: NeList (Either String t) -> Either String (NeList t)
-      f (NeList x l) = liftM2 NeList x $ case l of [] -> return []; (h : t) -> fmap NeList.to_plain $ f (NeList h t)
+  parse = liftA2 NeList parse ((and parse >>> arr (NeList.to_plain . andList)) <||> arr (const [])) >>> arr AndList
 
-instance (Parse a, Parse b) => Parse (Either a b) where
-  parse = (parse >>> arr Left) <||> (parse >>> arr Right)
+and :: Parser x a -> Parser x a
+and (Parser (Terminators _ t _) p) = Parser (Terminators False ["and"] t) $
+  \t' x -> try $ do
+    symbols "and "
+    notFollowedBy (choice $ try `fmap` symbols `fmap` (and_conts t'))
+    p t' x
+
+instance (Parse a, Parse b) => Parse (Either a b) where parse = (parse >>> arr Left) <||> (parse >>> arr Right)
 
 semipure :: (a -> Either String b) -> Parser a b
-semipure f = Parser (Terminators True []) $ \_ _ -> return . f
+semipure f = Parser (Terminators True [] []) $ \_ -> return . f
 
 select :: [([String], a)] -> Parser x a
 select = foldl1 (<||>) . map (\(s, r) -> if null s then arr (const r) else kwd s >>> arr (const r))
@@ -130,9 +124,6 @@ till, begin, end_kwds :: [String]
 till = ["till", "until"]
 begin = ["beginning", "begin", "front", "start"]
 end_kwds = ["end", "back"]
-
-uncool :: Parser () a -> Terminators -> [AndCont] -> P.Parser Char (Either String a)
-uncool (Parser _ f) t a = f t a ()
 
 instance Parse a => Parse (Ranked a) where parse = auto2 Ranked <||> auto1 Sole
 
@@ -174,12 +165,12 @@ instance Parse Betw where
   parse = (kwd ["between"] >>>) $ proc _ -> do
       y <- parse -< ()
       do
-        rank' <- andP >>> parse -< (); s <- parse -< ()
+        rank' <- and parse -< (); s <- parse -< ()
         returnA -< Betw (Bound Nothing $ NotEverything $ Ranked y s) $ RelativeBound Nothing $ Absolute $ NotEverything $ Ranked rank' s
        <||> do
-        x <- parse -< (); v <- andP >>> parse -< ()
+        x <- parse -< (); v <- and parse -< ()
         returnA -< Betw (Bound Nothing (NotEverything $ Ranked y x)) v
-    <||> do x <- parse -< (); y <- andP >>> parse -< (); returnA -< Betw x y
+    <||> do liftA2 Betw (parse) (and parse) -< ()
 
 relative_everything_orA :: Parser y (Relative (EverythingOr a))
 relative_everything_orA =
@@ -189,7 +180,6 @@ relative_everything_orA =
     (liftA2 (\x y -> Between Everything (Betw x y)) (kwd ["from"] >>> parse) (kwd till >>> parse)
       <||> (kwd till >>> auto1 (\x -> Between Everything (Betw front x)))
       <||> (arr (const Everything) >>> relative)))
-  <||> (kwd ["begin"] >>> kwd till >>> auto1 (Between Everything . Betw front))
   <||> (proc _ -> do
     kwd ["before"] -< ()
     y <- auto1 NotEverything -< ()
@@ -280,7 +270,7 @@ instance Parse Changer where
 
 instance Parse Eraser where parse = auto2 EraseAround <||> auto1 EraseOptions <||> auto1 EraseText
 instance Parse Mover where parse = liftA2 Mover parse (kwd ["to"] >>> parse)
-instance Parse [EvalOpt] where parse = Parser (Terminators False []) $ \_ _ _ -> optParser
+instance Parse [EvalOpt] where parse = Parser (Terminators False [] []) $ \_ _ -> optParser
 instance Parse a => Parse (Around a) where parse = kwd ["around"] >>> auto1 Around
 instance Parse UsePattern where parse = auto1 UsePattern
 instance Parse (Relative UsePattern) where parse = parse >>> relative
@@ -298,7 +288,7 @@ namedWrappings =
   , (["spaces"], Wrapping " " " ") ]
 
 instance Parse Wrapping where
-  parse = label "wrapping description" $ select namedWrappings <||> liftA2 Wrapping parse (andP >>> parse)
+  parse = label "wrapping description" $ select namedWrappings <||> liftA2 Wrapping parse (and parse)
 
 instance Parse a => Parse (Maybe a) where parse = (parse >>> arr Just) <||> arr (const Nothing)
 
@@ -327,25 +317,30 @@ instance Parse Command where
       wc _ (Left _) = fail "Malformed wrap command."
 
 instance Parse Cxx.Basics.MakeDeclaration where
-  parse = Parser (Terminators False []) $ \_ _ _ -> Right `fmap` Cxx.Parse.makeDeclParser
+  parse = Parser (Terminators False [] []) $ \_ _ -> Right `fmap` Cxx.Parse.makeDeclParser
 
 instance Parse DeclaratorId where
-  parse = Parser (Terminators False []) $ \_ _ _ -> Right `fmap` Cxx.Parse.declaratorIdParser
+  parse = Parser (Terminators False [] []) $ \_ _ -> Right `fmap` Cxx.Parse.declaratorIdParser
 
 instance Parse MakeClause where parse = auto2 MakeClause
 
 instance Parse SemCommand where
   parse = label "edit command" $ kwd ["make"] >>> commit (auto1 Make)
 
-addAnd :: [AndCont] -> Parser a b -> Parser a b
-addAnd a (Parser t p) = Parser t $ \t' a' v -> p t' (a ++ a') v
+instance Parse FinalCommand where
+  parse = label "edit command" $
+    (kwd ["show", "display"] >>> commit (option parse >>> arr Show)) <||>
+    (kwd ["identify"] >>> commit (auto1 Identify)) <||>
+    (kwd ["parse"] >>> arr (const Parse))
 
-commandsP :: P.Parser Char (Either String (([Command], [SemCommand]), Bool))
-commandsP = uncool p (Terminators True []) []
-  where
-    p = liftA2 (,)
-      (addAnd ["show"] $ parse >>> arr (partitionEithers . NeList.to_plain . andList))
-      ((andP >>> kwd ["show"] >>> arr (const True)) <||> arr (const False))
+instance Parse (([Command], [SemCommand]), Maybe FinalCommand) where
+  parse = liftA2 (,) (parse >>> arr (partitionEithers . NeList.to_plain . andList)) (option $ and parse)
 
-substrsP :: P.Parser Char (Either String Substrs)
-substrsP = uncool parse (Terminators True []) []
+uncool :: Parser () a -> Terminators -> P.Parser Char (Either String a)
+uncool (Parser _ f) t = f t ()
+
+commandsP :: P.Parser Char (Either String (([Command], [SemCommand]), Maybe FinalCommand))
+commandsP = uncool parse $ Terminators True [] []
+
+finalCommandP :: P.Parser Char (Either String FinalCommand)
+finalCommandP = uncool parse $ Terminators True [] []

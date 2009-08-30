@@ -153,6 +153,11 @@ data Command
   | WrapIn Substrs Wrapping
   | Use (AndList UseClause)
 
+data FinalCommand
+  = Show (Maybe Substrs)
+  | Identify Substrs
+  | Parse
+
 newtype Identifier = Identifier { identifier_string :: String }
 
 data MakeClause = MakeClause (AndList DeclaratorId) Cxx.Basics.MakeDeclaration
