@@ -99,6 +99,9 @@ instance Show Findable where
   show Constructor = "free constructor"
   show Destructor = "free destructor"
   show ConversionFunction = "free conversion-function"
+  show FindableParameterDeclaration = "parameter-declaration"
+  show TemplateParameter = "template-parameter"
+  show TemplateArgument = "template-argument"
 
 show_plural :: Findable -> String
 show_plural (DeclarationOf did) = "free declarations of " ++ strip (show did)

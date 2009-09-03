@@ -24,16 +24,13 @@ import Editing.Basics
 
 import Control.Monad.Reader (ReaderT(..), local, ask)
 
-class Offsettable a where offset :: Int -> a -> a
+instance Offsettable DualARange where offset i (DualARange x y) = DualARange (offset i x) (offset i y)
 
-instance Offsettable (Range Char) where offset x (Range y z) = Range (y + x) z
-instance Offsettable Anchor where offset x (Anchor y z) = Anchor y (z + x)
-instance Offsettable ARange where offset x r = offset x . r
-instance (Offsettable a, Functor f) => Offsettable (f a) where offset = fmap . offset
-
+instance Convert (Range Char) DualARange where convert = convert . (convert :: Range Char -> ARange)
 instance Convert (Range a) [ARange] where convert = (:[]) . anchor_range
 instance Convert (Range a) ARange where convert = anchor_range
 instance Convert ARange (Range a) where convert = unanchor_range
+instance Convert ARange DualARange where convert x = DualARange x x
 
 data ResolutionContext = ResolutionContext { context_suffix :: String, _original :: String, search_range :: Range Char }
 type Resolver = ReaderT ResolutionContext
@@ -53,13 +50,14 @@ narrow w' r' = local $ \(ResolutionContext w s _) -> ResolutionContext (" " ++ w
 
 -- We pass the whole original string because it may need to be parsed.
 
-instance Find (Around Substrs) (NeList ARange) where find (Around x) = find x
+instance Find (Around Substrs) (NeList DualARange) where find (Around x) = find x
 instance (Find x a, Find y a) => Find (Either x y) a where find = either find find
 instance Find a b => Find (AndList a) (NeList b) where find (AndList l) = NeList.sequence $ find . l
 
 instance Convert (Range Char) (NeList ARange) where convert = NeList.one . anchor_range
+instance Convert (Range Char) (NeList DualARange) where convert = NeList.one . convert . anchor_range
 
-instance Find Substrs (NeList ARange) where find (Substrs l) = NeList.concat . NeList.concat . find l
+instance Find Substrs (NeList DualARange) where find (Substrs l) = NeList.concat . NeList.concat . find l
 
 class OccurrenceError a where
   doesNotOccur_n_times :: a -> Int -> String
@@ -81,18 +79,18 @@ instance Editing.Show.Show a => OccurrenceError a where
   doesNotOccur_n_times s n = Editing.Show.show s ++ " does not occur " ++ multiplicative_numeral (if n < 0 then -n else n+1)
   multipleOccur s = Editing.Show.show s ++ " occurs multiple times"
 
-instance Find String (NeList ARange) where
+instance Find String (NeList DualARange) where
   find x = do
     ResolutionContext _ s r <- ask
     case map (\o -> Range o (length x)) $ find_occs x $ selectRange r s of
       [] -> fail_with_context $ "String `" ++ x ++ "` does not occur"
-      h:t -> return $ fmap anchor_range $ NeList h t
+      h:t -> return $ fmap (convert :: Range Char -> DualARange) $ NeList h t
 
-instance (OccurrenceError a, Find a (NeList ARange)) => Find (Ranked a) ARange where
+instance (OccurrenceError a, Find a (NeList DualARange)) => Find (Ranked a) DualARange where
   find (Sole x) = find x >>= case_of NeList z [] -> return z; _ -> fail_with_context $ multipleOccur x
   find (Ranked (Ordinal n) s) = NeList.nth n . find s >>= maybe (fail_with_context $ doesNotOccur_n_times s n) return
 
-instance (OccurrenceError a, Find a (NeList ARange)) => Find (Rankeds a) (NeList ARange) where
+instance (OccurrenceError a, Find a (NeList DualARange)) => Find (Rankeds a) (NeList DualARange) where
   find (All x) = find x
   find (Sole' x) =
     find x >>= case_of l@(NeList _ []) -> return l; _ -> fail_with_context $ multipleOccur x
@@ -109,7 +107,7 @@ instance (Offsettable b, Invertible a, Find a b, Convert (Range Char) b) => Find
   find (Absolute x) = NeList.one . find x
   find (Relative o ba w) = do
     Range a b <- search_range . ask
-    Range st si <- unanchor_range . find w
+    Range st si <- unanchor_range . full_range . find w
     let h = Editing.Show.show ba ++ " " ++ Editing.Show.show w
     NeList.one . case ba of
       Before -> narrow h (Range a st) $ find (invert o)
@@ -133,56 +131,57 @@ instance (Offsettable (NeList b), Find a (NeList b)) => Find (In a) (NeList b) w
   find (In o Nothing) = find o
   find (In o (Just incl)) = do
     r <- search_range . ask
-    find incl >>= (NeList.concat .) . NeList.mapM (\a ->
+    (full_range .) . find incl >>= (NeList.concat .) . NeList.mapM (\a ->
       narrow (Editing.Show.show incl) (offset (start r) (unanchor_range a)) $
         offset (convert $ a Before) . find o)
 
-instance Find Substr ARange where
-  find Everything = arange (Anchor Before 0) . Anchor After . size . search_range . ask
+instance Find Substr DualARange where
+  find Everything = convert . arange (Anchor Before 0) . Anchor After . size . search_range . ask
   find (NotEverything x) = find x
 
-instance Find (EverythingOr (Rankeds (Either Cxx.Basics.Findable String))) (NeList ARange) where
-  find Everything = NeList.one . arange (Anchor Before 0) . Anchor After . size . search_range . ask
+instance Find (EverythingOr (Rankeds (Either Cxx.Basics.Findable String))) (NeList DualARange) where
+  find Everything = NeList.one . convert . arange (Anchor Before 0) . Anchor After . size . search_range . ask
   find (NotEverything x) = find x
 
-instance Find Cxx.Basics.Findable (NeList ARange) where
+instance Find Cxx.Basics.Findable (NeList DualARange) where
   find d = do
     ResolutionContext _ s (Range st si) <- ask
     let
-      f :: Range Char -> Maybe (Range Char)
-      f (Range x y)
-        | st <= x, x + y <= st + si = Just $ Range (x - st) y
+      f :: (Range Char, Range Char) -> Maybe (Range Char, Range Char)
+      f p@(Range x y, _)
+        | st <= x, x + y <= st + si = Just $ offset (-st) p
         | otherwise = Nothing
     case Cxx.Parse.parseRequest s of
       Left e -> fail $ "Could not parse code in previous request. " ++ e
       Right r -> case NeList.from_plain $ mapMaybe f $ Cxx.Operations.find d r of
           Nothing -> fail_with_context $ "Could not find " ++ show d
-          Just l -> return $ fmap convert l
+          Just l -> return $ fmap (\(q, r'@(Range u h)) ->
+            let m = length $ takeWhile (==' ') $ reverse $ selectRange r' s in DualARange (convert q) (convert $ Range u (h-m))) l
 
-instance Find Cxx.Basics.DeclaratorId (NeList ARange) where find = find . Cxx.Basics.BodyOf
+instance Find Cxx.Basics.DeclaratorId (NeList DualARange) where find = find . Cxx.Basics.BodyOf
 
-instance Find InClause (NeList ARange) where find (InClause x) = NeList.concat . NeList.concat . find x
+instance Find InClause (NeList DualARange) where find (InClause x) = NeList.concat . NeList.concat . find x
 
 instance Find AppendPositionsClause (NeList Anchor) where
   find (NonAppendPositionsClause pc) = find pc
-  find (AppendIn incl) = (($ After) .) . find incl
+  find (AppendIn incl) = (($ After) . full_range .) . find incl
 
 instance Find PrependPositionsClause (NeList Anchor) where
   find (NonPrependPositionsClause pc) = find pc
-  find (PrependIn incl) = (($ Before) .) . find incl
+  find (PrependIn incl) = (($ Before) . full_range .) . find incl
 
-instance Find PositionsClause (NeList Anchor) where find (PositionsClause ba x) = (($ ba) .) . find x
+instance Find PositionsClause (NeList Anchor) where find (PositionsClause ba x) = (($ ba) . full_range .) . find x
 
 instance Find Replacer (NeList Edit) where
-  find (Replacer p r) = (flip RangeReplaceEdit r .) . (unanchor_range .) . merge_contiguous . find p
+  find (Replacer p r) = (flip RangeReplaceEdit r .) . (unanchor_range .) . merge_contiguous . (replace_range .) . find p
   find (ReplaceOptions o o') = return $ NeList (RemoveOptions o) [AddOptions o']
 
 instance Find Changer (NeList Edit) where
-  find (Changer p r) = (flip RangeReplaceEdit r .) . (unanchor_range .) . find p -- shouldn't we do merge_contiguous here, too?
+  find (Changer p r) = (flip RangeReplaceEdit r .) . (unanchor_range . replace_range .) . find p -- shouldn't we do merge_contiguous here, too?
   find (ChangeOptions o o') = return $ NeList (RemoveOptions o) [AddOptions o']
 
 instance Find Eraser [Edit] where
-  find (EraseText x) = ((flip RangeReplaceEdit "" . unanchor_range) .) . NeList.to_plain . find x
+  find (EraseText x) = ((flip RangeReplaceEdit "" . unanchor_range . full_range) .) . NeList.to_plain . find x
   find (EraseOptions o) = return [RemoveOptions o]
   find (EraseAround (Wrapping x y) (Around z)) = liftM2 (++) (f Before) (f After)
     where
@@ -193,23 +192,23 @@ instance Find Bound (Either ARange Anchor) where
   find (Bound Nothing Everything) = Left . arange (Anchor Before 0) . Anchor After . size . search_range . ask
   find (Bound (Just Before) Everything) = return $ Right $ Anchor Before 0
   find (Bound (Just After) Everything) = Right . Anchor After . size . search_range . ask
-  find (Bound mba p) = maybe Left (\ba -> Right . ($ ba)) mba . find p
+  find (Bound mba p) = maybe Left (\ba -> Right . ($ ba)) mba . full_range . find p
 
 instance Find RelativeBound (Either ARange Anchor) where
   find Front = return $ Right $ Anchor Before 0
   find Back = Right . Anchor After . size . search_range . ask
-  find (RelativeBound mba p) = find p >>= case_of
+  find (RelativeBound mba p) = (full_range .) . find p >>= case_of
     NeList x [] -> return $ maybe Left (\ba -> Right . ($ ba)) mba x
     _ -> fail "Relative bound must be singular."
 
 instance Find Mover [Edit] where
   find (Mover o p) = do
     a <- find p
-    NeList.to_plain . find o >>= mapM (makeMoveEdit a . unanchor_range) . reverse
+    NeList.to_plain . find o >>= mapM (makeMoveEdit a . unanchor_range . full_range) . reverse
 
 instance Find Position Anchor where
   find (Position ba x) = find x >>= case_of
-    NeList y [] -> return $ y ba
+    NeList y [] -> return $ full_range y ba
     _ -> fail "Anchor position must be singular."
 
 instance Find UsePattern (Range Char) where
@@ -264,7 +263,7 @@ instance Find Command [Edit] where
   find (Change (AndList l)) = concat . sequence ((NeList.to_plain .) . find . NeList.to_plain l)
   find (Insert r p) = NeList.to_plain . (flip InsertEdit r .) . NeList.concat . find p
   find (Move (AndList movers)) = concat . sequence (find . NeList.to_plain movers)
-  find (Swap substrs Nothing) = NeList.to_plain . find substrs >>= f
+  find (Swap substrs Nothing) = NeList.to_plain . (full_range .) . find substrs >>= f
     where
       f [] = return []
       f (a:b:c) = do
@@ -272,14 +271,14 @@ instance Find Command [Edit] where
         return $ makeMoveEdit (b Before) (unanchor_range a) ++ makeMoveEdit (a Before) (unanchor_range b) ++ edits
       f _ = fail "Cannot swap uneven number of operands."
   find (Swap substrs (Just substrs')) = do
-    nl <- find substrs
-    nl' <- find substrs'
+    nl <- (full_range .) . find substrs
+    nl' <- (full_range .) . find substrs'
     case (contiguous nl, contiguous nl') of
       (Just a, Just b) -> return $ makeMoveEdit (b Before) (unanchor_range a) ++ makeMoveEdit (a Before) (unanchor_range b)
       _ -> fail "Swap operands must be contiguous regions."
   find (WrapAround (Wrapping x y) (AndList z)) =
     fmap concat $ sequence $ NeList.to_plain $ flip fmap z $ \z' ->
-      concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . NeList.to_plain . merge_contiguous . find z'
+      concat . ((\r -> [InsertEdit (r Before) x, InsertEdit (r After) y]) .) . NeList.to_plain . merge_contiguous . (full_range .) . find z'
   find (WrapIn z (Wrapping x y)) = find $ WrapAround (Wrapping x y) $ and_one $ Around z
 
 use_tests :: IO ()

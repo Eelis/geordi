@@ -224,14 +224,17 @@ instance Parse Cxx.Basics.Findable where
       auto1 Cxx.Basics.FindableConstr <||>
       (kwd (with_plurals ["constructor", "ctor"]) >>> arr (const Cxx.Basics.Constructor)) <||>
       (kwd (with_plurals ["destructor", "dtor"]) >>> arr (const Cxx.Basics.Destructor)) <||>
-      (kwd (with_plurals ["conversion-function"]) >>> arr (const Cxx.Basics.ConversionFunction)))
+      (kwd (with_plurals ["conversion-function"]) >>> arr (const Cxx.Basics.ConversionFunction)) <||>
+      (kwd (with_plurals ["parameter-declaration"]) >>> arr (const Cxx.Basics.FindableParameterDeclaration)) <||>
+      (kwd (with_plurals ["template-parameter"]) >>> arr (const Cxx.Basics.TemplateParameter)) <||>
+      (kwd (with_plurals ["template-argument"]) >>> arr (const Cxx.Basics.TemplateArgument)))
 
 class Constructor a where to_constr :: a -> Constr
 instance Data a => Constructor a where to_constr x = toConstr x
 instance Constructor b => Constructor (a -> b) where to_constr f = to_constr $ f undefined
 
 instance Parse DataType where
-  parse = select $ map (\t -> (with_plurals [show $ Cxx.Basics.FindableDataType t], t)) Cxx.Operations.productions
+  parse = select $ map (\t -> (with_plurals [show $ Cxx.Basics.FindableDataType t], t)) Cxx.Operations.findable_productions
 
 instance Parse Constr where
   parse = select $ map (\c -> (with_plurals [show $ Cxx.Basics.FindableConstr c], c))

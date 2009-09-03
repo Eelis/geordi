@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, PatternGuards, FlexibleInstances, TypeSynonymInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, PatternGuards, FlexibleInstances, TypeSynonymInstances, OverlappingInstances #-}
 
 module Editing.Basics where
 
@@ -36,6 +36,9 @@ type Pos a = Int
   -- The 'a' phantom parameter denotes the element type for the position. This prevents accidental mix-ups of different kinds of positions.
 data Range a = Range { start :: Pos a, size :: Int } deriving Eq
 
+data DualARange = DualARange { full_range, replace_range :: ARange }
+  -- In "void f(int i, double d);", the command "replace first parameter-declaration with char c" should produce "void f(char c, double d);", while the command "erase first parameter-declaration" should produce "void f(double d);". Hence, in the former, the clause "first parameter-declaration" should match "char c", while in the latter, it should match "char c, ". To accomodate this, our substring resolution functions return DualARanges containing both of these ranges.
+
 end :: Range a -> Pos a
 end (Range x y) = x + y
 
@@ -71,8 +74,13 @@ merge_contiguous (NeList h t@(x:xs)) = case findWithRest (two_contiguous h) t of
   Nothing -> NeList.cons h $ merge_contiguous $ NeList x xs
   Just (h', t') -> merge_contiguous $ NeList h' t'
 
-offsetRange :: Int -> Range a -> Range a
-offsetRange i (Range st si) = Range (st + i) si
+class Offsettable a where offset :: Int -> a -> a
+
+instance Offsettable (Range Char) where offset x (Range y z) = Range (y + x) z
+instance Offsettable Anchor where offset x (Anchor y z) = Anchor y (z + x)
+instance Offsettable ARange where offset x r = offset x . r
+instance (Offsettable a, Offsettable b) => Offsettable (a, b) where offset i (x, y) = (offset i x, offset i y)
+instance (Offsettable a, Functor f) => Offsettable (f a) where offset = fmap . offset
 
 find_occs :: Eq a => [a] -> [a] -> [Pos a]
 find_occs x = map fst . filter (List.isPrefixOf x . snd) . zip [0..] . List.tails

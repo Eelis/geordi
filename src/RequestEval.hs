@@ -88,12 +88,12 @@ evaluator h = do
     final_cmd (Show Nothing) (Just er) = return $ show_EditableRequest h er
     final_cmd (Show (Just substrs)) (Just (EditableRequest (Evaluate _) c)) = do
       l <- NeList.to_plain . Editing.EditsPreparation.findInStr c substrs
-      return $ commas_and (map (\x -> '`' : strip (Editing.Basics.selectRange (convert x) c) ++ "`") l) ++ "."
+      return $ commas_and (map (\x -> '`' : strip (Editing.Basics.selectRange (convert $ Editing.Basics.replace_range x) c) ++ "`") l) ++ "."
     final_cmd (Show (Just _)) (Just _) = fail "Last (editable) request was not an evaluation request."
     final_cmd (Identify substrs) (Just (EditableRequest (Evaluate _) c)) = do
       tree <- Cxx.Parse.parseRequest c
       l <- NeList.to_plain . Editing.EditsPreparation.findInStr c substrs
-      return $ concat $ List.intersperse ", " $ map (concat . List.intersperse " -> " . Cxx.Operations.namedPathTo tree . convert) l
+      return $ concat $ List.intersperse ", " $ map (concat . List.intersperse " -> " . Cxx.Operations.namedPathTo tree . convert . Editing.Basics.replace_range) l
     final_cmd Parse (Just (EditableRequest (Evaluate _) c)) =
       Cxx.Parse.parseRequest c >> return "Looks fine to me."
     final_cmd _ (Just _) = fail "Last (editable) request was not an evaluation request."

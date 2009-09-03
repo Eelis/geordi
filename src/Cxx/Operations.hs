@@ -1,6 +1,6 @@
-{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ExistentialQuantification, TypeSynonymInstances, CPP #-}
+{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ScopedTypeVariables, ExistentialQuantification, TypeSynonymInstances, CPP #-}
 
-module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, find, is_pointer_or_reference, namedPathTo, productions) where
+module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, find, is_pointer_or_reference, namedPathTo, findable_productions) where
 
 import qualified Cxx.Show
 import qualified Data.List as List
@@ -8,9 +8,9 @@ import qualified Data.NonEmptyList as NeList
 import qualified Data.Char as Char
 import qualified Data.Maybe as Maybe
 import Data.NonEmptyList (NeList(..))
-import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..))
+import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..), Phantom(..))
 import Cxx.Basics
-import Editing.Basics (Range(..), offsetRange)
+import Editing.Basics (Range(..), Offsettable(..))
 import Control.Monad (foldM, MonadPlus(..))
 import Data.Function (on)
 import Control.Arrow (first, second)
@@ -236,6 +236,17 @@ gfoldl_with_ranges i f = gwli_result . gfoldl (\(GfoldlWithLengthsIntermediary m
   let n = length (Cxx.Show.show_simple y) in
   GfoldlWithLengthsIntermediary (m ++ f (Range o n) y) (o + n)) (\_ -> GfoldlWithLengthsIntermediary [] i)
 
+listElem :: forall a d . (Data a, Typeable a, Data d) => Phantom a -> d -> Maybe (Range Char, Range Char)
+listElem _ d
+  | Just (Commad x []) <- (cast d :: Maybe (Commad a)) =
+    Just $ diag $ Range 0 $ length $ Cxx.Show.show_simple x
+  | Just (Commad x ((cw, _):_)) <- (cast d :: Maybe (Commad a)) =
+    Just (Range 0 $ length $ Cxx.Show.show_simple (x, cw), Range 0 $ length $ Cxx.Show.show_simple x)
+  | Just x@(cw, r) <- (cast d :: Maybe ((CommaOp, White), a)) =
+    Just (Range 0 $ length $ Cxx.Show.show_simple x,
+      Range (length $ Cxx.Show.show_simple cw) (length $ Cxx.Show.show_simple r))
+  | otherwise = Nothing
+
 bodyOf :: Data d => d -> DeclaratorId -> Maybe (Range Char)
 bodyOf x did
   | Just (GeordiRequest_Block (CompoundStatement (Curlied o b _)) _) <- cast x, strip (show did) == "main" =
@@ -263,19 +274,25 @@ type TreePath = NeList AnyData
 applyAny :: (forall a. Data a => a -> b) -> (AnyData -> b)
 applyAny p (AnyData x) = p x
 
-finder :: Findable -> TreePath -> Maybe (Range Char)
+diag :: a -> (a, a)
+diag x = (x, x)
+
+finder :: Findable -> TreePath -> Maybe (Range Char, Range Char)
 finder f = case f of
-  FindableDataType t -> simpleFinder $ (== t) . applyAny dataTypeOf . NeList.head
-  FindableConstr c -> simpleFinder $ constr_eq c . applyAny toConstr . NeList.head
-  BodyOf d -> applyAny (`bodyOf` d) . NeList.head
-  DeclarationOf d -> simpleFinder $ complete (`isDeclarationOf` d)
-  Constructor -> simpleFinder $ complete $ isSpecialFuncWith isConstructorId
-  Destructor -> simpleFinder $ complete $ isSpecialFuncWith isDestructorId
-  ConversionFunction -> simpleFinder $ complete $ isSpecialFuncWith isConversionFunctionId
+  FindableDataType t -> (diag .) . simpleFinder ((== t) . applyAny dataTypeOf . NeList.head)
+  FindableConstr c -> (diag .) . simpleFinder (constr_eq c . applyAny toConstr . NeList.head)
+  BodyOf d -> (diag .) . applyAny (`bodyOf` d) . NeList.head
+  DeclarationOf d -> (diag .) . simpleFinder (complete (`isDeclarationOf` d))
+  Constructor -> (diag .) . simpleFinder  (complete $ isSpecialFuncWith isConstructorId)
+  Destructor -> (diag .) . simpleFinder (complete $ isSpecialFuncWith isDestructorId)
+  ConversionFunction -> (diag .) . simpleFinder (complete $ isSpecialFuncWith isConversionFunctionId)
+  FindableParameterDeclaration -> applyAny (listElem (Phantom :: Phantom ParameterDeclaration)) . NeList.head
+  TemplateParameter -> applyAny (listElem (Phantom :: Phantom TemplateParameter)) . NeList.head
+  TemplateArgument -> applyAny (listElem (Phantom :: Phantom TemplateArgument)) . NeList.head
  where
   simpleFinder p t@(NeList (AnyData x) _) = if p t then Just $ Range 0 $ length $ Cxx.Show.show_simple x else Nothing
 
-find :: Data d => Findable -> d -> [Range Char]
+find :: Data d => Findable -> d -> [(Range Char, Range Char)]
 find f = findRange (finder f) [] 0
 
 complete :: (forall d . Data d => d -> Bool) -> TreePath -> Bool
@@ -299,8 +316,8 @@ clear_successive_exprs l@(h:t)
   | otherwise = h : clear_successive_exprs t
   where p = List.isSuffixOf "expr"
 
-productions :: [DataType]
-productions =
+findable_productions, all_productions :: [DataType]
+findable_productions =
 #define P(n) dataTypeOf (undefined :: Cxx.Basics.n)
     -- A.1 Keywords [gram.key]
     [ P(TypedefName), P(NamespaceName), P(OriginalNamespaceName), P(NamespaceAlias)
@@ -332,7 +349,7 @@ productions =
     -- A.7 Declarators [gram.decl]
     , P(InitDeclaratorList), P(InitDeclarator), P(Declarator), P(PtrDeclarator), P(NoptrDeclarator), P(ParametersAndQualifiers)
     , P(PtrOperator), P(CvQualifier), P(CvQualifierSeq), P(DeclaratorId), P(TypeId), P(AbstractDeclarator), P(PtrAbstractDeclarator)
-    , P(NoptrAbstractDeclarator), P(ParameterDeclarationClause), P(ParameterDeclarationList), P(ParameterDeclaration), P(FunctionDefinition)
+    , P(NoptrAbstractDeclarator), P(ParameterDeclarationClause), P(ParameterDeclarationList), P(FunctionDefinition)
     , P(FunctionBody), P(Initializer), P(BraceOrEqualInitializer), P(InitializerClause), P(InitializerList), P(BracedInitList), P(NamespaceBody)
 
     -- A.8 Classes [gram.class]
@@ -349,21 +366,23 @@ productions =
     , P(OperatorFunctionId)
 
     -- A.12 Templates [gram.temp]
-    , P(TemplateDeclaration), P(TemplateParameterList), P(TemplateParameter), P(TypeParameter), P(TemplateArguments), P(SimpleTemplateId)
+    , P(TemplateDeclaration), P(TemplateParameterList), P(TypeParameter), P(TemplateArguments), P(SimpleTemplateId)
     , P(TemplateId), P(TemplateArgumentList), P(TemplateArgument), P(TypenameSpecifier), P(ExplicitInstantiation)
     , P(ExplicitSpecialization)
 
     -- A.13 Exception handling [gram.except]
     , P(TryBlock), P(FunctionTryBlock), P(Handler), P(HandlerSeq), P(ExceptionDeclaration), P(ThrowExpression), P(ExceptionSpecification)
     , P(TypeIdList) ]
+all_productions = findable_productions ++ [P(ParameterDeclaration), P(TemplateParameter), P(TemplateArgument)]
+  -- These three are not part of findable_productions because they get special Findable treatment.
 #undef P
 
 namedPathTo :: Data d => d -> Range Char -> [String]
 namedPathTo d r = clear_successive_exprs $ map Cxx.Show.dataType_abbreviated_productionName $
-  filter (`elem` productions) $ NeList.to_plain $ fmap (applyAny dataTypeOf) (pathTo d r 0)
+  filter (`elem` all_productions) $ NeList.to_plain $ fmap (applyAny dataTypeOf) (pathTo d r 0)
 
-findRange :: Data d => (TreePath -> Maybe (Range Char)) -> [AnyData] -> Int -> d -> [Range Char]
-findRange p tp i x = Maybe.maybeToList (offsetRange i . p (NeList (AnyData x) tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
+findRange :: (Offsettable a, Data d) => (TreePath -> Maybe a) -> [AnyData] -> Int -> d -> [a]
+findRange p tp i x = Maybe.maybeToList (offset i . p (NeList (AnyData x) tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
 
 instance Convert [DeclSpecifier] [TypeSpecifier] where
   convert = Maybe.mapMaybe $ \ds ->

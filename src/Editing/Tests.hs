@@ -207,7 +207,7 @@ basic_tests = do
   ct "struct X { X(int); };" "erase second declaration of X" $ Right "struct X { };"
   ct "template <typename> void f(); void f(int);" "erase second declaration of f" $ Right "template <typename> void f(); "
   ct "struct X { template <typename U> X(U); };" "erase second declaration of X" $ Right "struct X { };"
-  ct "struct X { int x; X(); void f(); ~X(); struct Y {}; operator int(); X(int); };" "erase all constructors and replace destructor with int y;" $ Right "struct X { int x; void f(); int y;struct Y {}; operator int(); };"
+  ct "struct X { int x; X(); void f(); ~X(); struct Y {}; operator int(); X(int); };" "erase all constructors and replace destructor with int y;" $ Right "struct X { int x; void f(); int y; struct Y {}; operator int(); };"
   ct "template <typename T> struct X { template <typename U> inline X(T, U); ~X(); }; template <typename T> template <typename U> X<T>::X(T, U) {} template<typename T> X<T>::~X() {}" "erase second constructor and second destructor" $ Right "template <typename T> struct X { template <typename U> inline X(T, U); ~X(); }; "
   ct "{ 3; 4; 5; }" "swap first and last statement" $ Right "{ 5; 4; 3; }"
   ct "{ 3; 4; 5; 6; }" "swap all statements before 5 with last statement" $ Right "{ 6; 5; 3; 4; }"
@@ -217,6 +217,9 @@ basic_tests = do
   ct "{ 1;2;3;4;5; }" "swap first two statements with last two statements" $ Right "{ 4;5; 3;1;2;}"
   ct "void f() { 1; } void g() { 1; 2; 3; 4; }" "replace first two and last statement in g with 0;" $ Right "void f() { 1; } void g() { 0;3; 0;}"
   ct "void f() { int x = 3; cout << x; } int i;" "replace everything after first statement in f with BARK;" $ Right "void f() { int x = 3; BARK;} int i;"
+  ct "template <typename T, int i> struct S;" "erase second template-parameter" $ return "template <typename T> struct S;"
+  ct "void g(string s); void f(int i, double d, char c, float f, bool b);" "erase first and last two parameter-declarations in declaration of f and replace third parameter-declaration in declaration of f with wchar_t c" $ return "void g(string s); void f(double d, wchar_t c);"
+  ct "int f();" "replace type-specifier with void" $ Right "void f();"
   -- Edit errors:
   ct "struct X { void f() { cout << 3; int x; cout << 3; } };" "erase second 3 after declaration of x in f in X" $ Left "String `3` does not occur twice after free declaration of x in f in X."
   t "erase second 4 after 1" $ Left "String `4` does not occur twice after 1."

@@ -51,7 +51,8 @@ make_type_keywords = words "function functions pointer pointers reference refere
 
 -- Todo: The stuff above is old, and could be expressed more properly.
 
-data Findable = FindableDataType DataType | FindableConstr Constr | BodyOf DeclaratorId | DeclarationOf DeclaratorId | Constructor | Destructor | ConversionFunction
+data Findable = FindableDataType DataType | FindableConstr Constr | BodyOf DeclaratorId | DeclarationOf DeclaratorId | Constructor | Destructor | ConversionFunction | FindableParameterDeclaration | TemplateParameter | TemplateArgument
+  -- Todo: ParameterDeclarationOf, TemplateParameterOf, ParameterDeclarationClauseOf, similar to BodyOf. Would be nice to do it in a generic fashion.
 
 data ShortCode
   = LongForm Code
