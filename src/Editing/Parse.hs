@@ -261,7 +261,7 @@ instance Parse PrependPositionsClause where
 instance Parse Substrs where parse = auto1 Substrs
 
 instance Parse PositionsClause where
-  parse = (kwd ["at"] >>> select [(begin, Before), (end_kwds, After)] >>> arr (\ba -> PositionsClause ba $ Substrs $ and_one $ flip In Nothing $ Absolute Everything)) <||> auto2 PositionsClause
+  parse = (kwd ["at"] >>> select [(begin, Before), (end_kwds, After)] >>> arr (\ba -> PositionsClause (and_one ba) $ Substrs $ and_one $ flip In Nothing $ Absolute Everything)) <||> auto2 PositionsClause
 
 instance Parse Replacer where
   parse = liftA2 ReplaceOptions parse (wb >>> parse) <||> liftA2 Replacer parse (wb >>> parse)
@@ -271,7 +271,11 @@ instance Parse Changer where
   parse = liftA2 ChangeOptions parse (wb >>> parse) <||> liftA2 Changer parse (wb >>> parse)
     where wb = kwd ["to"]
 
-instance Parse Eraser where parse = auto2 EraseAround <||> auto1 EraseOptions <||> auto1 EraseText
+instance Parse Eraser where
+  parse = liftA2 EraseAround parse (zw $ kwd ["around"] >>> parse >>> arr Around) <||>
+      auto1 EraseOptions <||> auto1 EraseText
+    where zw (Parser (Terminators _ x y) z) = Parser (Terminators True x y) z
+      -- This use of 'zw' is a dirty hack.
 instance Parse Mover where parse = liftA2 Mover parse (kwd ["to"] >>> parse)
 instance Parse [EvalOpt] where parse = Parser (Terminators False [] []) $ \_ _ -> optParser
 instance Parse a => Parse (Around a) where parse = kwd ["around"] >>> auto1 Around

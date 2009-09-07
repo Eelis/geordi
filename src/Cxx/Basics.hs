@@ -297,7 +297,9 @@ data AnyMixOf a b = MixNone | MixA a | MixB b | MixAB a b | MixBA b a deriving E
 
 data OptQualified = OptQualified (Maybe (ScopeRes, White)) (Maybe NestedNameSpecifier) deriving (Data, Typeable, Eq)
 
-data GeordiRequest = GeordiRequest_TU TranslationUnit | GeordiRequest_Print (LeftShiftOp, White) Expression (Maybe ((SemicolonOperator, White), TranslationUnit)) | GeordiRequest_Block CompoundStatement TranslationUnit deriving (Data, Typeable)
+data GeordiRequestWithoutWhite = GeordiRequest_TU TranslationUnit | GeordiRequest_Print (LeftShiftOp, White) Expression (Maybe ((SemicolonOperator, White), TranslationUnit)) | GeordiRequest_Block CompoundStatement TranslationUnit deriving (Data, Typeable)
+
+type GeordiRequest = (White, GeordiRequestWithoutWhite)
 
 data MakeSpecifier = NonStorageClassSpecifier StorageClassSpecifier | NonFunctionSpecifier FunctionSpecifier | MakeSpecifier_DeclSpecifier DeclSpecifier | NonSign Sign | NonLength LengthSpec | NonCv CvQualifier | LongLong deriving (Data, Typeable, Eq)
 data MakeDeclaration = MakeDeclaration [MakeSpecifier] (Maybe PtrAbstractDeclarator) TriBool deriving (Data, Typeable)

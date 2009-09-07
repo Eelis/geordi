@@ -30,11 +30,17 @@ and_one = AndList . NeList.one
 and_and :: AndList a -> AndList a -> AndList a
 and_and (AndList (NeList x y)) (AndList (NeList a b)) = AndList $ NeList x (y ++ a : b)
 
--- Positions and ranges
+-- Positions, ranges, and anchors.
 
 type Pos a = Int
   -- The 'a' phantom parameter denotes the element type for the position. This prevents accidental mix-ups of different kinds of positions.
 data Range a = Range { start :: Pos a, size :: Int } deriving Eq
+
+data BefAft = Before | After deriving (Eq, Ord)
+
+data Anchor = Anchor { anchor_befAft :: BefAft, anchor_pos :: Pos Char } deriving Eq
+
+type ARange = BefAft -> Anchor
 
 data DualARange = DualARange { full_range, replace_range :: ARange }
   -- In "void f(int i, double d);", the command "replace first parameter-declaration with char c" should produce "void f(char c, double d);", while the command "erase first parameter-declaration" should produce "void f(double d);". Hence, in the former, the clause "first parameter-declaration" should match "char c", while in the latter, it should match "char c, ". To accomodate this, our substring resolution functions return DualARanges containing both of these ranges.
@@ -47,6 +53,12 @@ selectRange (Range st si) = take si . drop st
 
 replaceRange :: Range a -> [a] -> [a] -> [a]
 replaceRange (Range p l) r s = take p s ++ r ++ drop (p + l) s
+
+wide_range :: Range Char -> ARange
+wide_range (Range st si) = arange (Anchor Before st) (Anchor After (st+si))
+
+contained_in :: Range a -> Range a -> Bool
+contained_in (Range st si) (Range st' si') = st' <= st && st + si <= st' + si'
 
 touch :: Range a -> Range a -> Bool
 touch x y = end x >= start y && end y >= start x
@@ -85,8 +97,6 @@ instance (Offsettable a, Functor f) => Offsettable (f a) where offset = fmap . o
 find_occs :: Eq a => [a] -> [a] -> [Pos a]
 find_occs x = map fst . filter (List.isPrefixOf x . snd) . zip [0..] . List.tails
 
-type ARange = BefAft -> Anchor
-
 arange :: Anchor -> Anchor -> ARange
 arange x _ Before = x
 arange _ x After = x
@@ -101,7 +111,6 @@ unanchor_range r | Anchor _ x <- r Before, Anchor _ y <- r After = Range x (y - 
 
 instance Ord Anchor where compare = compare `on` (anchor_pos &&& anchor_befAft)
 
-data Anchor = Anchor { anchor_befAft :: BefAft, anchor_pos :: Pos Char } deriving Eq
   -- This BefAft will probably need to be generalized to Before|After|Both for "insert x between 3 and 4".
 data Edit
   = RangeReplaceEdit (Range Char) String
@@ -127,11 +136,11 @@ newtype OccurrencesClause = OccurrencesClause (NeList Ordinal)
 data Rankeds a = Rankeds (AndList OccurrencesClause) a | Sole' a | All a | AllBut (AndList OccurrencesClause) a
 data Bound = Bound (Maybe BefAft) Substr
 data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative Substr)
-data Relative a = Absolute a | Relative a BefAft (Ranked (Either Findable String)) | Between a Betw | FromTill Bound RelativeBound
+data Relative a = Absolute a | Relative a (AndList BefAft) (Ranked (Either Findable String)) | Between a Betw | FromTill Bound RelativeBound
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
   -- Strictly speaking, Absolute can be (and was at some point) encoded by (Between blabla). However, it isn't worth the trouble of the necessary special cases in Show, Parse, etc.
 data In a = In a (Maybe InClause)
-data PositionsClause = PositionsClause BefAft Substrs
+data PositionsClause = PositionsClause (AndList BefAft) Substrs
 data InClause = InClause (AndList (In (Relative (Rankeds (Either Findable DeclaratorId)))))
 data AppendPositionsClause = AppendIn InClause | NonAppendPositionsClause PositionsClause
 data PrependPositionsClause = PrependIn InClause | NonPrependPositionsClause PositionsClause
@@ -140,9 +149,8 @@ newtype Substrs = Substrs (AndList (In (Relative (EverythingOr (Rankeds (Either 
 data Position = Position BefAft (In (Relative Substr))
 data Replacer = Replacer Substrs String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
 data Changer = Changer Substrs String | ChangeOptions [Request.EvalOpt] [Request.EvalOpt]
-data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around (Ranked (Either Findable String)))
+data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around Substrs)
 data Mover = Mover Substrs Position
-data BefAft = Before | After deriving Eq
 data Around a = Around a
 data Betw = Betw Bound RelativeBound
 data Wrapping = Wrapping String String
@@ -209,8 +217,11 @@ instance Convert (Ranked a) (Rankeds a) where
   convert (Sole x) = Sole' x
 
 instance Convert (Range a) (Range a) where convert = id
-
+instance Convert (Range a) [ARange] where convert = (:[]) . anchor_range
+instance Convert (Range a) ARange where convert = anchor_range
+instance Convert ARange (Range a) where convert = unanchor_range
 instance Convert Anchor (Pos a) where convert = anchor_pos
+instance Convert ARange DualARange where convert x = DualARange x x
 
 instance Invertible BefAft where invert Before = After; invert After = Before
 
@@ -226,11 +237,6 @@ instance Invertible (Rankeds a) where
   invert x = x
 
 -- Misc operations
-
-instance Ord BefAft where
-  compare Before After = LT
-  compare After Before = GT
-  compare _ _ = EQ
 
 unrelative :: Relative a -> Maybe a
 unrelative (Absolute x) = Just x

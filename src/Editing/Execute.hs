@@ -6,8 +6,9 @@ import qualified Data.Set as Set
 import qualified Cxx.Show
 import qualified Cxx.Parse
 import qualified Cxx.Operations
-import qualified Editing.EditsPreparation
 import qualified Editing.Show
+
+import Editing.EditsPreparation (FindResult(..), FoundIn(..), findInStr)
 
 import Control.Monad (foldM)
 import Request (EditableRequest(..), EditableRequestKind(..))
@@ -15,9 +16,6 @@ import Util ((.))
 
 import Prelude hiding ((.))
 import Editing.Basics
-
-contained_in :: Range a -> Range a -> Bool
-contained_in (Range st si) (Range st' si') = st' <= st && st + si <= st' + si'
 
 overlap :: Range a -> Range a -> Int
 overlap (Range x s) (Range x' s') = max 0 $ min (x + s) (x' + s') - max x x'
@@ -89,36 +87,30 @@ adjustEdit e (MoveEdit ba p r@(Range st si)) = do
 adjustEdit e (RangeReplaceEdit r s) =
   flip RangeReplaceEdit s . (if null s then adjustEraseRange else adjustRange) e r
 
-adjustEdits :: Edit -> [Edit] -> Either Edit [Edit]
-  -- Returns either a conflicting Edit or the list of adjusted Edits.
-adjustEdits _ [] = Right []
-adjustEdits e (e' : t)
-  | Just r <- adjustEdit e e' = (r :) . adjustEdits e t
-  | otherwise = Left e'
+adjustByEdits :: String -> Edit -> [Edit] -> Either String Edit
+adjustByEdits _ e [] = return e
+adjustByEdits s e (h : t) = case adjustEdit h e of
+  Nothing -> fail $ "Overlapping edits: " ++ Editing.Show.showEdit s h ++ " and " ++ Editing.Show.showEdit s e ++ "."
+  Just e' -> adjustByEdits s e' t
 
-exec_edits :: Monad m => [Edit] -> EditableRequest -> m EditableRequest
-exec_edits [] r = return r
-exec_edits (e : t) (EditableRequest k s) = case adjustEdits e t of
-  Left e' -> fail $ "Overlapping edits: " ++ Editing.Show.showEdit s e ++ " and " ++ Editing.Show.showEdit s e' ++ "."
-  Right t' -> case e of
+exec_edit :: Monad m => Edit -> EditableRequest -> m EditableRequest
+exec_edit e (EditableRequest k s) = case e of
     RangeReplaceEdit r repl ->
-      let (x, _, b) = splitRange r s in exec_edits t' $ EditableRequest k $ x ++ repl ++ b
+      let (x, _, b) = splitRange r s in return $ EditableRequest k $ x ++ repl ++ b
     InsertEdit (Anchor _ p) repl ->
-      let (x, y) = splitAt p s in exec_edits t' $ EditableRequest k $ x ++ repl ++ y
+      let (x, y) = splitAt p s in return $ EditableRequest k $ x ++ repl ++ y
     MoveEdit _ p r@(Range st si)
       | p < 0 -> do
         let (x, y) = splitAt (st + p) s; (a, _, c) = splitRange (Range (-p) si) y
-        exec_edits t' $ EditableRequest k $ x ++ selectRange r s ++ a ++ c
+        return $ EditableRequest k $ x ++ selectRange r s ++ a ++ c
       | otherwise -> do
         let (x, y) = splitAt (st + si + p) s; (a, _, c) = splitRange r x
-        exec_edits t' $ EditableRequest k $ a ++ c ++ selectRange r s ++ y
+        return $ EditableRequest k $ a ++ c ++ selectRange r s ++ y
     RemoveOptions opts
-      | Evaluate f <- k ->
-        exec_edits t' $ EditableRequest (Evaluate $ (Set.\\) f $ Set.fromList opts) s
+      | Evaluate f <- k -> return $ EditableRequest (Evaluate $ (Set.\\) f $ Set.fromList opts) s
       | otherwise -> fail $ "Cannot remove evaluation options from \"" ++ show k ++ "\" request."
     AddOptions opts
-      | Evaluate f <- k ->
-        exec_edits t' $ EditableRequest (Evaluate $ Set.union f $ Set.fromList opts) s
+      | Evaluate f <- k -> return $ EditableRequest (Evaluate $ Set.union f $ Set.fromList opts) s
       | otherwise -> fail $ "Cannot use evaluation options for \"" ++ show k ++ "\" request."
 
 execute_semcmd :: EditableRequest -> SemCommand -> Either String EditableRequest
@@ -132,6 +124,13 @@ execute_semcmd _ _ = fail "Last request not suitable."
 
 execute :: ([Command], [SemCommand]) -> EditableRequest -> Either String EditableRequest
 execute (cmds, semcmds) r@(EditableRequest _ str) = do
-  edits <- concat . sequence (Editing.EditsPreparation.findInStr str . cmds)
-  r' <- exec_edits edits r
-  foldM execute_semcmd r' semcmds
+  (_, r'', _) <- foldM (\(i, r'@(EditableRequest _ str'), m) cmd -> do
+    let m' = case m of Left _ -> (\req -> (req, str', i, [])) . Cxx.Parse.parseRequest str'; _ -> m
+    es <- findInStr str ((\(x, _, z, _) -> (x, (\v -> case foldM (flip adjustAnchor) v z of Nothing -> fail "Could not adjust anchor in original snippet to anchor in well formed snippet."; Just g -> return g))) . m') cmd >>=
+      foldM (\j (Found f e) -> (j++) . (:[]) . case f of
+          InGiven -> adjustByEdits str e $ i ++ j
+          InWf -> case m' of Left _ -> fail "oops"; Right (_, s, _, k) -> adjustByEdits s e (k++j)) []
+    r'' <- foldM (flip exec_edit) r' es
+    return (i ++ es, r'', (\(a, b, c, d) -> (a, b, c, d ++ es)) . m')
+    ) ([], r, fail "oops") cmds
+  foldM execute_semcmd r'' semcmds

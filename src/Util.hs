@@ -397,3 +397,8 @@ instance Functor MaybeEitherString where
   fmap f (MaybeEitherString (Just (Right x))) = MaybeEitherString $ Just $ Right $ f x
   fmap _ (MaybeEitherString (Just (Left e))) = MaybeEitherString $ Just $ Left e
   fmap _ (MaybeEitherString Nothing) = MaybeEitherString Nothing
+
+type E = Either String
+
+or_fail :: Monad m => E a -> m a
+or_fail = either fail return

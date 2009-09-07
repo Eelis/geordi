@@ -79,9 +79,6 @@ instance ParserLike (Parser a) a where
 parseOptions :: Parser t ParseOptions
 parseOptions = ReaderT return
 
-run_parser :: Parser t a -> ParseOptions -> [t] -> ParseResult t a
-run_parser p = P.run_parser . runReaderT p
-
 -- Some combinators:
 
 silent :: Parser a b -> Parser a b
@@ -113,7 +110,7 @@ highlight h s =
   where p = runReaderT (parse << eof) defaultParseOptions :: P.Parser Char GeordiRequest
 
 parseRequest :: String -> Either String GeordiRequest
-parseRequest s = P.parseOrFail (runReaderT (parse << eof) defaultParseOptions) (dropWhile Char.isSpace s) "request"
+parseRequest s = P.parseOrFail (runReaderT (parse << eof) defaultParseOptions) s "request"
 
 makeType :: String -> Either String TypeId
 makeType s = P.parseOrFail (runReaderT (parse << eof) (defaultParseOptions { makeTypeExtensions = True })) (dropWhile Char.isSpace s) "type description"
@@ -308,7 +305,8 @@ with_default :: [TypeSpecifier] -> NeList TypeSpecifier
 with_default [] = NeList specT []
 with_default l@(h:t) = if any is_primary_TypeSpecifier l then NeList h t else NeList specT l
 
-instance Parse GeordiRequest where parse = auto3 GeordiRequest_Print <|> auto2 GeordiRequest_Block <|> auto1 GeordiRequest_TU
+instance Parse GeordiRequestWithoutWhite where
+  parse = auto3 GeordiRequest_Print <|> auto2 GeordiRequest_Block <|> auto1 GeordiRequest_TU
 
 parseAnyMixOf :: Parser t a -> Parser t b -> Parser t (AnyMixOf a b)
 parseAnyMixOf p q = (p >>= \x -> MixAB x . q <|> return (MixA x)) <|> (q >>= \y -> MixBA y . p <|> return (MixB y)) <|> return MixNone
