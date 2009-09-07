@@ -78,7 +78,7 @@ class Offsettable a where offset :: Int -> a -> a
 
 instance Offsettable (Range Char) where offset x (Range y z) = Range (y + x) z
 instance Offsettable Anchor where offset x (Anchor y z) = Anchor y (z + x)
-instance Offsettable ARange where offset x r = offset x . r
+instance Offsettable ARange where offset = (.) . offset
 instance (Offsettable a, Offsettable b) => Offsettable (a, b) where offset i (x, y) = (offset i x, offset i y)
 instance (Offsettable a, Functor f) => Offsettable (f a) where offset = fmap . offset
 

@@ -30,7 +30,7 @@ namespace geordi
 
     void terminate_handler(bool const unexp)
     {
-      // We use printf because cout may be dead.
+      // We use printf because cout/cerr may be dead.
 
       std::printf("%sterminated", parsep);
 

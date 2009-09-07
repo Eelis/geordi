@@ -33,7 +33,7 @@ terminators :: Parser a b -> Terminators
 terminators (Parser t _) = t
 
 commit :: Parser a b -> Parser a b
-commit (Parser t f) = Parser t $ \t' v -> P.commit (f t' v)
+commit (Parser t f) = Parser t $ \t' -> P.commit . f t'
 
 instance Category Parser where
   id = Parser (Terminators True [] []) $ const $ return . return
@@ -47,6 +47,7 @@ instance Category Parser where
       case u of
         Left e -> return $ Left e
         Right u' -> f' (Terminators b'' t'' a) u'
+  -- I suspect this composition might not actually be associative. Would be neat to check in Coq.
 
 instance Arrow Parser where
   arr f = Parser (Terminators True [] []) $ \_ -> return . return . f
@@ -96,7 +97,7 @@ and :: Parser x a -> Parser x a
 and (Parser (Terminators _ t _) p) = Parser (Terminators False ["and"] t) $
   \t' x -> try $ do
     symbols "and "
-    notFollowedBy (choice $ try `fmap` symbols `fmap` (and_conts t'))
+    notFollowedBy (choice $ try `fmap` symbols `fmap` and_conts t')
     p t' x
 
 instance (Parse a, Parse b) => Parse (Either a b) where parse = (parse >>> arr Left) <||> (parse >>> arr Right)
@@ -117,7 +118,7 @@ auto1 :: Parse a => (a -> b) -> Parser x b
 auto1 f = parse >>> arr f
 
 auto2 :: (Parse a, Parse b) => (a -> b -> c) -> Parser x c
-auto2 f = proc x -> do a <- parse -< x; b <- parse -< x; returnA -< f a b
+auto2 f = liftA2 f parse parse
 
 till, begin, end_kwds :: [String]
 till = ["till", "until"]
@@ -169,15 +170,15 @@ instance Parse Betw where
        <||> do
         x <- parse -< (); v <- and parse -< ()
         returnA -< Betw (Bound Nothing (NotEverything $ Ranked y x)) v
-    <||> do liftA2 Betw (parse) (and parse) -< ()
+    <||> do liftA2 Betw parse (and parse) -< ()
 
 relative_everything_orA :: Parser y (Relative (EverythingOr a))
 relative_everything_orA =
     (kwd till >>> auto1 (Between Everything . Betw front))
   <||> liftA2 FromTill (kwd ["from"] >>> parse) ((kwd till >>> parse) <||> arr (const Back))
   <||> (kwd ["everything"] >>>
-    (liftA2 (\x y -> Between Everything (Betw x y)) (kwd ["from"] >>> parse) (kwd till >>> parse)
-      <||> (kwd till >>> auto1 (\x -> Between Everything (Betw front x)))
+    (liftA2 (\x -> Between Everything . Betw x) (kwd ["from"] >>> parse) (kwd till >>> parse)
+      <||> (kwd till >>> auto1 (Between Everything . Betw front))
       <||> (arr (const Everything) >>> relative)))
   <||> (proc _ -> do
     kwd ["before"] -< ()
@@ -217,8 +218,8 @@ with_plurals l = map (++"s") l ++ l
 
 instance Parse Cxx.Basics.Findable where
   parse =
-    ((label "\"declaration\"" $ kwd ["declarations", "declaration"]) >>> kwd ["of"] >>> auto1 Cxx.Basics.DeclarationOf) <||>
-    ((label "\"body\"" $ kwd ["bodies", "body"]) >>> kwd ["of"] >>> auto1 Cxx.Basics.BodyOf) <||>
+    (label "\"declaration\"" (kwd ["declarations", "declaration"]) >>> kwd ["of"] >>> auto1 Cxx.Basics.DeclarationOf) <||>
+    (label "\"body\"" (kwd ["bodies", "body"]) >>> kwd ["of"] >>> auto1 Cxx.Basics.BodyOf) <||>
     label "production-name" (
       auto1 Cxx.Basics.FindableDataType <||>
       auto1 Cxx.Basics.FindableConstr <||>
@@ -296,9 +297,9 @@ instance Parse a => Parse (Maybe a) where parse = (parse >>> arr Just) <||> arr 
 
 instance Parse Command where
   parse = label "edit command" $
-    (kwd ["insert", "add"] >>> commit ((parse >>> arr (Use `fmap` (fmap UseOptions))) <||> auto2 Insert <||> auto2 WrapAround)) <||>
+    (kwd ["insert", "add"] >>> commit ((parse >>> arr (Use `fmap` fmap UseOptions)) <||> auto2 Insert <||> auto2 WrapAround)) <||>
     (kwd ["append"] >>> commit (auto2 Append)) <||>
-    (kwd ["prepend"] >>> commit ((parse >>> arr (Use `fmap` (fmap UseOptions))) <||> auto2 Prepend)) <||>
+    (kwd ["prepend"] >>> commit ((parse >>> arr (Use `fmap` fmap UseOptions)) <||> auto2 Prepend)) <||>
     (kwd ["erase", "remove", "kill", "cut", "omit", "delete", "drop"] >>> commit (auto1 Erase)) <||>
     (kwd ["replace"] >>> commit (auto1 Replace)) <||>
     (kwd ["change"] >>> commit (auto1 Change)) <||>

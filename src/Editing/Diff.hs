@@ -36,7 +36,7 @@ describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t
   | otherwise = Replace $ and_one $ Replacer (Substrs $ and_one $ In describe_range Nothing) (toks_text s)
   where
     repl_elem x = case s of [Token u _] -> elem u x; _ -> False
-    source_elem x = sr' `elem` x
+    source_elem = (sr' `elem`)
     sr' = tok_text (mconcat sr)
     expanded_edit = SimpleEdit (Range (pos - length (context Before)) (siz + length (context Before) + length (context After))) (inorder_context Before ++ s ++ context After)
     toks Before = reverse $ take pos t

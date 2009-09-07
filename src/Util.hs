@@ -200,6 +200,7 @@ caselessStringEq :: String -> String -> Bool
 caselessStringEq a b = (toLower . a) == (toLower . b)
 
 plural :: String -> String
+plural "body" = "bodies"
 plural "slash" = "slashes"
 plural "backslash" = "backslashes"
 plural s = s ++ "s"

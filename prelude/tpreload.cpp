@@ -66,7 +66,7 @@ namespace
       geordi::error()() << "tried to apply non-array operator delete to pointer returned by new[].";
     i->second = ar_deleted;
 
-    // We don't actually deallocate the memory, because then it could be reallocated, causing UB { int * const p = new int; delete p; new int; delete p; } to go unnoticed if the second allocation returns the same address (which is not unlikely).
+    // We don't actually deallocate the memory, because then it could be reallocated, causing UB in { int * const p = new int; delete p; new int; delete p; } to go unnoticed if the second allocation returns the same address (which is not unlikely).
 
     mprobe(p);
   }
