@@ -65,3 +65,14 @@ init_last (NeList x (h:t)) = first (x:) $ init_last $ NeList h t
 concatMap :: (a -> NeList a) -> NeList a -> NeList a
 concatMap f (NeList x y) = NeList a $ b ++ Prelude.concatMap (to_plain . f) y
   where (NeList a b) = f x
+
+homogenize :: (Functor m, Monad m) => (a -> m b) -> NeList (Either a b) -> m (Either (NeList a) (NeList b))
+homogenize _ (NeList (Left x) []) = return $ Left $ one x
+homogenize _ (NeList (Right x) []) = return $ Right $ one x
+homogenize f (NeList e (h:t)) = do
+  ht <- homogenize f (NeList h t)
+  case (e, ht) of
+    (Left x, Left y) -> return $ Left $ cons x y
+    (Right x, Right y) -> return $ Right $ cons x y
+    (Left x, Right y) -> Right `fmap` flip cons y `fmap` f x
+    (Right x, Left y) -> Right `fmap` cons x `fmap` mapM f y
