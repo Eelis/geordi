@@ -2,7 +2,7 @@ IrcBotConfig
 { server = "irc.freenode.net"
 , port = 6667
 , max_response_length = 300
-, chans = ["#geordi"]
+, chans = ["#geordi", "#otherchannel"]
 , key_chans = []
 , nick = "geordiclone"
 , nick_pass = Nothing
