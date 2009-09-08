@@ -47,6 +47,9 @@ data Test = Test { test_name, test_request :: String, test_pred :: String -> Boo
 test :: TestPred p => String -> String -> p -> Test
 test n r p = Test n r (testPred p) (show p)
 
+utest :: TestPred p => String -> p -> Test
+utest = test "unnamed test"
+
 main :: IO ()
 main = do
 
@@ -55,7 +58,7 @@ main = do
   putStrLn
     "\nNote: In several tests, output is expected to include an error (sometimes on a separate line), so seeing an error in a test's output does not mean the test failed. A test failed if its output is colored red.\n"
 
-  let default_test_sets = ["resources", "misc", "diagnostics", "utilities", "errorfilters"]
+  let default_test_sets = ["resources", "misc", "diagnostics", "utilities"]
 
   args <- getArgs
   forM_ (case args of [] -> default_test_sets; _ -> args) $ \set -> do
@@ -68,6 +71,8 @@ main = do
       putStrLn $ "Output: " ++ (if success then green else red) (if out == "" then "<none>" else out)
       unless success $ putStrLn $ "Expected: " ++ pn
     putStrLn ""
+
+  putStrLn "Done running tests."
 
 -- Actual test:
 
@@ -153,7 +158,10 @@ tests "errorfilters" =
   , test "Preprocessor error" "<< 08" $ ExactMatch "error: invalid digit \"8\" in octal constant"
   , test "[with ...]-replacement" "<< 1 == 1" $ ExactMatch "error: no match for 'operator==' in 'cout.ostream::operator<<(1) == 1'"
   , test "Ditto" "template <typename T> void f(); template <> void f<int>() {} template <> void f<int>() {}" $ ExactMatch "error: redefinition of 'void f() [with T = int]'"
-  , test "Don't show notes" "{ X x; } struct X { int i; X() { cout << i; } };" $ PrefixMatch "warning: "
+  ]
+
+tests "uncategorized" =
+  [ utest "-version" $ ExactMatch "error: No such option: -e." -- .. rather than "No such option: -v", which we got when certain options (like -v) were treated separately from evaluation options.
   ]
 
 tests s = error $ "no such test set: " ++ s
