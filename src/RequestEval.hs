@@ -13,6 +13,7 @@ import qualified Cxx.Show
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.NonEmptyList as NeList
+import Data.NonEmptyList (NeList(..))
 
 import Control.Monad.Error ()
 import Control.Monad (join)
@@ -20,7 +21,7 @@ import Data.Char (isPrint, isSpace)
 import Data.Either (lefts)
 import Editing.Basics (FinalCommand(..))
 import Parsers ((<|>), eof, optParser, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail, commit)
-import Util ((.), (<<), (.||.), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert)
+import Util ((.), (<<), (.||.), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert, maybeLast, orElse)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
 import Prelude hiding (catch, (.))
 
@@ -45,6 +46,24 @@ diff _ _ = "Requests differ in kind."
 pretty :: [String] -> String -- Todo: This is awkward.
 pretty [] = "Requests are identical."
 pretty l = capitalize (commas_and l) ++ "."
+
+ellipsis_options :: [(String, Bool)] -> NeList [String]
+ellipsis_options [] = NeList.one []
+ellipsis_options ((y, _) : ys) = work ((y, False) : ys)
+  where
+    dummy = " -> ..."
+    work [] = NeList.one []
+    work [(x, _)] = NeList.one [x]
+    work ((x, False) : xs) = fmap (x:) (work xs)
+    work ((x, True) : xs) =
+      NeList.concatMap (\o -> if dummy `elem` o
+        then (NeList.one $ if head o == dummy then o else dummy : o)
+        else NeList (dummy : o) [x : o]) (work xs)
+
+nicer_namedPathTo :: [String] -> String
+nicer_namedPathTo l = drop 4 $ concat $ maybeLast (takeWhile ((<= 140) . length . concat) $ NeList.to_plain n) `orElse` h
+  where n@(NeList h _) = ellipsis_options $ map (\s -> (" -> " ++ s, "expr" `List.isSuffixOf` s)) l
+    -- Todo: Also don't abbreviate when there's enough space.
 
 evaluator :: Cxx.Show.Highlighter -> IO (String -> Context -> IO Response)
 evaluator h = do
@@ -93,7 +112,7 @@ evaluator h = do
     final_cmd (Identify substrs) (Just (EditableRequest (Evaluate _) c)) = do
       tree <- Cxx.Parse.parseRequest c
       l <- ((\(Editing.EditsPreparation.Found _ x) -> x) .) . NeList.to_plain . Editing.EditsPreparation.findInStr c (Right (tree, return)) substrs
-      return $ concat $ List.intersperse ", " $ map (concat . List.intersperse " -> " . Cxx.Operations.namedPathTo tree . convert . Editing.Basics.replace_range) l
+      return $ concat $ List.intersperse ", " $ map (nicer_namedPathTo . Cxx.Operations.namedPathTo tree . convert . Editing.Basics.replace_range) l
     final_cmd Parse (Just (EditableRequest (Evaluate _) c)) =
       Cxx.Parse.parseRequest c >> return "Looks fine to me."
     final_cmd _ (Just _) = fail "Last (editable) request was not an evaluation request."

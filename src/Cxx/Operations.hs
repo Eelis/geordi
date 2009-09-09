@@ -309,13 +309,6 @@ pathTo x r i = NeList (AnyData x) $ case gfoldl_with_ranges i f x of
   l : _ -> NeList.to_plain l
   where f r'@(Range st _) y = [pathTo y r st | r' `wraps` r]
 
-clear_successive_exprs :: [String] -> [String]
-clear_successive_exprs [] = []
-clear_successive_exprs l@(h:t)
-  | (m@(_:_:_), r) <- span p l = h : "..." : last m : clear_successive_exprs r
-  | otherwise = h : clear_successive_exprs t
-  where p = List.isSuffixOf "expr"
-
 findable_productions, all_productions :: [DataType]
 findable_productions =
 #define P(n) dataTypeOf (undefined :: Cxx.Basics.n)
@@ -378,7 +371,7 @@ all_productions = findable_productions ++ [P(ParameterDeclaration), P(TemplatePa
 #undef P
 
 namedPathTo :: Data d => d -> Range Char -> [String]
-namedPathTo d r = clear_successive_exprs $ map Cxx.Show.dataType_abbreviated_productionName $
+namedPathTo d r = map Cxx.Show.dataType_abbreviated_productionName $
   filter (`elem` all_productions) $ NeList.to_plain $ fmap (applyAny dataTypeOf) (pathTo d r 0)
 
 findRange :: (Offsettable a, Data d) => (TreePath -> Maybe a) -> [AnyData] -> Int -> d -> [a]
