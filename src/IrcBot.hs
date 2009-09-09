@@ -19,7 +19,7 @@ import Control.Monad.Error ()
 import Control.Monad.State (execStateT, lift, StateT)
 import System.IO.UTF8 (putStr, putStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
-import Text.Regex (Regex, subRegex, mkRegex) -- Todo: Text.Regex truncates Char's >256. Get rid of it.
+import Text.Regex (Regex, subRegex, mkRegexWithOpts) -- Todo: Text.Regex truncates Char's >256. Get rid of it.
 import Data.Char (toUpper, toLower, isSpace, isPrint, isDigit)
 import Data.Map (Map)
 import Util ((.), elemBy, caselessStringEq, maybeLast, readState, msapp, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState')
@@ -43,7 +43,7 @@ data IrcBotConfig = IrcBotConfig
   } deriving Read
 
 instance Read Regex where
-  readsPrec i s = first mkRegex . readsPrec i s
+  readsPrec i s = first (\r -> mkRegexWithOpts r True False) . readsPrec i s
 
 instance Read Net.PortNumber where
   readsPrec i s = (\(x, s') -> (fromIntegral (x :: Int), s')) . readsPrec i s
