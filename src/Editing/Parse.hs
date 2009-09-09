@@ -149,8 +149,11 @@ instance Parse OccurrencesClause where
     (optional (kwd ["the"]) >>> kwd ["last"] >>> parseSmallPositiveCardinal >>> arr (\n -> fmap Ordinal $ NeList (-1) [-n .. -2])) <||>
     auto1 NeList.one
 
+everything_kwds :: [String]
+everything_kwds = ["everything", "code"]
+
 instance Parse a => Parse (EverythingOr a) where
-  parse = select [(["everything"], Everything)] <||> auto1 NotEverything
+  parse = select [(everything_kwds, Everything)] <||> auto1 NotEverything
 
 relative :: Parser a (Relative a)
 relative = proc a -> do x <- parse -< (); y <- parse -< (); returnA -< Relative a x y
@@ -176,7 +179,7 @@ relative_everything_orA :: Parser y (Relative (EverythingOr a))
 relative_everything_orA =
     (kwd till >>> auto1 (Between Everything . Betw front))
   <||> liftA2 FromTill (kwd ["from"] >>> parse) ((kwd till >>> parse) <||> arr (const Back))
-  <||> (kwd ["everything"] >>>
+  <||> (kwd everything_kwds >>>
     (liftA2 (\x -> Between Everything . Betw x) (kwd ["from"] >>> parse) (kwd till >>> parse)
       <||> (kwd till >>> auto1 (Between Everything . Betw front))
       <||> (arr (const Everything) >>> relative)))
