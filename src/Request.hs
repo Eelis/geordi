@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, UndecidableInstances, OverlappingInstances #-}
+{-# LANGUAGE FlexibleInstances, UndecidableInstances, OverlappingInstances, PatternGuards #-}
 
 module Request (is_addressed_request, is_short_request, EditableRequest(..), EditableRequestKind(..), Context(..), Response(..), EvalOpt(..), EphemeralOpt(..), HistoryModification(..), modify_history) where
 
@@ -6,9 +6,9 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Text.ParserCombinators.Parsec as PS
 import Control.Exception ()
-import Data.Char (isAlpha, isDigit)
+import Data.Char (isAlpha, isDigit, isSpace)
 import Control.Monad.Error ()
-import Text.ParserCombinators.Parsec (getInput, (<|>), oneOf, lookAhead, spaces, satisfy, CharParser, many1, string, parse)
+import Text.ParserCombinators.Parsec (getInput, (<|>), oneOf, lookAhead, spaces, satisfy, CharParser, many1, parse)
 import Util (Option(..), (.), (.||.), total_tail)
 import Prelude hiding (catch, (.))
 
@@ -35,8 +35,11 @@ nickP = many1 $ satisfy $ isAlpha .||. isDigit .||. (`elem` "[]\\`_^|}-")
   -- We don't include '{' because it messes up "geordi{...}", and no sane person would use it in a nick for a geordi bot anyway.
 
 is_short_request :: String -> Maybe String
-is_short_request =
-  either (const Nothing) Just . parse (spaces >> lookAhead (string "{" <|> string "<<") >> getInput) ""
+is_short_request s | s' <- dropWhile isSpace s = case s' of
+  '{' : s'' | not $ all isSpace s'' -> Just s'
+    -- A '{' on a line of its own can occur as part of a small code fragments pasted in a channel. Of course, so can a '{' followed by more code on the same line, but for a '{' on a line of its own, we /know/ it's not intended for geordi.
+  '<' : '<' : _ -> Just s'
+  _ -> Nothing
 
 is_addressed_request :: String -> Maybe (Nick, String)
 is_addressed_request txt = either (const Nothing) Just (parse p "" txt)
