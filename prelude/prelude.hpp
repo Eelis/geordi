@@ -162,7 +162,7 @@ namespace geordi { geordi::initializer_t const initializer; }
 #undef assert
 #define assert(e) ((e) ? void() : (::std::printf("%s", "Assertion `" #e "' fails."), ::std::fclose(stdout), ::std::abort()))
 
-#define typeid(...) static_cast< ::type_strings_detail::type_info const &>(typeid(__VA_ARGS__))
+#define typeid(...) ::type_strings_detail::type_info::from_std(typeid(__VA_ARGS__))
 
 using namespace std;
 using namespace boost::assign;

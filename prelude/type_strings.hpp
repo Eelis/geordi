@@ -579,7 +579,7 @@ template <typename T> std::string type_desc (bool const plural)
 
 #endif
 
-struct type_info: std::type_info { std::string name() const; };
+struct type_info: std::type_info { char const * name() const; static type_info const & from_std(std::type_info const&); };
 
 BOOST_STATIC_ASSERT(sizeof(type_info) == sizeof(std::type_info));
 

@@ -1,28 +1,28 @@
 
 #include <cxxabi.h>
-#include <string>
+#include <cassert>
 #include <stdexcept>
-#include <cstdlib>
-#include <boost/shared_ptr.hpp>
 
 namespace type_strings_detail
 {
-  std::string cxa_demangle(char const * const name)
+  struct type_info: std::type_info { char const * name() const; static type_info const & from_std(std::type_info const&); };
+
+  char const * type_info::name() const
   {
     int st;
-    char * const p = abi::__cxa_demangle(name, 0, 0, &st);
+    char * const p = abi::__cxa_demangle(std::type_info::name(), 0, 0, &st);
 
     switch (st)
     {
-      case 0: { return boost::shared_ptr<char>(p, &std::free).get(); }
-        // Todo: Use unique_ptr once it's supported everywhere.
+      case 0: return p;
       case -1: throw std::runtime_error("A memory allocation failure occurred.");
       case -2: throw std::runtime_error("Not a valid name under the GCC C++ ABI mangling rules.");
       case -3: throw std::runtime_error("One of the arguments is invalid.");
       default: assert(!"unexpected demangle status");
     }
+
+    // We could (and used to) return a std::string and free p, but since deallocation is not a concern (and is even a no-op) in geordi anyway, we might as well preserve name()'s return type.
   }
 
-  struct type_info: std::type_info { std::string name() const; };
-  std::string type_info::name() const { return cxa_demangle(std::type_info::name()); }
+  type_info const & type_info::from_std(std::type_info const & i) { return static_cast<type_info const&>(i); }
 }
