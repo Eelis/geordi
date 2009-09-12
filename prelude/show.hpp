@@ -2,6 +2,7 @@
 #define SHOW_HPP
 
 #include <iostream>
+#include "geordi.hpp"
 
 namespace show_detail
 {
@@ -20,7 +21,7 @@ namespace show_detail
 
   template <typename C, typename Tr, typename T>
   std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, shower<T> const & s)
-  { s.due = false; return o << s.s << " = " << s.v; }
+  { s.due = false; return o << geordi::parsep << s.s << " = " << s.v << geordi::parsep; }
 
   template <typename T, typename U>
   shower<U> const & operator,(shower<T> const & x, shower<U> const & y)
@@ -47,6 +48,8 @@ template <typename Ch, typename Tr, typename T>
 inline std::basic_ostream<Ch, Tr> & operator, (std::basic_ostream<Ch, Tr> & o, T const & t)
 { return o << ", " << t; }
 
+#define PS "\342\200\251"
+
 int main()
 {
   using std::cout;
@@ -62,7 +65,9 @@ int main()
 
   cout.rdbuf(0);
 
-  assert(o.str() == "x = 14, y = 1.3, z = z\nx = 14, y = 1.3, z = z");
+  assert(o.str() ==
+    PS "x = 14" PS ", " PS "y = 1.3" PS ", " PS "z = z" PS "\n"
+    PS "x = 14" PS ", " PS "y = 1.3" PS ", " PS "z = z" PS);
 }
 
 #endif // testing
