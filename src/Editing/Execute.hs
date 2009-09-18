@@ -12,7 +12,7 @@ import Editing.EditsPreparation (FindResult(..), FoundIn(..), findInStr)
 
 import Control.Monad (foldM)
 import Request (EditableRequest(..), EditableRequestKind(..))
-import Util ((.))
+import Util ((.), E)
 
 import Prelude hiding ((.))
 import Editing.Basics
@@ -74,7 +74,6 @@ adjustEraseRange e r = adjustRange e r
 
 adjustEdit :: Edit -> Edit -> Maybe Edit
   -- Returns an adjusted Edit, or Nothing if the edits conflict. Second Edit is the one to be adjusted.
-adjustEdit e e' | e == e' = Just e
 adjustEdit (RemoveOptions _) e = Just e
 adjustEdit _ e@(RemoveOptions _) = Just e
 adjustEdit (AddOptions _) e = Just e
@@ -87,11 +86,12 @@ adjustEdit e (MoveEdit ba p r@(Range st si)) = do
 adjustEdit e (RangeReplaceEdit r s) =
   flip RangeReplaceEdit s . (if null s then adjustEraseRange else adjustRange) e r
 
-adjustByEdits :: String -> Edit -> [Edit] -> Either String Edit
-adjustByEdits _ e [] = return e
-adjustByEdits s e (h : t) = case adjustEdit h e of
-  Nothing -> fail $ "Overlapping edits: " ++ Editing.Show.showEdit s h ++ " and " ++ Editing.Show.showEdit s e ++ "."
-  Just e' -> adjustByEdits s e' t
+adjustByEdits :: String -> Edit -> [Edit] -> E (Maybe Edit) -- Returns Nothing if edit would be redundant.
+adjustByEdits _ e [] = return $ Just e
+adjustByEdits s e (h : t)
+  | h == e = return Nothing
+  | Just e' <- adjustEdit h e = adjustByEdits s e' t
+  | otherwise = fail $ "Overlapping edits: " ++ Editing.Show.showEdit s h ++ " and " ++ Editing.Show.showEdit s e ++ "."
 
 exec_edit :: Monad m => Edit -> EditableRequest -> m EditableRequest
 exec_edit e (EditableRequest k s) = case e of
@@ -127,7 +127,7 @@ execute (cmds, semcmds) r@(EditableRequest _ str) = do
   (_, r'', _) <- foldM (\(i, r'@(EditableRequest _ str'), m) cmd -> do
     let m' = case m of Left _ -> (\req -> (req, str', i, [])) . Cxx.Parse.parseRequest str'; _ -> m
     es <- findInStr str ((\(x, _, z, _) -> (x, (\v -> case foldM (flip adjustAnchor) v z of Nothing -> fail "Could not adjust anchor in original snippet to anchor in well formed snippet."; Just g -> return g))) . m') cmd >>=
-      foldM (\j (Found f e) -> (j++) . (:[]) . case f of
+      foldM (\j (Found f e) -> (j++) . maybe [] (:[]) . case f of
           InGiven -> adjustByEdits str e $ i ++ j
           InWf -> case m' of Left _ -> fail "oops"; Right (_, s, _, k) -> adjustByEdits s e (k++j)) []
     r'' <- foldM (flip exec_edit) r' es

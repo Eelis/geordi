@@ -113,6 +113,7 @@ basic_tests = do
   t "erase second last space before 4" $ Right "1 2 3 23 4 5"
   t "erase after second 2" $ Right "1 2 3 2"
   t "erase after second 2 until before 5" $ Right "1 2 3 25"
+  t "erase 1 and erase 1" $ Right " 2 3 2 3 4 5"
   t "erase before second last space" $ Right " 4 5"
   t "move 4 5 to before 1 and erase everything after second 2" $ Right "4 51 2 3 2"
   t "erase everything between last and first 2" $ Right "1 22 3 4 5"
