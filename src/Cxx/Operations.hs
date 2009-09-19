@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ScopedTypeVariables, ExistentialQuantification, TypeSynonymInstances, CPP #-}
 
-module Cxx.Operations (apply, mapply, apply_makedecl, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, find, is_pointer_or_reference, namedPathTo, findable_productions) where
+module Cxx.Operations (apply, mapply, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, find, is_pointer_or_reference, namedPathTo, findable_productions, make_edits) where
 
 import qualified Cxx.Show
 import qualified Data.List as List
@@ -10,11 +10,12 @@ import qualified Data.Maybe as Maybe
 import Data.NonEmptyList (NeList(..))
 import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..), Phantom(..))
 import Cxx.Basics
-import Editing.Basics (Range(..), Offsettable(..))
-import Control.Monad (foldM, MonadPlus(..))
+import Editing.Basics (Range(..), Offsettable(..), Edit)
+import Editing.Diff (diff_as_Edits)
 import Data.Function (on)
 import Control.Arrow (first, second)
-import Data.Generics (cast, gmapT, everywhere, somewhere, Data, Typeable, gfoldl, dataTypeOf, toConstr, Constr, DataType, dataTypeName, constrType)
+import Control.Monad.Identity
+import Data.Generics (cast, gmapT, everywhere, Data, Typeable, gfoldl, dataTypeOf, toConstr, Constr, DataType, dataTypeName, constrType)
 
 import Prelude hiding ((.))
 
@@ -80,49 +81,42 @@ specT = TypeSpecifier_SimpleTypeSpecifier $ SimpleTypeSpecifier_TypeName (OptQua
 
 -- Applying make-specifications.
 
-apply_makedecl :: MakeDeclaration -> DeclaratorId -> GeordiRequest -> Either String GeordiRequest
-apply_makedecl md did r = case apply_makedecl_to did md(split_all_decls r) of
-  MaybeEitherString Nothing -> fail $ "Could not find declaration of " ++ strip (show did) ++ "."
-  MaybeEitherString (Just e) -> e
-  -- Todo: Only split when necessary.
-
-apply_makedecl_to :: Data d => DeclaratorId -> MakeDeclaration -> d -> MaybeEitherString d
-apply_makedecl_to s makedecl = somewhere $ Maybe.fromMaybe (const mzero) $ Maybe.listToMaybe . Maybe.catMaybes $
+apply_makedecl_to :: Data d => MakeDeclaration -> d -> MaybeEitherString d
+apply_makedecl_to makedecl = Maybe.fromMaybe (const mzero) $ Maybe.listToMaybe . Maybe.catMaybes $
   [ cast ((\d -> case d of
-    SimpleDeclaration specs (Just (InitDeclaratorList (Commad (InitDeclarator x mi) []))) w | convert x == s ->
+    SimpleDeclaration specs (Just (InitDeclaratorList (Commad (InitDeclarator x mi) []))) w  ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify simple-declaration."
         MakeDeclaration specs' mpad _ -> return $ let (specs'', x') = apply (specs', mpad) (specs, x) in
           SimpleDeclaration specs'' (Just (InitDeclaratorList (Commad (InitDeclarator x' mi) []))) w
     _ -> mzero) :: SimpleDeclaration -> MaybeEitherString SimpleDeclaration)
   , cast ((\d -> case d of
-    ParameterDeclaration specs (Left x) m | convert x == s ->
+    ParameterDeclaration specs x m ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify parameter-declaration."
-        MakeDeclaration specs' mpad _ -> return $ let (specs'', x') = apply (specs', mpad) (specs, x) in
-          ParameterDeclaration specs'' (Left x') m
-    _ -> mzero) :: ParameterDeclaration -> MaybeEitherString ParameterDeclaration)
+        MakeDeclaration specs' mpad _ -> (\(specs'', x') -> ParameterDeclaration specs'' x' m) . mapply (specs', mpad) (specs, x)
+    ) :: ParameterDeclaration -> MaybeEitherString ParameterDeclaration)
   , cast ((\d -> case d of
-    ExceptionDeclaration u (Just (Left e)) | convert e == s ->
+    ExceptionDeclaration u (Just (Left e)) ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify exception-declaration."
         MakeDeclaration specs mpad _ ->
           (\(u', e') -> ExceptionDeclaration u' $ Just $ Left e') . mapply (specs, mpad) (u, e)
     _ -> mzero) :: ExceptionDeclaration -> MaybeEitherString ExceptionDeclaration)
   , cast ((\d -> case d of
-    MemberDeclaration specs (Just (MemberDeclaratorList (Commad (MemberDeclarator decl ps) []))) semicolon | convert decl == s ->
+    MemberDeclaration specs (Just (MemberDeclaratorList (Commad (MemberDeclarator decl ps) []))) semicolon ->
       return $ let (specs', decl', ps') = apply makedecl (specs, decl, ps) in
         MemberDeclaration specs' (Just (MemberDeclaratorList (Commad (MemberDeclarator decl' ps') []))) semicolon
     _ -> mzero) :: MemberDeclaration -> MaybeEitherString MemberDeclaration)
   , cast ((\d -> case d of
-    FunctionDefinition specs decl body | convert decl == s ->
+    FunctionDefinition specs decl body ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify function-definition."
         MakeDeclaration specs' mpad _ -> return $ let (specs'', decl') = apply (specs', mpad) (specs, decl) in
           FunctionDefinition specs'' decl' body
-    _ -> mzero) :: FunctionDefinition -> MaybeEitherString FunctionDefinition)
+    ) :: FunctionDefinition -> MaybeEitherString FunctionDefinition)
   , cast ((\d -> case d of
-    Condition_Declaration u e i | convert e == s ->
+    Condition_Declaration u e i ->
       case makedecl of
         MakeDeclaration _ _ Definitely -> fail "Cannot purify condition-declaration."
         MakeDeclaration specs mpad _ ->
@@ -191,6 +185,15 @@ instance Convert MemberDeclaration (Maybe DeclaratorId) where
   convert (MemberDeclaration _ (Just (MemberDeclaratorList (Commad d []))) _) = convert d
   convert (MemberDeclaration (Just (DeclSpecifierSeq (NeList d []))) Nothing _) = convert d
   convert (MemberDeclaration _ _ _) = Nothing
+instance Convert ExceptionDeclaration (Maybe DeclaratorId) where
+  convert (ExceptionDeclaration _ (Just (Left d))) = Just $ convert d
+  convert _ = Nothing
+instance Convert ParameterDeclaration (Maybe DeclaratorId) where
+  convert (ParameterDeclaration _ (Left d) _) = Just $ convert d
+  convert _ = Nothing
+instance Convert Condition (Maybe DeclaratorId) where
+  convert (Condition_Declaration _ d _) = Just $ convert d
+  convert _ = Nothing
 instance Convert (OptQualified, Identifier) DeclaratorId where
   convert (OptQualified Nothing Nothing, i) = convert i
   convert (OptQualified (Just s) Nothing, i) = DeclaratorId_IdExpression Nothing $ IdExpression $ Left $ GlobalIdentifier s i
@@ -226,15 +229,21 @@ instance Convert UsingDeclaration (Maybe DeclaratorId) where
 
 -- Finding declarations
 
-data GfoldlWithLengthsIntermediary r a = GfoldlWithLengthsIntermediary { gwli_result :: [r], _off :: Int }
-
 gfoldl_with_lengths :: Data a => Int -> (forall d. Data d => Int -> d -> [r]) -> a -> [r]
-gfoldl_with_lengths i f = gfoldl_with_ranges i (f . start)
+gfoldl_with_lengths i f = runIdentity . gfoldl_with_lengthsM i ((Identity .) . f)
 
 gfoldl_with_ranges :: Data a => Int -> (forall d. Data d => Range Char -> d -> [r]) -> a -> [r]
-gfoldl_with_ranges i f = gwli_result . gfoldl (\(GfoldlWithLengthsIntermediary m o) y ->
+gfoldl_with_ranges i f = runIdentity . gfoldl_with_rangesM i ((Identity .) . f)
+
+gfoldl_with_lengthsM :: (Data a, Monad m) => Int -> (forall d. Data d => Int -> d -> m [r]) -> a -> m [r]
+gfoldl_with_lengthsM i f = gfoldl_with_rangesM i (f . start)
+
+data GfoldlWithLengthsIntermediary m r a = GfoldlWithLengthsIntermediary { gwli_result :: m [r], _off :: Int }
+
+gfoldl_with_rangesM :: (Data a, Monad m) => Int -> (forall d. Data d => Range Char -> d -> m [r]) -> a -> m [r]
+gfoldl_with_rangesM i f = gwli_result . gfoldl (\(GfoldlWithLengthsIntermediary m o) y ->
   let n = length (Cxx.Show.show_simple y) in
-  GfoldlWithLengthsIntermediary (m ++ f (Range o n) y) (o + n)) (\_ -> GfoldlWithLengthsIntermediary [] i)
+  GfoldlWithLengthsIntermediary (liftM2 (++) m (f (Range o n) y)) (o + n)) (\_ -> GfoldlWithLengthsIntermediary (return []) i)
 
 listElem :: forall a d . (Data a, Typeable a, Data d) => Phantom a -> d -> Maybe (Range Char, Range Char)
 listElem _ d
@@ -377,6 +386,17 @@ namedPathTo d r = map Cxx.Show.dataType_abbreviated_productionName $
 findRange :: (Offsettable a, Data d) => (TreePath -> Maybe a) -> [AnyData] -> Int -> d -> [a]
 findRange p tp i x = Maybe.maybeToList (offset i . p (NeList (AnyData x) tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
 
+make_edits :: (Monad m, Data d) => Range Char -> MakeDeclaration -> Int -> d -> m [Edit]
+make_edits r m i d = do
+  ot <- gfoldl_with_lengthsM i (make_edits r m) d
+  oi <- (if Range i (length $ strip $ Cxx.Show.show_simple d) == r
+    then (case apply_makedecl_to m d of
+      MaybeEitherString (Just (Right d')) -> return $ offset i $ diff_as_Edits (Cxx.Show.show_simple d) (Cxx.Show.show_simple d')
+      MaybeEitherString (Just (Left e)) -> fail e
+      MaybeEitherString Nothing -> return [])
+    else return [])
+  return $ oi ++ ot
+
 instance Convert [DeclSpecifier] [TypeSpecifier] where
   convert = Maybe.mapMaybe $ \ds ->
     case ds of
@@ -430,6 +450,9 @@ isDeclarationOf x did = Just did == case () of { ()
   | Just s <- cast x -> convert (s :: UsingDeclaration)
   | Just s <- cast x -> Just $ convert (s :: AliasDeclaration)
   | Just s <- cast x -> convert (s :: MemberDeclaration)
+  | Just s <- cast x -> convert (s :: ExceptionDeclaration)
+  | Just s <- cast x -> convert (s :: ParameterDeclaration)
+  | Just s <- cast x -> convert (s :: Condition)
   | otherwise -> Nothing }
 
 -- Specifier/qualifier compatibility.
@@ -660,6 +683,15 @@ instance MaybeApply [DeclSpecifier] (NeList TypeSpecifier) where
 
 type M = ([MakeSpecifier], Maybe PtrAbstractDeclarator)
 
+instance MaybeApply M (DeclSpecifierSeq, Either Declarator (Maybe AbstractDeclarator)) where
+  mapply x (l, Left d) | (l', d') <- apply x (l, d) = return (l', Left d')
+  mapply x (DeclSpecifierSeq l, Right Nothing) = return $
+    first DeclSpecifierSeq $ second (Right . (AbstractDeclarator_PtrAbstractDeclarator .)) $
+      apply x (l, Nothing :: Maybe PtrAbstractDeclarator)
+  mapply x (DeclSpecifierSeq l, Right (Just (AbstractDeclarator_PtrAbstractDeclarator d))) = return $
+    first DeclSpecifierSeq $ second (Right . (AbstractDeclarator_PtrAbstractDeclarator .)) $ apply x (l, Just d)
+  mapply _ (_, Right (Just (AbstractDeclarator_Ellipsis _))) = fail "Sorry, make-application to abstract-declarator with ellipsis not yet implemented."
+
 instance MaybeApply M (TypeSpecifierSeq, Declarator) where
   mapply x (l, Declarator_PtrDeclarator d) = second Declarator_PtrDeclarator . mapply x (l, d)
 
@@ -682,6 +714,14 @@ instance (Apply [MakeSpecifier] (l DeclSpecifier) (l DeclSpecifier), Apply MakeS
       else foldl (flip apply) (l', x) l
   apply (l, Just pad) (l', x) = (apply l l', apply (convert x :: DeclaratorId) pad)
 
+instance Apply M (NeList DeclSpecifier, Maybe PtrAbstractDeclarator) (NeList DeclSpecifier, Maybe PtrAbstractDeclarator) where
+  apply (l, Nothing) (l', Just x) =
+    if any is_primary_MakeSpecifier l
+      then (apply l l', Just x)
+      else second Just $ foldl (flip apply) (l', x) l
+  apply (l, m) (l', Nothing) = (apply l l', m)
+  apply (l, Just x) (l', _) = (apply l l', Just x)
+
 instance MaybeApply M (TypeSpecifierSeq, PtrDeclarator)  where
   mapply (l, Nothing) (l', x) =
     if any is_primary_MakeSpecifier l
@@ -694,12 +734,20 @@ instance MaybeApply [MakeSpecifier] TypeSpecifierSeq where mapply l l' = foldM (
 instance Apply MakeSpecifier ([DeclSpecifier], PtrDeclarator) ([DeclSpecifier], PtrDeclarator) where
   apply s (x, y) = maybe (apply s x, y) ((,) x) (mapply s y)
 
+instance Apply MakeSpecifier (NeList DeclSpecifier, PtrAbstractDeclarator) (NeList DeclSpecifier, PtrAbstractDeclarator) where
+  apply s (x, y) = maybe (apply s x, y) ((,) x) (mapply s y)
+
 instance MaybeApply MakeSpecifier (TypeSpecifierSeq, PtrDeclarator) where
   mapply s (x, y) = maybe (flip (,) y . mapply s x) (return . (,) x) (mapply s y)
 
 instance MaybeApply MakeSpecifier PtrDeclarator where
   mapply s (PtrDeclarator_NoptrDeclarator d) = PtrDeclarator_NoptrDeclarator . mapply s d
   mapply s (PtrDeclarator o d) = maybe (flip PtrDeclarator d . mapply s o) (return . PtrDeclarator o) (mapply s d)
+
+instance MaybeApply MakeSpecifier PtrAbstractDeclarator where
+  mapply s (PtrAbstractDeclarator_NoptrAbstractDeclarator d) =
+    PtrAbstractDeclarator_NoptrAbstractDeclarator . mapply s d
+  mapply _ _ = fail "Sorry, not yet implemented."
 
 instance MaybeApply MakeSpecifier PtrOperator where
   mapply s (PtrOperator_Ptr o cvs) = PtrOperator_Ptr o . mapply s cvs
@@ -717,6 +765,12 @@ instance MaybeApply MakeSpecifier (Maybe CvQualifierSeq) where
     return . apply cvq
   mapply (NonCv cvq) = return . eraseCv cvq
   mapply _ = const $ fail "Cannot apply non-cv make-specifier to cv-qualifier-seq."
+
+instance MaybeApply MakeSpecifier NoptrAbstractDeclarator where
+  mapply s (NoptrAbstractDeclarator_PtrAbstractDeclarator (Parenthesized w (Enclosed d) w')) = do
+    d' <- mapply s d
+    return (NoptrAbstractDeclarator_PtrAbstractDeclarator (Parenthesized w (Enclosed d') w'))
+  mapply _ _ = fail "Sorry, not yet implemented."
 
 instance MaybeApply MakeSpecifier NoptrDeclarator where
   mapply _ (NoptrDeclarator_Id _) = fail "Cannot apply make-specifier to declarator-id."

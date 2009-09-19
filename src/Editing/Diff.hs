@@ -1,6 +1,6 @@
 -- Express the difference between two strings as a list of edit commands.
 
-module Editing.Diff (diff) where
+module Editing.Diff (diff, diff_as_Edits) where
 
 import qualified Cxx.Basics
 import qualified Data.Char as Char
@@ -11,6 +11,12 @@ import Util (orElse, take_atleast, (.), isIdChar, invert)
 import Editing.Basics
 import Prelude hiding ((.))
 
+diff_as_Edits :: String -> String -> [Edit]
+diff_as_Edits pre post =
+  map simpleEdit_to_Edit $
+  merge_nearby_edits pre $
+  diffsAsSimpleEdits $ getDiff pre post
+
 diff :: String -> String -> [Command]
 diff pre post =
   let pre_toks = diff_tokenize pre in
@@ -20,6 +26,11 @@ diff pre post =
   diffsAsSimpleEdits $ getDiff pre_toks (diff_tokenize post)
 
 data SimpleEdit a = SimpleEdit { se_range :: Range a, _se_repl :: [a] }
+
+simpleEdit_to_Edit :: SimpleEdit Char -> Edit
+simpleEdit_to_Edit (SimpleEdit (Range p 0) s) = InsertEdit (Anchor Before p) s
+simpleEdit_to_Edit (SimpleEdit r s) = RangeReplaceEdit r s
+  -- This "Before" seems arbitrary.
 
 describe_simpleEdit :: SimpleEdit Token -> [Token] -> Command
 describe_simpleEdit (SimpleEdit (Range p 0) s) t | p == length t = Append (toks_text s) Nothing
@@ -46,7 +57,7 @@ describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t
     inorder_context Before = reverse $ context Before
     furthest Before = listToMaybe; furthest After = listToMaybe . reverse
     alpha ba = Char.isAlpha . (tok_text . listToMaybe (toks ba) >>= furthest (invert ba)) `orElse` False
-    ins ba = Insert (toks_text s) $ and_one $ NonAppendPositionsClause $ PositionsClause (and_one ba) $ Substrs $ and_one $ In (Absolute $ NotEverything $ Sole' $ Right $ toks_text $ inorder_context $ invert ba) Nothing
+    ins ba = Insert (SimpleInsert $ toks_text s) $ and_one $ NonAppendPositionsClause $ PositionsClause (and_one ba) $ Substrs $ and_one $ In (Absolute $ NotEverything $ Sole' $ Right $ toks_text $ inorder_context $ invert ba) Nothing
     sr = selectRange r t
     sole = NotEverything $ Sole' $ Right sr'
     rel ba = Relative sole (and_one ba) $ Sole $ Right $ toks_text $ inorder_context $ invert ba

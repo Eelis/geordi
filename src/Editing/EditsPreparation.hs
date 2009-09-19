@@ -13,7 +13,7 @@ import qualified Data.Char as Char
 import Control.Monad (liftM2, forM)
 import Control.Monad.Error ()
 import Data.NonEmptyList (NeList (..))
-import Util ((.), Convert(..), Op(..), ops_cost, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, multiplicative_numeral, E, or_fail)
+import Util ((.), Convert(..), Op(..), ops_cost, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, multiplicative_numeral, E, or_fail, pairs)
 
 -- One property that might be suitable for formal verification is that finders only return anchor/ranges/edits contained in the range they received, and that no anchor/range/edit ever goes out of bounds.
 
@@ -165,6 +165,9 @@ instance Convert (FindResult ARange) (NeList (FindResult DualARange)) where
 instance Find Substrs (NeList (FindResult DualARange)) where
   find (Substrs l) = NeList.concat . NeList.concat . find l
 
+instance Find MakeSubject (NeList (FindResult DualARange)) where
+  find (MakeSubject l) = NeList.concat . NeList.concat . find l
+
 class OccurrenceError a where
   doesNotOccur_n_times :: a -> Int -> String
   multipleOccur :: a -> String
@@ -220,7 +223,15 @@ instance Find (EverythingOr (Rankeds (Either Cxx.Basics.Findable String))) (NeLi
   find Everything = NeList.one . Found InGiven . convert . wide_range . search_range . ask
   find (NotEverything x) = find x
 
-instance Find Cxx.Basics.DeclaratorId (NeList (FindResult DualARange)) where find = find . Cxx.Basics.BodyOf
+instance Find (EverythingOr (Rankeds (Either Cxx.Basics.Findable ImplicitDeclarationOf))) (NeList (FindResult DualARange)) where
+  find Everything = NeList.one . Found InGiven . convert . wide_range . search_range . ask
+  find (NotEverything x) = find x
+
+instance Find ImplicitBodyOf (NeList (FindResult DualARange)) where
+  find (ImplicitBodyOf x) = find $ Cxx.Basics.BodyOf x
+
+instance Find ImplicitDeclarationOf (NeList (FindResult DualARange)) where
+  find (ImplicitDeclarationOf x) = find $ Cxx.Basics.DeclarationOf x
 
 instance Find InClause (NeList (FindResult DualARange)) where find (InClause x) = NeList.concat . NeList.concat . find x
 
@@ -233,8 +244,9 @@ instance Find PrependPositionsClause (NeList (FindResult Anchor)) where
   find (PrependIn incl) = ((($ Before) . full_range .) .) . find incl
 
 instance Find PositionsClause (NeList (FindResult Anchor)) where
-  find (PositionsClause (AndList bas) x) = (NeList.concat .) $ NeList.forM bas $ \ba ->
-    ((($ ba) . full_range .) .) . find x
+  find (PositionsClause (AndList bas) x) = do
+    Found w l <- ((full_range .) .) . find x >>= merge_contiguous_FindResult_ARanges
+    return $ NeList.concatMap (\e -> (\ba -> Found w $ e ba) . bas) l
 
 instance Find Replacer (NeList (FindResult Edit)) where
   find (Replacer p r) = do
@@ -360,7 +372,9 @@ instance Find Command [FindResult Edit] where
   find (Erase (AndList l)) = concat . sequence (find . NeList.to_plain l)
   find (Replace (AndList l)) = concat . sequence ((NeList.to_plain .) . find . NeList.to_plain l)
   find (Change (AndList l)) = concat . sequence ((NeList.to_plain .) . find . NeList.to_plain l)
-  find (Insert r p) = NeList.to_plain . ((flip InsertEdit r .) .) . NeList.concat . find p
+  find (Insert (SimpleInsert r) p) = NeList.to_plain . ((flip InsertEdit r .) .) . NeList.concat . find p
+  find (Insert (WrapInsert (Wrapping x y)) (AndList z)) =
+    concatMap (\(Found v a, Found w b) -> [Found v $ InsertEdit a x, Found w $ InsertEdit b y]) . pairs . concat . map NeList.to_plain . sequence (map find $ NeList.to_plain z)
   find (Move (AndList movers)) = concat . sequence (find . NeList.to_plain movers)
   find (Swap substrs Nothing) = NeList.to_plain . ((full_range .) .) . find substrs >>= f
     where
@@ -373,11 +387,11 @@ instance Find Command [FindResult Edit] where
     case (Found v . x, Found w . y) of
       (NeList a [], NeList b []) -> makeSwapEdit a b
       _ -> fail "Swap operands must be contiguous ranges."
-  find (WrapAround (Wrapping x y) (AndList z)) =
-    fmap concat $ sequence $ NeList.to_plain $ flip fmap z $ \z' -> do
-      Found w v <- ((full_range .) .) . find z' >>= merge_contiguous_FindResult_ARanges
-      return $ (concat . fmap (\r -> [flip InsertEdit x . ($ Before) . r, flip InsertEdit y . ($ After) . r]) . NeList.to_plain) (Found w . v)
-  find (WrapIn z (Wrapping x y)) = find $ WrapAround (Wrapping x y) $ and_one $ Around z
+  find (Make s b) = inwf $ do
+    (tree, _) <- well_formed . ask >>= or_fail
+    l <- (fmap (\(Found _ x) -> replace_range x)) . find s
+    (Found InGiven .) . concat . NeList.to_plain . NeList.forM l (\x ->
+      Cxx.Operations.make_edits (convert x) b 0 tree)
 
 use_tests :: IO ()
 use_tests = do

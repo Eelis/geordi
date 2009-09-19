@@ -6,16 +6,14 @@ import qualified Cxx.Parse
 import qualified Cxx.Basics
 import qualified Cxx.Operations
 import qualified Parsers as P
-import qualified Data.List as List
 import qualified Data.NonEmptyList as NeList
 import Data.NonEmptyList (NeList(..))
 import Control.Monad.Error ()
 import Control.Category (Category, (.), id)
 import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA)
-import Data.Either (partitionEithers)
 import Data.Generics (DataType, Constr, toConstr, Data)
 import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, many1Till, optParser, try, many, satisfy, spaces)
-import Util (isVowel, (<<), snd_unit, liftA2, Ordinal(..), apply_if, cardinals, plural)
+import Util (isVowel, (<<), liftA2, Ordinal(..), apply_if, cardinals, plural)
 import Cxx.Basics (DeclaratorId)
 import Request (EvalOpt)
 
@@ -27,10 +25,7 @@ data Terminators = Terminators { term_eof :: Bool, term_keywords :: [String], an
   -- term_keywords lists keywords that should terminate directly preceding verbatim strings.
   -- and_conts lists keywords that should terminate directly preceding "and"-lists (when appearing after "and ").
 
-data Parser a b = Parser Terminators (Terminators -> a -> P.Parser Char (Either String b))
-
-terminators :: Parser a b -> Terminators
-terminators (Parser t _) = t
+data Parser a b = Parser { terminators :: Terminators, _p :: (Terminators -> a -> P.Parser Char (Either String b)) }
 
 commit :: Parser a b -> Parser a b
 commit (Parser t f) = Parser t $ \t' -> P.commit . f t'
@@ -102,9 +97,6 @@ and (Parser (Terminators _ t _) p) = Parser (Terminators False ["and"] t) $
 
 instance (Parse a, Parse b) => Parse (Either a b) where parse = (parse >>> arr Left) <||> (parse >>> arr Right)
 
-semipure :: (a -> Either String b) -> Parser a b
-semipure f = Parser (Terminators True [] []) $ \_ -> return . f
-
 select :: [([String], a)] -> Parser x a
 select = foldl1 (<||>) . map (\(s, r) -> if null s then arr (const r) else kwd s >>> arr (const r))
 
@@ -128,6 +120,11 @@ end_kwds = ["end", "back"]
 instance Parse a => Parse (Ranked a) where parse = auto2 Ranked <||> auto1 Sole
 
 instance Parse BefAft where parse = select [(["before"], Before), (["after"], After)]
+
+instance Parse (AndList BefAft) where
+  parse =
+    (kwd ["around"] >>> arr (const $ AndList $ NeList Before [After])) <||>
+    (liftA2 NeList parse ((and parse >>> arr (NeList.to_plain . andList)) <||> arr (const [])) >>> arr AndList)
 
 instance Parse RelativeBound where
   parse = select [(end_kwds, Back), (begin, Front)] <||> auto2 RelativeBound
@@ -202,7 +199,7 @@ instance Parse (Relative Substr) where
     <||> (relative -< NotEverything x)
 
 instance Parse (Relative (Ranked Cxx.Basics.Findable)) where parse = parse >>> relative
-instance Parse (Relative (Rankeds (Either Cxx.Basics.Findable DeclaratorId))) where parse = parse >>> relative
+instance Parse (Relative (Rankeds (Either Cxx.Basics.Findable ImplicitBodyOf))) where parse = parse >>> relative
 
 instance Parse (Relative (EverythingOr (Rankeds (Either Cxx.Basics.Findable String)))) where
   parse = (relative_everything_orA <||>) $ (parse >>>) $ proc x -> case x of
@@ -215,6 +212,12 @@ instance Parse (Relative (EverythingOr (Rankeds (Either Cxx.Basics.Findable Stri
         returnA -< Between Everything (Betw (Bound (Just Before) $ NotEverything $ Sole s) u)
       <||> (relative -< NotEverything x)
     _ -> (relative -< NotEverything x)
+
+instance Parse ImplicitDeclarationOf where parse = auto1 ImplicitDeclarationOf
+instance Parse ImplicitBodyOf where parse = auto1 ImplicitBodyOf
+
+instance Parse (Relative (Rankeds (Either Cxx.Basics.Findable ImplicitDeclarationOf))) where
+  parse = parse >>> relative
 
 with_plurals :: [String] -> [String]
 with_plurals l = map (++"s") l ++ l
@@ -262,6 +265,7 @@ instance Parse PrependPositionsClause where
   parse = auto1 PrependIn <||> auto1 NonPrependPositionsClause
 
 instance Parse Substrs where parse = auto1 Substrs
+instance Parse MakeSubject where parse = auto1 MakeSubject
 
 instance Parse PositionsClause where
   parse = (kwd ["at"] >>> select [(begin, Before), (end_kwds, After)] >>> arr (\ba -> PositionsClause (and_one ba) $ Substrs $ and_one $ flip In Nothing $ Absolute Everything)) <||> auto2 PositionsClause
@@ -300,42 +304,32 @@ namedWrappings =
 instance Parse Wrapping where
   parse = label "wrapping description" $ select namedWrappings <||> liftA2 Wrapping parse (and parse)
 
+instance Parse Insertee where
+  parse = (label "wrapping description" $ select namedWrappings >>> arr WrapInsert) <||>
+    liftA2 (\x y -> case y of Nothing -> SimpleInsert x; Just y' -> WrapInsert (Wrapping x y')) parse (option (and parse))
+
 instance Parse a => Parse (Maybe a) where parse = (parse >>> arr Just) <||> arr (const Nothing)
 
 instance Parse Command where
   parse = label "edit command" $
-    (kwd ["insert", "add"] >>> commit ((parse >>> arr (Use `fmap` fmap UseOptions)) <||> auto2 Insert <||> auto2 WrapAround)) <||>
+    (kwd ["insert", "add"] >>> commit ((parse >>> arr (Use `fmap` fmap UseOptions)) <||> auto2 Insert)) <||>
     (kwd ["append"] >>> commit (auto2 Append)) <||>
     (kwd ["prepend"] >>> commit ((parse >>> arr (Use `fmap` fmap UseOptions)) <||> auto2 Prepend)) <||>
     (kwd ["erase", "remove", "kill", "cut", "omit", "delete", "drop"] >>> commit (auto1 Erase)) <||>
     (kwd ["replace"] >>> commit (auto1 Replace)) <||>
     (kwd ["change"] >>> commit (auto1 Change)) <||>
+    (kwd ["make"] >>> commit (auto2 Make)) <||>
     (kwd ["use"] >>> commit (auto1 Use)) <||>
     (kwd ["move"] >>> commit (auto1 Move)) <||>
-    (kwd ["swap"] >>> commit (liftA2 Swap parse (option (kwd ["with"] >>> parse)))) <||>
-    (kwd ["wrap"] >>> commit (parse >>> snd_unit (auto1 Left <||> (kwd ["in"] >>> auto1 Right)) >>> semipure (uncurry wc)))
-    where
-      wc :: Substrs -> Either (AndList (Around Substrs)) Wrapping -> Either String Command
-      wc what (Right wrapping) = return $ WrapIn what wrapping
-      wc (Substrs (AndList (NeList (In (Absolute (NotEverything (Sole' (Right x)))) Nothing) []))) (Left what) =
-        (\q -> WrapAround q what) `fmap` case fmap snd $ List.find (elem x . fst) namedWrappings of
-          Just w -> return w
-          Nothing -> fail "Unrecognized wrapping description."
-      wc (Substrs (AndList (NeList (In (Absolute (NotEverything (Sole' (Right x)))) Nothing)
-        [In (Absolute (NotEverything (Sole' (Right y)))) Nothing]))) (Left what) =
-          return $ WrapAround (Wrapping x y) what
-      wc _ (Left _) = fail "Malformed wrap command."
+    (kwd ["swap"] >>> commit (liftA2 Swap parse (option (kwd ["with"] >>> parse))))
 
 instance Parse Cxx.Basics.MakeDeclaration where
-  parse = Parser (Terminators False [] []) $ \_ _ -> Right `fmap` Cxx.Parse.makeDeclParser
+  parse = Parser (Terminators False ["a", "an", "const"] []) $ \_ _ -> Right `fmap` Cxx.Parse.makeDeclParser
 
 instance Parse DeclaratorId where
   parse = Parser (Terminators False [] []) $ \_ _ -> Right `fmap` Cxx.Parse.declaratorIdParser
 
 instance Parse MakeClause where parse = auto2 MakeClause
-
-instance Parse SemCommand where
-  parse = label "edit command" $ kwd ["make"] >>> commit (auto1 Make)
 
 instance Parse FinalCommand where
   parse = label "edit command" $
@@ -343,13 +337,13 @@ instance Parse FinalCommand where
     (kwd ["identify"] >>> commit (auto1 Identify)) <||>
     (kwd ["parse"] >>> arr (const Parse))
 
-instance Parse (([Command], [SemCommand]), Maybe FinalCommand) where
-  parse = liftA2 (,) (parse >>> arr (partitionEithers . NeList.to_plain . andList)) (option $ and parse)
+instance Parse ([Command], Maybe FinalCommand) where
+  parse = liftA2 (,) (parse >>> arr (NeList.to_plain . andList)) (option $ and parse)
 
 uncool :: Parser () a -> Terminators -> P.Parser Char (Either String a)
 uncool (Parser _ f) t = f t ()
 
-commandsP :: P.Parser Char (Either String (([Command], [SemCommand]), Maybe FinalCommand))
+commandsP :: P.Parser Char (Either String ([Command], Maybe FinalCommand))
 commandsP = uncool parse $ Terminators True [] []
 
 finalCommandP :: P.Parser Char (Either String FinalCommand)

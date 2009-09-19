@@ -14,10 +14,11 @@ import Request (EditableRequest(..), EditableRequestKind(..))
 
 import Prelude hiding ((.))
 
-make_tests :: IO ()
-make_tests = do
+basic_tests :: IO ()
+basic_tests = do
+
   f "" "make foo bar bas" "Unexpected end of command. Expected \"::\" or template-arguments."
-  f "" "make " "Unexpected end of command. Expected declarator-id."
+  f "" "make " "Unexpected end of command. Expected \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", production-name, or declarator-id."
   f "" "make i pointer to" "Unexpected end of command. Expected type description."
   s "mutable int i;" "make i const" "const mutable int i;"
   s "int i;" "make i a const double" "double const i;"
@@ -29,18 +30,17 @@ make_tests = do
   s "inline void f();" "make f noninline" "void f();"
   s "int (* const i)(double);" "make i nonconst" "int (* i)(double);"
   s "int i;" "make i a pointer&" "int *& i;"
-  f "int i;" "make j const" "Could not find declaration of j."
+  f "int i;" "make j const" "Could not find free declaration of j."
   s "void f() { int i; i; i = 0; }" "make i a pointer" "void f() { int * i; i; i = 0; }"
   s "struct X { static void f(); }" "append semicolon and make f pure" "struct X { virtual void f()= 0 ; };"
   s "struct X { virtual void f() = 0; };" "make f static" "struct X { static void f() ; };"
   s "struct X { void f(); };" "make f virtual pure const inline explicit" "struct X { virtual inline explicit void f()const = 0 ; };"
   s "struct X { ~X(); };" "make ~ X virtual" "struct X { virtual ~X(); };"
   s "struct X { virtual inline explicit void f()const = 0 ; };" "make f impure nonvirtual nonexplicit noninline" "struct X { void f()const ; };"
-  s "struct X { X(int i); };" "make i a reference to const and make X explicit" "struct X { explicit X(const int & i); };"
+  s "struct X { X(int i); };" "make i a reference to const and make constructor explicit" "struct X { explicit X(const int & i); };"
   s "int *p;" "make p a const*volatile" "const int *volatile p;"
   s "void N::f() {}" "make N::f inline" "inline void N::f() {}"
   s "struct X { void operator++(); };" "make operator++ a const function returning an X&" "struct X { X & operator++()const ; };"
-  s "struct X { int const i, f() const; };" "make i and f nonconst" "struct X { int i; int const f() ; };"
   s "int x /*haha*/ ; // ok dan /* mja */" "make x const" "const int x /*haha*/ ; // ok dan /* mja */"
   s "T const ( &f() )[3] { T x = {v}; }" "make f inline" "inline T const ( &f() )[3] { T x = {v}; }"
   s "int *i; int * & j;" "make i a pointer to a pointer" "int ** i; int * & j;"
@@ -50,13 +50,14 @@ make_tests = do
   s "void f() { try { int long i; } catch(int long j) {} }" "make i and j long long" "void f() { try { long long int i; } catch(long long int j) {} }"
   s "void f() { try { long long i; } catch(long long j) {} }" "make i and j long" "void f() { try { long i; } catch(long j) {} }"
   s "int i;" "make i a const array" "const int i[];"
-  s "int i(3), j(x);" "make i and j const" "const int i(3);int j(x)const ;"
   s "int i;" "make i a const array of pointers" "int *const i[];"
   s "int i[];" "make i const" "const int i[];"
+  s "struct X { ~X(); }" "append ; and make destructor virtual and show" "struct X { virtual ~X(); };"
   s "{ try{}catch(const int i){} }" "make i volatile" "{ try{}catch(volatile const int i){} }"
   s "void f(int i, double d){}" "make i and d long" "void f(long int i, long double d){}"
+  s "void f(int i, int j, int k);" "make second parameter-declaration const and erase third parameter-declaration" "void f(int i, const int j);"
+  s "void f(float, int, char, double);" "make second and third parameter-declaration const" "void f(float, const int, const char, double);"
   s "{ if(int i = 3) ; }" "make i const" "{ if(const int i = 3) ; }"
-  s "int i, j, k;" "make i a float and j and k a double" "float i;double j;double k;"
   s "int i;" "make i an array of const" "const int i[];"
   s "int i;" "make i a static const function" "static int i()const ;"
   s "int i;" "make i a pointer to a function" "int (* i)();"
@@ -64,26 +65,13 @@ make_tests = do
   s "int i;" "make i a function returning a const" "const int i();"
   s "int i;" "make i a function returning a const pointer and taking a bool" "int *const i(bool);"
   s "{ cout << 3, 3.2, 3ul, 3e+2, 0x3, 03, .3, 3., .3e1, 3.E0; int i; }" "make i const" "{ cout << 3, 3.2, 3ul, 3e+2, 0x3, 03, .3, 3., .3e1, 3.E0; const int i; }"
-  s "void f() { if(b) int i, j; }" "make j register and make f static const" "static void f() const { if(b) {int i; register int j; }}"
   s "void f(int i) { try {} catch(int j) {} }" "make f and i and j const" "void f(const int i) const { try {} catch(const int j) {} }"
   f "void f(int i) { try {} catch(int j) {} }" "make j mutable" "Invalid decl-specifier for type-specifier-seq: mutable"
   s "struct X { void f(int p); };" "make f static inline and make p a reference to long" "struct X { static inline void f(long int & p); };"
   s "struct X { operator ()(); };" "make operator() const" "struct X { operator ()()const ; };" -- Spaces don't matter when matching declarator-ids.
   s "<< 3, i; int i = 2;" "make i const" "<< 3, i; const int i = 2;"
   putStrLn "All make tests passed."
-  where
-    t :: String -> String -> Either String String -> IO ()
-    t code cmdstring expectation = test_cmp cmdstring expectation actual
-      where
-        actual = case parseOrFailE (Editing.Parse.commandsP << eof) cmdstring "command" of
-          Left e -> Left e
-          Right (cmds, _) -> editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) code)
-    s, f :: String -> String -> String -> IO ()
-    s code cmdstring expectation = t code cmdstring (Right expectation) -- test for success
-    f code cmdstring expectation = t code cmdstring (Left expectation) -- test for failure
 
-basic_tests :: IO ()
-basic_tests = do
   t "erase all 2 and insert x before second 3 and prepend y" $ Right "y1  3  x3 4 5"
   t "erase everything before last 2 and replace everything after 4 with x" $ Right "2 3 4x"
   t "insert x after all 2 and append y" $ Right "1 2x 3 2x 3 4 5y"
@@ -98,15 +86,15 @@ basic_tests = do
   t "erase first 2 3 and 3 2 and 4 5 and last  " $ Right "1  3 "
   t "move 1 till second 3 to before 5" $ Right "3 4 1 2 3 2 5"
   t "move 1 till after second 3 to before 5" $ Right " 4 1 2 3 2 35"
-  --t "swap last 2 3 and last space before 4" $ Right "1 2 3  2 34 5"
-  --t "swap last 2 3 with last space before 4" $ Right "1 2 3  2 34 5"
+  t "swap last 2 3 and last space before 4" $ Right "1 2 3  2 34 5"
+  t "swap last 2 3 with last space before 4" $ Right "1 2 3  2 34 5"
   t "swap 1 and first 3 and second 3 and 5" $ Right "3 2 1 2 5 4 3"
   t "replace 2 after second space with x" $ Right "1 2 3 x 3 4 5"
   t "move everything till 4  to end and erase 4 " $ Right "51 2 3 2 3 "
   t "erase everything" $ Right ""
   t "insert x after second space before 4" $ Right "1 2 3 2 x3 4 5"
-  t "wrap < and > around second 3" $ Right "1 2 3 2 <3> 4 5"
-  t "wrap braces around everything" $ Right "{1 2 3 2 3 4 5}"
+  t "add < and > around second 3" $ Right "1 2 3 2 <3> 4 5"
+  t "add braces around everything" $ Right "{1 2 3 2 3 4 5}"
   t "move everything after second 3 to begin" $ Right " 4 51 2 3 2 3"
   t "move second 3 to end and 5 to begin" $ Right "51 2 3 2  4 3"
   t "erase first space until second space before 4" $ Right "1 3 4 5"
@@ -133,10 +121,10 @@ basic_tests = do
   t "change all but first and second last space to x" $ Right "1 2x3x2x3 4x5"
   t "erase between second and fourth space and 1" $ Right " 2  3 4 5"
   t "erase between the first and third space and prepend x" $ Right "x1  2 3 4 5"
-  t "wrap parentheses around every space between first 2 and 4 and around 5 and erase second last 3" $ Right "1 2( )( )2( )3( )4 (5)"
+  t "add parentheses around every space between first 2 and 4 and around 5 and erase second last 3" $ Right "1 2( )( )2( )3( )4 (5)"
   t "move from first 3 until 4 to begin" $ Right "3 2 3 41 2  5"
   t "erase everything from before everything until the second 3" $ Right "3 4 5"
-  t "wrap parentheses around first 2 and 5" $ Right "1 (2) 3 2 3 4 (5)"
+  t "add parentheses around first 2 and 5" $ Right "1 (2) 3 2 3 4 (5)"
   t "erase everything between first space and last space" $ Right "1  5"
   t "erase all 3 and all 2 between begin and end" $ Right "1     4 5"
   t "erase everything between second and first 2 " $ Right "1 2 2 3 4 5"
@@ -146,8 +134,8 @@ basic_tests = do
   t "erase from before 4 until end" $ Right "1 2 3 2 3 "
   t "use 5x and y4" $ Right "1 2 3 2 3 y4 5x"
   t "erase everything from after 1 until second last space" $ Right "1 4 5"
-  t "wrap parentheses around everything between 1 and second space before 4" $ Right "1( 2 3 2) 3 4 5"
-  t "wrap all 3 and second 2 in + and - and prepend x" $ Right "x1 2 +3- +2- +3- 4 5"
+  t "add parentheses around everything between 1 and second space before 4" $ Right "1( 2 3 2) 3 4 5"
+  t "add + and - around all 3 and second 2 and prepend x" $ Right "x1 2 +3- +2- +3- 4 5"
   t "move 4 till end to front" $ Right "4 51 2 3 2 3 "
   t "erase all space after first 2" $ Right "1 232345"
   t "add x before first 3 after second 2" $ Right "1 2 3 2 x3 4 5"
@@ -182,14 +170,14 @@ basic_tests = do
   t "move 3 4 5 to before 4" $ Left "Move destination lies in source range."
   t "move 1 and 4 to after first 3" $ Right " 2 314 2 3  5"
   -- Order-sensitive edits:
-  t "wrap parentheses around everything and append x" $ Right "(1 2 3 2 3 4 5)x"
+  t "add parentheses around everything and append x" $ Right "(1 2 3 2 3 4 5)x"
   t "add parentheses around all 3 and all 2 and erase 4" $ Right "1 (2) (3) (2) (3)  5"
-  t "append x and wrap parentheses around everything" $ Right "(1 2 3 2 3 4 5x)"
+  t "append x and add parentheses around everything" $ Right "(1 2 3 2 3 4 5x)"
   t "append x after everything before 4 and add y before 4" $ Right "1 2 3 2 3 xy4 5"
   t "insert y before 4 and insert z after second 3 " $ Right "1 2 3 2 3 zy4 5"
   t "prepend x and move 5 to begin and insert y before 1 and insert z before everything" $ Right "z5xy1 2 3 2 3 4 "
-  t "wrap parentheses around everything and prepend x" $ Right "x(1 2 3 2 3 4 5)"
-  t "prepend x and wrap parentheses around everything" $ Right "(x1 2 3 2 3 4 5)"
+  t "add parentheses around everything and prepend x" $ Right "x(1 2 3 2 3 4 5)"
+  t "prepend x and add parentheses around everything" $ Right "(x1 2 3 2 3 4 5)"
   t "prepend x before everything after 4 and add y after 4" $ Right "1 2 3 2 3 4yx 5"
   t "add y after 4 and prepend x before everything after 4" $ Right "1 2 3 2 3 4xy 5"
   -- Semantic edits:
@@ -213,17 +201,22 @@ basic_tests = do
   ct "struct X { template <typename U> X(U); };" "erase second declaration of X" $ Right "struct X { };"
   ct "struct X { int x; X(); void f(); ~X(); struct Y {}; operator int(); X(int); };" "erase all constructors and replace destructor with int y;" $ Right "struct X { int x; void f(); int y; struct Y {}; operator int(); };"
   ct "template <typename T> struct X { template <typename U> inline X(T, U); ~X(); }; template <typename T> template <typename U> X<T>::X(T, U) {} template<typename T> X<T>::~X() {}" "erase second constructor and second destructor" $ Right "template <typename T> struct X { template <typename U> inline X(T, U); ~X(); }; "
+  ct "void f(int i);" "erase declaration of i" $ Right "void f();"
+  ct "struct X { int i; };" "erase declaration of i" $ Right "struct X { };"
   ct "{ 3; 4; 5; }" "swap first and last statement" $ Right "{ 5; 4; 3; }"
+  ct "{ 3; 4; 5; }" "swap statements around 4;" $ Right "{ 5; 4; 3; }"
   ct "{ 3; 4; 5; 6; }" "swap all statements before 5 with last statement" $ Right "{ 6; 5; 3; 4; }"
-  ct "{ if(b) 3; 4; 5; }" "wrap curlies around first two statements after if" $ Right "{ if(b) {3; 4; }5; }"
-  ct "{ 3; 4; 5; }" "wrap curlies around first and second statement" $ Right "{ {3; 4; }5; }"
-  ct "{ 3; 4; 5; }" "wrap curlies around first statement and around second statement" $ Right "{ {3; }{4; }5; }"
+  ct "{ if(b) 3; 4; 5; }" "add curlies around first two statements after if" $ Right "{ if(b) {3; 4; }5; }"
+  ct "{ 3; 4; 5; }" "add curlies around first and second statement" $ Right "{ {3; 4; }5; }"
+  ct "{ 3; 4; 5; }" "add curlies around first statement and around second statement" $ Right "{ {3; }{4; }5; }"
   ct "{ 1;2;3;4;5; }" "swap first two statements with last two statements" $ Right "{ 4;5; 3;1;2;}"
+  ct "{ 1;2;3; }" "swap first two statements" $ Right "{ 2;1;3; }"
   --ct "void f() { 1; } void g() { 1; 2; 3; 4; }" "replace first two and last statement in g with 0;" $ Right "void f() { 1; } void g() { 0;3; 0;}"
   ct "void f() { int x = 3; cout << x; } int i;" "replace everything after first statement in f with BARK;" $ Right "void f() { int x = 3; BARK;} int i;"
   ct "template <typename T, int i> struct S;" "erase second template-parameter" $ return "template <typename T> struct S;"
-  ct "void g(string s); void f(int i, double d, char c, float f, bool b);" "erase first and last two parameter-declarations in declaration of f and replace third parameter-declaration in declaration of f with wchar_t c" $ return "void g(string s); void f(double d, wchar_t c);"
+  ct "void g(string s); void f(int i, double d, char c, float, bool b);" "erase first and last two parameter-declarations in declaration of f and replace third parameter-declaration in declaration of f with wchar_t c" $ return "void g(string s); void f(double d, wchar_t c);"
   ct "int f();" "replace type-specifier with void" $ Right "void f();"
+  ct "void g() { 0; struct X { void f() { 1;2;3;4; } }; 1; }" "erase all statements around 2 in f" $ Right "void g() { 0; struct X { void f() { 2;} }; 1; }"
   ct "int a;in@@@t x;int y;int z;" "erase @@@ and erase int a; and erase second declaration" $ Right "int y;int z;"
   ct "@     int x;" "erase @ and replace declaration of x by bla" $ return "     bla"
   ct "@@@@@ void f(){} int x;"  "erase @@@@@ and erase first x after function-definition" $ Right " void f(){} int ;"
@@ -250,21 +243,25 @@ basic_tests = do
   t "erase 5 between 1 and 4" $ Left "String `5` does not occur between 1 and 4."
   -- Syntax errors:
   t "isnert 3 before 4" $ Left "Unexpected `isnert` at start. Expected edit command."
-  t "insert " $ Left "Unexpected end of command. Expected option, verbatim string, or wrapping description."
-  t "insert kung fu" $ Left "Unexpected end of command. Expected \" in\", \" at\", \" before\", \" after\", or \" and\"."
-  t "move " $ Left "Unexpected end of command. Expected \"till\", \"until\", \"from\", \"everything\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", production-name, or verbatim string."
-  t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" before\", \" after\", \" between\", \" in\", \" and\", or \" to\"."
+  t "insert " $ Left "Unexpected end of command. Expected option, wrapping description, or verbatim string."
+  t "insert kung fu" $ Left "Unexpected end of command. Expected \" and\", \" in\", \" at\", \" around\", \" before\", or \" after\"."
+  t "move " $ Left "Unexpected end of command. Expected \"till\", \"until\", \"from\", \"everything\", \"code\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", production-name, or verbatim string."
+  t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" around\", \" before\", \" after\", \" between\", \" in\", \" and\", or \" to\"."
   t "move x to "$ Left "Unexpected end of command. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
-  t "erase all 2 and " $ Left "Unexpected end of command. Expected verbatim string, \"till\", \"until\", \"from\", \"everything\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", production-name, wrapping description, option, or edit command."
+  t "erase all 2 and " $ Left "Unexpected end of command. Expected verbatim string, \"till\", \"until\", \"from\", \"everything\", \"code\", \"before\", \"between\", \"after\", \"all\", \"any\", \"every\", \"each\", ordinal, \"declaration\", \"body\", production-name, wrapping description, option, or edit command."
   putStrLn "All basics tests passed."
- where
-  t :: String -> Either String String -> IO ()
-  t = ct "1 2 3 2 3 4 5"
 
+ where
   ct :: String -> String -> Either String String -> IO ()
-  ct s c o = test_cmp c o $ case parseOrFailE (Editing.Parse.commandsP << eof) c "command" of
+  ct x c o = test_cmp c o $ case parseOrFailE (Editing.Parse.commandsP << eof) c "command" of
     Left e -> Left e
-    Right (cmds, _) -> editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) s)
+    Right (cmds, _) -> editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) x)
+
+  s, f :: String -> String -> String -> IO ()
+  s code cmdstring expectation = ct code cmdstring (Right expectation) -- test for success
+  f code cmdstring expectation = ct code cmdstring (Left expectation) -- test for failure
+
+  t = ct "1 2 3 2 3 4 5"
 
 diff_tests :: IO ()
 diff_tests = do
@@ -453,7 +450,6 @@ parse_tests = do
 main :: IO ()
 main = do
   basic_tests
-  make_tests
   Editing.EditsPreparation.use_tests
   diff_tests
   make_type_tests

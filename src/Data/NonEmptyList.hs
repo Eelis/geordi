@@ -62,7 +62,7 @@ init_last :: NeList a -> ([a], a)
 init_last (NeList x []) = ([], x)
 init_last (NeList x (h:t)) = first (x:) $ init_last $ NeList h t
 
-concatMap :: (a -> NeList a) -> NeList a -> NeList a
+concatMap :: (a -> NeList b) -> NeList a -> NeList b
 concatMap f (NeList x y) = NeList a $ b ++ Prelude.concatMap (to_plain . f) y
   where (NeList a b) = f x
 

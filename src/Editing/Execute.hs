@@ -3,9 +3,7 @@
 module Editing.Execute (execute) where
 
 import qualified Data.Set as Set
-import qualified Cxx.Show
 import qualified Cxx.Parse
-import qualified Cxx.Operations
 import qualified Editing.Show
 
 import Editing.EditsPreparation (FindResult(..), FoundIn(..), findInStr)
@@ -113,24 +111,15 @@ exec_edit e (EditableRequest k s) = case e of
       | Evaluate f <- k -> return $ EditableRequest (Evaluate $ Set.union f $ Set.fromList opts) s
       | otherwise -> fail $ "Cannot use evaluation options for \"" ++ show k ++ "\" request."
 
-execute_semcmd :: EditableRequest -> SemCommand -> Either String EditableRequest
-execute_semcmd (EditableRequest (Evaluate oldopts) oldcodeblob) (Make clauses) =
-  case Cxx.Parse.parseRequest oldcodeblob of
-    Left e -> fail $ "Could not parse code in previous request. " ++ e
-    Right r -> do
-      f <- foldM (flip $ uncurry Cxx.Operations.apply_makedecl) r $ flatten_MakeClauses clauses
-      return $ EditableRequest (Evaluate oldopts) $ Cxx.Show.show_simple f
-execute_semcmd _ _ = fail "Last request not suitable."
-
-execute :: ([Command], [SemCommand]) -> EditableRequest -> Either String EditableRequest
-execute (cmds, semcmds) r@(EditableRequest _ str) = do
+execute :: [Command] -> EditableRequest -> Either String EditableRequest
+execute cmds r@(EditableRequest _ str) = do
   (_, r'', _) <- foldM (\(i, r'@(EditableRequest _ str'), m) cmd -> do
     let m' = case m of Left _ -> (\req -> (req, str', i, [])) . Cxx.Parse.parseRequest str'; _ -> m
     es <- findInStr str ((\(x, _, z, _) -> (x, (\v -> case foldM (flip adjustAnchor) v z of Nothing -> fail "Could not adjust anchor in original snippet to anchor in well formed snippet."; Just g -> return g))) . m') cmd >>=
       foldM (\j (Found f e) -> (j++) . maybe [] (:[]) . case f of
           InGiven -> adjustByEdits str e $ i ++ j
-          InWf -> case m' of Left _ -> fail "oops"; Right (_, s, _, k) -> adjustByEdits s e (k++j)) []
+          InWf -> case m' of Left _ -> fail "oops"; Right (_, s, _, k) -> adjustByEdits s e $ k ++ j) []
     r'' <- foldM (flip exec_edit) r' es
     return (i ++ es, r'', (\(a, b, c, d) -> (a, b, c, d ++ es)) . m')
     ) ([], r, fail "oops") cmds
-  foldM execute_semcmd r'' semcmds
+  return r''

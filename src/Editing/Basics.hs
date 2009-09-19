@@ -93,6 +93,12 @@ instance Offsettable Anchor where offset x (Anchor y z) = Anchor y (z + x)
 instance Offsettable ARange where offset = (.) . offset
 instance (Offsettable a, Offsettable b) => Offsettable (a, b) where offset i (x, y) = (offset i x, offset i y)
 instance (Offsettable a, Functor f) => Offsettable (f a) where offset = fmap . offset
+instance Offsettable Int where offset = (+)
+instance Offsettable Edit where
+  offset i (RangeReplaceEdit r s) = RangeReplaceEdit (offset i r) s
+  offset i (MoveEdit ba j r) = MoveEdit ba (offset i j) (offset i r)
+  offset i (InsertEdit a s) = InsertEdit (offset i a) s
+  offset _ e = e
 
 find_occs :: Eq a => [a] -> [a] -> [Pos a]
 find_occs x = map fst . filter (List.isPrefixOf x . snd) . zip [0..] . List.tails
@@ -124,8 +130,8 @@ data Edit
 
 makeMoveEdit :: Monad m => Anchor -> Range Char -> m Edit
 makeMoveEdit (Anchor ba p) r@(Range st si)
-  | p < st = return $ MoveEdit ba (p - st) r
-  | st + si < p = return $ MoveEdit ba (p - st - si) r
+  | p <= st = return $ MoveEdit ba (p - st) r
+  | st + si <= p = return $ MoveEdit ba (p - st - si) r
   | otherwise = fail "Move destination lies in source range."
 
 -- Command grammar
@@ -141,11 +147,12 @@ data Relative a = Absolute a | Relative a (AndList BefAft) (Ranked (Either Finda
   -- Strictly speaking, Absolute can be (and was at some point) encoded by (Between blabla). However, it isn't worth the trouble of the necessary special cases in Show, Parse, etc.
 data In a = In a (Maybe InClause)
 data PositionsClause = PositionsClause (AndList BefAft) Substrs
-data InClause = InClause (AndList (In (Relative (Rankeds (Either Findable DeclaratorId)))))
+data InClause = InClause (AndList (In (Relative (Rankeds (Either Findable ImplicitBodyOf)))))
 data AppendPositionsClause = AppendIn InClause | NonAppendPositionsClause PositionsClause
 data PrependPositionsClause = PrependIn InClause | NonPrependPositionsClause PositionsClause
 type Substr = EverythingOr (Ranked (Either Findable String))
 newtype Substrs = Substrs (AndList (In (Relative (EverythingOr (Rankeds (Either Findable String))))))
+newtype MakeSubject = MakeSubject (AndList (In (Relative ((Rankeds (Either Findable ImplicitDeclarationOf))))))
 data Position = Position BefAft (In (Relative Substr))
 data Replacer = Replacer Substrs String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
 data Changer = Changer Substrs String | ChangeOptions [Request.EvalOpt] [Request.EvalOpt]
@@ -156,9 +163,12 @@ data Betw = Betw Bound RelativeBound
 data Wrapping = Wrapping String String
 data UsePattern = UsePattern String
 data UseClause = UseString (In (Relative UsePattern)) | UseOptions [Request.EvalOpt]
+newtype ImplicitDeclarationOf = ImplicitDeclarationOf DeclaratorId
+newtype ImplicitBodyOf = ImplicitBodyOf DeclaratorId
+data Insertee = SimpleInsert String | WrapInsert Wrapping
 
 data Command
-  = Insert String (AndList AppendPositionsClause)
+  = Insert Insertee (AndList AppendPositionsClause)
   | Append String (Maybe (AndList AppendPositionsClause))
   | Prepend String (Maybe (AndList PrependPositionsClause))
   | Replace (AndList Replacer)
@@ -166,8 +176,7 @@ data Command
   | Erase (AndList Eraser)
   | Move (AndList Mover)
   | Swap Substrs (Maybe Substrs)
-  | WrapAround Wrapping (AndList (Around Substrs))
-  | WrapIn Substrs Wrapping
+  | Make MakeSubject Cxx.Basics.MakeDeclaration
   | Use (AndList UseClause)
 
 data FinalCommand
@@ -178,8 +187,6 @@ data FinalCommand
 newtype Identifier = Identifier { identifier_string :: String }
 
 data MakeClause = MakeClause (AndList DeclaratorId) Cxx.Basics.MakeDeclaration
-data SemCommand = Make (AndList MakeClause)
-  -- This is separate from Command because SemCommands are not executed until /after/ all non-sem-commands have been executed (because the latter may fix syntactic problems that the parser would trip on.)
 
 flatten_MakeClauses :: AndList MakeClause -> [(Cxx.Basics.MakeDeclaration, DeclaratorId)]
 flatten_MakeClauses = concatMap (\(MakeClause (AndList l) d) -> map ((,) d) (NeList.to_plain l)) . NeList.to_plain . andList

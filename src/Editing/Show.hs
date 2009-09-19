@@ -86,6 +86,9 @@ instance Show a => Show (Relative a) where
 
 instance Show a => Show (In a) where show (In x incl) = show x ++ maybe "" show incl
 
+instance Show ImplicitBodyOf where show (ImplicitBodyOf x) = show x
+instance Show ImplicitDeclarationOf where show (ImplicitDeclarationOf x) = show x
+
 instance Show InClause where show (InClause x) = "in " ++ show x
 
 instance Show RelativeBound where
@@ -140,6 +143,10 @@ tense :: Tense -> String -> String
 tense Present s = s
 tense Past s = past s
 
+instance Show Insertee where
+  show (SimpleInsert s) = show s
+  show (WrapInsert w) = show w
+
 show_command :: Tense -> Command -> String
 show_command t (Insert s p) = tense t "insert" ++ " " ++ show s ++ " " ++ show p
 show_command t (Erase l) = tense t "erase" ++ " " ++ show l
@@ -151,8 +158,7 @@ show_command t (Append s mp) = tense t "append" ++ " " ++ show s ++ maybe "" (("
 show_command t (Move l) = tense t "move" ++ " " ++ show l
 show_command t (Swap l Nothing) = tense t "swap" ++ " " ++ show l
 show_command t (Swap l (Just y)) = tense t "swap" ++ " " ++ show l ++ " with " ++ show y
-show_command t (WrapIn l w) = tense t "wrap" ++ " " ++ show l ++ " in " ++ show w
-show_command t (WrapAround w l) = tense t "wrap" ++ " " ++ show w ++ " " ++ show l
+show_command _ _ = "<command>"
 
 instance Prelude.Show Command where
   show = show_command Past

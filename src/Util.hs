@@ -127,6 +127,10 @@ stripInfix _ _  = Nothing
 partitionMaybe :: (a -> Maybe b) -> [a] -> ([a], [b])
 partitionMaybe p = foldr (\x -> maybe (first (x:)) (second . (:)) (p x)) ([], [])
 
+pairs :: [a] -> [(a, a)]
+pairs (x:y:z) = (x,y) : pairs z
+pairs _ = []
+
 -- Test utilities
 
 fail_test :: (Show a, Show b) => String -> a -> b -> IO ()
