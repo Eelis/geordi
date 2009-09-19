@@ -5,6 +5,9 @@
 #include <iostream>
 #include <ios>
 #include <iomanip>
+#include <boost/utility/enable_if.hpp>
+#include <boost/type_traits/is_enum.hpp>
+#include <boost/type_traits/is_integral.hpp>
 
 namespace del_ostream_detail
 {
@@ -15,6 +18,8 @@ namespace del_ostream_detail
   template <typename Ch> Ch const * default_delimiter ();
   template <> inline char const * default_delimiter () { return ", "; }
   template <> inline wchar_t const * default_delimiter () { return L", "; }
+
+  template<typename T> struct take_by_value { enum { value = boost::is_integral<T>::value || boost::is_enum<T>::value }; };
 }
 
 template <typename Ch, typename Tr = std::char_traits<Ch> >
@@ -62,7 +67,11 @@ class basic_del_ostream // Immutable.
     // Operator<<'s:
 
     template <typename T>
-    This operator<< (T const & t) const
+    typename boost::disable_if<del_ostream_detail::take_by_value<T>, This>::type operator<<(T const & t) const
+    { if (!initial) stream() << delimiter(); stream() << t; return This(false, streamp, delimiterp); }
+
+    template <typename T>
+    typename boost::enable_if<del_ostream_detail::take_by_value<T>, This>::type operator<<(T const t) const
     { if (!initial) stream() << delimiter(); stream() << t; return This(false, streamp, delimiterp); }
 
     #define IGNORE(T) This const & operator<< (T const & x) const { stream() << x; return *this; }
@@ -97,7 +106,13 @@ del_ostream const del;
 // Lighter-weight alternative:
 
 template <typename Ch, typename Tr, typename T>
-inline std::basic_ostream<Ch, Tr> & operator, (std::basic_ostream<Ch, Tr> & o, T const & t)
+inline typename boost::disable_if<del_ostream_detail::take_by_value<T>, std::basic_ostream<Ch, Tr> >::type &
+  operator,(std::basic_ostream<Ch, Tr> & o, T const & t)
+{ return o << ", " << t; }
+
+template <typename Ch, typename Tr, typename T>
+inline typename boost::enable_if<del_ostream_detail::take_by_value<T>, std::basic_ostream<Ch, Tr> >::type &
+  operator,(std::basic_ostream<Ch, Tr> & o, T const t)
 { return o << ", " << t; }
 
 template <typename Ch, typename Tr>
@@ -111,6 +126,14 @@ std::basic_ostream<Ch, Tr> & operator, (std::basic_ostream<Ch, Tr> & o, std::bas
 #endif // header guard
 
 #ifdef DELIMITED_OSTREAM_TEST
+
+enum E { a };
+
+struct X
+{
+  static int const i = 3;
+  static E const e = a;
+};
 
 int main ()
 {
@@ -135,7 +158,7 @@ int main ()
   del_ostream const md = del(" - ");
   std::cout << '\n' << std::dec << md << 1 << 2 << 3 << std::endl;
 
-  std::cout << 3, "foo", std::oct, std::showbase, 50, std::endl;
+  std::cout << 3, "foo", std::oct, std::showbase, 50, X::i, X::e, std::endl;
 }
 
 #endif // test
