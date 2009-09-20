@@ -376,7 +376,7 @@ instance Find Command [FindResult Edit] where
   find (Insert (WrapInsert (Wrapping x y)) (AndList z)) =
     concatMap (\(Found v a, Found w b) -> [Found v $ InsertEdit a x, Found w $ InsertEdit b y]) . pairs . concat . map NeList.to_plain . sequence (map find $ NeList.to_plain z)
   find (Move (AndList movers)) = concat . sequence (find . NeList.to_plain movers)
-  find (Swap substrs Nothing) = NeList.to_plain . ((full_range .) .) . find substrs >>= f
+  find (Swap substrs Nothing) = NeList.to_plain . ((replace_range .) .) . find substrs >>= f
     where
       f [] = return []
       f (a:b:c) = liftM2 (++) (makeSwapEdit a b) (f c)

@@ -206,6 +206,7 @@ basic_tests = do
   ct "{ 3; 4; 5; }" "swap first and last statement" $ Right "{ 5; 4; 3; }"
   ct "{ 3; 4; 5; }" "swap statements around 4;" $ Right "{ 5; 4; 3; }"
   ct "{ 3; 4; 5; 6; }" "swap all statements before 5 with last statement" $ Right "{ 6; 5; 3; 4; }"
+  ct "void f(int,double,char);" "swap first two parameter-declarations" $ return "void f(double,int,char);"
   ct "{ if(b) 3; 4; 5; }" "add curlies around first two statements after if" $ Right "{ if(b) {3; 4; }5; }"
   ct "{ 3; 4; 5; }" "add curlies around first and second statement" $ Right "{ {3; 4; }5; }"
   ct "{ 3; 4; 5; }" "add curlies around first statement and around second statement" $ Right "{ {3; }{4; }5; }"
