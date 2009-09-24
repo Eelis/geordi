@@ -210,6 +210,7 @@ basic_tests = do
   ct "{ if(b) 3; 4; 5; }" "add curlies around first two statements after if" $ Right "{ if(b) {3; 4; }5; }"
   ct "{ 3; 4; 5; }" "add curlies around first and second statement" $ Right "{ {3; 4; }5; }"
   ct "{ 3; 4; 5; }" "add curlies around first statement and around second statement" $ Right "{ {3; }{4; }5; }"
+  ct "<< max(3, 2, 1)" "add curlies around code between parens" $ return "<< max({3, 2, 1})"
   ct "{ 1;2;3;4;5; }" "swap first two statements with last two statements" $ Right "{ 4;5; 3;1;2;}"
   ct "{ 1;2;3; }" "swap first two statements" $ Right "{ 2;1;3; }"
   --ct "void f() { 1; } void g() { 1; 2; 3; 4; }" "replace first two and last statement in g with 0;" $ Right "void f() { 1; } void g() { 0;3; 0;}"

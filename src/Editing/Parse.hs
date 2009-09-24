@@ -163,6 +163,9 @@ instance Parse Bound where parse = select [(begin, front), (end_kwds, back)] <||
 
 instance Parse Betw where
   parse = (kwd ["between"] >>>) $ proc _ -> do
+      Wrapping b a <- select namedWrappings -< ()
+      returnA -< Betw (Bound Nothing $ NotEverything $ Sole $ Right b) (RelativeBound Nothing $ Absolute $ NotEverything $ Sole $ Right a)
+    <||> do
       y <- parse -< ()
       do
         rank' <- and parse -< (); s <- parse -< ()
