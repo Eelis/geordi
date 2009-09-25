@@ -60,6 +60,7 @@ instance ArrowChoice Parser where
       Right y -> fmap Right `fmap` p t' y
 
 class Parse a where parse :: Parser x a
+class ParsePlural a where parsePlural :: Parser x a
 
 kwd :: [String] -> Parser a String
 kwd s = Parser (Terminators False s []) $ \(Terminators b _ _) _ -> fmap Right $ try $
@@ -73,20 +74,26 @@ Parser (Terminators b t a) f <||> Parser (Terminators b' t' a') f' =
   Parser (Terminators (b || b') (t ++ t') (a ++ a')) $ \y x -> f y x <|> f' y x
 
 named_characters :: [(String, String)]
-named_characters = [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~"), ("slash", "/"), ("backslash", "\\")]
+named_characters = [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~"), ("slash", "/"), ("backslash", "\\"), ("asterisk", "*"), ("caret", "^")]
 
 instance Parse String where
-  parse = label "verbatim string" $ (select cs <||>) $
+  parse = label "verbatim string" $ (parsePlural <||>) $ (select cs <||>) $
     Parser (Terminators False [] []) $ \t _ -> quoted <|> unquoted t
    where
     quoted = char '`' >> fmap Right (many $ satisfy (/= '`')) << char '`' << spaces
     unquoted t = fmap (Right . NeList.to_plain . fst) $ many1Till (P.silent anySymbol) $ try $ apply_if (term_eof t) (eof <|>) $ lookAhead
       (choice ((\k -> try $ symbols (' ': k) >> (eof <|> P.char_unit ' ')) `fmap` term_keywords t)) >> P.char_unit ' '
     cs :: [([String], String)]
-    cs = map (\(x, y) -> ([plural x, x, (if isVowel (head x) then "an " else "a ") ++ x], y)) named_characters
+    cs = map (\(x, y) -> ([x, (if isVowel (head x) then "an " else "a ") ++ x], y)) named_characters
+
+instance ParsePlural String where
+  parsePlural = label "verbatim string" $ select $ map (first ((:[]) . plural)) named_characters
 
 instance Parse a => Parse (AndList a) where
   parse = liftA2 NeList parse ((and parse >>> arr (NeList.to_plain . andList)) <||> arr (const [])) >>> arr AndList
+
+pzero :: Parser x a
+pzero = Parser (Terminators False [] []) $ \_ _ -> P.pzero
 
 and :: Parser x a -> Parser x a
 and (Parser (Terminators _ t _) p) = Parser (Terminators False ["and"] t) $
@@ -96,6 +103,8 @@ and (Parser (Terminators _ t _) p) = Parser (Terminators False ["and"] t) $
     p t' x
 
 instance (Parse a, Parse b) => Parse (Either a b) where parse = (parse >>> arr Left) <||> (parse >>> arr Right)
+instance (ParsePlural a, ParsePlural b) => ParsePlural (Either a b) where
+  parsePlural = (parsePlural >>> arr Left) <||> (parsePlural >>> arr Right)
 
 select :: [([String], a)] -> Parser x a
 select = foldl1 (<||>) . map (\(s, r) -> if null s then arr (const r) else kwd s >>> arr (const r))
@@ -201,8 +210,7 @@ instance Parse (Relative Substr) where
       returnA -< Between Everything $ Betw (Bound (Just Before) $ NotEverything x) u
     <||> (relative -< NotEverything x)
 
-instance Parse (Relative (Ranked Cxx.Basics.Findable)) where parse = parse >>> relative
-instance Parse (Relative (Rankeds (Either Cxx.Basics.Findable ImplicitBodyOf))) where parse = parse >>> relative
+instance Parse a => Parse (Relative a) where parse = parse >>> relative
 
 instance Parse (Relative (EverythingOr (Rankeds (Either Cxx.Basics.Findable String)))) where
   parse = (relative_everything_orA <||>) $ (parse >>>) $ proc x -> case x of
@@ -218,46 +226,64 @@ instance Parse (Relative (EverythingOr (Rankeds (Either Cxx.Basics.Findable Stri
 
 instance Parse ImplicitDeclarationOf where parse = auto1 ImplicitDeclarationOf
 instance Parse ImplicitBodyOf where parse = auto1 ImplicitBodyOf
-
-instance Parse (Relative (Rankeds (Either Cxx.Basics.Findable ImplicitDeclarationOf))) where
-  parse = parse >>> relative
-
-with_plurals :: [String] -> [String]
-with_plurals l = map (++"s") l ++ l
+instance ParsePlural ImplicitBodyOf where parsePlural = pzero
+instance ParsePlural ImplicitDeclarationOf where parsePlural = pzero
 
 instance Parse Cxx.Basics.Findable where
-  parse =
-    (label "\"declaration\"" (kwd ["declarations", "declaration"]) >>> kwd ["of"] >>> auto1 Cxx.Basics.DeclarationOf) <||>
-    (label "\"body\"" (kwd ["bodies", "body"]) >>> kwd ["of"] >>> auto1 Cxx.Basics.BodyOf) <||>
+  parse = (parsePlural <||>) $
+    (kwd ["declaration"] >>> kwd ["of"] >>> auto1 Cxx.Basics.DeclarationOf) <||>
+    (kwd ["body"] >>> kwd ["of"] >>> auto1 Cxx.Basics.BodyOf) <||>
     label "production-name" (
       auto1 Cxx.Basics.FindableDataType <||>
       auto1 Cxx.Basics.FindableConstr <||>
-      (kwd (with_plurals ["constructor", "ctor"]) >>> arr (const Cxx.Basics.Constructor)) <||>
-      (kwd (with_plurals ["destructor", "dtor"]) >>> arr (const Cxx.Basics.Destructor)) <||>
-      (kwd (with_plurals ["conversion-function"]) >>> arr (const Cxx.Basics.ConversionFunction)) <||>
-      (kwd (with_plurals ["parameter-declaration"]) >>> arr (const Cxx.Basics.FindableParameterDeclaration)) <||>
-      (kwd (with_plurals ["template-parameter"]) >>> arr (const Cxx.Basics.TemplateParameter)) <||>
-      (kwd (with_plurals ["template-argument"]) >>> arr (const Cxx.Basics.TemplateArgument)))
+      (kwd ["constructor", "ctor"] >>> arr (const Cxx.Basics.Constructor)) <||>
+      (kwd ["destructor", "dtor"] >>> arr (const Cxx.Basics.Destructor)) <||>
+      (kwd ["conversion-function"] >>> arr (const Cxx.Basics.ConversionFunction)) <||>
+      (kwd ["parameter-declaration"] >>> arr (const Cxx.Basics.FindableParameterDeclaration)) <||>
+      (kwd ["template-parameter"] >>> arr (const Cxx.Basics.TemplateParameter)) <||>
+      (kwd ["template-argument"] >>> arr (const Cxx.Basics.TemplateArgument)))
+
+instance ParsePlural Cxx.Basics.Findable where
+  parsePlural =
+    (label "\"declaration\"" (kwd ["declarations"]) >>> kwd ["of"] >>> auto1 Cxx.Basics.DeclarationOf) <||>
+    (label "\"body\"" (kwd ["bodies"]) >>> kwd ["of"] >>> auto1 Cxx.Basics.BodyOf) <||>
+    label "production-name" (
+      (parsePlural >>> arr Cxx.Basics.FindableDataType) <||>
+      (parsePlural >>> arr Cxx.Basics.FindableConstr) <||>
+      (kwd ["constructors", "ctors"] >>> arr (const Cxx.Basics.Constructor)) <||>
+      (kwd ["destructors", "dtors"] >>> arr (const Cxx.Basics.Destructor)) <||>
+      (kwd ["conversion-functions"] >>> arr (const Cxx.Basics.ConversionFunction)) <||>
+      (kwd ["parameter-declarations"] >>> arr (const Cxx.Basics.FindableParameterDeclaration)) <||>
+      (kwd ["template-parameters"] >>> arr (const Cxx.Basics.TemplateParameter)) <||>
+      (kwd ["template-arguments"] >>> arr (const Cxx.Basics.TemplateArgument)))
 
 class Constructor a where to_constr :: a -> Constr
 instance Data a => Constructor a where to_constr x = toConstr x
 instance Constructor b => Constructor (a -> b) where to_constr f = to_constr $ f undefined
 
 instance Parse DataType where
-  parse = select $ map (\t -> (with_plurals [show $ Cxx.Basics.FindableDataType t], t)) Cxx.Operations.findable_productions
+  parse = parsePlural <||> (select $ map (\t -> ([show $ Cxx.Basics.FindableDataType t], t)) Cxx.Operations.findable_productions)
+instance ParsePlural DataType where
+  parsePlural = select $ map (\t -> ([show (Cxx.Basics.FindableDataType t) ++ "s"], t)) Cxx.Operations.findable_productions
+
+parseableConstructors :: [Constr]
+parseableConstructors =
+#define P(n) to_constr Cxx.Basics.n
+  [ P(BooleanLiteral), P(PointerLiteral), P(IfStatement), P(SwitchStatement), P(WhileStatement), P(DoWhileStatement)
+  , P(ForStatement), P(BreakStatement), P(ContinueStatement), P(ReturnStatement), P(GotoStatement) ]
+#undef P
 
 instance Parse Constr where
-  parse = select $ map (\c -> (with_plurals [show $ Cxx.Basics.FindableConstr c], c))
-#define P(n) to_constr Cxx.Basics.n
-    [ P(BooleanLiteral), P(PointerLiteral), P(IfStatement), P(SwitchStatement), P(WhileStatement), P(DoWhileStatement)
-    , P(ForStatement), P(BreakStatement), P(ContinueStatement), P(ReturnStatement), P(GotoStatement) ]
-#undef P
+  parse = parsePlural <||> select (map (\c -> ([show $ Cxx.Basics.FindableConstr c], c)) parseableConstructors)
+instance ParsePlural Constr where
+  parsePlural = select $ map (\c -> ([show (Cxx.Basics.FindableConstr c) ++ "s"], c)) parseableConstructors
 
 instance Parse Position where
   parse = (select [(begin, Before), (end_kwds, After)] >>> arr (flip Position $ flip In Nothing $ Absolute Everything)) <||> auto2 Position
 
-instance Parse a => Parse (Rankeds a) where
-  parse = (kwd ["all"] >>> ((kwd ["except", "but"] >>> auto2 AllBut) <||> auto1 All))
+instance (Parse a, ParsePlural a) => Parse (Rankeds a) where
+  parse =
+    (parsePlural >>> arr All) <||> (kwd ["all"] >>> ((kwd ["except", "but"] >>> auto2 AllBut) <||> auto1 All))
     <||> (kwd ["any", "every", "each"] >>> auto1 All) <||> auto2 Rankeds <||> auto1 Sole'
 
 instance Parse InClause where parse = kwd ["in"] >>> auto1 InClause
