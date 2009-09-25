@@ -171,10 +171,10 @@ namespace tracked
     }
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      B::B(B && b): Tracked(std::move<Tracked>(b))
+      B::B(B && b): Tracked(std::move(b))
       { set_name("B"); detail::info const i; b.print(i()); i() << "=>"; print(i()); i() << '*'; }
       B & B::operator=(B && b) {
-        Tracked::operator=(std::move<Tracked>(b));
+        Tracked::operator=(std::move(b));
         detail::info const i; b.print(i()); i() << "=>"; print(i());
         return *this;
       }
@@ -263,10 +263,10 @@ namespace tracked
     template std::wostream & operator<<<wchar_t, std::char_traits<wchar_t> >(std::wostream &, D const &);
 
     #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      D::D(D && d): B(std::move<B>(d))
+      D::D(D && d): B(std::move(d))
       { set_name("D"); detail::info const i; d.print(i()); i() << "=>"; print(i()); i() << '*'; }
       D & D::operator=(D && d) {
-        B::operator=(std::move<B>(d));
+        B::operator=(std::move(d));
         detail::info const i; d.print(i()); i() << "=>"; print(i());
         return *this;
       }
