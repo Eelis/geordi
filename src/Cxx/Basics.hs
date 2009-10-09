@@ -467,7 +467,7 @@ data ParameterDeclarationClause = ParameterDeclarationClause (Maybe ParameterDec
 newtype ParameterDeclarationList = ParameterDeclarationList (Commad ParameterDeclaration) deriving (Data, Typeable, Eq)
 data ParameterDeclaration = ParameterDeclaration DeclSpecifierSeq (Either Declarator (Maybe AbstractDeclarator)) (Maybe ((IsOperator, White), AssignmentExpression)) deriving (Data, Typeable, Eq)
 data FunctionDefinition = FunctionDefinition (Maybe DeclSpecifierSeq) Declarator FunctionBody deriving (Data, Typeable, Eq)
-data FunctionBody = FunctionBody (Maybe CtorInitializer) CompoundStatement deriving (Data, Typeable, Eq)
+data FunctionBody = FunctionBody (Maybe CtorInitializer) CompoundStatement | FunctionBody_FunctionTryBlock FunctionTryBlock deriving (Data, Typeable, Eq)
 data Initializer = Initializer_Parenthesized (Parenthesized ExpressionList) | Initializer_BraceOrEqualInitializer BraceOrEqualInitializer deriving (Data, Typeable, Eq)
 data BraceOrEqualInitializer = EqualInitializer (IsOperator, White) InitializerClause | BraceInitializer BracedInitList deriving (Data, Typeable, Eq)
 newtype InitializerClause = InitializerClause (Either BracedInitList AssignmentExpression) deriving (Data, Typeable, Eq)
@@ -526,7 +526,7 @@ data ExplicitSpecialization = ExplicitSpecialization (KwdTemplate, White) (Angle
 -- A.13 Exception handling [gram.except]
 
 data TryBlock = TryBlock (KwdTry, White) CompoundStatement HandlerSeq deriving (Data, Typeable, Eq)
-data FunctionTryBlock = FunctionTryBlock (KwdTry, White) (Maybe CtorInitializer) CompoundStatement (NeList Handler) deriving (Data, Typeable, Eq)
+data FunctionTryBlock = FunctionTryBlock (KwdTry, White) (Maybe CtorInitializer) CompoundStatement HandlerSeq deriving (Data, Typeable, Eq)
 newtype HandlerSeq = HandlerSeq (NeList Handler) deriving (Data, Typeable, Eq)
 data Handler = Handler (KwdCatch, White) (Parenthesized ExceptionDeclaration) CompoundStatement deriving (Data, Typeable, Eq)
 data ExceptionDeclaration = ExceptionDeclaration_Ellipsis (Ellipsis_, White) | ExceptionDeclaration TypeSpecifierSeq (Maybe (Either Declarator AbstractDeclarator)) deriving (Data, Typeable, Eq)

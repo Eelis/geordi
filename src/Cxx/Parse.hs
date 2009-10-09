@@ -628,7 +628,7 @@ instance Parse FunctionDefinition where
     (declspecs, (declarator, body)) <- manyTill parse (liftM2 (,) parse parse)
     return $ FunctionDefinition (convert (declspecs :: [DeclSpecifier])) declarator body
 
-instance Parse FunctionBody where autoname_parse = auto2 FunctionBody
+instance Parse FunctionBody where autoname_parse = auto2 FunctionBody <|> auto1 FunctionBody_FunctionTryBlock
 
 -- A.8 Classes [gram.class]
 
@@ -697,6 +697,7 @@ instance Parse ExplicitSpecialization where autoname_parse = auto3 ExplicitSpeci
 instance Parse ExceptionSpecification where autoname_parse = auto2 ExceptionSpecification
 instance Parse TypeIdList where autoname_parse = auto1 TypeIdList
 instance Parse TryBlock where autoname_parse = auto3 TryBlock
+instance Parse FunctionTryBlock where autoname_parse = auto4 FunctionTryBlock
 instance Parse HandlerSeq where autoname_parse = auto1 HandlerSeq
 instance Parse Handler where autoname_parse = auto3 Handler
 instance Parse ExceptionDeclaration where autoname_parse = auto1 ExceptionDeclaration_Ellipsis <|> auto2 ExceptionDeclaration
