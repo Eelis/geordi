@@ -174,6 +174,9 @@ cardinals = words "zero one two three four five six seven eight nine ten"
 
 -- Misc English/textual
 
+indefinite :: String -> String
+indefinite x = (if isVowel (head x) then "an " else "a ") ++ x
+
 multiplicative_numeral :: Int -> String
 multiplicative_numeral i = case i of
   1 -> "once"; 2 -> "twice"; 3 -> "thrice"
@@ -207,6 +210,7 @@ plural :: String -> String
 plural "body" = "bodies"
 plural "slash" = "slashes"
 plural "backslash" = "backslashes"
+plural "ellipsis" = "ellipses"
 plural s = s ++ "s"
 
 -- Inversion

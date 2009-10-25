@@ -13,7 +13,7 @@ import Control.Category (Category, (.), id)
 import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA)
 import Data.Generics (DataType, Constr, toConstr, Data)
 import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, many1Till, optParser, try, many, satisfy, spaces)
-import Util (isVowel, (<<), liftA2, Ordinal(..), apply_if, cardinals, plural)
+import Util ((<<), liftA2, Ordinal(..), apply_if, cardinals, plural, indefinite)
 import Cxx.Basics (DeclaratorId)
 import Request (EvalOpt)
 
@@ -74,7 +74,7 @@ Parser (Terminators b t a) f <||> Parser (Terminators b' t' a') f' =
   Parser (Terminators (b || b') (t ++ t') (a ++ a')) $ \y x -> f y x <|> f' y x
 
 named_characters :: [(String, String)]
-named_characters = [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~"), ("slash", "/"), ("backslash", "\\"), ("asterisk", "*"), ("caret", "^")]
+named_characters = [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~"), ("slash", "/"), ("backslash", "\\"), ("asterisk", "*"), ("caret", "^"), ("period", "."), ("ellipsis", "...")]
 
 instance Parse String where
   parse = label "verbatim string" $ (parsePlural <||>) $ (select cs <||>) $
@@ -84,7 +84,7 @@ instance Parse String where
     unquoted t = fmap (Right . NeList.to_plain . fst) $ many1Till (P.silent anySymbol) $ try $ apply_if (term_eof t) (eof <|>) $ lookAhead
       (choice ((\k -> try $ symbols (' ': k) >> (eof <|> P.char_unit ' ')) `fmap` term_keywords t)) >> P.char_unit ' '
     cs :: [([String], String)]
-    cs = map (\(x, y) -> ([x, (if isVowel (head x) then "an " else "a ") ++ x], y)) named_characters
+    cs = map (\(x, y) -> ([x, indefinite x], y)) named_characters
 
 instance ParsePlural String where
   parsePlural = label "verbatim string" $ select $ map (first ((:[]) . plural)) named_characters
