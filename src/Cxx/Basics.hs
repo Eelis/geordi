@@ -337,8 +337,8 @@ newtype IntegerLiteral = IntegerLiteral String deriving (Data, Typeable, Eq)
 data CharacterLiteralKind = CharacterLiteral_Plain | CharacterLiteralKind_u | CharacterLiteralKind_U | CharacterLiteralKind_L deriving (Data, Typeable, Eq)
 data CharacterLiteral = CharacterLiteral CharacterLiteralKind String deriving (Data, Typeable, Eq)
 newtype FloatingLiteral = FloatingLiteral String deriving (Data, Typeable, Eq)
-data StringLiteralKind = StringLiteral_Plain | StringLiteral_u8 | StringLiteral_u | StringLiteral_U | StringLiteral_L deriving (Data, Typeable, Eq)
-data SingleStringLiteral = SingleStringLiteral StringLiteralKind String deriving (Data, Typeable, Eq)
+data EncodingPrefix = EncodingPrefix_u8 | EncodingPrefix_u | EncodingPrefix_U | EncodingPrefix_L deriving (Data, Typeable, Eq)
+data SingleStringLiteral = SingleStringLiteral (Maybe EncodingPrefix) String deriving (Data, Typeable, Eq)
 data StringLiteral = StringLiteral (NeList (SingleStringLiteral, White)) deriving (Data, Typeable, Eq)
 
 -- A.3 Basic concepts [gram.basic]

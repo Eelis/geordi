@@ -326,7 +326,7 @@ findable_productions =
     , P(ClassName), P(EnumName), P(TemplateName)
 
     -- A.2 Lexical conventions [gram.lex]
-    , P(Identifier), P(Literal), P(IntegerLiteral), P(CharacterLiteral), P(FloatingLiteral), P(StringLiteral)
+    , P(Identifier), P(Literal), P(IntegerLiteral), P(CharacterLiteral), P(FloatingLiteral), P(StringLiteral), P(EncodingPrefix)
 
     -- A.4 Expressions [gram.expr]
     , P(PrimaryExpression), P(IdExpression), P(UnqualifiedId), P(QualifiedId), P(NestedNameSpecifier), P(PostfixExpression)

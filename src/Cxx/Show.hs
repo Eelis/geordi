@@ -219,7 +219,7 @@ pretty =
     ()| Just s <- cast x -> \o -> wrap (highlighter o RoundParen) (show (s :: CloseParen_))
 
 #define SHOW(t) ()| Just s <- cast x -> pure $ show (s :: t);
-    SHOW(SemicolonOperator) SHOW(CommaOp) SHOW(ScopeRes) SHOW(UnaryOperator) SHOW(AssignmentOperator) SHOW(RelationalOperator) SHOW(QuestionOp) SHOW(ColonOp) SHOW(IncDecOperator) SHOW(AdditiveOperator) SHOW(MultiplicativeOperator) SHOW(PmOperator)  SHOW(MemberOperator) SHOW(IsOperator) SHOW(Tilde_) SHOW(Sign) SHOW(OpenSquare_) SHOW(CloseSquare_) SHOW(LeftShiftOp) SHOW(OpenAngle_) SHOW(CloseAngle_) SHOW(AccessSpecifier) SHOW(StarOperator) SHOW(AndOperator) SHOW(LogicalAndOperator) SHOW(LogicalOrOperator) SHOW(ExclusiveOrOperator) SHOW(InclusiveOrOperator) SHOW(EqualityOperator) SHOW(ShiftOperator) SHOW(RefQualifier) SHOW(StringLiteral) SHOW(KwdZero) SHOW(ArrowOp) SHOW(Ellipsis_)
+    SHOW(SemicolonOperator) SHOW(CommaOp) SHOW(ScopeRes) SHOW(UnaryOperator) SHOW(AssignmentOperator) SHOW(RelationalOperator) SHOW(QuestionOp) SHOW(ColonOp) SHOW(IncDecOperator) SHOW(AdditiveOperator) SHOW(MultiplicativeOperator) SHOW(PmOperator)  SHOW(MemberOperator) SHOW(IsOperator) SHOW(Tilde_) SHOW(Sign) SHOW(OpenSquare_) SHOW(CloseSquare_) SHOW(LeftShiftOp) SHOW(OpenAngle_) SHOW(CloseAngle_) SHOW(AccessSpecifier) SHOW(StarOperator) SHOW(AndOperator) SHOW(LogicalAndOperator) SHOW(LogicalOrOperator) SHOW(ExclusiveOrOperator) SHOW(InclusiveOrOperator) SHOW(EqualityOperator) SHOW(ShiftOperator) SHOW(RefQualifier) SHOW(StringLiteral) SHOW(KwdZero) SHOW(ArrowOp) SHOW(Ellipsis_) SHOW(EncodingPrefix)
 #undef SHOW
     ()| Just (Identifier s (White w)) <- cast x -> pure $ s ++ w
     ()| Just s <- cast x -> pure s
@@ -288,15 +288,15 @@ instance Show Literal where
   show (BooleanLiteral b w) = (if b then "true" else "false") ++ show w
   show (PointerLiteral w) = "nullptr" ++ show w
 instance Show CharacterLiteral where show (CharacterLiteral k s) = show k ++ '\'' : s ++ "'"
-instance Show SingleStringLiteral where show (SingleStringLiteral k s) = show k ++ '"' : s ++ "\""
+instance Show SingleStringLiteral where show (SingleStringLiteral k s) = maybe "" show k ++ '"' : s ++ "\""
 instance Show StringLiteral where show (StringLiteral l) = concatMap (\(x, y) -> show x ++ show y) $ NeList.to_plain l
 instance Show IntegerLiteral where show (IntegerLiteral s) = s
 instance Show CharacterLiteralKind where
   show CharacterLiteral_Plain = ""; show CharacterLiteralKind_u = "u"
   show CharacterLiteralKind_U = "U"; show CharacterLiteralKind_L = "L"
 instance Show FloatingLiteral where show (FloatingLiteral s) = s
-instance Show StringLiteralKind where
-  show StringLiteral_Plain = ""; show StringLiteral_L = "L"
-  show StringLiteral_u8 = "u8"; show StringLiteral_u = "u"; show StringLiteral_U = "U"
+instance Show EncodingPrefix where
+  show EncodingPrefix_L = "L"; show EncodingPrefix_u8 = "u8"
+  show EncodingPrefix_u = "u"; show EncodingPrefix_U = "U"
 
 instance Show DeclaratorId where show = Cxx.Show.show_simple

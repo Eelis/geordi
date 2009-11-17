@@ -360,8 +360,8 @@ instance Parse IntegerLiteral where
     b <- makeTypeExtensions . parseOptions
     if b then choice $ zipWith (\n s -> kwd s >> return (show n)) [0::Int ..] cardinals else pzero
    where p = liftM2 (:) (satisfy Char.isDigit) (many (satisfy Char.isAlphaNum) << notFollowedBy (satisfy isIdChar))
-instance Parse StringLiteralKind where
-  parse = (symbols "u8" >> return StringLiteral_u8) <|> (symbol 'u' >> return StringLiteral_u) <|> (symbol 'U' >> return StringLiteral_U) <|> (symbol 'L' >> return StringLiteral_L) <|> return StringLiteral_Plain
+instance Parse EncodingPrefix where
+  parse = (symbols "u8" >> return EncodingPrefix_u8) <|> (symbol 'u' >> return EncodingPrefix_u) <|> (symbol 'U' >> return EncodingPrefix_U) <|> (symbol 'L' >> return EncodingPrefix_L)
 instance Parse SingleStringLiteral where parse = liftM2 SingleStringLiteral parse (textLit '"')
 instance Parse StringLiteral where autoname_parse = StringLiteral . many1 (auto2 (,))
 instance Parse CharacterLiteralKind where parse = (symbol 'u' >> return CharacterLiteralKind_u) <|> (symbol 'U' >> return CharacterLiteralKind_U) <|> (symbol 'L' >> return CharacterLiteralKind_L) <|> return CharacterLiteral_Plain
