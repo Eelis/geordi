@@ -364,7 +364,8 @@ instance Parse FinalCommand where
   parse = label "edit command" $
     (kwd ["show", "display"] >>> commit (option parse >>> arr Show)) <||>
     (kwd ["identify"] >>> commit (auto1 Identify)) <||>
-    (kwd ["parse"] >>> arr (const Parse))
+    (kwd ["parse"] >>> arr (const Parse)) <||>
+    (kwd ["diff"] >>> arr (const Diff))
 
 instance Parse ([Command], Maybe FinalCommand) where
   parse = liftA2 (,) (parse >>> arr (NeList.to_plain . andList)) (option $ and parse)

@@ -11,7 +11,6 @@ import qualified Cxx.Parse
 import qualified Cxx.Operations
 import qualified Cxx.Show
 import qualified Data.List as List
-import qualified Data.Maybe as Maybe
 import qualified Data.NonEmptyList as NeList
 import Data.NonEmptyList (NeList(..))
 
@@ -21,7 +20,7 @@ import Data.Char (isPrint, isSpace)
 import Data.Either (lefts)
 import Editing.Basics (FinalCommand(..))
 import Parsers ((<|>), eof, optParser, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail, commit)
-import Util ((.), (<<), (.||.), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert, maybeLast, orElse)
+import Util ((.), (<<), (.||.), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert, maybeLast, orElse, E)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
 import Prelude hiding (catch, (.))
 
@@ -75,64 +74,70 @@ evaluator h = do
     -- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.
     prel = "#include \"prelude.hpp\"\n"
 
-    respond :: EditableRequest -> Either String (IO String)
+    respond :: EditableRequest -> E (IO String)
     respond (EditableRequest MakeType d) = return . Cxx.Show.show_simple . Cxx.Parse.makeType d
     respond (EditableRequest Precedence t) = return . Cxx.Parse.precedence t
     respond (EditableRequest (Evaluate opts) code) = do
       sc <- parseOrFail (Cxx.Parse.code << eof) (dropWhile isSpace code) "request"
       return $ evf $ EvalCxx.Request (prel ++ (if Set.member Terse opts then "#include \"terse.hpp\"\n" else "") ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc)) (not $ Set.member CompileOnly opts) (Set.member NoWarn opts)
 
-    respond_and_remember :: EditableRequest -> Either String (IO Response)
+    respond_and_remember :: EditableRequest -> E (IO Response)
     respond_and_remember er = (Response (Just $ AddLast er) .) . respond er
 
-  return $ \r (Context prevs) -> do
-  let
     help_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << help; }") True False)
     version_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << \"g++ (GCC) \" << __VERSION__; }") True False)
     uname_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << geordi::uname(); }") True False)
 
-    editcmd :: Maybe EditableRequest -> Parser Char (Either String (EditableRequest, IO String))
-    editcmd mprev = do
-      oe <- Editing.Parse.commandsP; commit $ (eof >>) $ return $ do
-      prev <- maybe (fail "There is no prior request.") return mprev
-      (cs, mfcmd) <- oe
-      edited <- Editing.Execute.execute cs prev
-      if length_ge 1000 (editable_body edited) then fail "Request would become too large." else do
-      (,) edited . case mfcmd of
-        Just fcmd -> return . final_cmd fcmd (Just edited)
-        Nothing -> respond edited
-
-    final_cmd :: FinalCommand -> Maybe EditableRequest -> Either String String
-    final_cmd _ Nothing = fail "There is no previous request."
-    final_cmd (Show Nothing) (Just er) = return $ show_EditableRequest h er
-    final_cmd (Show (Just substrs)) (Just (EditableRequest (Evaluate _) c)) = do
+    final_cmd :: FinalCommand -> [EditableRequest] -> E String
+    final_cmd _ [] = fail "There is no previous request."
+    final_cmd (Show Nothing) (er:_) = return $ show_EditableRequest h er
+    final_cmd (Show (Just substrs)) (EditableRequest (Evaluate _) c : _) = do
       l <- ((\(Editing.EditsPreparation.Found _ x) -> x) .) . NeList.to_plain . Editing.EditsPreparation.findInStr c (flip (,) return . Cxx.Parse.parseRequest c) substrs
       return $ commas_and (map (\x -> '`' : strip (Editing.Basics.selectRange (convert $ Editing.Basics.replace_range x) c) ++ "`") l) ++ "."
-    final_cmd (Show (Just _)) (Just _) = fail "Last (editable) request was not an evaluation request."
-    final_cmd (Identify substrs) (Just (EditableRequest (Evaluate _) c)) = do
+    final_cmd (Show (Just _)) (_:_) = fail "Last (editable) request was not an evaluation request."
+    final_cmd (Identify substrs) (EditableRequest (Evaluate _) c : _) = do
       tree <- Cxx.Parse.parseRequest c
       l <- ((\(Editing.EditsPreparation.Found _ x) -> x) .) . NeList.to_plain . Editing.EditsPreparation.findInStr c (Right (tree, return)) substrs
       return $ concat $ List.intersperse ", " $ map (nicer_namedPathTo . Cxx.Operations.namedPathTo tree . convert . Editing.Basics.replace_range) l
-    final_cmd Parse (Just (EditableRequest (Evaluate _) c)) =
+    final_cmd Parse (EditableRequest (Evaluate _) c : _) =
       Cxx.Parse.parseRequest c >> return "Looks fine to me."
-    final_cmd _ (Just _) = fail "Last (editable) request was not an evaluation request."
+    final_cmd Diff (x : y : _) = return $ diff x y
+    final_cmd Diff [_] = fail "History exhausted."
+    final_cmd _ (_:_) = fail "Last (editable) request was not an evaluation request."
 
-    p :: Parser Char (Either String (IO Response))
+    editcmd :: [EditableRequest] -> Parser Char (E (EditableRequest, IO String))
+    editcmd prevs = do
+      oe <- Editing.Parse.commandsP; commit $ (eof >>) $ return $ do
+      case prevs of
+        [] -> fail "There is no prior request."
+        prev : _ -> do
+          (cs, mfcmd) <- oe
+          edited <- Editing.Execute.execute cs prev
+          if length_ge 1000 (editable_body edited) then fail "Request would become too large." else do
+          (,) edited . case mfcmd of
+            Just fcmd -> return . final_cmd fcmd (edited : prevs)
+            Nothing -> case respond edited of
+              Left e -> Right $ return $ "error: " ++ e
+              Right x -> Right x
+
+  return $ \r (Context prevs) -> do
+  let
+    p :: Parser Char (E (IO Response))
     p = (spaces >>) $ do
         fcmd_or_error <- Editing.Parse.finalCommandP; commit $ (eof >>) $ return $ do
         fcmd <- fcmd_or_error
-        return . Response Nothing . final_cmd fcmd (Maybe.listToMaybe prevs)
+        return . Response Nothing . final_cmd fcmd prevs
       <|> do
         kwds ["undo", "revert"]; commit $ case prevs of
-          _:prev:_ -> kwd "and" >> (do
+          _ : old -> kwd "and" >> (do
               fcmd_or_error <- Editing.Parse.finalCommandP; commit $ (eof >>) $ return $ do
               fcmd <- fcmd_or_error
-              return . Response (Just DropLast) . final_cmd fcmd (Just prev)
+              return . Response (Just DropLast) . final_cmd fcmd old
             <|> do
-              y <- editcmd $ Just prev; return $ do
+              y <- editcmd old; return $ do
               (edited, output) <- y
               return $ Response (Just $ ReplaceLast edited) . output)
-          _ -> return $ fail "There is no prior request."
+          _ -> return $ fail "History exhausted."
       <|> do
         kwds ["--precedence", "precedence"]
         return . respond_and_remember . EditableRequest Precedence =<< getInput
@@ -147,15 +152,11 @@ evaluator h = do
         return $ return $ return $ Response Nothing $ unwords $ EvalCxx.compileFlags compile_cfg
           -- Here we can nicely summarize the three monad levels we're in. The first return indicates a successfully parsed command. The second indicates there were no errors executing the command. The third indicates a pure result in IO.
       <|> do
-        kwds ["diff", "diffs", "differences", "changes"]; commit $ (eof >>) $ return $ case prevs of
-          x : y : _ -> return $ return $ Response Nothing $ diff x y
-          _ -> fail "I have not yet seen two comparable requests."
-      <|> do
         optional (kwd "try"); kwd "again"; commit $ (eof >>) $ return $ case prevs of
           [] -> fail "There is no repeatable request."
           x : _ -> (Response Nothing .) . respond x
       <|> do
-        y <- editcmd $ Maybe.listToMaybe prevs; return $ do
+        y <- editcmd prevs; return $ do
         (edited, output) <- y
         return $ Response (Just $ AddLast edited) . output
       <|> do

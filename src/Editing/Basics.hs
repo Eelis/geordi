@@ -183,6 +183,7 @@ data FinalCommand
   = Show (Maybe Substrs)
   | Identify Substrs
   | Parse
+  | Diff
 
 newtype Identifier = Identifier { identifier_string :: String }
 
