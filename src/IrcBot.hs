@@ -196,7 +196,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
           mmem <- Map.lookup wher . lift readState
           let con = context . mmem `orElse` Request.Context []
           Request.Response history_modification output <- lift $ lift $ eval r con
-          let output' = describe_lines $ lines output
+          let output' = describe_lines $ dropWhile null $ lines output
           lift $ mapState' $ Map.insert wher ChannelMemory
             { context = maybe id Request.modify_history history_modification con
             , last_output = output' }
