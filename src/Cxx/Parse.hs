@@ -387,8 +387,7 @@ instance Parse UnqualifiedId where
 instance Parse QualifiedId where
   autoname_parse = (do
     w <- parse
-    GlobalIdentifier w . parse <|> GlobalOperatorFunctionId w . parse <|> GlobalTemplateId w . parse <|>
-      auto3 (NestedUnqualifiedId (Just w))
+    auto3 (NestedUnqualifiedId (Just w)) <|> GlobalIdentifier w . parse <|> GlobalOperatorFunctionId w . parse <|> GlobalTemplateId w . parse
    ) <|> auto3 (NestedUnqualifiedId Nothing)
 instance Parse NestedNameSpecifier where
   autoname_parse = liftM2 (foldl (flip ($)))

@@ -445,6 +445,7 @@ parse_tests = do
   t "struct A<int>;"
   t "void f(int, ...);"
   t "{ if(int i = 3); }"
+  t "int (::x::y);"
   putStrLn "All parse tests passed."
  where
   t :: String -> IO ()
