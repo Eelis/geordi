@@ -227,6 +227,7 @@ pretty =
     ()| Just (IfStatement w c s me) <- cast x -> pretty w <++> pretty c <++> extraCurliesStmt s <++> maybe (pure "") (\(v, s') -> pretty v <++> extraCurliesStmt s') me
     ()| Just (UnaryExpression _ _) <- cast x -> extraParentheses au
     ()| Just (UnaryExpression_Sizeof_UnaryExpression _ _) <- cast x -> extraParentheses au
+    ()| Just (NewExpression _ _ _ _ _) <- cast x -> extraParentheses au
     ()| Just (ConditionalExpression _ _ _ _ _) <- cast x -> extraParentheses au
     ()| Just (LogicalOrExpression _ _ _) <- cast x -> extraParentheses au
     ()| Just (CastExpression_Cast _ _) <- cast x -> extraParentheses au

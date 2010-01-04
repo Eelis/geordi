@@ -397,7 +397,7 @@ make_type_tests = do
 precedence_tests :: IO ()
 precedence_tests = do
   s "x::y" "x::y"
-  s "if (b) int *ptr = new int(3), a(2);" "if (b) {int *ptr = new int(3);int a(2);}"
+  s "if (b) int *ptr = new int(3), a(2);" "if (b) {int *ptr = (new int(3));int a(2);}"
   s "if(b) if(c) foo; else bar;" "if(b) { if(c) { foo; } else { bar; } }"
   s "a=b<c?d=e:f=g" "a=((b<c)?(d=e):(f=g))" -- Example from TC++PL, section 6.2.
   s "x?y?z?a:b:c:d" "x?(y?(z?a:b):c):d"
