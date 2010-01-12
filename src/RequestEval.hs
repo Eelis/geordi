@@ -79,7 +79,11 @@ evaluator h = do
     respond (EditableRequest Precedence t) = return . Cxx.Parse.precedence t
     respond (EditableRequest (Evaluate opts) code) = do
       sc <- parseOrFail (Cxx.Parse.code << eof) (dropWhile isSpace code) "request"
-      return $ evf $ EvalCxx.Request (prel ++ (if Set.member Terse opts then "#include \"terse.hpp\"\n" else "") ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc)) (not $ Set.member CompileOnly opts) (Set.member NoWarn opts)
+      return $ evf $ EvalCxx.Request
+        (prel ++ (if Set.member NoUsingStd opts then "" else "using namespace std;\n")
+          ++ (if Set.member Terse opts then "#include \"terse.hpp\"\n" else "")
+          ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc))
+        (not $ Set.member CompileOnly opts) (Set.member NoWarn opts)
 
     respond_and_remember :: EditableRequest -> E (IO Response)
     respond_and_remember er = (Response (Just $ AddLast er) .) . respond er

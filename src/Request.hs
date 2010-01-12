@@ -13,15 +13,18 @@ import Text.ParserCombinators.Parsec (getInput, (<|>), oneOf, lookAhead, spaces,
 import Util (Option(..), (.), (.||.), total_tail, partitionMaybe)
 import Prelude hiding (catch, (.))
 
-data EvalOpt = CompileOnly | Terse | NoWarn deriving (Eq, Enum, Bounded, Ord)
+data EvalOpt = CompileOnly | Terse | NoWarn | NoUsingStd
+  deriving (Eq, Enum, Bounded, Ord)
 
 instance Option EvalOpt where
   short CompileOnly = Just 'c'
   short Terse = Just 't'
   short NoWarn = Just 'w'
+  short NoUsingStd = Nothing
   long CompileOnly = "compile-only"
   long Terse = "terse"
   long NoWarn = "no-warn"
+  long NoUsingStd = "no-using-std"
 
 data EphemeralOpt = Resume | Help | Version deriving (Eq, Enum, Bounded)
 

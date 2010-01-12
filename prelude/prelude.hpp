@@ -164,5 +164,4 @@ namespace geordi { geordi::initializer_t const initializer; }
 
 #define typeid(...) ::type_strings_detail::type_info::from_std(typeid(__VA_ARGS__))
 
-using namespace std;
 using namespace boost::assign;
