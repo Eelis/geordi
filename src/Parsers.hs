@@ -214,9 +214,9 @@ optParser = (<?> "option") $ (char '-' >>) $ do
   <|> do
     x <- many1 $ do
       d <- satisfy Ch.isAlpha <?> "option letter"
-      case List.find ((== d) . short) all_values of
-        Nothing -> return $ fail $ "No such option: -" ++ [d]
-        Just o -> return $ return o
+      return $ case List.find ((== Just d) . short) all_values of
+        Nothing -> fail $ "No such option: -" ++ [d]
+        Just o -> return o
     spaces
     y <- option (return []) optParser
     return (liftM2 (++) (sequence $ NeList.to_plain x) y)

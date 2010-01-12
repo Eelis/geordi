@@ -229,7 +229,9 @@ liftA2 f a b = (a &&& b) >>> arr (uncurry f)
 
 -- Options
 
-class Option a where short :: a -> Char; long :: a -> String
+class Option a where
+  short :: a -> Maybe Char
+  long :: a -> String
 
 show_long_opt :: Option o => o -> String
 show_long_opt = ("--" ++) . long

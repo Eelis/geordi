@@ -7,17 +7,18 @@ import qualified Data.Set as Set
 import qualified Text.ParserCombinators.Parsec as PS
 import Control.Exception ()
 import Data.Char (isAlpha, isDigit, isSpace)
+import Data.List (intercalate)
 import Control.Monad.Error ()
 import Text.ParserCombinators.Parsec (getInput, (<|>), oneOf, lookAhead, spaces, satisfy, CharParser, many1, parse)
-import Util (Option(..), (.), (.||.), total_tail)
+import Util (Option(..), (.), (.||.), total_tail, partitionMaybe)
 import Prelude hiding (catch, (.))
 
 data EvalOpt = CompileOnly | Terse | NoWarn deriving (Eq, Enum, Bounded, Ord)
 
 instance Option EvalOpt where
-  short CompileOnly = 'c'
-  short Terse = 't'
-  short NoWarn = 'w'
+  short CompileOnly = Just 'c'
+  short Terse = Just 't'
+  short NoWarn = Just 'w'
   long CompileOnly = "compile-only"
   long Terse = "terse"
   long NoWarn = "no-warn"
@@ -26,7 +27,7 @@ data EphemeralOpt = Resume | Help | Version deriving (Eq, Enum, Bounded)
 
 instance Option EphemeralOpt where
   long Resume = "resume"; long Help = "help"; long Version = "version"
-  short Resume = 'r'; short Help = 'h'; short Version = 'v'
+  short Resume = Just 'r'; short Help = Just 'h'; short Version = Just 'v'
 
 type Nick = String
 
@@ -57,7 +58,8 @@ data EditableRequestKind = MakeType | Precedence | Evaluate (Set EvalOpt)
 instance Show EditableRequestKind where
   show MakeType = "make type"
   show Precedence = "precedence"
-  show (Evaluate s) = if Set.null s then "" else '-' : (short . Set.elems s)
+  show (Evaluate s) = intercalate " " $ (if null shorts then id else (('-' : shorts) :) ) $ ("--"++) . long . longs
+    where (longs, shorts) = partitionMaybe short (Set.elems s)
 
 data EditableRequest = EditableRequest { kind :: EditableRequestKind, editable_body :: String }
 
