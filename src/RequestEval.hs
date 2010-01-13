@@ -88,9 +88,9 @@ evaluator h = do
     respond_and_remember :: EditableRequest -> E (IO Response)
     respond_and_remember er = (Response (Just $ AddLast er) .) . respond er
 
-    help_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << help; }") True False)
-    version_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << \"g++ (GCC) \" << __VERSION__; }") True False)
-    uname_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { cout << geordi::uname(); }") True False)
+    help_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { std::cout << help; }") True False)
+    version_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { std::cout << \"g++ (GCC) \" << __VERSION__; }") True False)
+    uname_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { std::cout << geordi::uname(); }") True False)
 
     final_cmd :: FinalCommand -> [EditableRequest] -> E String
     final_cmd _ [] = fail "There is no previous request."
