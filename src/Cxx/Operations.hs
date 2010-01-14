@@ -258,7 +258,7 @@ listElem _ d
 
 bodyOf :: Data d => d -> DeclaratorId -> Maybe (Range Char)
 bodyOf x did
-  | Just (GeordiRequest_Block (CompoundStatement (Curlied o b _)) _) <- cast x, strip (show did) == "main" =
+  | Just (GeordiRequest_Block (FunctionBody _ (CompoundStatement (Curlied o b _))) _) <- cast x, strip (show did) == "main" =
     Just $ Range (length $ Cxx.Show.show_simple o) (length $ Cxx.Show.show_simple b)
   | Just (ClassSpecifier classHead (Curlied o b _)) <- cast x, convert classHead == Just did =
     Just $ Range (length $ Cxx.Show.show_simple (classHead, o)) (length $ Cxx.Show.show_simple b)
