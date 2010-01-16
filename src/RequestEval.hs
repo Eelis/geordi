@@ -85,8 +85,8 @@ evaluator h = do
           ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc))
         (not $ Set.member CompileOnly opts) (Set.member NoWarn opts)
 
-    respond_and_remember :: EditableRequest -> E (IO Response)
-    respond_and_remember er = (Response (Just $ AddLast er) .) . respond er
+    respond_and_remember :: EditableRequest -> IO Response
+    respond_and_remember er = Response (Just $ AddLast er) . either (return . ("error: " ++)) id (respond er)
 
     help_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { std::cout << help; }") True False)
     version_response = Response Nothing . evf (EvalCxx.Request (prel ++ "int main() { std::cout << \"g++ (GCC) \" << __VERSION__; }") True False)
@@ -144,10 +144,10 @@ evaluator h = do
           _ -> return $ fail "History exhausted."
       <|> do
         kwds ["--precedence", "precedence"]
-        return . respond_and_remember . EditableRequest Precedence =<< getInput
+        return . return . respond_and_remember . EditableRequest Precedence =<< getInput
       <|> do
         kwds ["--make-type", "make type"]
-        return . respond_and_remember . EditableRequest MakeType =<< getInput
+        return . return . respond_and_remember . EditableRequest MakeType =<< getInput
       <|> do kwds ["help"]; return $ return help_response
       <|> do kwds ["version"]; return $ return version_response
       <|> do kwds ["uname"]; return $ return uname_response
@@ -176,10 +176,10 @@ evaluator h = do
                 [] -> return $ fail "There is no previous resumable request."
                 EditableRequest (Evaluate oldopts) oldcodeblob : _ -> case run_parser (Cxx.Parse.code << eof) (dropWhile isSpace oldcodeblob) of
                   ParseSuccess oldcode _ _ _ -> do
-                    code <- Cxx.Parse.code; eof; return $ respond_and_remember $ EditableRequest (Evaluate $ Set.union evalopts oldopts) $ show $ Cxx.Operations.blob $ Cxx.Operations.resume (Cxx.Operations.shortcut_syntaxes oldcode) (Cxx.Operations.shortcut_syntaxes code)
+                    code <- Cxx.Parse.code; eof; return $ return $ respond_and_remember $ EditableRequest (Evaluate $ Set.union evalopts oldopts) $ show $ Cxx.Operations.blob $ Cxx.Operations.resume (Cxx.Operations.shortcut_syntaxes oldcode) (Cxx.Operations.shortcut_syntaxes code)
                   ParseFailure _ _ _ -> return $ fail "Previous request too malformed to resume."
                 _ -> return $ fail "Last (editable) request was not resumable."
-              | otherwise -> return . respond_and_remember =<< EditableRequest (Evaluate evalopts) . getInput }
+              | otherwise -> return . return . respond_and_remember =<< EditableRequest (Evaluate evalopts) . getInput }
 
   either (return . Response Nothing . ("error: " ++)) id $
     join (parseOrFail p (replace no_break_space ' ' r) "request")
