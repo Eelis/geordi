@@ -554,11 +554,11 @@ template <typename T> std::string type_desc (bool const plural)
 
   #define ETYPE(...) \
     ((IS_LVALUE(__VA_ARGS__) ? "lvalue " : "rvalue ") + \
-    ::type_strings_detail::etype<decltype(__VA_ARGS__)>())
+    ::type_strings_detail::etype<decltype(void(), (__VA_ARGS__))>())
 
   #define ETYPE_DESC(...) \
     ((IS_LVALUE(__VA_ARGS__) ? "lvalue " : "rvalue ") + \
-    ::type_strings_detail::etype_desc<decltype(__VA_ARGS__)>())
+    ::type_strings_detail::etype_desc<decltype(void(), (__VA_ARGS__))>())
 
 #else
 
