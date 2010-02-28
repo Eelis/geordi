@@ -345,7 +345,7 @@ findable_productions =
     , P(Declaration), P(DeclarationSeq), P(BlockDeclaration), P(AliasDeclaration), P(SimpleDeclaration), P(StaticAssertDeclaration)
     , P(DeclSpecifier), P(DeclSpecifierSeq), P(StorageClassSpecifier), P(FunctionSpecifier), P(TypeSpecifier), P(TypeSpecifierSeq), P(SimpleTypeSpecifier)
     , P(TypeName), P(ElaboratedTypeSpecifier), P(EnumSpecifier), P(EnumHead), P(EnumKey), P(EnumeratorList), P(EnumeratorDefinition)
-    , P(Enumerator), P(NamespaceDefinition), P(UsingDeclaration), P(UsingDirective), P(AsmDefinition), P(LinkageSpecification)
+    , P(Enumerator), P(NamespaceDefinition), P(NamespaceAliasDefinition), P(UsingDeclaration), P(UsingDirective), P(AsmDefinition), P(LinkageSpecification)
     , P(AlignmentSpecifier)
 
     -- A.7 Declarators [gram.decl]
