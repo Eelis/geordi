@@ -6,6 +6,7 @@ module Sys where
 import qualified System.Posix.Internals
 import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Data.Sequence as Seq
+import qualified Foreign.Ptr
 
 import Data.Sequence (Seq, ViewL(..), (<|))
 import Data.IORef (newIORef, readIORef, writeIORef)
@@ -58,7 +59,7 @@ strerror = UTF8.decodeString `fmap` unsafePerformIO `fmap` (peekCString =<<) `fm
 nonblocking_read :: Fd -> ByteCount -> IO [Word8]
 nonblocking_read (Fd fd) bc = do
   allocaBytes (fromIntegral bc) $ \buf -> do
-  r <- System.Posix.Internals.c_read fd buf bc
+  r <- System.Posix.Internals.c_read fd (Foreign.Ptr.castPtr buf) bc
   case r of
     -1 -> getErrno >>= \e -> if e == eWOULDBLOCK then return [] else throwErrno "nonblocking_read"
     n -> (fromIntegral `fmap` fromEnum `fmap`) `fmap` peekCStringLen (buf, fromIntegral n)

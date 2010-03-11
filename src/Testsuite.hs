@@ -2,7 +2,7 @@ import qualified Request
 import qualified RequestEval
 
 import Control.Exception ()
-import Control.Monad (when, unless, forM_)
+import Control.Monad (unless, forM_)
 import Control.Monad.Error ()
 import System.Environment (getArgs)
 import Text.Regex (matchRegex, mkRegex)

@@ -24,7 +24,7 @@ flag testsuite
 
 executable geordi-local
   other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
-  ghc-options: -Wall -fno-warn-unused-binds -fno-warn-orphans
+  ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
   build-tools: hsc2hs
   build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, readline, parsec<3, Diff, directory, regex-compat
   main-is: Local.hs
@@ -34,7 +34,7 @@ executable geordi-testsuite
   main-is: Testsuite.hs
   if flag(testsuite)
     other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
-    ghc-options: -Wall -fno-warn-unused-binds -fno-warn-orphans
+    ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
     build-tools: hsc2hs
     build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat
     hs-source-dirs: src
@@ -45,7 +45,7 @@ executable geordi-irc
   main-is: IrcBot.hs
   if flag(irc)
     other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
-    ghc-options: -Wall -fno-warn-unused-binds -fno-warn-orphans
+    ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
     build-tools: hsc2hs
     build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, irc
     hs-source-dirs: src
@@ -56,7 +56,7 @@ executable geordi-xmpp
   main-is: XmppBot.hs
   if flag(xmpp)
     other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
-    ghc-options: -Wall -fno-warn-unused-binds -fno-warn-orphans
+    ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
     build-tools: hsc2hs
     build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, XMPP
     hs-source-dirs: src

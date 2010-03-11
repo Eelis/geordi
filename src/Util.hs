@@ -8,7 +8,7 @@ import qualified Prelude
 import qualified Data.List as List
 import Data.Maybe (listToMaybe, mapMaybe, fromMaybe)
 import Data.Monoid (Monoid(..))
-import Data.List (sortBy, minimumBy, isPrefixOf, tails, all, stripPrefix)
+import Data.List (sortBy, minimumBy, isPrefixOf, tails, stripPrefix)
 import Data.Char (isSpace, isAlphaNum, toLower, toUpper)
 import Data.Function (on)
 import Data.Generics (Data, Typeable)

@@ -4,7 +4,6 @@ module Request (is_addressed_request, is_short_request, EditableRequest(..), Edi
 
 import Data.Set (Set)
 import qualified Data.Set as Set
-import qualified Text.ParserCombinators.Parsec as PS
 import Control.Exception ()
 import Data.Char (isAlpha, isDigit, isSpace)
 import Data.List (intercalate)

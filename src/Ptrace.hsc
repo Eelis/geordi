@@ -2,7 +2,6 @@
 module Ptrace (traceme, syscall, peektext, peekuser, pokeuser, cont, kill, tracesysgood) where
 
 import Foreign.C
-import Foreign.C.Error
 import System.Posix
 import Control.Monad (when)
 import Prelude
