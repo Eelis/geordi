@@ -56,10 +56,9 @@
 
     <h3>1.3&emsp;Setting up a chroot</h3>
 
-    <p>We now set up a directory for geordi to chroot into when it starts. Assuming you are still in the "geordi" directory obtained through darcs (or extracted from a snapshot), do the following:</p>
+    <p>We now set up a directory for geordi to chroot into when it starts. Assuming you are still in the "geordi" directory obtained through git (or extracted from a snapshot), do the following:</p>
 
     <ol>
-      <li><p><kbd>chmod +x scripts/*</kbd></p></li>
       <li><p>Edit <kbd>$PREFIX/share/geordi-0/compile-config</kbd> to your liking. Check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</p></li>
       <li><p>On Debian and Ubuntu, replace<pre>  group = "nobody"</pre> with <pre>  group = "nogroup"</pre> in <kbd>$PREFIX/share/geordi-0/jail-config</kbd>.</p></li>
       <li><kbd>scripts/mkrt</kbd><p>Creates <kbd>$PREFIX/share/geordi-0/rt</kbd>, which will be our chroot root, and copies various files into it that GCC needs in order to function.</p></li>

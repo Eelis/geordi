@@ -64,5 +64,5 @@ executable geordi-xmpp
     buildable: False
 
 source-repository head
-  type: darcs
-  location: http://www.xs4all.nl/~weegen/eelis/geordi/
+  type: git
+  location: http://github.com/Eelis/geordi.git
