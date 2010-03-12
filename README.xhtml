@@ -60,14 +60,14 @@
 
     <ol>
       <li><p>Edit <kbd>$PREFIX/share/geordi-0/compile-config</kbd> to your liking. Check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</p></li>
-      <li><p>On Debian and Ubuntu, replace<pre>  group = "nobody"</pre> with <pre>  group = "nogroup"</pre> in <kbd>$PREFIX/share/geordi-0/jail-config</kbd>.</p></li>
+      <li><p>On Debian and Ubuntu, replace</p><pre>  group = "nobody"</pre><p>with</p><pre>  group = "nogroup"</pre><p> in <kbd>$PREFIX/share/geordi-0/jail-config</kbd>.</p></li>
       <li><kbd>scripts/mkrt</kbd><p>Creates <kbd>$PREFIX/share/geordi-0/rt</kbd>, which will be our chroot root, and copies various files into it that GCC needs in order to function.</p></li>
       <li><kbd>scripts/compile-prelude</kbd><p>Produces <kbd>$PREFIX/share/geordi-0/rt/{prelude.hpp.gch,prelude.a,libtpreload.so.0.0}</kbd>.</p></li>
     </ol>
 
-    <p>Now try running<pre>  sudo geordi-local "&lt;&lt; 'x'"</pre></p>
+    <p>Now try running</p><pre>  sudo geordi-local "&lt;&lt; 'x'"</pre>
 
-    <p>If this complains about missing executables like <kbd>as</kbd> and <kbd>ld</kbd> which are present in a non-standard location in your <kbd>PATH</kbd>, try<pre>  sudo env PATH=$PATH geordi-local "&lt;&lt; 'x'"</pre></p>
+    <p>If this complains about missing executables like <kbd>as</kbd> and <kbd>ld</kbd> which are present in a non-standard location in your <kbd>PATH</kbd>, try</p><pre>  sudo env PATH=$PATH geordi-local "&lt;&lt; 'x'"</pre>
 
     <p>If your <kbd>compile-config</kbd> points to a custom-built gcc in a non-standard location <kbd>/foo/bar</kbd> and you get an error about <kbd>/t</kbd> missing some libraries, try adding <kbd>-Wl,-rlink,/foo/bar/lib</kbd> to <kbd>LINK_FLAGS</kbd> in <kbd>compile-config</kbd>.</p>
 
@@ -114,7 +114,7 @@
     <pre>  , allow_short_request_syntax_in = ["#foo", "#bar", "#bas"]</pre>
 
     <h4 id='reconnect'>Auto-reconnect</h4>
-    <p>Geordi does not auto-reconnect. For that, just use something like <pre>  while true; do geordi-irc; sleep 120; done</pre></p>
+    <p>Geordi does not auto-reconnect. For that, just use something like</p><pre>  while true; do geordi-irc; sleep 120; done</pre>
 
     <h4 id='multinetwork'>Connecting to multiple networks</h4>
     <p>Make config files for the different networks. Then run one <kbd>geordi-irc</kbd> instance for each network, passing -c arguments pointing to the respective config files. The <kbd>rt</kbd> directory will be safely shared.</p>
@@ -132,7 +132,7 @@
     <p>These paths might differ somewhat on your system.</p>
     <p>You may need to install a separate GCC locales package or other kind of language pack for your distro, to get the files above.</p>
     <p>Furthermore, not all of the files above may be available for your locale; copy those that are.</p>
-    <p>Additionally, the LC_ALL environment variable must be set to foo_BAR.utf8 when geordi is started. Note that sudo clears environment variables by default, so either use <pre>  sudo -E geordi-...</pre> or use <pre>  sudo env LC_ALL=foo_BAR.utf8 geordi-...</pre></p>
+    <p>Additionally, the LC_ALL environment variable must be set to foo_BAR.utf8 when geordi is started. Note that sudo clears environment variables by default, so either use</p><pre>  sudo -E geordi-...</pre><p>or use</p><pre>  sudo env LC_ALL=foo_BAR.utf8 geordi-...</pre>
 
     <hr/><h2 id='problems'>4. Known problems</h2>
     <ul>
