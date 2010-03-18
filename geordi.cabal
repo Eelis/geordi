@@ -13,6 +13,7 @@ data-files: jail-config compile-config
 flag irc
   description: Build IRC front end
   default: True
+  manual: True
 
 flag xmpp
   description: Build XMPP front end
