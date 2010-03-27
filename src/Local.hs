@@ -12,11 +12,10 @@ import qualified Cxx.Show
 import Request (Response(..), HistoryModification(..), Context(..), modify_history)
 import Control.Monad (forM_, when)
 import Control.Monad.Fix (fix)
-import System.IO.UTF8 (putStrLn)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Data.IORef (newIORef, readIORef, writeIORef)
 
-import Prelude hiding ((.), readFile, putStrLn)
+import Prelude hiding ((.), readFile)
 import Util
 
 data Opt = Help deriving Eq

@@ -70,7 +70,6 @@ evaluator h = do
   let
     evf :: EvalCxx.Request -> IO String
     evf r = filter (isPrint .||. (== '\n')) . show . ev r
-    -- Filtering using isPrint works properly because (1) the EvalCxx evaluator returns proper Unicode Strings, not mere byte blobs; and (2) to print filtered strings we will use System.IO.UTF8's hPutStrLn which properly UTF-8-encodes the filtered String.
     -- Possible problem: terminals which have not been (properly) UTF-8 configured might interpret bytes that are part of UTF-8 encoded characters as control characters.
     prel = "#include \"prelude.hpp\"\n"
 

@@ -12,12 +12,11 @@ import qualified Data.List as List
 import qualified Cxx.Show
 
 import Control.Exception (bracketOnError)
-import System.IO (hGetLine, hPutStrLn, hFlush, Handle, IOMode(..))
+import System.IO (hGetLine, hPutStrLn, hFlush, hSetBinaryMode, Handle, IOMode(..))
 import Control.Monad (forever, when)
 import Control.Arrow (first)
 import Control.Monad.Error ()
 import Control.Monad.State (execStateT, lift, StateT)
-import System.IO.UTF8 (putStr, putStrLn, print)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Text.Regex (Regex, subRegex, mkRegexWithOpts) -- Todo: Text.Regex truncates Char's >256. Get rid of it.
 import Data.Char (toUpper, toLower, isSpace, isPrint, isDigit)
@@ -25,7 +24,7 @@ import Data.Map (Map)
 import Util ((.), elemBy, caselessStringEq, maybeLast, readState, msapp, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState')
 import Sys (rate_limiter)
 
-import Prelude hiding (catch, (.), readFile, putStrLn, putStr, print)
+import Prelude hiding (catch, (.), readFile)
 
 data IrcBotConfig = IrcBotConfig
   { server :: Net.HostName, port :: Net.PortNumber, max_response_length :: Int
@@ -217,4 +216,6 @@ connect host portn = do
   bracketOnError (Net.socket (Net.addrFamily target) Net.Stream proto) Net.sClose $ \sock -> do
   Sys.setKeepAlive sock 30 10 5
   Net.connect sock (Net.addrAddress target)
-  Net.socketToHandle sock ReadWriteMode
+  h <- Net.socketToHandle sock ReadWriteMode
+  hSetBinaryMode h True
+  return h
