@@ -412,3 +412,7 @@ type E = Either String
 
 or_fail :: Monad m => E a -> m a
 or_fail = either fail return
+
+strip_utf8_bom :: String -> String
+strip_utf8_bom ('\239':'\187':'\191':s) = s
+strip_utf8_bom s = s

@@ -1,6 +1,5 @@
 {-# LANGUAGE PatternGuards #-}
 import qualified Network.Socket as Net
-import qualified Network.IRC as IRC
 import qualified System.Environment
 import qualified Request
 import qualified RequestEval
@@ -8,12 +7,13 @@ import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Sys
 import qualified Data.Map as Map
 import qualified Network.BSD
-import qualified Data.List as List
 import qualified Cxx.Show
-import qualified Data.ByteString as ByteString
+import qualified IRC
 
+import IRC (Command(..))
+import Network.IRC (Prefix(..))
 import Control.Exception (bracketOnError)
-import System.IO (hGetLine, hFlush, hSetBinaryMode, Handle, IOMode(..))
+import System.IO (hGetLine, hSetBinaryMode, Handle, IOMode(..))
 import Control.Monad (forever, when)
 import Control.Arrow (first)
 import Control.Monad.Error ()
@@ -21,8 +21,9 @@ import Control.Monad.State (execStateT, lift, StateT)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Text.Regex (Regex, subRegex, mkRegexWithOpts) -- Todo: Text.Regex truncates Char's >256. Get rid of it.
 import Data.Char (toUpper, toLower, isSpace, isPrint, isDigit)
+import Data.List (isSuffixOf)
 import Data.Map (Map)
-import Util ((.), elemBy, caselessStringEq, maybeLast, readState, msapp, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState')
+import Util ((.), elemBy, caselessStringEq, readState, msapp, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState', strip_utf8_bom, none, takeBack)
 import Sys (rate_limiter)
 
 import Prelude hiding (catch, (.), readFile)
@@ -67,18 +68,8 @@ getArgs = do
     (_, w:_, []) -> fail $ "superfluous command line argument: " ++ w
     (opts, [], []) -> return opts
 
-msg :: IRC.Command -> [IRC.Parameter] -> IRC.Message
-msg = IRC.Message Nothing
-
 do_censor :: IrcBotConfig -> String -> String
 do_censor cfg s = foldr (\r t -> subRegex r t "<censored>") s (censor cfg)
-
-send_irc_msg :: Handle -> IRC.Message -> IO ()
-send_irc_msg h m = ByteString.hPutStrLn h (ByteString.pack $ take 510 $ enc 450 $ IRC.render m) >> hFlush h
-  where
-    enc n (c:s) | c' <- UTF8.encode [c], n' <- n - length c', n' >= 0 || length c' == 1 = c' ++ enc n' s
-    enc _ _ = []
-  -- If we simply used (System.IO.hPutStrLn $ take 510 $ UTF8.encodeString $ IRC.render m), the last UTF-8 encoded character might get cut in half if its encoding consists of multiple bytes. We want to avoid this because it causes some IRC clients (like irssi) to conclude that the encoding must be something other than UTF-8. As a further complication, while we can be sure that the server will receive messages up to 512 bytes long, it may drop anything after 450 bytes or so as it prepends our prefix when relaying messages to other clients. Hence, we can only reliably encode UTF-8 characters until a message is 450 bytes long. We don't need to immediately truncate after 450 bytes, though; after that limit, we don't truncate until an actual multi-byte character is encountered.
 
 main :: IO ()
 main = do
@@ -92,13 +83,13 @@ main = do
   putStrLn "Connected"
   evalRequest <- RequestEval.evaluator Cxx.Show.noHighlighting
   limit_rate <- rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
-  let send m = limit_rate >> send_irc_msg h m
-  send $ msg "NICK" [nick cfg]
-  send $ msg "USER" [nick cfg, "0", "*", nick cfg]
+  let send m = limit_rate >> IRC.send h (IRC.Message Nothing m)
+  send $ Nick $ nick cfg
+  send $ User (nick cfg) 0 (nick cfg)
   flip execStateT Map.empty $ forever $ do
     raw <- lift $ hGetLine h
     let l = UTF8.decodeString raw
-    case IRC.parseMessage (l ++ "\n") of
+    case IRC.decode (l ++ "\n") of
       Nothing -> lift $ putStr "Malformed IRC message: " >> putStrLn l
       Just m -> do
         lift $ print m
@@ -134,10 +125,6 @@ request_allowed cfg _ _ _ Private | not (serve_private_requests cfg) =
 request_allowed cfg nickname _ _ _ | nickname `elem` blacklist cfg = Deny Nothing
 request_allowed _ _ _ _ _ = Allow
 
-strip_utf8_bom :: String -> String
-strip_utf8_bom ('\239':'\187':'\191':s) = s
-strip_utf8_bom s = s
-
 type Eraser = String -> Maybe String
 
 digits :: Eraser
@@ -163,35 +150,33 @@ strip_color_codes = apply_eraser color_code
         subRegex r s "" where r = mkRegex "\x3(,[[:digit:]]{1,2}|[[:digit:]]{1,2}(,[[:digit:]]{1,2})?)?"
   Unfortunately, Text.Regex is broken: it truncates Char's, resulting in spurious matches. -}
 
-join_msg :: IrcBotConfig -> IRC.Message
-join_msg cfg = msg "JOIN" $ map (concat . List.intersperse ",") $
-  if null (key_chans cfg) then [chans cfg]
-  else [fst . key_chans cfg ++ chans cfg, snd . key_chans cfg]
+version_response :: String
+version_response = "Geordi C++ bot - http://www.eelis.net/geordi/"
 
 on_msg :: (Functor m, Monad m) =>
-  (String -> Request.Context -> m Request.Response) -> IrcBotConfig -> Bool -> IRC.Message -> StateT ChannelMemoryMap m [IRC.Message]
-on_msg eval cfg full_size m = flip execStateT [] $ do
-  when (join_trigger cfg == Just m) $ send $ join_msg cfg
-  case m of
-    IRC.Message (Just (IRC.NickName who _ _)) "QUIT" _ | who == nick cfg ->
-      send $ msg "NICK" [nick cfg]
-    IRC.Message (Just (IRC.NickName from _ _)) "PRIVMSG" [_, "\1VERSION\1"] ->
-      send $ msg "NOTICE" [from, "\1VERSION Geordi C++ bot - http://www.eelis.net/geordi/\1"]
-    IRC.Message _ "433" {- ERR_NICKNAMEINUSE -} _ -> send $ msg "NICK" [alternate_nick cfg]
-    IRC.Message _ "PING" a -> send $ msg "PONG" a
-    IRC.Message _ "PRIVMSG" [_, '\1':_] -> return ()
-    IRC.Message (Just (IRC.NickName who muser mserver)) "PRIVMSG" [to, txt'] -> do
-      let txt = filter isPrint $ strip_color_codes $ strip_utf8_bom txt'
-      let private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
-      let w = if private then Private else InChannel to
+  (String -> Request.Context -> m Request.Response) -> IrcBotConfig -> Bool -> IRC.Message -> StateT ChannelMemoryMap m [IRC.Command]
+on_msg eval cfg full_size m@(IRC.Message prefix c) = flip execStateT [] $ do
+  when (join_trigger cfg == Just m) $ join
+  case c of
+    Quit _ | Just (NickName n _ _) <- prefix, n == nick cfg -> send $ Nick $ nick cfg
+    PrivMsg _ "\1VERSION\1" | Just (NickName n _ _) <- prefix ->
+      send $ Notice n $ "\1VERSION " ++ version_response ++ "\1"
+    NickNameInUse -> send $ Nick $ alternate_nick cfg
+    Ping x -> send $ Pong x
+    PrivMsg _ ('\1':_) -> return ()
+    PrivMsg to txt' | Just (NickName who muser mserver) <- prefix -> do
+      let
+        txt = filter isPrint $ strip_color_codes $ strip_utf8_bom txt'
+        private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
+        w = if private then Private else InChannel to
+        wher = if private then who else to
+        reply s = send $ PrivMsg wher $ take (max_response_length cfg) $ if null s then no_output_msg cfg else do_censor cfg s
       maybeM (dropWhile isSpace . is_request cfg w txt) $ \r -> do
-      let wher = if private then who else to
-      let reply s = send $ msg "PRIVMSG" [wher, take (max_response_length cfg) $ if null s then no_output_msg cfg else do_censor cfg s]
       case request_allowed cfg who muser mserver w of
         Deny reason -> maybeM reason reply
         Allow -> do
-          if full_size && maybe True (not . (`elem` "};")) (maybeLast r) then reply $ "Request likely truncated after `" ++ reverse (take 15 $ reverse r) ++ "`." else do
-            -- The `elem` "};" condition gains a reduction in false positives at the cost of an increase in false negatives.
+          if full_size && none (`isSuffixOf` r) ["}", ";"] then reply $ "Request likely truncated after `" ++ takeBack 15 r ++ "`." else do
+            -- The "}"/";" test gains a reduction in false positives at the cost of an increase in false negatives.
           mmem <- Map.lookup wher . lift readState
           let con = context . mmem `orElse` Request.Context []
           Request.Response history_modification output <- lift $ lift $ eval r con
@@ -200,13 +185,14 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
             { context = maybe id Request.modify_history history_modification con
             , last_output = output' }
           reply $ describe_new_output (last_output . mmem) output'
-    IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
-      maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
-      when (join_trigger cfg == Nothing) $ send $ join_msg cfg
-    IRC.Message _ "INVITE" _ -> send $ join_msg cfg
+    Welcome -> do
+      maybeM (nick_pass cfg) $ send . PrivMsg "NickServ" . ("identify " ++)
+      when (join_trigger cfg == Nothing) join
+    Invite _ _ -> join
     _ -> return ()
   where
     send = msapp . (:[])
+    join = send $ Join (chans cfg) (key_chans cfg)
 
 connect :: Net.HostName -> Net.PortNumber -> IO Handle
   -- Mostly copied from Network.connectTo. We can't use that one because we want to set SO_KEEPALIVE (and related) options on the socket, which can't be done on a Handle.
