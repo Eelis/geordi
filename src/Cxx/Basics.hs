@@ -37,7 +37,7 @@ import Control.Arrow (second)
 
 relational_ops, accessSpecifiers, classKeys, basic_simple_type_specifiers, casts, keywords, make_type_keywords, arithmetic_ops, ops, long_ops :: [String]
 relational_ops = words "< > <= >= == !="
-arithmetic_ops = concatMap (\x -> [x, x ++ "="]) $ words "+ - * / << >> | & ^"
+arithmetic_ops = concatMap (\x → [x, x ++ "="]) $ words "+ - * / << >> | & ^"
 ops = relational_ops ++ arithmetic_ops ++ words "++ -- -> .* :: && || ! = ~ [ ] ( ) { } :"
 long_ops = filter ((>1) . length) ops
 
@@ -74,32 +74,32 @@ typename_NeList :: TyCon
 typename_NeList = mkTyCon "Main.NeList"
 instance Typeable1 NeList
     where typeOf1 _ = mkTyConApp typename_NeList []
-instance Typeable a => Typeable (NeList a)
+instance Typeable a ⇒ Typeable (NeList a)
     where typeOf = typeOfDefault
 
-instance (Data t1, Typeable t1) => Data (NeList t1)
+instance (Data t1, Typeable t1) ⇒ Data (NeList t1)
     where gfoldl k r (NeList x1 x2) = k (k (r NeList) x1) x2
           gunfold k z c = case constrIndex c of
-                              1 -> k (k (z NeList))
-                              _ -> error "automatically derived Data instance for NeList failed"
+                              1 → k (k (z NeList))
+                              _ → error "automatically derived Data instance for NeList failed"
           toConstr ctor = indexConstr (dataTypeOf ctor) 1
           dataTypeOf _ = ty_T
                          where ty_T = mkDataType "Main.NeList" [con_C1]
                                con_C1 = mkConstr ty_T "NeList" [] Prefix
 
-instance (Data t1, Data t2, Typeable t1, Typeable t2) => Data (AnyMixOf t1 t2)
+instance (Data t1, Data t2, Typeable t1, Typeable t2) ⇒ Data (AnyMixOf t1 t2)
     where gfoldl _ r (MixNone) = r MixNone
           gfoldl k r (MixA x1) = k (r MixA) x1
           gfoldl k r (MixB x1) = k (r MixB) x1
           gfoldl k r (MixAB x1 x2) = k (k (r MixAB) x1) x2
           gfoldl k r (MixBA x1 x2) = k (k (r MixBA) x1) x2
           gunfold k z c = case constrIndex c of
-                              1 -> z MixNone
-                              2 -> k (z MixA)
-                              3 -> k (z MixB)
-                              4 -> k (k (z MixAB))
-                              5 -> k (k (z MixBA))
-                              _ -> error "automatically derived Data instance for AnyMixOf failed"
+                              1 → z MixNone
+                              2 → k (z MixA)
+                              3 → k (z MixB)
+                              4 → k (k (z MixAB))
+                              5 → k (k (z MixBA))
+                              _ → error "automatically derived Data instance for AnyMixOf failed"
           toConstr (ctor@(MixNone)) = indexConstr (dataTypeOf ctor) 1
           toConstr (ctor@(MixA _)) = indexConstr (dataTypeOf ctor) 2
           toConstr (ctor@(MixB _)) = indexConstr (dataTypeOf ctor) 3
@@ -121,16 +121,16 @@ typename_AnyMixOf :: TyCon
 typename_AnyMixOf = mkTyCon "T.AnyMixOf"
 instance Typeable2 AnyMixOf
     where typeOf2 _ = mkTyConApp typename_AnyMixOf []
-instance Typeable a => Typeable1 (AnyMixOf a)
+instance Typeable a ⇒ Typeable1 (AnyMixOf a)
     where typeOf1 = typeOf1Default
-instance (Typeable a, Typeable b) => Typeable (AnyMixOf a b)
+instance (Typeable a, Typeable b) ⇒ Typeable (AnyMixOf a b)
     where typeOf = typeOfDefault
 
 -- The Data instance produced by "deriving Data" is broken (it doesn't work with ext1Q). The instance below is a modified version of the Data instance for Maybe, taken from GHC, which /does/ work.
 
-instance Data t => Data (Enclosed t) where
+instance Data t ⇒ Data (Enclosed t) where
   gfoldl f r (Enclosed x) = f (r Enclosed) x
-  gunfold k z c = case constrIndex c of 1 -> k (z Enclosed); _ -> undefined
+  gunfold k z c = case constrIndex c of 1 → k (z Enclosed); _ → undefined
   toConstr ctor = indexConstr (dataTypeOf ctor) 1
   dataCast1 f = gcast1 f
   dataTypeOf _ = datatype
@@ -157,17 +157,17 @@ instance Show OperatorTok where
   show Is = "="; show IsIs = "=="; show Period = "."; show PeriodStar = ".*"
   show Arrow = "->"; show ArrowStar = "->*"; show Ellipsis = "..."
 
-operatorTokName :: OperatorTok -> String
+operatorTokName :: OperatorTok → String
 operatorTokName Colon = "colon"
 operatorTokName Semicolon = "semicolon"
 operatorTokName CommaTok = "comma"
 operatorTokName Ellipsis = "ellipsis"
 operatorTokName o = '"' : show o ++ "\""
 
-data SingleTokenType t => Kwd' t = Kwd' t White deriving (Data, Typeable)
+data SingleTokenType t ⇒ Kwd' t = Kwd' t White deriving (Data, Typeable)
 class SingleTokenType t where
-  token :: t -> Either String OperatorTok
-  token_class_name :: Phantom t -> String
+  token :: t → Either String OperatorTok
+  token_class_name :: Phantom t → String
   token_class_name = const ""
 
 #define KWD(x, n) \

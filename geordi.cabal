@@ -26,8 +26,9 @@ flag testsuite
 executable geordi-local
   other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
   ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
+  extensions: UnicodeSyntax
   build-tools: hsc2hs
-  build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, readline, parsec<3, Diff, directory, regex-compat
+  build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, readline, parsec<3, Diff, directory, regex-compat, base-unicode-symbols
   main-is: Local.hs
   hs-source-dirs: src
 
@@ -36,8 +37,9 @@ executable geordi-testsuite
   if flag(testsuite)
     other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
     ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
+    extensions: UnicodeSyntax
     build-tools: hsc2hs
-    build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat
+    build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, base-unicode-symbols
     hs-source-dirs: src
   else
     buildable: False
@@ -47,8 +49,9 @@ executable geordi-irc
   if flag(irc)
     other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
     ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
+    extensions: UnicodeSyntax
     build-tools: hsc2hs
-    build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, irc, bytestring
+    build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, irc, bytestring, base-unicode-symbols
     hs-source-dirs: src
   else
     buildable: False
@@ -58,8 +61,9 @@ executable geordi-xmpp
   if flag(xmpp)
     other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
     ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
+    extensions: UnicodeSyntax
     build-tools: hsc2hs
-    build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, XMPP
+    build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, XMPP, base-unicode-symbols
     hs-source-dirs: src
   else
     buildable: False

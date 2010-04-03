@@ -13,22 +13,22 @@ import Data.List (sort, isPrefixOf)
 esc :: Char
 esc = '\x1b'
 
-colored :: Integer -> String -> String
+colored :: Integer → String → String
 colored c s = [esc] ++ "[" ++ show c ++ "m" ++ s ++ [esc] ++ "[0m"
 
-red, green, yellow, cyan :: String -> String
+red, green, yellow, cyan :: String → String
 red = colored 31
 green = colored 32
 yellow = colored 33
 cyan = colored 36
 
-box :: String -> String
+box :: String → String
 box s = '+' : bar ++ "+\n| " ++ s ++ " |\n+" ++ bar ++ "+"
   where bar = replicate (length s + 2) '-'
 
 -- Infrastructure:
 
-class Show t => TestPred t where testPred :: t -> String -> Bool
+class Show t ⇒ TestPred t where testPred :: t → String → Bool
 
 newtype ExactMatch = ExactMatch String deriving Show
 instance TestPred ExactMatch where testPred (ExactMatch s) = (== s)
@@ -42,31 +42,31 @@ instance TestPred RegexMatch where testPred (RegexMatch r) s = matchRegex (mkReg
 data NoOutput = NoOutput deriving Show
 instance TestPred NoOutput where testPred NoOutput = (== "")
 
-data Test = Test { test_name, test_request :: String, test_pred :: String -> Bool, test_pred_name :: String }
+data Test = Test { test_name, test_request :: String, test_pred :: String → Bool, test_pred_name :: String }
 
-test :: TestPred p => String -> String -> p -> Test
+test :: TestPred p ⇒ String → String → p → Test
 test n r p = Test n r (testPred p) (show p)
 
-utest :: TestPred p => String -> p -> Test
+utest :: TestPred p ⇒ String → p → Test
 utest = test "unnamed test"
 
 main :: IO ()
 main = do
 
-  evalRequest <- RequestEval.evaluator (const ("", ""))
+  evalRequest ← RequestEval.evaluator (const ("", ""))
 
   putStrLn
     "\nNote: In several tests, output is expected to include an error (sometimes on a separate line), so seeing an error in a test's output does not mean the test failed. A test failed if its output is colored red.\n"
 
   let default_test_sets = ["resources", "misc", "diagnostics", "utilities"]
 
-  args <- getArgs
-  forM_ (case args of [] -> default_test_sets; _ -> args) $ \set -> do
+  args ← getArgs
+  forM_ (case args of [] → default_test_sets; _ → args) $ \set → do
     putStrLn $ box $ "Test set: " ++ set
-    forM_ (tests set) $ \(Test n r p pn) -> do
+    forM_ (tests set) $ \(Test n r p pn) → do
       putStrLn $ "\nTest: " ++ yellow n
       putStrLn $ "Request: " ++ cyan r
-      out <- fmap Request.response_output $ evalRequest r (Request.Context [])
+      out ← fmap Request.response_output $ evalRequest r (Request.Context [])
       let success = p out
       putStrLn $ "Output: " ++ (if success then green else red) (if out == "" then "<none>" else out)
       unless success $ putStrLn $ "Expected: " ++ pn
@@ -76,7 +76,7 @@ main = do
 
 -- Actual test:
 
-tests :: String -> [Test]
+tests :: String → [Test]
 
 tests "resources" =
   [ test "Program timeout" "{ for(;;) ; }" $ ExactMatch "Killed"

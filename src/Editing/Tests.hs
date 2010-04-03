@@ -255,12 +255,12 @@ basic_tests = do
   putStrLn "All basics tests passed."
 
  where
-  ct :: String -> String -> Either String String -> IO ()
+  ct :: String → String → Either String String → IO ()
   ct x c o = test_cmp c o $ case parseOrFailE (Editing.Parse.commandsP << eof) c "command" of
-    Left e -> Left e
-    Right (cmds, _) -> editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) x)
+    Left e → Left e
+    Right (cmds, _) → editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) x)
 
-  s, f :: String -> String -> String -> IO ()
+  s, f :: String → String → String → IO ()
   s code cmdstring expectation = ct code cmdstring (Right expectation) -- test for success
   f code cmdstring expectation = ct code cmdstring (Left expectation) -- test for failure
 
@@ -324,13 +324,13 @@ diff_tests = do
 
   putStrLn "All diff tests passed."
  where
-  dt :: String -> String -> String -> IO ()
+  dt :: String → String → String → IO ()
   dt x y r = test_cmp x r $ show $ Editing.Diff.diff x y
-  dt' :: String -> String -> String -> String -> IO ()
+  dt' :: String → String → String → String → IO ()
   dt' x y xy yx = do
     test_cmp x xy $ show $ Editing.Diff.diff x y
     test_cmp y yx $ show $ Editing.Diff.diff y x
-  dts :: String -> [(String, String)] -> IO ()
+  dts :: String → [(String, String)] → IO ()
   dts _ [] = return ()
   dts s ((s', d) : r) = dt s s' d >> dts s' r
 
@@ -391,7 +391,7 @@ make_type_tests = do
   t "array of three arrays of 2 arrays of 1 integer" $ Right "int[3][2][1]"
   putStrLn "All make-type tests passed."
  where
-  t :: String -> Either String String -> IO ()
+  t :: String → Either String String → IO ()
   t i o = test_cmp i o (either (Left . id) (Right . Cxx.Show.show_simple) $ Cxx.Parse.makeType i)
 
 precedence_tests :: IO ()
@@ -435,9 +435,9 @@ precedence_tests = do
   f "x.operator foo bar()" "Unexpected `(` after `foo bar`. Expected \"::\" or template-arguments."
   putStrLn "All precedence tests passed."
  where
-  s :: String -> String -> IO () -- Test for success.
+  s :: String → String → IO () -- Test for success.
   s i o = test_cmp i (Right o) (Cxx.Parse.precedence i)
-  f :: String -> String -> IO () -- Test for failure.
+  f :: String → String → IO () -- Test for failure.
   f i o = test_cmp i (Left o) (Cxx.Parse.precedence i)
 
 parse_tests :: IO ()
@@ -448,7 +448,7 @@ parse_tests = do
   t "int (::x::y);"
   putStrLn "All parse tests passed."
  where
-  t :: String -> IO ()
+  t :: String → IO ()
   t s = test_cmp s (Right s) $ fmap Cxx.Show.show_simple $ Cxx.Parse.parseRequest s
 
 main :: IO ()

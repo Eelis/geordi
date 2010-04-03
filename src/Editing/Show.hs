@@ -12,7 +12,7 @@ import Editing.Basics
 import qualified Prelude
 import Prelude hiding (Show(..))
 
-showEdit :: String -> Edit -> String
+showEdit :: String → Edit → String
 showEdit _ (RemoveOptions opts) = "remove " ++ show_long_opts opts
 showEdit _ (AddOptions opts) = "use " ++ show_long_opts opts
 showEdit _ (RangeReplaceEdit (Range 0 0) r) = "prepend " ++ show r
@@ -23,7 +23,7 @@ showEdit s (RangeReplaceEdit r "") = "erase " ++ show (selectRange r s)
 showEdit s (RangeReplaceEdit r s') = "replace " ++ show (selectRange r s) ++ " with " ++ show s'
 showEdit s (MoveEdit _ _ r) = "move " ++ show (selectRange r s)
 
-class Show a where show :: a -> String
+class Show a where show :: a → String
   -- To let us define our own instances for things like Either and String.
 
 instance Show Ordinal where show = Prelude.show
@@ -38,16 +38,16 @@ instance Show Wrapping where
   show (Wrapping "\"" "\"") = "double quotes"
   show (Wrapping x y) = x ++ " and " ++ y
 
-instance Show a => Show (EverythingOr a) where
+instance Show a ⇒ Show (EverythingOr a) where
   show Everything = "everything"
   show (NotEverything x) = show x
 
-instance (Show a, Show b) => Show (Either a b) where
+instance (Show a, Show b) ⇒ Show (Either a b) where
   show (Left x) = show x; show (Right x) = show x
 
 instance Show BefAft where show Before = "before"; show After = "after"
 
-instance Show a => Show (Ranked a) where
+instance Show a ⇒ Show (Ranked a) where
   show (Sole s) = show s
   show (Ranked r s) = show r ++ " " ++ show s
 
@@ -58,7 +58,7 @@ instance Show Position where
   show (Position After (In (Absolute Everything) Nothing)) = "at end"
   show (Position a x) = show a ++ " " ++ show x
 
-instance Show a => Show (AndList a) where
+instance Show a ⇒ Show (AndList a) where
   show (AndList l) = concat $ List.intersperse " and " $ map show $ NeList.to_plain l
 
 instance Show Substrs where show (Substrs l) = show l
@@ -78,13 +78,13 @@ instance Show Bound where
 
 instance Show Betw where show (Betw x y) = "between " ++ show x ++ " and " ++ show y
 
-instance Show a => Show (Relative a) where
+instance Show a ⇒ Show (Relative a) where
   show (Absolute x) = show x
   show (Between x y) = show x ++ " " ++ show y
   show (Relative x y z) = show x ++ " " ++ show y ++ " " ++ show z
   show (FromTill b c) = "from " ++ show b ++ " till " ++ show c
 
-instance Show a => Show (In a) where show (In x incl) = show x ++ maybe "" show incl
+instance Show a ⇒ Show (In a) where show (In x incl) = show x ++ maybe "" show incl
 
 instance Show ImplicitBodyOf where show (ImplicitBodyOf x) = show x
 instance Show ImplicitDeclarationOf where show (ImplicitDeclarationOf x) = show x
@@ -97,7 +97,7 @@ instance Show RelativeBound where
 
 instance Show OccurrencesClause where show (OccurrencesClause l) = show (AndList l)
 
-instance Show a => Show (Rankeds a) where
+instance Show a ⇒ Show (Rankeds a) where
   show (Sole' x) = show x
   show (All x) = "all " ++ show x
   show (AllBut x y) = "all but " ++ show x ++ " " ++ show y
@@ -129,17 +129,17 @@ instance Show String where
     | none (`elem` " ,;") s, length s < 10 = s
     | otherwise = '`' : s ++ "`"
 
-instance Show a => Show (Around a) where show (Around a) = "around " ++ show a
+instance Show a ⇒ Show (Around a) where show (Around a) = "around " ++ show a
 
 data Tense = Present | Past
 
-past :: String -> String
+past :: String → String
 past "wrap" = "wrapped"
 past "swap" = "swapped"
 past s | isVowel (List.last s) = s ++ "d"
 past s = s ++ "ed"
 
-tense :: Tense -> String -> String
+tense :: Tense → String → String
 tense Present s = s
 tense Past s = past s
 
@@ -147,7 +147,7 @@ instance Show Insertee where
   show (SimpleInsert s) = show s
   show (WrapInsert w) = show w
 
-show_command :: Tense -> Command -> String
+show_command :: Tense → Command → String
 show_command t (Insert s p) = tense t "insert" ++ " " ++ show s ++ " " ++ show p
 show_command t (Erase l) = tense t "erase" ++ " " ++ show l
 show_command t (Replace l) = tense t "replace" ++ " " ++ show l

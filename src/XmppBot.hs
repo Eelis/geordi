@@ -43,61 +43,61 @@ help = usageInfo "Usage: sudo geordi-xmpp [option]...\nOptions:" optsDesc ++ "\n
 
 getArgs :: IO [Opt]
 getArgs = do
-  args <- System.Environment.getArgs
+  args ← System.Environment.getArgs
   case getOpt RequireOrder optsDesc args of
-    (_, _, err:_) -> fail $ init err
-    (_, w:_, []) -> fail $ "superfluous command line argument: " ++ w
-    (opts, [], []) -> return opts
+    (_, _, err:_) → fail $ init err
+    (_, w:_, []) → fail $ "superfluous command line argument: " ++ w
+    (opts, [], []) → return opts
 
-nicks_match :: Nick -> Nick -> Bool
-nicks_match n (h:t) = n == toLower h : t || n == toUpper h : t
+nicks_match :: Nick → Nick → Bool
+nicks_match n (h:t) = n == toLower h : t ∨ n == toUpper h : t
 nicks_match _ "" = error "empty nick"
 
-is_request :: RoomConfig -> String -> Maybe String
+is_request :: RoomConfig → String → Maybe String
 is_request (RoomConfig mynick allow_nickless) s
-  | Just (n, r) <- Request.is_addressed_request s, nicks_match n mynick = Just r
-  | allow_nickless, Just r <- Request.is_short_request s = Just r
+  | Just (n, r) ← Request.is_addressed_request s, nicks_match n mynick = Just r
+  | allow_nickless, Just r ← Request.is_short_request s = Just r
   | otherwise = Nothing
 
-output_body :: BotConfig -> Request.Response -> String
+output_body :: BotConfig → Request.Response → String
 output_body cfg r = xmlEntities $ take (max_msg_length cfg) $ takeWhile (/= '\n') $
-  case Request.response_output r of "" -> no_output_msg cfg; s -> s
+  case Request.response_output r of "" → no_output_msg cfg; s → s
 
 main :: IO ()
 main = do
   Sys.setlocale_ALL_env
-  opts <- getArgs
+  opts ← getArgs
   if Help `elem` opts then putStrLn help else do
-  cfg <- readTypedFile $ findMaybe (\o -> case o of Config cf -> Just cf; _ -> Nothing) opts `orElse` "xmpp-config"
-  conn <- XMPP.openStream $ server cfg
+  cfg ← readTypedFile $ findMaybe (\o → case o of Config cf → Just cf; _ → Nothing) opts `orElse` "xmpp-config"
+  conn ← XMPP.openStream $ server cfg
   XMPP.getStreamStart conn
-  evalRequest <- RequestEval.evaluator Cxx.Show.noHighlighting
-  limit_rate <- Sys.rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
+  evalRequest ← RequestEval.evaluator Cxx.Show.noHighlighting
+  limit_rate ← Sys.rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
   XMPP.runXMPP conn $ do
   XMPP.startAuth (user cfg) (server cfg) (pass cfg)
   XMPP.sendPresence
   XMPP.handleVersion "Geordi C++ bot - http://www.eelis.net/geordi/" "-" "-"
-  forM_ (rooms cfg) $ \(jid, RoomConfig nick _) -> MUC.joinGroupchat nick jid
+  forM_ (rooms cfg) $ \(jid, RoomConfig nick _) → MUC.joinGroupchat nick jid
   forever $ do
-  msg <- XMPP.waitForStanza (XMPP.isMessage .&&. XMPP.hasBody .&&. (not . isDelay))
-  maybeM (XMPP.getAttr "from" msg) $ \from -> do
+  msg ← XMPP.waitForStanza (XMPP.isMessage .&&. XMPP.hasBody .&&. (not . isDelay))
+  maybeM (XMPP.getAttr "from" msg) $ \from → do
   when (not $ from `elem` blacklist cfg) $ do
-  maybeM (XMPP.getMessageBody msg) $ \body -> do
+  maybeM (XMPP.getMessageBody msg) $ \body → do
   let
     eval r = XMPP.liftIO $ limit_rate >> output_body cfg . evalRequest r (Request.Context [])
   case XMPP.getAttr "type" msg of
     Just "groupchat"
-      | (room, '/' : from_nick) <- span (/= '/') from, Just request <- do
-          room_cfg <- lookup room $ rooms cfg
+      | (room, '/' : from_nick) ← span (/= '/') from, Just request ← do
+          room_cfg ← lookup room $ rooms cfg
           guard $ room_nick room_cfg /= from_nick
           is_request room_cfg body
-        -> eval request >>= MUC.sendGroupchatMessage room
-    Just "chat" -> eval body >>= XMPP.sendMessage from
-    Nothing -> eval body >>= XMPP.sendMessage from
-    _ -> return ()
+        → eval request >>= MUC.sendGroupchatMessage room
+    Just "chat" → eval body >>= XMPP.sendMessage from
+    Nothing → eval body >>= XMPP.sendMessage from
+    _ → return ()
 
-xmlEntities :: String -> String
-xmlEntities = concatMap (\c -> "&#" ++ show (ord c) ++ ";")
+xmlEntities :: String → String
+xmlEntities = concatMap (\c → "&#" ++ show (ord c) ++ ";")
 
 isDelay :: XMPP.StanzaPredicate
 isDelay = maybe False ((== Just "jabber:x:delay") . XMPP.getAttr "xmlns") . XMPP.xmlPath ["x"]

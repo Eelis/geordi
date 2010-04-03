@@ -8,6 +8,7 @@ import qualified Data.List as List
 import qualified Data.Char as Char
 import Data.Function (on)
 import Control.Arrow ((&&&))
+import Prelude.Unicode
 
 import Cxx.Basics (DeclaratorId, Findable)
 
@@ -24,10 +25,10 @@ newtype AndList a = AndList { andList :: NeList a }
 
 instance Functor AndList where fmap f (AndList l) = AndList (fmap f l)
 
-and_one :: a -> AndList a
+and_one :: a → AndList a
 and_one = AndList . NeList.one
 
-and_and :: AndList a -> AndList a -> AndList a
+and_and :: AndList a → AndList a → AndList a
 and_and (AndList (NeList x y)) (AndList (NeList a b)) = AndList $ NeList x (y ++ a : b)
 
 -- Positions, ranges, and anchors.
@@ -40,59 +41,59 @@ data BefAft = Before | After deriving (Eq, Ord)
 
 data Anchor = Anchor { anchor_befAft :: BefAft, anchor_pos :: Pos Char } deriving Eq
 
-type ARange = BefAft -> Anchor
+type ARange = BefAft → Anchor
 
 data DualARange = DualARange { full_range, replace_range :: ARange }
   -- In "void f(int i, double d);", the command "replace first parameter-declaration with char c" should produce "void f(char c, double d);", while the command "erase first parameter-declaration" should produce "void f(double d);". Hence, in the former, the clause "first parameter-declaration" should match "char c", while in the latter, it should match "char c, ". To accomodate this, our substring resolution functions return DualARanges containing both of these ranges.
 
-end :: Range a -> Pos a
+end :: Range a → Pos a
 end (Range x y) = x + y
 
-selectRange :: Range a -> [a] -> [a]
+selectRange :: Range a → [a] → [a]
 selectRange (Range st si) = take si . drop st
 
-replaceRange :: Range a -> [a] -> [a] -> [a]
+replaceRange :: Range a → [a] → [a] → [a]
 replaceRange (Range p l) r s = take p s ++ r ++ drop (p + l) s
 
-wide_range :: Range Char -> ARange
+wide_range :: Range Char → ARange
 wide_range (Range st si) = arange (Anchor Before st) (Anchor After (st+si))
 
-contained_in :: Range a -> Range a -> Bool
-contained_in (Range st si) (Range st' si') = st' <= st && st + si <= st' + si'
+contained_in :: Range a → Range a → Bool
+contained_in (Range st si) (Range st' si') = st' ≤ st ∧ st + si ≤ st' + si'
 
-touch :: Range a -> Range a -> Bool
-touch x y = end x >= start y && end y >= start x
+touch :: Range a → Range a → Bool
+touch x y = end x ≥ start y ∧ end y ≥ start x
 
-findWithRest :: (a -> Maybe b) -> [a] -> Maybe (b, [a])
+findWithRest :: (a → Maybe b) → [a] → Maybe (b, [a])
 findWithRest p = work []
   where
     work _ [] = Nothing
     work old (h:t)
-      | Just b <- p h = Just (b, old ++ t)
+      | Just b ← p h = Just (b, old ++ t)
       | otherwise = work (h:old) t
 
-two_contiguous :: ARange -> ARange -> Maybe ARange
+two_contiguous :: ARange → ARange → Maybe ARange
 two_contiguous x y
   | touch (unanchor_range x) (unanchor_range y) = Just $ arange (min (x Before) (y Before)) (max (x After) (y After))
   | otherwise = Nothing
 
-contiguous :: NeList ARange -> Maybe ARange
+contiguous :: NeList ARange → Maybe ARange
 contiguous (NeList h []) = Just h
 contiguous (NeList h t) = findWithRest (two_contiguous h) t >>= contiguous . uncurry NeList
 
-merge_contiguous :: NeList ARange -> NeList ARange
+merge_contiguous :: NeList ARange → NeList ARange
 merge_contiguous (NeList h []) = NeList h []
 merge_contiguous (NeList h t@(x:xs)) = case findWithRest (two_contiguous h) t of
-  Nothing -> NeList.cons h $ merge_contiguous $ NeList x xs
-  Just (h', t') -> merge_contiguous $ NeList h' t'
+  Nothing → NeList.cons h $ merge_contiguous $ NeList x xs
+  Just (h', t') → merge_contiguous $ NeList h' t'
 
-class Offsettable a where offset :: Int -> a -> a
+class Offsettable a where offset :: Int → a → a
 
 instance Offsettable (Range Char) where offset x (Range y z) = Range (y + x) z
 instance Offsettable Anchor where offset x (Anchor y z) = Anchor y (z + x)
 instance Offsettable ARange where offset = (.) . offset
-instance (Offsettable a, Offsettable b) => Offsettable (a, b) where offset i (x, y) = (offset i x, offset i y)
-instance (Offsettable a, Functor f) => Offsettable (f a) where offset = fmap . offset
+instance (Offsettable a, Offsettable b) ⇒ Offsettable (a, b) where offset i (x, y) = (offset i x, offset i y)
+instance (Offsettable a, Functor f) ⇒ Offsettable (f a) where offset = fmap . offset
 instance Offsettable Int where offset = (+)
 instance Offsettable Edit where
   offset i (RangeReplaceEdit r s) = RangeReplaceEdit (offset i r) s
@@ -100,18 +101,18 @@ instance Offsettable Edit where
   offset i (InsertEdit a s) = InsertEdit (offset i a) s
   offset _ e = e
 
-find_occs :: Eq a => [a] -> [a] -> [Pos a]
+find_occs :: Eq a ⇒ [a] → [a] → [Pos a]
 find_occs x = map fst . filter (List.isPrefixOf x . snd) . zip [0..] . List.tails
 
-arange :: Anchor -> Anchor -> ARange
+arange :: Anchor → Anchor → ARange
 arange x _ Before = x
 arange _ x After = x
 
-anchor_range :: Range a -> ARange
+anchor_range :: Range a → ARange
 anchor_range (Range x y) = arange (Anchor After x) (Anchor Before (x + y))
 
-unanchor_range :: ARange -> Range a
-unanchor_range r | Anchor _ x <- r Before, Anchor _ y <- r After = Range x (y - x)
+unanchor_range :: ARange → Range a
+unanchor_range r | Anchor _ x ← r Before, Anchor _ y ← r After = Range x (y - x)
 
 -- Edits
 
@@ -128,10 +129,10 @@ data Edit
     deriving Eq
   -- We don't just use a RangeReplaceEdit with range length 0 for insertions, because it is not expressive enough. For instance, given "xy", insertions at the positions "after x" and "before y" would both designate position 1, but a prior "add z after x" edit should increment the latter position but not the former. InsertEdit's BefAft argument expresses this difference.
 
-makeMoveEdit :: Monad m => Anchor -> Range Char -> m Edit
+makeMoveEdit :: Monad m ⇒ Anchor → Range Char → m Edit
 makeMoveEdit (Anchor ba p) r@(Range st si)
-  | p <= st = return $ MoveEdit ba (p - st) r
-  | st + si <= p = return $ MoveEdit ba (p - st - si) r
+  | p ≤ st = return $ MoveEdit ba (p - st) r
+  | st + si ≤ p = return $ MoveEdit ba (p - st - si) r
   | otherwise = fail "Move destination lies in source range."
 
 -- Command grammar
@@ -189,8 +190,8 @@ newtype Identifier = Identifier { identifier_string :: String }
 
 data MakeClause = MakeClause (AndList DeclaratorId) Cxx.Basics.MakeDeclaration
 
-flatten_MakeClauses :: AndList MakeClause -> [(Cxx.Basics.MakeDeclaration, DeclaratorId)]
-flatten_MakeClauses = concatMap (\(MakeClause (AndList l) d) -> map ((,) d) (NeList.to_plain l)) . NeList.to_plain . andList
+flatten_MakeClauses :: AndList MakeClause → [(Cxx.Basics.MakeDeclaration, DeclaratorId)]
+flatten_MakeClauses = concatMap (\(MakeClause (AndList l) d) → map ((,) d) (NeList.to_plain l)) . NeList.to_plain . andList
 
 -- Convenience constructors
 
@@ -246,21 +247,21 @@ instance Invertible (Rankeds a) where
 
 -- Misc operations
 
-unrelative :: Relative a -> Maybe a
+unrelative :: Relative a → Maybe a
 unrelative (Absolute x) = Just x
 unrelative (Relative x _ _) = Just x
 unrelative (Between x _) = Just x
 unrelative _ = Nothing
   -- Hm, this is slightly weird. You'd expect all "Relative a"s to contain an a.
 
-merge_commands :: [Command] -> [Command]
+merge_commands :: [Command] → [Command]
 merge_commands [] = []
 merge_commands (Erase l : Erase l' : r) = merge_commands $ Erase (l `and_and` l') : r
 merge_commands (Replace (AndList (NeList (Replacer (Substrs x) []) [])) : Replace (AndList (NeList (Replacer (Substrs y) []) [])) : r) =
   merge_commands $ Replace (and_one $ Replacer (Substrs $ x `and_and` y) []) : r
 merge_commands (h:t) = h : merge_commands t
 
-describe_position_after :: Pos Char -> String -> Position
+describe_position_after :: Pos Char → String → Position
 describe_position_after n s
   | n == 0 = Position Before $ In (Absolute Everything) Nothing
   | n == length s = Position After $ In (Absolute Everything) Nothing
@@ -268,13 +269,13 @@ describe_position_after n s
 
 -- Tokenization:
 
-edit_tokens :: (Char -> Bool) -> String -> [String]
+edit_tokens :: (Char → Bool) → String → [String]
   -- First parameter is a predicate for identifier characters; sometimes we want "foo_bar" to be ["foo", "_", "bar"], but sometimes we want it to be ["foo_bar"].
   -- Literals are not parsed as single tokens. A sequence of spaces is parsed as a single token.
 edit_tokens p = work
   where
     work [] = []
-    work s | Just (o, s') <- findMaybe (\q -> (\x -> (q, x)) . List.stripPrefix q s) Cxx.Basics.long_ops = o : work s'
+    work s | Just (o, s') ← findMaybe (\q → (\x → (q, x)) . List.stripPrefix q s) Cxx.Basics.long_ops = o : work s'
     work (' ':s) = let (x, s') = span Char.isSpace s in (' ':x) : work s'
     work (h:s) | Char.isDigit h = let (x, s') = span Char.isDigit s in (h:x) : work s'
     work (h:s) | p h = let (x, s') = span p s in (h:x) : work s'
@@ -284,10 +285,10 @@ data Token = Token { tok_text, tok_white :: String }
 
 instance Eq Token where (==) = (==) `on` tok_text
 
-tok_len :: Token -> Int
+tok_len :: Token → Int
 tok_len (Token x y) = length x + length y
 
-toks_len :: [Token] -> Int
+toks_len :: [Token] → Int
 toks_len = sum . (tok_len .)
 
 instance Monoid Token where
@@ -295,5 +296,5 @@ instance Monoid Token where
   mappend (Token x y) (Token x' y') = Token (x ++ y ++ x') y'
   mempty = Token "" ""
 
-toks_text :: [Token] -> String
+toks_text :: [Token] → String
 toks_text = tok_text . mconcat

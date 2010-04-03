@@ -23,13 +23,13 @@ instance Show Chunk where
   show (SingleComment s) = "//" ++ s
   showList l s = concat (show . l) ++ s
 
-type PrettyA a = PrettyOptions -> a
+type PrettyA a = PrettyOptions → a
 data ExtraParenOpts = NoExtraParens | ExtraParens | ChildrenExtraParens
 
 data Highlightable = Keyword | CurlyParen | RoundParen | Literal
-type Highlighter = Highlightable -> (String, String)
+type Highlighter = Highlightable → (String, String)
 
-wrap :: (String, String) -> String -> String
+wrap :: (String, String) → String → String
 wrap (x, y) s = x ++ s ++ y
 
 noHighlighting :: Highlighter
@@ -40,55 +40,55 @@ data PrettyOptions = PrettyOptions
   , highlighter :: Highlighter
   }
 
-camel_components :: String -> [String]
+camel_components :: String → [String]
 camel_components s = case s of
-  (x:xs) -> let (y, z) = span Char.isLower xs in (Char.toLower x : y) : camel_components z
-  _ -> []
+  (x:xs) → let (y, z) = span Char.isLower xs in (Char.toLower x : y) : camel_components z
+  _ → []
 
-camel_to_prod :: String -> String
+camel_to_prod :: String → String
 camel_to_prod = concat . List.intersperse "-" . camel_components
 
-abbreviate :: String -> String
+abbreviate :: String → String
 abbreviate w = case w of
-  "expression" -> "expr"
-  "statement" -> "stmt"
-  "initializer" -> "init"
-  "assignment" -> "ass"
-  "primary" -> "prim"
-  "qualified" -> "qual"
-  "qualifier" -> "qual"
-  "unqualified" -> "unqual"
-  "destructor" -> "dtor"
-  "operator" -> "op"
-  "definition" -> "def"
-  "function" -> "func"
-  "specifier" -> "spec"
-  "specification" -> "spec"
-  "declaration" -> "decl'ion"
-  "declarator" -> "decl'or"
-  "elaborated" -> "elab"
-  "enumerator" -> "enum"
-  "abstract" -> "abs"
-  "member" -> "mem"
-  "translation" -> "trans"
-  "parameter" -> "param"
-  "parameters" -> "params"
-  "argument" -> "arg"
-  "arguments" -> "args"
-  "identifier" -> "ident"
-  _ -> w
+  "expression" → "expr"
+  "statement" → "stmt"
+  "initializer" → "init"
+  "assignment" → "ass"
+  "primary" → "prim"
+  "qualified" → "qual"
+  "qualifier" → "qual"
+  "unqualified" → "unqual"
+  "destructor" → "dtor"
+  "operator" → "op"
+  "definition" → "def"
+  "function" → "func"
+  "specifier" → "spec"
+  "specification" → "spec"
+  "declaration" → "decl'ion"
+  "declarator" → "decl'or"
+  "elaborated" → "elab"
+  "enumerator" → "enum"
+  "abstract" → "abs"
+  "member" → "mem"
+  "translation" → "trans"
+  "parameter" → "param"
+  "parameters" → "params"
+  "argument" → "arg"
+  "arguments" → "args"
+  "identifier" → "ident"
+  _ → w
 
-dataType_to_camelProd :: DataType -> String
+dataType_to_camelProd :: DataType → String
 dataType_to_camelProd = reverse . takeWhile (/= '.') . reverse . dataTypeName
 
-dataType_productionName :: DataType -> String
+dataType_productionName :: DataType → String
 dataType_productionName = camel_to_prod . dataType_to_camelProd
 
-dataType_abbreviated_productionName :: DataType -> String
+dataType_abbreviated_productionName :: DataType → String
 dataType_abbreviated_productionName =
   concat . List.intersperse "-" . map abbreviate . camel_components . dataType_to_camelProd
 
-constr_productionName :: Constr -> String
+constr_productionName :: Constr → String
 constr_productionName = camel_to_prod . show
 
 instance Show Findable where
@@ -103,7 +103,7 @@ instance Show Findable where
   show TemplateParameter = "template-parameter"
   show TemplateArgument = "template-argument"
 
-show_plural :: Findable -> String
+show_plural :: Findable → String
 show_plural (DeclarationOf did) = "free declarations of " ++ strip (show did)
 show_plural (BodyOf did) = "bodies of " ++ strip (show did)
 show_plural f = show f ++ "s"
@@ -198,90 +198,90 @@ instance SingleTokenType AccessSpecifier where
 
 -- Show instances.
 
-instance SingleTokenType t => Show t where show = either id show . token
+instance SingleTokenType t ⇒ Show t where show = either id show . token
 instance Show White where show (White w) = w
 
-pretty :: forall a. (Data a) => a -> PrettyOptions -> String
+pretty :: forall a. (Data a) ⇒ a → PrettyOptions → String
 pretty =
-  flip ext1Q (\(Enclosed x) -> prettyEnclosed $ pretty x) $
-  \x -> let au = gmapQr (<++>) (pure "") pretty x in case () of
+  flip ext1Q (\(Enclosed x) → prettyEnclosed $ pretty x) $
+  \x → let au = gmapQr (<++>) (pure "") pretty x in case () of
 
-#define KWD(t) ()| Just s <- cast x -> \o -> wrap (highlighter o Keyword) (show (s :: t));
+#define KWD(t) ()| Just s ← cast x → \o → wrap (highlighter o Keyword) (show (s :: t));
     KWD(KwdSizeof) KWD(KwdIf) KWD(KwdNew) KWD(KwdAlignof) KWD(KwdTypeid) KWD(KwdTemplate) KWD(KwdClass) KWD(KwdFor) KWD(KwdExtern) KWD(KwdWhile) KWD(KwdDo) KWD(KwdGoto) KWD(KwdContinue) KWD(KwdElse) KWD(KwdAuto) KWD(KwdDefault) KWD(KwdSwitch) KWD(KwdCase) KWD(KwdBreak) KWD(KwdNamespace) KWD(KwdTypedef) KWD(KwdThis) KWD(KwdFriend) KWD(KwdDelete) KWD(KwdStaticAssert) KWD(KwdConstexpr) KWD(KwdExport) KWD(KwdThrow) KWD(KwdUsing) KWD(KwdTry) KWD(KwdDecltype) KWD(KwdAsm) KWD(KwdCatch) KWD(KwdStruct) KWD(KwdEnum) KWD(KwdTypename) KWD(KwdOperator) KWD(KwdReturn) KWD(NewStyleCast) KWD(FunctionSpecifier) KWD(StorageClassSpecifier) KWD(CvQualifier) KWD(LengthSpec) KWD(BasicType) KWD(ClassKey) KWD(StorageClassSpecifier)
 #undef KWD
 
-    ()| Just s <- cast x -> \o -> wrap (highlighter o Literal) (show (s :: Literal))
+    ()| Just s ← cast x → \o → wrap (highlighter o Literal) (show (s :: Literal))
 
-    ()| Just s <- cast x -> \o -> wrap (highlighter o CurlyParen) (show (s :: OpenCurly_))
-    ()| Just s <- cast x -> \o -> wrap (highlighter o CurlyParen) (show (s :: CloseCurly_))
+    ()| Just s ← cast x → \o → wrap (highlighter o CurlyParen) (show (s :: OpenCurly_))
+    ()| Just s ← cast x → \o → wrap (highlighter o CurlyParen) (show (s :: CloseCurly_))
 
-    ()| Just s <- cast x -> \o -> wrap (highlighter o RoundParen) (show (s :: OpenParen_))
-    ()| Just s <- cast x -> \o -> wrap (highlighter o RoundParen) (show (s :: CloseParen_))
+    ()| Just s ← cast x → \o → wrap (highlighter o RoundParen) (show (s :: OpenParen_))
+    ()| Just s ← cast x → \o → wrap (highlighter o RoundParen) (show (s :: CloseParen_))
 
-#define SHOW(t) ()| Just s <- cast x -> pure $ show (s :: t);
+#define SHOW(t) ()| Just s ← cast x → pure $ show (s :: t);
     SHOW(SemicolonOperator) SHOW(CommaOp) SHOW(ScopeRes) SHOW(UnaryOperator) SHOW(AssignmentOperator) SHOW(RelationalOperator) SHOW(QuestionOp) SHOW(ColonOp) SHOW(IncDecOperator) SHOW(AdditiveOperator) SHOW(MultiplicativeOperator) SHOW(PmOperator)  SHOW(MemberOperator) SHOW(IsOperator) SHOW(Tilde_) SHOW(Sign) SHOW(OpenSquare_) SHOW(CloseSquare_) SHOW(LeftShiftOp) SHOW(OpenAngle_) SHOW(CloseAngle_) SHOW(AccessSpecifier) SHOW(StarOperator) SHOW(AndOperator) SHOW(LogicalAndOperator) SHOW(LogicalOrOperator) SHOW(ExclusiveOrOperator) SHOW(InclusiveOrOperator) SHOW(EqualityOperator) SHOW(ShiftOperator) SHOW(RefQualifier) SHOW(StringLiteral) SHOW(KwdZero) SHOW(ArrowOp) SHOW(Ellipsis_) SHOW(EncodingPrefix)
 #undef SHOW
-    ()| Just (Identifier s (White w)) <- cast x -> pure $ s ++ w
-    ()| Just s <- cast x -> pure s
-    ()| Just (White w) <- cast x -> pure w
-    ()| Just (IfStatement w c s me) <- cast x -> pretty w <++> pretty c <++> extraCurliesStmt s <++> maybe (pure "") (\(v, s') -> pretty v <++> extraCurliesStmt s') me
-    ()| Just (UnaryExpression _ _) <- cast x -> extraParentheses au
-    ()| Just (UnaryExpression_Sizeof_UnaryExpression _ _) <- cast x -> extraParentheses au
-    ()| Just (NewExpression _ _ _ _ _) <- cast x -> extraParentheses au
-    ()| Just (DeleteExpression _ _ _ _) <- cast x -> extraParentheses au
-    ()| Just (ConditionalExpression _ _ _ _ _) <- cast x -> extraParentheses au
-    ()| Just (LogicalOrExpression _ _ _) <- cast x -> extraParentheses au
-    ()| Just (CastExpression_Cast _ _) <- cast x -> extraParentheses au
-    ()| Just (PmExpression _ _ _) <- cast x -> extraParentheses au
-    ()| Just (MultiplicativeExpression _ _ _) <- cast x -> extraParentheses au
-    ()| Just (AdditiveExpression _ _ _) <- cast x -> extraParentheses au
-    ()| Just (ShiftExpression _ _ _) <- cast x -> extraParentheses au
-    ()| Just (RelationalExpression _ _ _) <- cast x -> extraParentheses au
-    ()| Just (EqualityExpression _ _ _) <- cast x -> extraParentheses au
-    ()| Just (AndExpression _ _ _) <- cast x -> extraParentheses au
-    ()| Just (ExclusiveOrExpression _ _ _) <- cast x -> extraParentheses au
-    ()| Just (InclusiveOrExpression _ _ _) <- cast x -> extraParentheses au
-    ()| Just (LogicalAndExpression _ _ _) <- cast x -> extraParentheses au
-    ()| Just (AssignmentExpression _ _ _) <- cast x -> extraParentheses au
-    ()| Just (PostfixExpression_Squared _ _) <- cast x -> extraParentheses au
-    ()| Just (PostfixExpression_FunctionCall _ _) <- cast x -> extraParentheses au
-    ()| Just (PostfixExpression_Conversion _ _) <- cast x -> extraParentheses au
-    ()| Just (PostfixExpression_Member _ _ _ _) <- cast x -> extraParentheses au
-    ()| Just (PostfixExpression_IncDec _ _) <- cast x -> extraParentheses au
-    ()| Just (Expression_Comma _ _ _) <- cast x -> extraParentheses au
-    ()| Just (ThrowExpression _ (Just _)) <- cast x -> extraParentheses au
-    ()| otherwise -> au
+    ()| Just (Identifier s (White w)) ← cast x → pure $ s ++ w
+    ()| Just s ← cast x → pure s
+    ()| Just (White w) ← cast x → pure w
+    ()| Just (IfStatement w c s me) ← cast x → pretty w <++> pretty c <++> extraCurliesStmt s <++> maybe (pure "") (\(v, s') → pretty v <++> extraCurliesStmt s') me
+    ()| Just (UnaryExpression _ _) ← cast x → extraParentheses au
+    ()| Just (UnaryExpression_Sizeof_UnaryExpression _ _) ← cast x → extraParentheses au
+    ()| Just (NewExpression _ _ _ _ _) ← cast x → extraParentheses au
+    ()| Just (DeleteExpression _ _ _ _) ← cast x → extraParentheses au
+    ()| Just (ConditionalExpression _ _ _ _ _) ← cast x → extraParentheses au
+    ()| Just (LogicalOrExpression _ _ _) ← cast x → extraParentheses au
+    ()| Just (CastExpression_Cast _ _) ← cast x → extraParentheses au
+    ()| Just (PmExpression _ _ _) ← cast x → extraParentheses au
+    ()| Just (MultiplicativeExpression _ _ _) ← cast x → extraParentheses au
+    ()| Just (AdditiveExpression _ _ _) ← cast x → extraParentheses au
+    ()| Just (ShiftExpression _ _ _) ← cast x → extraParentheses au
+    ()| Just (RelationalExpression _ _ _) ← cast x → extraParentheses au
+    ()| Just (EqualityExpression _ _ _) ← cast x → extraParentheses au
+    ()| Just (AndExpression _ _ _) ← cast x → extraParentheses au
+    ()| Just (ExclusiveOrExpression _ _ _) ← cast x → extraParentheses au
+    ()| Just (InclusiveOrExpression _ _ _) ← cast x → extraParentheses au
+    ()| Just (LogicalAndExpression _ _ _) ← cast x → extraParentheses au
+    ()| Just (AssignmentExpression _ _ _) ← cast x → extraParentheses au
+    ()| Just (PostfixExpression_Squared _ _) ← cast x → extraParentheses au
+    ()| Just (PostfixExpression_FunctionCall _ _) ← cast x → extraParentheses au
+    ()| Just (PostfixExpression_Conversion _ _) ← cast x → extraParentheses au
+    ()| Just (PostfixExpression_Member _ _ _ _) ← cast x → extraParentheses au
+    ()| Just (PostfixExpression_IncDec _ _) ← cast x → extraParentheses au
+    ()| Just (Expression_Comma _ _ _) ← cast x → extraParentheses au
+    ()| Just (ThrowExpression _ (Just _)) ← cast x → extraParentheses au
+    ()| otherwise → au
   -- This pretty is very slow, probably due to all the list concatenations. Use the ShowS trick.
 
-extraCurliesStmt :: Statement -> PrettyA String
+extraCurliesStmt :: Statement → PrettyA String
 extraCurliesStmt (Statement_CompoundStatement s) = pretty s
 extraCurliesStmt s = extraCurlies (pretty s)
 
-pretty_with_precedence :: Data a => a -> String
+pretty_with_precedence :: Data a ⇒ a → String
 pretty_with_precedence e = pretty e PrettyOptions{ extra_parentheses = ChildrenExtraParens, highlighter = noHighlighting }
 
-show_simple :: Data a => a -> String
+show_simple :: Data a ⇒ a → String
 show_simple x = pretty x PrettyOptions{ extra_parentheses = NoExtraParens, highlighter = noHighlighting }
 
-prettyEnclosed :: PrettyA String -> PrettyA String
-prettyEnclosed x o | ExtraParens <- extra_parentheses o = x (o { extra_parentheses = ChildrenExtraParens })
+prettyEnclosed :: PrettyA String → PrettyA String
+prettyEnclosed x o | ExtraParens ← extra_parentheses o = x (o { extra_parentheses = ChildrenExtraParens })
 prettyEnclosed x o = x o
 
-show_pretty :: Data a => Bool -> Highlighter -> a -> String
+show_pretty :: Data a ⇒ Bool → Highlighter → a → String
 show_pretty x y z = pretty z $ PrettyOptions (if x then ChildrenExtraParens else NoExtraParens) y
 
-extraWrapping :: String -> String -> PrettyA String -> PrettyA String
-extraWrapping open close p o | ExtraParens <- extra_parentheses o =
+extraWrapping :: String → String → PrettyA String → PrettyA String
+extraWrapping open close p o | ExtraParens ← extra_parentheses o =
   open ++ reverse y ++ close ++ x where (x, y) = span (== ' ') (reverse $ p o)
 extraWrapping _ _ p o = p o
 
-extraParentheses, extraCurlies :: PrettyA String -> PrettyA String
+extraParentheses, extraCurlies :: PrettyA String → PrettyA String
 extraParentheses = extraWrapping "(" ")"
 extraCurlies = extraWrapping "{ " " }"
 
-(<++>) :: PrettyA [a] -> PrettyA [a] -> PrettyA [a]
+(<++>) :: PrettyA [a] → PrettyA [a] → PrettyA [a]
 (<++>) x y o = x (if not $ null $ y o then o' else o) ++ y (if not $ null $ x o then o' else o)
-  where o' = o { extra_parentheses = case extra_parentheses o of ChildrenExtraParens -> ExtraParens; z -> z }
+  where o' = o { extra_parentheses = case extra_parentheses o of ChildrenExtraParens → ExtraParens; z → z }
 
 instance Show Literal where
   show (Literal_CharacterLiteral l w) = show l ++ show w
@@ -291,7 +291,7 @@ instance Show Literal where
   show (PointerLiteral w) = "nullptr" ++ show w
 instance Show CharacterLiteral where show (CharacterLiteral k s) = show k ++ '\'' : s ++ "'"
 instance Show SingleStringLiteral where show (SingleStringLiteral k s) = maybe "" show k ++ '"' : s ++ "\""
-instance Show StringLiteral where show (StringLiteral l) = concatMap (\(x, y) -> show x ++ show y) $ NeList.to_plain l
+instance Show StringLiteral where show (StringLiteral l) = concatMap (\(x, y) → show x ++ show y) $ NeList.to_plain l
 instance Show IntegerLiteral where show (IntegerLiteral s) = s
 instance Show CharacterLiteralKind where
   show CharacterLiteral_Plain = ""; show CharacterLiteralKind_u = "u"
