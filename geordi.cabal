@@ -48,7 +48,7 @@ executable geordi-irc
     other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
     ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
     build-tools: hsc2hs
-    build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, irc
+    build-depends: base, parallel, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, irc, bytestring
     hs-source-dirs: src
   else
     buildable: False
