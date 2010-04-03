@@ -203,6 +203,7 @@ on_msg eval cfg full_size m = flip execStateT [] $ do
     IRC.Message _ "001" {- RPL_WELCOME -} _ -> do
       maybeM (nick_pass cfg) $ \np -> send $ msg "PRIVMSG" ["NickServ", "identify " ++ np]
       when (join_trigger cfg == Nothing) $ send $ join_msg cfg
+    IRC.Message _ "INVITE" _ -> send $ join_msg cfg
     _ -> return ()
   where
     send = msapp . (:[])
