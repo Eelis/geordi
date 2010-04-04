@@ -76,6 +76,7 @@ import Control.Monad (when, forM_)
 import Control.Monad.Fix (fix)
 import Foreign (alloca, (.|.))
 import System.Environment (getEnvironment)
+import System.IO (withFile, IOMode(..), hSetEncoding, utf8, hPutStrLn)
 import Foreign.C (CInt, CSize, ePERM, eOK)
 import System.Exit (ExitCode(..))
 import Data.List ((\\), isPrefixOf)
@@ -262,7 +263,8 @@ evaluate :: CompileConfig -> Request -> IO EvaluationResult
 evaluate cfg req = do
   withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd -> do
   Flock.exclusive lock_fd
-  writeFile "t.cpp" $ code req ++ "\n"
+  withFile "t.cpp" WriteMode $ \h -> hSetEncoding h utf8 >> hPutStrLn h (code req)
+    -- Same as utf8-string's System.IO.UTF8.writeFile, but I'm hoping that with GHC's improving UTF-8 support we can eventually drop the dependency on utf8-string altogether.
   env <- filter (pass_env . fst) . getEnvironment
   let
     gxx :: [String] -> Stage -> IO EvaluationResult -> IO EvaluationResult
