@@ -310,10 +310,6 @@ levenshtein s t = d !! length s !! length t
 
 -- Misc misc
 
-(≠) :: Eq a ⇒ a → a → Bool
-x ≠ y = x /= y
-  -- The base-unicode-symbols package currently only provides ≢, which I don't like.
-
 prefixError :: String → Either String a → Either String a
 prefixError _ (Right x) = Right x
 prefixError s (Left s') = Left (s ++ s')
