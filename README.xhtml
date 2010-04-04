@@ -48,21 +48,21 @@
       (See <a href='http://gcc.gnu.org/bugzilla/show_bug.cgi?id=31518'>GCC bug 31518</a> for more information.)
     </p>
 -->
-    <h3>1.2&emsp;Installing geordi's executables</h3>
-    <p>Geordi's executables (<kbd>geordi-local</kbd>, <kbd>geordi-irc</kbd>, and <kbd>geordi-testsuite</kbd>) need to be built with Cabal:</p><pre>      runhaskell Setup.hs configure
+    <h3>1.2&emsp;Installing geordi</h3>
+    <p>Geordi needs to be built with Cabal:</p><pre>      runhaskell Setup.hs configure
       runhaskell Setup.hs build
       runhaskell Setup.hs install</pre>
     <p>If you don't need the IRC front-end, pass <kbd>-f-irc</kbd> in the configure step. If you want the XMPP front-end, pass <kbd>-fxmpp</kbd>. See the <a href='http://www.haskell.org/cabal/release/cabal-latest/doc/users-guide/builders.html'>Cabal manual</a> for more information on customizing the above.</p>
 
     <h3>1.3&emsp;Setting up a chroot</h3>
 
-    <p>We now set up a directory for geordi to chroot into when it starts. Assuming you are still in the "geordi" directory obtained through git (or extracted from a snapshot), do the following:</p>
+    <p>To set up a directory for geordi to chroot into when it starts, do the following:</p>
 
     <ol>
       <li><p>Edit <kbd>$PREFIX/share/geordi-0/compile-config</kbd> to your liking. Check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</p></li>
       <li><p>On Debian and Ubuntu, replace</p><pre>  group = "nobody"</pre><p>with</p><pre>  group = "nogroup"</pre><p> in <kbd>$PREFIX/share/geordi-0/jail-config</kbd>.</p></li>
-      <li><kbd>scripts/mkrt</kbd><p>Creates <kbd>$PREFIX/share/geordi-0/rt</kbd>, which will be our chroot root, and copies various files into it that GCC needs in order to function.</p></li>
-      <li><kbd>scripts/compile-prelude</kbd><p>Produces <kbd>$PREFIX/share/geordi-0/rt/{prelude.hpp.gch,prelude.a,libtpreload.so.0.0}</kbd>.</p></li>
+      <li><kbd>geordi-mkrt</kbd><p>This creates <kbd>$PREFIX/share/geordi-0/rt</kbd>, which will be our chroot root, and copies various files into it that GCC needs in order to function.</p><p>If you ever make further modifications to <kbd>compile-config</kbd>, throw the old <kbd>rt</kbd> away and build a new one with <kbd>geordi-mkrt</kbd> (followed by <kbd>geordi-compile-prelude</kbd>).</p></li>
+      <li><kbd>geordi-compile-prelude</kbd><p>This compiles the prelude files in <kbd>$PREFIX/share/geordi-0/prelude</kbd> to produce <kbd>$PREFIX/share/geordi-0/rt/{prelude.hpp.gch,prelude.a,libtpreload.so.0.0}</kbd>.</p><p>If you ever make modifications to the prelude, re-running <kbd>geordi-compile-prelude</kbd> makes them take effect immediately.</p></li>
     </ol>
 
     <p>Now try running</p><pre>  sudo geordi-local "&lt;&lt; 'x'"</pre>

@@ -63,15 +63,12 @@ import qualified System.Directory
 import qualified System.Posix.Process (getProcessID)
 import qualified SysCalls
 import qualified System.Posix.Internals
-import qualified Data.Map as Map
 import qualified Data.Char as Char
-import qualified Data.Maybe as Maybe
 
 import Paths_geordi (getDataFileName)
 
 import Sys (wait, WaitResult(..), strsignal, syscall_off, syscall_ret, fdOfFd, nonblocking_read, chroot, strerror)
 import SysCalls (SysCall(..))
-import Control.Applicative ((<*>))
 import Control.Monad (when, forM_)
 import Control.Monad.Fix (fix)
 import Foreign (alloca, (.|.))
@@ -84,6 +81,7 @@ import System.Posix.User
   (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
 import System.Posix
   (Signal, sigALRM, sigSTOP, sigTRAP, sigKILL, sigSEGV, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
+import CompileConfig
 
 #ifdef __x86_64__
 import Foreign ((.&.))
@@ -234,25 +232,6 @@ jail = do
   System.Directory.setCurrentDirectory "/"
   setGroupID gid
   setUserID uid
-
-data CompileConfig = CompileConfig { gxxPath :: FilePath, compileFlags, linkFlags :: [String] }
-
-readCompileConfig :: IO CompileConfig
-readCompileConfig = do
-  l <- lines . (getDataFileName file >>= readFileNow)
-  let
-    m = Map.fromList $ Maybe.catMaybes $ (uncurry parseLine .) $ zip [1..] l
-    var k = maybe (fail $ "Missing variable in " ++ file ++ ": " ++ k) return (Map.lookup k m)
-  CompileConfig . var "GXX" <*> (words . var "COMPILE_FLAGS") <*> (words . var "LINK_FLAGS")
- where
-  file = "compile-config"
-  parseLine :: Int -> String -> Maybe (String, String)
-  parseLine linenum line
-    | s@(c:_) <- dropWhile Char.isSpace line, c /= '#' =
-      case span (/= '=') s of
-        (key, _ : right) | [(value, _)] <- reads right -> Just (key, value)
-        _ -> error $ "Syntax error on line " ++ show linenum ++ " in " ++ file ++ "."
-    | otherwise = Nothing
 
 data Request = Request { code :: String, also_run, no_warn :: Bool }
 

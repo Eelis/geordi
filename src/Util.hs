@@ -132,6 +132,12 @@ pairs :: [a] → [(a, a)]
 pairs (x:y:z) = (x,y) : pairs z
 pairs _ = []
 
+findM :: Monad m ⇒ (a → m Bool) → [a] → m (Maybe a)
+findM _ [] = return Nothing
+findM p (x:xs) = do
+  b ← p x
+  if b then return (Just x) else findM p xs
+
 -- Test utilities
 
 fail_test :: (Show a, Show b) ⇒ String → a → b → IO ()

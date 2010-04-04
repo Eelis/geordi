@@ -1,13 +1,24 @@
 import Distribution.Simple
-import Distribution.Simple.Setup (ConfigFlags)
-import Distribution.PackageDescription (PackageDescription)
+import Distribution.Simple.Setup (ConfigFlags, InstallFlags)
+import Distribution.PackageDescription (PackageDescription(..))
 import Distribution.Simple.LocalBuildInfo (LocalBuildInfo(..))
-import Distribution.Simple.InstallDirs (prefix, fromPathTemplate)
+import Distribution.Simple.InstallDirs (initialPathTemplateEnv, prefix, bindir, datadir, datasubdir, fromPathTemplate, installDirsTemplateEnv, packageTemplateEnv, substPathTemplate)
+import System.Posix.Files (setFileMode, ownerModes)
 
 main :: IO ()
-main = defaultMainWithHooks $ autoconfUserHooks { postConf = myPostConf }
+main = defaultMainWithHooks $ autoconfUserHooks { postInst = myPostInst }
 
-myPostConf :: Args -> ConfigFlags -> PackageDescription -> LocalBuildInfo -> IO ()
-myPostConf args flags pkg_descr lbi = do
-  writeFile "prefix" $ fromPathTemplate $ prefix $ installDirTemplates lbi
-  postConf autoconfUserHooks args flags pkg_descr lbi
+myPostInst :: Args -> InstallFlags -> PackageDescription -> LocalBuildInfo -> IO ()
+myPostInst args flags pkg_descr lbi = do
+  (pre, _:post) <- fmap (span (/= "DATA=\"\"") . lines) $ readFile "scripts/compile-prelude"
+  let
+    idt = installDirTemplates lbi
+    env = installDirsTemplateEnv idt
+    idt' = fmap (fromPathTemplate
+      . substPathTemplate env
+      . substPathTemplate (packageTemplateEnv (package pkg_descr))) idt
+      -- This makes little sense to me, but it works...
+    to = bindir idt' ++ "/geordi-compile-prelude"
+  writeFile to $ unlines $ pre ++ ["DATA=\"" ++ datadir idt' ++ "/" ++ datasubdir idt' ++ "/\""] ++ post
+  setFileMode to ownerModes
+  postInst autoconfUserHooks args flags pkg_descr lbi

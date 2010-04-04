@@ -8,7 +8,7 @@ bug-reports: mailto:geordi@contacts.eelis.net
 package-url: http://www.eelis.net/geordi/snapshots/
 build-type: Custom
 
-data-files: jail-config compile-config
+data-files: jail-config compile-config prelude/*.hpp prelude/*.cpp
 
 flag irc
   description: Build IRC front end
@@ -22,6 +22,12 @@ flag xmpp
 flag testsuite
   description: Build test suite
   default: True
+
+executable geordi-mkrt
+  extensions: UnicodeSyntax
+  main-is: Mkrt.hs
+  hs-source-dirs: src
+  build-depends: filepath, process, base, parallel, mtl, syb, unix, utf8-string, network, containers, readline, parsec<3, Diff, directory, regex-compat, base-unicode-symbols>=0.1.4
 
 executable geordi-local
   other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
