@@ -1,5 +1,4 @@
 *.o
 *.hi
 dist
-prefix
 src/SysCalls.hsc

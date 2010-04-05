@@ -55,7 +55,7 @@ compiler_files = (nub .) $ do
   fs ← (concat .) $ forM l $ \f → do
     out ← query_gxx $ "-print-file-name=" ++ f
     return $ if out ≠ f then [out] else []
-  fs' ← (concat .) $ forM ["as", "ld"] $ \p → do
+  fs' ← (concat .) $ forM ["cc1plus", "as", "ld"] $ \p → do
     mf ← query_gxx ("-print-prog-name=" ++ p) >>= which
     case mf of
       Nothing → error $ "could not find " ++ p
