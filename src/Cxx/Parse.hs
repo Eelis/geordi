@@ -269,7 +269,7 @@ type_desc = (<?> "type description") $ do
       pluralP "array"
       let d = PtrAbstractDeclarator_NoptrAbstractDeclarator . NoptrAbstractDeclarator Nothing . Right . squared
       do
-        kwd "of"; n ← (d . Just . literalArrayBound . parse << spaces) <|> return (d Nothing)
+        kwd "of"; n ← ((d . Just . literalArrayBound . parse) << spaces) <|> return (d Nothing)
         second Right . apply n . specdDesc
        <|> do
         mad ← parse :: Parser Char (Maybe PtrAbstractDeclarator)
@@ -487,7 +487,7 @@ instance Parse SpecialNoptrDeclarator where
     -- Todo: This is too simplistic. It will fail to parse (obscure) things like "(X)();" and "(X());".
 
 instance Parse SimpleDeclaration where
-  parse = liftM2 (SimpleDeclaration Nothing) (Just . InitDeclaratorList . (convert . specialNoptrDeclarator .) . parse) parse <|> do
+  parse = liftM2 (SimpleDeclaration Nothing) (Just . InitDeclaratorList . ((convert . specialNoptrDeclarator) .) . parse) parse <|> do
     (specs, (decls, semicolon)) ← many1Till parse (liftM2 (,) parse parse)
     return $ SimpleDeclaration (Just $ DeclSpecifierSeq specs) decls semicolon
 

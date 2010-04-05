@@ -45,9 +45,9 @@ cxxArg :: CharParser st String
 cxxArg = strip . ce
  where
   ce =
-    (show . Cxx.Parse.charLit >+> ce) <|> (show . Cxx.Parse.stringLit >+> ce) <|>
+    ((show . Cxx.Parse.charLit) >+> ce) <|> ((show . Cxx.Parse.stringLit) >+> ce) <|>
     between '(' ')' <|> between '<' '>' <|> between '[' ']' <|>
-    option [] ((:[]) . noneOf ")>],'\"" >+> ce)
+    option [] (((:[]) . noneOf ")>],'\"") >+> ce)
   between open close =
     string [open] >+> (concat . intersperse "," . sepBy ce (string ",")) >+> string [close] >+> ce
     -- cxxArg can get confused when faced with sneaky uses of tokens like '>'.
@@ -75,7 +75,7 @@ replace_withs s = either (const s) replace_withs $ parse (r >+> getInput) "" s
 class Parser p st a | p → st, p → a where parser :: p → CharParser st a
 instance Parser (CharParser st a) st a where parser = id
 instance Parser String st String where parser = string
-instance Parser [String] st String where parser = choice . (try . string .)
+instance Parser [String] st String where parser = choice . ((try . string) .)
 instance Parser Char st Char where parser = char
 
 count_occs :: Eq a ⇒ [a] → [a] → Int
@@ -88,7 +88,7 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
   cleaners :: [CharParser st String]
   cleaners = try .
     [ string "basic_" >> parser ioBasics <$ '<' <$ "char" <$ '>'
-    , string "basic_" >> ('w':) . parser ioBasics <$ '<' <$ "wchar_t" <$ '>'
+    , string "basic_" >> (('w':) . parser ioBasics) <$ '<' <$ "wchar_t" <$ '>'
     , (\[e] → "list<" ++ e ++ ">::iterator") . tmpi "_List_iterator" 1
     , (\[e] → "list<" ++ e ++ ">::const_iterator") . tmpi "_List_const_iterator" 1
     , (++ "::iterator") . snd . tmpl "_Safe_iterator" (tmpi "_Rb_tree_iterator" 1 `comma` cxxArg)

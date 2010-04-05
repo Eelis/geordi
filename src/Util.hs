@@ -336,6 +336,8 @@ readFileNow f = readFile f >>= full_evaluate
 (.) :: Functor f ⇒ (a → b) → f a → f b
 (.) = fmap
 
+infixr 9 .
+
 noThrow :: IO () → IO ()
 noThrow x = x `catch` const (return ())
 

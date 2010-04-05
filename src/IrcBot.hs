@@ -179,7 +179,7 @@ on_msg eval cfg full_size m@(IRC.Message prefix c) = flip execStateT [] $ do
           if full_size ∧ none (`isSuffixOf` r) ["}", ";"] then reply $ "Request likely truncated after `" ++ takeBack 15 r ++ "`." else do
             -- The "}"/";" test gains a reduction in false positives at the cost of an increase in false negatives.
           mmem ← Map.lookup wher . lift readState
-          let con = context . mmem `orElse` Request.Context []
+          let con = (context . mmem) `orElse` Request.Context []
           Request.Response history_modification output ← lift $ lift $ eval r con
           let output' = describe_lines $ dropWhile null $ lines output
           lift $ mapState' $ Map.insert wher ChannelMemory

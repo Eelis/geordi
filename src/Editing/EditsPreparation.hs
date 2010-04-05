@@ -129,7 +129,7 @@ In several other places we can see given-vs.-wf considerations: -}
 instance (Invertible a, Find a b, Convert (FindResult ARange) b) ⇒ Find (Relative a) (NeList b) where
   find (Absolute x) = NeList.one . find x
   find (Relative o (AndList bas) w) = do
-    Found c (Range st si) ← (unanchor_range . full_range .) . find w
+    Found c (Range st si) ← ((unanchor_range . full_range) .) . find w
     (case c of InGiven → id; InWf → inwf) $ do
     Range a b ← search_range . ask
     NeList.forM bas $ \ba → do
@@ -238,11 +238,11 @@ instance Find InClause (NeList (FindResult DualARange)) where find (InClause x) 
 
 instance Find AppendPositionsClause (NeList (FindResult Anchor)) where
   find (NonAppendPositionsClause pc) = find pc
-  find (AppendIn incl) = ((($ After) . full_range .) .) . find incl
+  find (AppendIn incl) = (((($ After) . full_range) .) .) . find incl
 
 instance Find PrependPositionsClause (NeList (FindResult Anchor)) where
   find (NonPrependPositionsClause pc) = find pc
-  find (PrependIn incl) = ((($ Before) . full_range .) .) . find incl
+  find (PrependIn incl) = (((($ Before) . full_range) .) .) . find incl
 
 instance Find PositionsClause (NeList (FindResult Anchor)) where
   find (PositionsClause (AndList bas) x) = do
@@ -252,7 +252,7 @@ instance Find PositionsClause (NeList (FindResult Anchor)) where
 instance Find Replacer (NeList (FindResult Edit)) where
   find (Replacer p r) = do
     Found c v ← ((replace_range .) .) . find p >>= merge_contiguous_FindResult_ARanges
-    return $ (flip RangeReplaceEdit r . unanchor_range .) . Found c . v
+    return $ ((flip RangeReplaceEdit r . unanchor_range) .) . Found c . v
   find (ReplaceOptions o o') = return $ fmap (Found InGiven) $ NeList (RemoveOptions o) [AddOptions o']
 
 instance Find Changer (NeList (FindResult Edit)) where
@@ -260,10 +260,10 @@ instance Find Changer (NeList (FindResult Edit)) where
   find (ChangeOptions o o') = find (ReplaceOptions o o')
 
 instance Find Eraser [FindResult Edit] where
-  find (EraseText x) = ((flip RangeReplaceEdit "" . unanchor_range . full_range .) .) . NeList.to_plain . find x
+  find (EraseText x) = (((flip RangeReplaceEdit "" . unanchor_range . full_range) .) .) . NeList.to_plain . find x
   find (EraseOptions o) = return [Found InGiven $ RemoveOptions o]
   find (EraseAround (Wrapping x y) (Around z)) = do
-    l ← ((unanchor_range . full_range .) .) . NeList.to_plain . find z
+    l ← (((unanchor_range . full_range) .) .) . NeList.to_plain . find z
     (concat .) $ forM l $ \(Found v (Range p q)) →
       (case v of InGiven → id; InWf → inwf) $ do
       Range a b ← search_range . ask
@@ -275,7 +275,7 @@ instance Find Bound (FindResult (Either ARange Anchor)) where
   find (Bound Nothing Everything) = Found InGiven . Left . arange (Anchor Before 0) . Anchor After . size . search_range . ask
   find (Bound (Just Before) Everything) = return $ Found InGiven $ Right $ Anchor Before 0
   find (Bound (Just After) Everything) = Found InGiven . Right . Anchor After . size . search_range . ask
-  find (Bound mba p) = (maybe Left (\ba → Right . ($ ba)) mba . full_range .) . find p
+  find (Bound mba p) = ((maybe Left (\ba → Right . ($ ba)) mba . full_range) .) . find p
 
 instance Find RelativeBound (FindResult (Either ARange Anchor)) where
   find Front = Found InGiven . Right . Anchor Before . start . search_range . ask
@@ -286,7 +286,7 @@ instance Find RelativeBound (FindResult (Either ARange Anchor)) where
 
 class ToWf a where toWf :: a → Resolver a
 
-instance ToWf Anchor where toWf a = ((($ a) . snd .) . well_formed . ask >>= or_fail) >>= or_fail
+instance ToWf Anchor where toWf a = (((($ a) . snd) .) . well_formed . ask >>= or_fail) >>= or_fail
 instance ToWf ARange where
   toWf a = do
     f ← (snd .) . well_formed . ask >>= or_fail
