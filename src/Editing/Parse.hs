@@ -75,7 +75,7 @@ Parser (Terminators b t a) f <||> Parser (Terminators b' t' a') f' =
   Parser (Terminators (b ∨ b') (t ++ t') (a ++ a')) $ \y x → f y x <|> f' y x
 
 named_characters :: [(String, String)]
-named_characters = [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~"), ("slash", "/"), ("backslash", "\\"), ("asterisk", "*"), ("caret", "^"), ("period", "."), ("ellipsis", "...")]
+named_characters = [("comma", ","), ("space", " "), ("colon", ":"), ("semicolon", ";"), ("ampersand", "&"), ("tilde", "~"), ("slash", "/"), ("backslash", "\\"), ("asterisk", "*"), ("caret", "^"), ("period", "."), ("dot", "."), ("ellipsis", "...")]
 
 instance Parse String where
   parse = label "verbatim string" $ (parsePlural <||>) $ (select cs <||>) $
