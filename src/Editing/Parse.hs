@@ -263,7 +263,7 @@ instance Data a ⇒ Constructor a where to_constr x = toConstr x
 instance Constructor b ⇒ Constructor (a → b) where to_constr f = to_constr $ f undefined
 
 instance Parse DataType where
-  parse = parsePlural <||> (select $ map (\t → ([show $ Cxx.Basics.FindableDataType t], t)) Cxx.Operations.findable_productions)
+  parse = parsePlural <||> select (map (\t → ([show $ Cxx.Basics.FindableDataType t], t)) Cxx.Operations.findable_productions)
 instance ParsePlural DataType where
   parsePlural = select $ map (\t → ([show (Cxx.Basics.FindableDataType t) ++ "s"], t)) Cxx.Operations.findable_productions
 
@@ -335,7 +335,7 @@ instance Parse Wrapping where
   parse = label "wrapping description" $ select namedWrappings <||> liftA2 Wrapping parse (and parse)
 
 instance Parse Insertee where
-  parse = (label "wrapping description" $ select namedWrappings >>> arr WrapInsert) <||>
+  parse = label "wrapping description" (select namedWrappings >>> arr WrapInsert) <||>
     liftA2 (\x y → case y of Nothing → SimpleInsert x; Just y' → WrapInsert (Wrapping x y')) parse (option (and parse))
 
 instance Parse a ⇒ Parse (Maybe a) where parse = (parse >>> arr Just) <||> arr (const Nothing)

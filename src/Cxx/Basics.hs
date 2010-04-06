@@ -88,7 +88,7 @@ instance (Data t1, Typeable t1) ⇒ Data (NeList t1)
                                con_C1 = mkConstr ty_T "NeList" [] Prefix
 
 instance (Data t1, Data t2, Typeable t1, Typeable t2) ⇒ Data (AnyMixOf t1 t2)
-    where gfoldl _ r (MixNone) = r MixNone
+    where gfoldl _ r MixNone = r MixNone
           gfoldl k r (MixA x1) = k (r MixA) x1
           gfoldl k r (MixB x1) = k (r MixB) x1
           gfoldl k r (MixAB x1 x2) = k (k (r MixAB) x1) x2
@@ -100,7 +100,7 @@ instance (Data t1, Data t2, Typeable t1, Typeable t2) ⇒ Data (AnyMixOf t1 t2)
                               4 → k (k (z MixAB))
                               5 → k (k (z MixBA))
                               _ → error "automatically derived Data instance for AnyMixOf failed"
-          toConstr (ctor@(MixNone)) = indexConstr (dataTypeOf ctor) 1
+          toConstr (ctor@MixNone) = indexConstr (dataTypeOf ctor) 1
           toConstr (ctor@(MixA _)) = indexConstr (dataTypeOf ctor) 2
           toConstr (ctor@(MixB _)) = indexConstr (dataTypeOf ctor) 3
           toConstr (ctor@(MixAB _ _)) = indexConstr (dataTypeOf ctor) 4
@@ -403,7 +403,7 @@ newtype StatementSeq = StatementSeq (NeList Statement) deriving (Data, Typeable,
 data SelectionStatement = IfStatement (KwdIf, White) (Parenthesized Condition) Statement (Maybe ((KwdElse, White), Statement)) | SwitchStatement (KwdSwitch, White) (Parenthesized Condition) Statement deriving (Data, Typeable, Eq)
 data Condition = Condition_Expression Expression | Condition_Declaration TypeSpecifierSeq Declarator BraceOrEqualInitializer deriving (Data, Typeable, Eq)
   -- Why doesn't the draft use brace-or-equal-initializer here?
-data IterationStatement = WhileStatement (KwdWhile, White) (Parenthesized Condition) Statement | DoWhileStatement (KwdDo, White) Statement (KwdWhile, White) (Parenthesized Expression) (SemicolonOperator, White) | ForStatement (KwdFor, White) (Parenthesized (ForInitStatement, Maybe Condition, (SemicolonOperator, White), (Maybe Expression))) Statement deriving (Data, Typeable, Eq)
+data IterationStatement = WhileStatement (KwdWhile, White) (Parenthesized Condition) Statement | DoWhileStatement (KwdDo, White) Statement (KwdWhile, White) (Parenthesized Expression) (SemicolonOperator, White) | ForStatement (KwdFor, White) (Parenthesized (ForInitStatement, Maybe Condition, (SemicolonOperator, White), Maybe Expression)) Statement deriving (Data, Typeable, Eq)
 data ForInitStatement = ForInitStatement_ExpressionStatement ExpressionStatement | ForInitStatement_SimpleDeclaration SimpleDeclaration deriving (Data, Typeable, Eq)
 data JumpStatement = BreakStatement (KwdBreak, White) (SemicolonOperator, White) | ContinueStatement (KwdContinue, White) (SemicolonOperator, White) | ReturnStatement (KwdReturn, White) (Maybe Expression) (SemicolonOperator, White) | GotoStatement (KwdGoto, White) Identifier (SemicolonOperator, White) deriving (Data, Typeable, Eq)
 data DeclarationStatement = DeclarationStatement BlockDeclaration deriving (Data, Typeable, Eq)

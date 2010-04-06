@@ -7,6 +7,7 @@ import qualified Request
 import qualified Data.List as List
 import qualified Data.Char as Char
 import Data.Function (on)
+import Data.Ord (comparing)
 import Control.Arrow ((&&&))
 import Prelude.Unicode
 
@@ -116,7 +117,7 @@ unanchor_range r | Anchor _ x ← r Before, Anchor _ y ← r After = Range x (y 
 
 -- Edits
 
-instance Ord Anchor where compare = compare `on` (anchor_pos &&& anchor_befAft)
+instance Ord Anchor where compare = comparing (anchor_pos &&& anchor_befAft)
 
   -- This BefAft will probably need to be generalized to Before|After|Both for "insert x between 3 and 4".
 data Edit
@@ -153,7 +154,7 @@ data AppendPositionsClause = AppendIn InClause | NonAppendPositionsClause Positi
 data PrependPositionsClause = PrependIn InClause | NonPrependPositionsClause PositionsClause
 type Substr = EverythingOr (Ranked (Either Findable String))
 newtype Substrs = Substrs (AndList (In (Relative (EverythingOr (Rankeds (Either Findable String))))))
-newtype MakeSubject = MakeSubject (AndList (In (Relative ((Rankeds (Either Findable ImplicitDeclarationOf))))))
+newtype MakeSubject = MakeSubject (AndList (In (Relative (Rankeds (Either Findable ImplicitDeclarationOf)))))
 data Position = Position BefAft (In (Relative Substr))
 data Replacer = Replacer Substrs String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
 data Changer = Changer Substrs String | ChangeOptions [Request.EvalOpt] [Request.EvalOpt]

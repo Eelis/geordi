@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, UndecidableInstances, OverlappingInstances, PatternGuards #-}
+{-# LANGUAGE FlexibleInstances, UndecidableInstances, OverlappingInstances, ViewPatterns #-}
 
 module Request (is_addressed_request, is_short_request, EditableRequest(..), EditableRequestKind(..), Context(..), Response(..), EvalOpt(..), EphemeralOpt(..), HistoryModification(..), modify_history) where
 
@@ -38,10 +38,10 @@ nickP = many1 $ satisfy $ isAlpha .∨. isDigit .∨. (`elem` "[]\\`_^|}-")
   -- We don't include '{' because it messes up "geordi{...}", and no sane person would use it in a nick for a geordi bot anyway.
 
 is_short_request :: String → Maybe String
-is_short_request s | s' ← dropWhile isSpace s = case s' of
-  '{' : s'' | not $ all isSpace s'' → Just s'
+is_short_request (dropWhile isSpace → s) = case s of
+  '{' : s' | not $ all isSpace s' → Just s
     -- A '{' on a line of its own can occur as part of a small code fragments pasted in a channel. Of course, so can a '{' followed by more code on the same line, but for a '{' on a line of its own, we /know/ it's not intended for geordi.
-  '<' : '<' : _ → Just s'
+  '<' : '<' : _ → Just s
   _ → Nothing
 
 is_addressed_request :: String → Maybe (Nick, String)

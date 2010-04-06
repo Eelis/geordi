@@ -24,7 +24,7 @@ diff :: String → String → [Command]
 diff pre post =
   let pre_toks = diff_tokenize pre in
   merge_commands $
-  map (flip describe_simpleEdit pre_toks) $
+  map (`describe_simpleEdit` pre_toks) $
   merge_nearby_edits pre_toks $
   diffsAsSimpleEdits $ getDiff pre_toks (diff_tokenize post)
 

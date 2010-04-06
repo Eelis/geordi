@@ -1,4 +1,4 @@
-{-# LANGUAGE UnicodeSyntax, PatternGuards #-}
+{-# LANGUAGE UnicodeSyntax, ViewPatterns #-}
 
 import System.Posix (createFile, createDirectory, closeFd,
   FileMode, unionFileModes, accessModes, nullFileMode,
@@ -15,7 +15,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import System.Environment (getEnv)
 import Control.Monad (when, forM)
 import Text.Regex (matchRegex, mkRegex)
-import Data.Maybe (catMaybes)
+import Data.Maybe (mapMaybe)
 import Data.List (nub)
 import Util (findM, (.))
 import Prelude hiding ((.))
@@ -25,7 +25,7 @@ import CompileConfig
 
 split_paths :: String → [FilePath]
 split_paths [] = []
-split_paths s | (f, r) ← span (/= ':') s = f : split_paths (drop 1 r)
+split_paths (span (/= ':') → (f, r)) = f : split_paths (drop 1 r)
 
 which :: String → IO (Maybe FilePath)
 which s = getEnv "PATH" >>= findM doesFileExist . (s:) . map (</> s) . filter (not . null) . split_paths
@@ -42,7 +42,7 @@ ldd :: FilePath → IO [FilePath]
 ldd f = do
   (status, out, err) ← readProcessWithExitCode "ldd" [f] ""
   if status ≠ ExitSuccess then error err else do
-  return $ map head $ catMaybes $ map (matchRegex $ mkRegex "[[:blank:]](/[^[:blank:]]*)") $ lines $ out
+  return $ map head $ mapMaybe (matchRegex $ mkRegex "[[:blank:]](/[^[:blank:]]*)") $ lines out
 
 compiler_files :: IO [FilePath]
 compiler_files = (nub .) $ do
@@ -54,7 +54,7 @@ compiler_files = (nub .) $ do
       return $ head $ lines out
   fs ← (concat .) $ forM l $ \f → do
     out ← query_gxx $ "-print-file-name=" ++ f
-    return $ if out ≠ f then [out] else []
+    return [out | out ≠ f]
   fs' ← (concat .) $ forM ["cc1plus", "as", "ld"] $ \p → do
     mf ← query_gxx ("-print-prog-name=" ++ p) >>= which
     case mf of

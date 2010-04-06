@@ -34,7 +34,7 @@ cc1plus e = cleanup_stdlib_templates $ replace_withs $ hide_clutter_namespaces
     return x
   -- Even though we use -Wfatal-errors, we may still get several "instantiated from ..." lines. Only the last of these (the one we're interested in) actually says "error"/"warning". We used to have the regex match on that, greatly simplifying the above, but that broke when a language other than English was used.
 
-as e = maybe e (\(_, (m:ms), _, _) → toLower m : ms) $ matchRegexAll (mkRegex "\\b(Error|Warning): [^\n]*") e
+as e = maybe e (\(_, m:ms, _, _) → toLower m : ms) $ matchRegexAll (mkRegex "\\b(Error|Warning): [^\n]*") e
 
 ld e = maybe e (\(_, m, _, _) → "error: " ++ m) $ matchRegexAll (mkRegex "\\bundefined reference to [^\n]*") e
 

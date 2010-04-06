@@ -111,7 +111,7 @@ data ChannelMemory = ChannelMemory { context :: Request.Context, last_output :: 
 type ChannelMemoryMap = Map String ChannelMemory
 
 is_request :: IrcBotConfig → Where → String → Maybe String
-is_request cfg _ s | Just (n, r) ← Request.is_addressed_request s, any (\(h:t) → n == toLower h : t || n == toUpper h : t) (nick cfg : alternate_nick cfg : also_respond_to cfg) = Just r
+is_request cfg _ s | Just (n, r) ← Request.is_addressed_request s, any (\(h:t) → n `elem` [toLower h : t, toUpper h : t]) (nick cfg : alternate_nick cfg : also_respond_to cfg) = Just r
 is_request cfg (InChannel c) s | elemBy caselessStringEq c (allow_short_request_syntax_in cfg), Just r ← Request.is_short_request s = Just r
 is_request _ Private s = Just s
 is_request _ _ _ = Nothing
@@ -141,7 +141,7 @@ color_code ('\x3' : s) = case digits s of
   Nothing → Just s
 color_code _ = Nothing
 
-apply_eraser :: Eraser → (String → String)
+apply_eraser :: Eraser → String → String
 apply_eraser _ [] = []
 apply_eraser p s@(h:t) = p s `orElse` (h : apply_eraser p t)
 
@@ -157,7 +157,7 @@ version_response = "Geordi C++ bot - http://www.eelis.net/geordi/"
 on_msg :: (Functor m, Monad m) ⇒
   (String → Request.Context → m Request.Response) → IrcBotConfig → Bool → IRC.Message → StateT ChannelMemoryMap m [IRC.Command]
 on_msg eval cfg full_size m@(IRC.Message prefix c) = flip execStateT [] $ do
-  when (join_trigger cfg == Just m) $ join
+  when (join_trigger cfg == Just m) join
   case c of
     Quit _ | Just (NickName n _ _) ← prefix, n == nick cfg → send $ Nick $ nick cfg
     PrivMsg _ "\1VERSION\1" | Just (NickName n _ _) ← prefix →
@@ -175,7 +175,7 @@ on_msg eval cfg full_size m@(IRC.Message prefix c) = flip execStateT [] $ do
       maybeM (dropWhile isSpace . is_request cfg w txt) $ \r → do
       case request_allowed cfg who muser mserver w of
         Deny reason → maybeM reason reply
-        Allow → do
+        Allow →
           if full_size ∧ none (`isSuffixOf` r) ["}", ";"] then reply $ "Request likely truncated after `" ++ takeBack 15 r ++ "`." else do
             -- The "}"/";" test gains a reduction in false positives at the cost of an increase in false negatives.
           mmem ← Map.lookup wher . lift readState
