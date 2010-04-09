@@ -18,12 +18,13 @@ import Control.Monad (forever, when)
 import Control.Arrow (first)
 import Control.Monad.Error ()
 import Control.Monad.State (execStateT, lift, StateT)
+import Control.Monad.Writer (execWriterT, tell)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import Text.Regex (Regex, subRegex, mkRegexWithOpts) -- Todo: Text.Regex truncates Char's >256. Get rid of it.
 import Data.Char (toUpper, toLower, isSpace, isPrint, isDigit)
 import Data.List (isSuffixOf)
 import Data.Map (Map)
-import Util ((.), elemBy, caselessStringEq, readState, msapp, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState', strip_utf8_bom, none, takeBack)
+import Util ((.), elemBy, caselessStringEq, readState, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState', strip_utf8_bom, none, takeBack)
 import Sys (rate_limiter)
 
 import Prelude hiding (catch, (.), readFile)
@@ -156,7 +157,7 @@ version_response = "Geordi C++ bot - http://www.eelis.net/geordi/"
 
 on_msg :: (Functor m, Monad m) ⇒
   (String → Request.Context → m Request.Response) → IrcBotConfig → Bool → IRC.Message → StateT ChannelMemoryMap m [IRC.Command]
-on_msg eval cfg full_size m@(IRC.Message prefix c) = flip execStateT [] $ do
+on_msg eval cfg full_size m@(IRC.Message prefix c) = execWriterT $ do
   when (join_trigger cfg == Just m) join
   case c of
     Quit _ | Just (NickName n _ _) ← prefix, n == nick cfg → send $ Nick $ nick cfg
@@ -192,7 +193,7 @@ on_msg eval cfg full_size m@(IRC.Message prefix c) = flip execStateT [] $ do
     Invite _ _ → join
     _ → return ()
   where
-    send = msapp . (:[])
+    send = tell . (:[])
     join = send $ Join (chans cfg) (key_chans cfg)
 
 connect :: Net.HostName → Net.PortNumber → IO Handle
