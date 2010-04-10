@@ -20,10 +20,10 @@ import Data.Char (isPrint, isSpace)
 import Data.Either (lefts)
 import Editing.Basics (FinalCommand(..))
 import Parsers ((<|>), eof, optParser, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail, commit)
-import Util ((.), (<<), (.∨.), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert, maybeLast, orElse, E)
+import Util ((∈), (∉), (.), (<<), (.∨.), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert, maybeLast, orElse, E)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
 import Prelude hiding (catch, (.))
-import Prelude.Unicode
+import Prelude.Unicode hiding ((∈), (∉))
 
 show_EditableRequest :: Cxx.Show.Highlighter → EditableRequest → String
 show_EditableRequest h (EditableRequest (Evaluate f) s) | Set.null f = Cxx.Parse.highlight h s
@@ -56,7 +56,7 @@ ellipsis_options ((y, _) : ys) = work ((y, False) : ys)
     work [(x, _)] = NeList.one [x]
     work ((x, False) : xs) = fmap (x:) (work xs)
     work ((x, True) : xs) =
-      NeList.concatMap (\o → if dummy `elem` o
+      NeList.concatMap (\o → if dummy ∈ o
         then (NeList.one $ if head o == dummy then o else dummy : o)
         else NeList (dummy : o) [x : o]) (work xs)
 
@@ -80,10 +80,10 @@ evaluator h = do
     respond (EditableRequest (Evaluate opts) code) = do
       sc ← parseOrFail (Cxx.Parse.code << eof) (dropWhile isSpace code) "request"
       return $ evf $ EvalCxx.Request
-        (prel ++ (if Set.member NoUsingStd opts then "" else "using namespace std;\n")
-          ++ (if Set.member Terse opts then "#include \"terse.hpp\"\n" else "")
+        (prel ++ (if NoUsingStd ∈ opts then "" else "using namespace std;\n")
+          ++ (if Terse ∈ opts then "#include \"terse.hpp\"\n" else "")
           ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc))
-        (not $ Set.member CompileOnly opts) (Set.member NoWarn opts)
+        (CompileOnly ∉ opts) (NoWarn ∈ opts)
 
     respond_and_remember :: EditableRequest → IO Response
     respond_and_remember er = Response (Just $ AddLast er) . either (return . ("error: " ++)) id (respond er)
@@ -169,7 +169,7 @@ evaluator h = do
           Left e → return $ fail e
           Right opts → do
             let evalopts = Set.fromList $ lefts opts
-            case () of { ()
+            case () of { () -- todo: figure out why we can't use ∈ below.
               | Right Help `elem` opts → return $ return help_response
               | Right Version `elem` opts → return $ return version_response
               | Right Resume `elem` opts → case prevs of

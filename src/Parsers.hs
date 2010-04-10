@@ -17,6 +17,7 @@ import Data.Maybe (fromMaybe)
 import Util ((.), Finite(..), commas_or, Option(..), (.∨.), isIdChar, (<<))
 
 import Prelude hiding ((.))
+import Prelude.Unicode
 
 -- To let us write parsers that work with both Parsec and our own Parser monad, we introduce the ParserLike class:
 
@@ -84,10 +85,10 @@ spaces :: ParserLike m Char ⇒ m String
 spaces = many $ symbol ' '
 
 noneOf :: (Eq t, ParserLike m t) ⇒ [t] → m t
-noneOf l = satisfy $ not . (`elem` l)
+noneOf l = satisfy (∉ l)
 
 oneOf :: (Eq t, ParserLike m t) ⇒ [t] → m t
-oneOf l = satisfy (`elem` l)
+oneOf l = satisfy (∈ l)
 
 sep :: ParserLike m t ⇒ m a → m b → m (a, [(b, a)])
 sep p p' = liftM2 (,) p (many (liftM2 (,) p' p))
@@ -234,7 +235,7 @@ showParseError subject_desc input column expectation =
         show (Editing.Basics.describe_position_after column input)
       | otherwise = "end of " ++ subject_desc
     expectation' = (List.nub expectation \\ ["EOF", "' '"]) ++
-      ["end of " ++ subject_desc | "EOF" `elem` expectation]
+      ["end of " ++ subject_desc | "EOF" ∈ expectation]
 
 furthest' :: (Int, [String]) → (Int, [String]) → (Int, [String])
 furthest' (n, s) (n', s')

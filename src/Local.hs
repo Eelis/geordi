@@ -38,7 +38,7 @@ make_history_adder = do
   r ← newIORef Nothing
   return $ \s → do
     prev ← readIORef r
-    when (Just s /= prev) $ do
+    when (Just s ≠ prev) $ do
       RL.addHistory s
       writeIORef r (Just s)
 
@@ -52,7 +52,7 @@ main = do
   Sys.setlocale_ALL_env
   RL.initialize -- Reads stuff from files not present in the chroot.
   (opts, rest) ← getArgs
-  if Help `elem` opts then putStrLn help else do
+  if Help ∈ opts then putStrLn help else do
   eval ← RequestEval.evaluator Cxx.Show.noHighlighting
   forM_ rest $ \l → do Request.Response _ output ← eval l (Context []); putStrLn output
   addHistory ← make_history_adder

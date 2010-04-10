@@ -11,6 +11,7 @@ import Control.Monad.Error ()
 import Text.ParserCombinators.Parsec (getInput, (<|>), oneOf, lookAhead, spaces, satisfy, CharParser, many1, parse)
 import Util (Option(..), (.), (.∨.), total_tail, partitionMaybe)
 import Prelude hiding (catch, (.))
+import Prelude.Unicode
 
 data EvalOpt = CompileOnly | Terse | NoWarn | NoUsingStd
   deriving (Eq, Enum, Bounded, Ord)
@@ -34,7 +35,7 @@ instance Option EphemeralOpt where
 type Nick = String
 
 nickP :: CharParser st Nick
-nickP = many1 $ satisfy $ isAlpha .∨. isDigit .∨. (`elem` "[]\\`_^|}-")
+nickP = many1 $ satisfy $ isAlpha .∨. isDigit .∨. (∈ "[]\\`_^|}-")
   -- We don't include '{' because it messes up "geordi{...}", and no sane person would use it in a nick for a geordi bot anyway.
 
 is_short_request :: String → Maybe String

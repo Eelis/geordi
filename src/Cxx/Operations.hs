@@ -382,7 +382,7 @@ all_productions = findable_productions ++ [P(ParameterDeclaration), P(TemplatePa
 
 namedPathTo :: Data d ⇒ d → Range Char → [String]
 namedPathTo d r = map Cxx.Show.dataType_abbreviated_productionName $
-  filter (`elem` all_productions) $ NeList.to_plain $ fmap (applyAny dataTypeOf) (pathTo d r 0)
+  filter (∈ all_productions) $ NeList.to_plain $ fmap (applyAny dataTypeOf) (pathTo d r 0)
 
 findRange :: (Offsettable a, Data d) ⇒ (TreePath → Maybe a) → [AnyData] → Int → d → [a]
 findRange p tp i x = Maybe.maybeToList (offset i . p (NeList (AnyData x) tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
@@ -461,7 +461,7 @@ isDeclarationOf x did = Just did == case () of { ()
 class Compatible a b where compatible :: a → b → Bool
   -- For instances where a=b, compatible should be symmetric.
 
-instance Compatible CvQualifier CvQualifier where compatible = (/=)
+instance Compatible CvQualifier CvQualifier where compatible = (≠)
 
 instance Compatible CvQualifier TypeSpecifier where
   compatible cv (TypeSpecifier_CvQualifier (cv', _)) = compatible cv cv'
@@ -491,7 +491,7 @@ instance Compatible TypeSpecifier TypeSpecifier where
 instance Compatible MakeSpecifier MakeSpecifier where
   compatible (MakeSpecifier_DeclSpecifier d) (MakeSpecifier_DeclSpecifier d') = compatible d d'
   compatible x@(MakeSpecifier_DeclSpecifier _) y = compatible y x
-  compatible (NonStorageClassSpecifier scs) (MakeSpecifier_DeclSpecifier (DeclSpecifier_StorageClassSpecifier (scs', _))) = scs /= scs'
+  compatible (NonStorageClassSpecifier scs) (MakeSpecifier_DeclSpecifier (DeclSpecifier_StorageClassSpecifier (scs', _))) = scs ≠ scs'
   compatible _ _ = True
 
 instance Compatible DeclSpecifier DeclSpecifier where
@@ -757,7 +757,7 @@ instance MaybeApply MakeSpecifier PtrOperator where
 
 eraseCv :: CvQualifier → Maybe CvQualifierSeq → Maybe CvQualifierSeq
 eraseCv _ Nothing = Nothing
-eraseCv q (Just (CvQualifierSeq l)) = case filter ((/= q) . fst) (NeList.to_plain l) of
+eraseCv q (Just (CvQualifierSeq l)) = case filter ((≠ q) . fst) (NeList.to_plain l) of
   [] → Nothing
   h : t → Just $ CvQualifierSeq $ NeList h t
 
@@ -797,15 +797,15 @@ instance Apply MakeSpecifier (NeList DeclSpecifier, PtrDeclarator) (NeList DeclS
   apply s (x, y) = maybe (apply s x, y) ((,) x) (mapply s y)
 
 nonIntSpec :: (Eq s, Eq t, Convert t (Maybe s), Convert (BasicType, White) t) ⇒ s → NeList t → NeList t
-nonIntSpec s l = case filter ((/= Just s) . convert) (NeList.to_plain l) of
-    l'@(h:t) | (convert (Int', White "") `elem` l') ∨ (convert (Double', White "") `elem` l') → NeList h t
+nonIntSpec s l = case filter ((≠ Just s) . convert) (NeList.to_plain l) of
+    l'@(h:t) | (convert (Int', White "") ∈ l') ∨ (convert (Double', White "") ∈ l') → NeList h t
     l' → NeList (convert (Int', White " ")) l'
 
 instance MaybeApply MakeSpecifier (NeList TypeSpecifier) where
   mapply (MakeSpecifier_DeclSpecifier s) = mapply s
   mapply (NonStorageClassSpecifier _) = return
   mapply (NonFunctionSpecifier _) = return
-  mapply (NonCv cvq) = return . filter_but_keep_nonempty ((/= Just cvq) . convert)
+  mapply (NonCv cvq) = return . filter_but_keep_nonempty ((≠ Just cvq) . convert)
   mapply (NonSign s) = return . nonIntSpec s
   mapply (NonLength s) = return . nonIntSpec s
   mapply LongLong = return . NeList (convert LongSpec) . (convert LongSpec :) . filter (compatible (convert LongSpec :: TypeSpecifier)) . NeList.to_plain
@@ -822,18 +822,18 @@ filter_but_keep_nonempty p (NeList x y) = case NeList.from_plain (filter p (x : 
 
 instance Apply MakeSpecifier (NeList DeclSpecifier) (NeList DeclSpecifier) where
   apply (MakeSpecifier_DeclSpecifier s) = apply s
-  apply (NonStorageClassSpecifier scs) = filter_but_keep_nonempty $ (/= Just scs) . convert
-  apply (NonFunctionSpecifier fs) = filter_but_keep_nonempty $ (/= Just fs) . convert
-  apply (NonCv cvq) = filter_but_keep_nonempty $ (/= Just cvq) . convert
+  apply (NonStorageClassSpecifier scs) = filter_but_keep_nonempty $ (≠ Just scs) . convert
+  apply (NonFunctionSpecifier fs) = filter_but_keep_nonempty $ (≠ Just fs) . convert
+  apply (NonCv cvq) = filter_but_keep_nonempty $ (≠ Just cvq) . convert
   apply (NonSign s) = nonIntSpec s
   apply (NonLength s) = nonIntSpec s
   apply LongLong = NeList (convert LongSpec) . (convert LongSpec :) . filter (compatible (convert LongSpec :: DeclSpecifier)) . NeList.to_plain
 
 instance Apply MakeSpecifier [DeclSpecifier] [DeclSpecifier] where
   apply (MakeSpecifier_DeclSpecifier d) = apply d
-  apply (NonStorageClassSpecifier scs) = filter $ (/= Just scs) . convert
-  apply (NonFunctionSpecifier fs) = filter $ (/= Just fs) . convert
-  apply (NonCv cvq) = filter $ (/= Just cvq) . convert
+  apply (NonStorageClassSpecifier scs) = filter $ (≠ Just scs) . convert
+  apply (NonFunctionSpecifier fs) = filter $ (≠ Just fs) . convert
+  apply (NonCv cvq) = filter $ (≠ Just cvq) . convert
   apply (NonSign s) = maybe [] (NeList.to_plain . nonIntSpec s) . NeList.from_plain
   apply (NonLength s) = maybe [] (NeList.to_plain . nonIntSpec s) . NeList.from_plain
   apply LongLong = (convert LongSpec :) . (convert LongSpec :) . filter (compatible (convert LongSpec :: DeclSpecifier))

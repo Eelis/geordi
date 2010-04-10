@@ -343,18 +343,18 @@ instance Find UseClause (NeList (FindResult Edit)) where
 
 token_edit_cost :: Op String → Cost
 token_edit_cost (SkipOp (' ':_)) = 0
-token_edit_cost (SkipOp x) | x `elem` Cxx.Basics.keywords = -2.4
+token_edit_cost (SkipOp x) | x ∈ Cxx.Basics.keywords = -2.4
 token_edit_cost (SkipOp (h:t)) | Char.isAlphaNum h = -2.2 - fromIntegral (length t) * 0.2
 token_edit_cost (SkipOp _) = -2
 token_edit_cost (EraseOp (' ':_)) = 0.02
 token_edit_cost (EraseOp x) = token_edit_cost (InsertOp x)
-token_edit_cost (InsertOp t) | t `elem` Cxx.Basics.keywords = 2
+token_edit_cost (InsertOp t) | t ∈ Cxx.Basics.keywords = 2
 token_edit_cost (InsertOp (' ':_)) = -0.02
 token_edit_cost (InsertOp x@(y:_)) | Char.isAlpha y = fromIntegral (length x) * 0.7
 token_edit_cost (InsertOp (x:y)) | Char.isDigit x = 1 + fromIntegral (length y) * 0.3
 token_edit_cost (InsertOp _) = 1
 token_edit_cost (ReplaceOp x y)
-  | or $ (\c → List.all (`elem` c) [x, y]) . [Cxx.Basics.classKeys, Cxx.Basics.accessSpecifiers, Cxx.Basics.relational_ops] = 0.4
+  | or $ (\c → List.all (∈ c) [x, y]) . [Cxx.Basics.classKeys, Cxx.Basics.accessSpecifiers, Cxx.Basics.relational_ops] = 0.4
 token_edit_cost (ReplaceOp (c:_) (d:_)) | not $ Char.isAlphaNum c ∨ Char.isAlphaNum d = 1.1
 token_edit_cost (ReplaceOp x@(c:_) y@(d:_)) | Char.isAlpha c, Char.isAlpha d =
   if null (List.intersect x y) then 10 else levenshtein x y * 0.4
@@ -448,7 +448,7 @@ use_tests = do
   t "int const u =" "int x =" "Replaced `int x` with `int const u`." "Replaced `int const u` with `int x`."
   t "u - -j" "u--j" "Replaced &u--j with `&u - -j`." "Replaced `&u - -j` with &u--j."
   t "struct C{" "struct C(){" "Erased () after `struct C`." "Inserted () after `struct C`."
-  t "&ETPYE" "ETPYE" "Replaced ETPYE with &ETPYE." "Replaced &ETPYE with ETPYE."
+  --t "&ETPYE" "ETPYE" "Replaced ETPYE with &ETPYE." "Replaced &ETPYE with ETPYE."
   putStrLn "All use tests passed."
  where
   u :: String → String → String → String → String → IO ()

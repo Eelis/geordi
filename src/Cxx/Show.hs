@@ -11,6 +11,7 @@ import Data.Generics (cast, Data, gmapQr, ext1Q, dataTypeName, Constr, DataType)
 
 import Cxx.Basics
 import Prelude hiding ((.))
+import Prelude.Unicode
 
 instance Show Chunk where
   show (CharLiteral c) = "'" ++ c ++ "'"
@@ -79,7 +80,7 @@ abbreviate w = case w of
   _ → w
 
 dataType_to_camelProd :: DataType → String
-dataType_to_camelProd = reverse . takeWhile (/= '.') . reverse . dataTypeName
+dataType_to_camelProd = reverse . takeWhile (≠ '.') . reverse . dataTypeName
 
 dataType_productionName :: DataType → String
 dataType_productionName = camel_to_prod . dataType_to_camelProd

@@ -45,12 +45,12 @@ describe_simpleEdit (SimpleEdit r@(Range pos siz) s) t
     ()| repl_elem ["}", ")", ";"] ∨ alpha Before → ins After
     ()| toks_len s ≤ 4, size (se_range expanded_edit) > siz → describe_simpleEdit expanded_edit t
     () → ins $ if toks_len (context After) > toks_len (context Before) then Before else After
-  | all ((`elem` Cxx.Basics.ops) . tok_text) sr, s /= [], not (source_elem ["{", "}", "(", ")"]), size (se_range expanded_edit) > siz =
+  | all ((∈ Cxx.Basics.ops) . tok_text) sr, s /= [], not (source_elem ["{", "}", "(", ")"]), size (se_range expanded_edit) > siz =
     describe_simpleEdit expanded_edit t
   | otherwise = Replace $ and_one $ Replacer (Substrs $ and_one $ In describe_range Nothing) (toks_text s)
   where
     repl_elem x = case s of [Token u _] → elem u x; _ → False
-    source_elem = (sr' `elem`)
+    source_elem = (sr' ∈)
     sr' = tok_text (mconcat sr)
     expanded_edit = SimpleEdit (Range (pos - length (context Before)) (siz + length (context Before) + length (context After))) (inorder_context Before ++ s ++ context After)
     toks Before = reverse $ take pos t
@@ -88,7 +88,7 @@ merge_nearby_edits s (e : m) = e : merge_nearby_edits s m
 diff_tokenize :: String → [Token]
 diff_tokenize = g . f . edit_tokens isIdChar
   where
-    separator = (`elem` words ", { } ( ) ; = friend <<")
+    separator = (∈ words ", { } ( ) ; = friend <<")
     f :: [String] → [Token]
     f [] = []
     f (s : t@(' ':_) : m) = Token s t : f m

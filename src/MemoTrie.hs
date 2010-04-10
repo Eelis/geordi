@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, UndecidableInstances #-}
+{-# LANGUAGE UnicodeSyntax, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, UndecidableInstances #-}
 
 {- Adapted from Conal Elliott's MemoTree package. ( http://haskell.org/haskellwiki/MemoTrie )
 

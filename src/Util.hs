@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, UndecidableInstances, PatternGuards, DeriveDataTypeable, OverlappingInstances #-}
 
-module Util where
+module Util (module MemberTest, module Prelude.Unicode, module Util) where
 
 import qualified System.Posix.IO
 import qualified Data.Monoid
@@ -23,7 +23,8 @@ import System.Posix.Types (Fd(..))
 import System.IO (Handle, hClose)
 import Control.Applicative (Applicative(..))
 import Prelude hiding ((.), (!!))
-import Prelude.Unicode
+import Prelude.Unicode hiding ((∈), (∉))
+import MemberTest
 
 -- IO resources
 
@@ -92,7 +93,7 @@ erase_indexed :: [Int] → [a] → [a]
 erase_indexed i l = f 0 l
  where
   f _ [] = []
-  f n (_:t) | n `elem` i ∨ (n - length l) `elem` i = f (n + 1) t
+  f n (_:t) | n ∈ i ∨ n - length l ∈ i = f (n + 1) t
   f n (h:t) = h : f (n + 1) t
 
 count :: (a → Bool) → [a] → Int
@@ -149,7 +150,7 @@ fail_test n x y = do
   fail "test failure"
 
 test_cmp :: (Eq a, Show a) ⇒ String → a → a → IO ()
-test_cmp n x y = when (x /= y) $ fail_test n x y
+test_cmp n x y = when (x ≠ y) $ fail_test n x y
 
 -- Finite
 
@@ -190,7 +191,7 @@ multiplicative_numeral i = case i of
   n → show n ++ " times"
 
 isVowel :: Char → Bool
-isVowel = (`elem` "aeoiu")
+isVowel = (∈ "aeoiu")
 
 comma_enum :: String → [String] → String
 comma_enum _ [] = ""

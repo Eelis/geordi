@@ -8,6 +8,7 @@ import qualified Data.Maybe as Maybe
 import Control.Applicative ((<*>))
 import Paths_geordi (getDataFileName)
 import Prelude hiding ((.))
+import Prelude.Unicode
 import Util (readFileNow, (.))
 
 data CompileConfig = CompileConfig { gxxPath :: FilePath, compileFlags, linkFlags :: [String] }
@@ -23,8 +24,8 @@ readCompileConfig = do
   file = "compile-config"
   parseLine :: Int -> String -> Maybe (String, String)
   parseLine linenum line
-    | s@(c:_) <- dropWhile Char.isSpace line, c /= '#' =
-      case span (/= '=') s of
+    | s@(c:_) <- dropWhile Char.isSpace line, c ≠ '#' =
+      case span (≠ '=') s of
         (key, _ : right) | [(value, _)] ← reads right -> Just (key, value)
         _ -> error $ "Syntax error on line " ++ show linenum ++ " in " ++ file ++ "."
     | otherwise = Nothing

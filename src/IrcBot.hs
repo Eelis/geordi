@@ -77,7 +77,7 @@ main :: IO ()
 main = do
   Sys.setlocale_ALL_env
   opts ← getArgs
-  if Help `elem` opts then putStrLn help else do
+  if Help ∈ opts then putStrLn help else do
   cfg ← readTypedFile $ findMaybe (\o → case o of Config cf → Just cf; _ → Nothing) opts `orElse` "irc-config"
   full_evaluate $ do_censor cfg "abc" -- So that any mkRegex failures occur before we start connecting.
   putStrLn $ "Connecting to " ++ server cfg ++ ":" ++ show (port cfg)
@@ -112,7 +112,7 @@ data ChannelMemory = ChannelMemory { context :: Request.Context, last_output :: 
 type ChannelMemoryMap = Map String ChannelMemory
 
 is_request :: IrcBotConfig → Where → String → Maybe String
-is_request cfg _ s | Just (n, r) ← Request.is_addressed_request s, any (\(h:t) → n `elem` [toLower h : t, toUpper h : t]) (nick cfg : alternate_nick cfg : also_respond_to cfg) = Just r
+is_request cfg _ s | Just (n, r) ← Request.is_addressed_request s, any (\(h:t) → n ∈ [toLower h : t, toUpper h : t]) (nick cfg : alternate_nick cfg : also_respond_to cfg) = Just r
 is_request cfg (InChannel c) s | elemBy caselessStringEq c (allow_short_request_syntax_in cfg), Just r ← Request.is_short_request s = Just r
 is_request _ Private s = Just s
 is_request _ _ _ = Nothing
@@ -124,7 +124,7 @@ data Where = Private | InChannel String
 request_allowed :: IrcBotConfig → String → Maybe IRC.UserName → Maybe IRC.ServerName → Where → Permission
 request_allowed cfg _ _ _ Private | not (serve_private_requests cfg) =
   Deny $ Just "This bot does not serve private requests."
-request_allowed cfg nickname _ _ _ | nickname `elem` blacklist cfg = Deny Nothing
+request_allowed cfg nickname _ _ _ | nickname ∈ blacklist cfg = Deny Nothing
 request_allowed _ _ _ _ _ = Allow
 
 type Eraser = String → Maybe String
