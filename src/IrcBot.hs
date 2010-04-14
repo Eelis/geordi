@@ -34,7 +34,9 @@ import Prelude hiding (catch, (.), readFile)
 import Prelude.Unicode hiding ((∈))
 
 data IrcBotConfig = IrcBotConfig
-  { server :: Net.HostName, port :: Net.PortNumber, max_response_length :: Int
+  { server :: Net.HostName, port :: Net.PortNumber
+  , password :: Maybe String
+  , max_response_length :: Int
   , chans :: [String], key_chans :: [(String, String)]
   , nick :: String, nick_pass :: Maybe String, alternate_nick :: String
   , also_respond_to :: [String]
@@ -91,6 +93,7 @@ main = do
   evalRequest ← RequestEval.evaluator Cxx.Show.noHighlighting
   limit_rate ← rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
   let send m = limit_rate >> IRC.send h (IRC.Message Nothing m)
+  maybeM (password cfg) $ send . Pass
   send $ Nick $ nick cfg
   send $ User (nick cfg) 0 (nick cfg)
   flip execStateT (∅) $ forever $ do

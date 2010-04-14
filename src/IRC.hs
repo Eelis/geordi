@@ -22,6 +22,7 @@ data Command
   | Welcome
   | Invite { invite_nick, invite_channel :: String }
   | Nick String
+  | Pass String
   | Ping { ping_servers :: [String] }
   | Pong { pong_servers :: [String] }
   | NickNameInUse
@@ -45,6 +46,7 @@ fromBase (Base.Message prefix cmd params) =
 toBase :: Message → Base.Message
 toBase (Message prefix command) = uncurry (Base.Message prefix) $ case command of
   Pong x → ("PONG", x)
+  Pass x → ("PASS", [x])
   Nick x → ("NICK", [x])
   User u m n → ("USER", [u, show m, "*", n])
   PrivMsg x y → ("PRIVMSG", [x, y])

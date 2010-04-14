@@ -1,6 +1,7 @@
 IrcBotConfig
 { server = "irc.freenode.net"
 , port = 6667
+, password = Nothing
 , max_response_length = 300
 , chans = ["#geordi", "#otherchannel"]
 , key_chans = []
