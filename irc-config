@@ -11,6 +11,7 @@ IrcBotConfig
 , allow_short_request_syntax_in = []
 , blacklist = []
 , no_output_msg = " "
+, channel_response_prefix = ""
 , join_trigger = Nothing
 , censor = []
 , rate_limit_messages = 5

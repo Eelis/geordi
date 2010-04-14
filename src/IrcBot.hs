@@ -25,7 +25,9 @@ import Data.Char (toUpper, toLower, isSpace, isPrint, isDigit)
 import Data.List (isSuffixOf)
 import Data.Map (Map)
 import Data.SetOps
-import Util ((.), elemBy, caselessStringEq, readState, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState', strip_utf8_bom, none, takeBack)
+import Util ((.), elemBy, caselessStringEq, readState, maybeM, describe_new_output,
+  orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState',
+  strip_utf8_bom, none, takeBack, replaceInfix)
 import Sys (rate_limiter)
 
 import Prelude hiding (catch, (.), readFile)
@@ -39,6 +41,8 @@ data IrcBotConfig = IrcBotConfig
   , allow_short_request_syntax_in :: [String]
   , blacklist :: [String]
   , no_output_msg :: String
+  , channel_response_prefix :: String
+      -- A first occurrence of the string "nick" is replaced with the nick of the requester.
   , join_trigger :: Maybe IRC.Message
       -- Defaults to RPL_WELCOME. Can be set to NickServ/cloak confirmations and such.
   , censor :: [Regex]
@@ -173,7 +177,9 @@ on_msg eval cfg full_size m@(IRC.Message prefix c) = execWriterT $ do
         private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
         w = if private then Private else InChannel to
         wher = if private then who else to
-        reply s = send $ PrivMsg wher $ take (max_response_length cfg) $ if null s then no_output_msg cfg else do_censor cfg s
+        reply s = send $ PrivMsg wher $ take (max_response_length cfg) $
+            (if private then id else (replaceInfix "nick" who (channel_response_prefix cfg) ++)) $
+            if null s then no_output_msg cfg else do_censor cfg s
       maybeM (dropWhile isSpace . is_request cfg w txt) $ \r → do
       case request_allowed cfg who muser mserver w of
         Deny reason → maybeM reason reply
