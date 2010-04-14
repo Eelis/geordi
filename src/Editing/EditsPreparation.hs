@@ -13,6 +13,7 @@ import qualified Data.Char as Char
 import Control.Monad (liftM2, forM)
 import Control.Monad.Error ()
 import Data.NonEmptyList (NeList (..))
+import Data.SetOps
 import Util ((.), Convert(..), Op(..), ops_cost, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, multiplicative_numeral, E, or_fail, pairs)
 
 -- One property that might be suitable for formal verification is that finders only return anchor/ranges/edits contained in the range they received, and that no anchor/range/edit ever goes out of bounds.
@@ -21,7 +22,7 @@ import Util ((.), Convert(..), Op(..), ops_cost, erase_indexed, levenshtein, rep
   -- Todo: Move to utility header..
 
 import Prelude hiding (last, (.), all, (!!))
-import Prelude.Unicode
+import Prelude.Unicode hiding ((∈))
 import Editing.Basics
 
 import Control.Monad.Reader (ReaderT(..), local, ask)
@@ -357,7 +358,7 @@ token_edit_cost (ReplaceOp x y)
   | or $ (\c → List.all (∈ c) [x, y]) . [Cxx.Basics.classKeys, Cxx.Basics.accessSpecifiers, Cxx.Basics.relational_ops] = 0.4
 token_edit_cost (ReplaceOp (c:_) (d:_)) | not $ Char.isAlphaNum c ∨ Char.isAlphaNum d = 1.1
 token_edit_cost (ReplaceOp x@(c:_) y@(d:_)) | Char.isAlpha c, Char.isAlpha d =
-  if null (List.intersect x y) then 10 else levenshtein x y * 0.4
+  if null (x ∩ y) then 10 else levenshtein x y * 0.4
 token_edit_cost (ReplaceOp x@(c:_) y@(d:_)) | Char.isAlphaNum c, Char.isAlphaNum d = levenshtein x y * 0.8
 token_edit_cost (ReplaceOp _ _) = 10
   -- The precise values of these costs are fine-tuned to make the tests pass, and that is their only justification. We're trying to approximate the human intuition for what substring should be replaced, as codified in the tests.

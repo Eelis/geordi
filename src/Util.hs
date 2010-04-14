@@ -1,6 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, UndecidableInstances, PatternGuards, DeriveDataTypeable, OverlappingInstances #-}
 
-module Util (module MemberTest, module Prelude.Unicode, module Util) where
+module Util (module Data.SetOps, module Prelude.Unicode, module Util) where
 
 import qualified System.Posix.IO
 import qualified Data.Monoid
@@ -24,7 +24,7 @@ import System.IO (Handle, hClose)
 import Control.Applicative (Applicative(..))
 import Prelude hiding ((.), (!!))
 import Prelude.Unicode hiding ((∈), (∉))
-import MemberTest
+import Data.SetOps
 
 -- IO resources
 

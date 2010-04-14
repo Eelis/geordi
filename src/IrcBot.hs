@@ -24,11 +24,12 @@ import Text.Regex (Regex, subRegex, mkRegexWithOpts) -- Todo: Text.Regex truncat
 import Data.Char (toUpper, toLower, isSpace, isPrint, isDigit)
 import Data.List (isSuffixOf)
 import Data.Map (Map)
+import Data.SetOps
 import Util ((.), elemBy, caselessStringEq, readState, maybeM, describe_new_output, orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState', strip_utf8_bom, none, takeBack)
 import Sys (rate_limiter)
 
 import Prelude hiding (catch, (.), readFile)
-import Prelude.Unicode
+import Prelude.Unicode hiding ((∈))
 
 data IrcBotConfig = IrcBotConfig
   { server :: Net.HostName, port :: Net.PortNumber, max_response_length :: Int
@@ -88,7 +89,7 @@ main = do
   let send m = limit_rate >> IRC.send h (IRC.Message Nothing m)
   send $ Nick $ nick cfg
   send $ User (nick cfg) 0 (nick cfg)
-  flip execStateT Map.empty $ forever $ do
+  flip execStateT (∅) $ forever $ do
     raw ← lift $ hGetLine h
     let l = UTF8.decodeString raw
     case IRC.decode (l ++ "\n") of
@@ -183,9 +184,9 @@ on_msg eval cfg full_size m@(IRC.Message prefix c) = execWriterT $ do
           let con = (context . mmem) `orElse` Request.Context []
           Request.Response history_modification output ← lift $ lift $ eval r con
           let output' = describe_lines $ dropWhile null $ lines output
-          lift $ mapState' $ Map.insert wher ChannelMemory
+          lift $ mapState' $ insert (wher, ChannelMemory
             { context = maybe id Request.modify_history history_modification con
-            , last_output = output' }
+            , last_output = output' })
           reply $ describe_new_output (last_output . mmem) output'
     Welcome → do
       maybeM (nick_pass cfg) $ send . PrivMsg "NickServ" . ("identify " ++)

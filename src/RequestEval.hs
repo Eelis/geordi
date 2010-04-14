@@ -20,8 +20,9 @@ import Data.Char (isPrint, isSpace)
 import Data.Either (lefts)
 import Editing.Basics (FinalCommand(..))
 import Parsers ((<|>), eof, optParser, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail, commit)
-import Util ((∈), (∉), (.), (<<), (.∨.), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert, maybeLast, orElse, E)
+import Util ((.), (<<), (.∨.), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert, maybeLast, orElse, E)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
+import Data.SetOps
 import Prelude hiding (catch, (.))
 import Prelude.Unicode hiding ((∈), (∉))
 
@@ -176,7 +177,7 @@ evaluator h = do
                 [] → return $ fail "There is no previous resumable request."
                 EditableRequest (Evaluate oldopts) oldcodeblob : _ → case run_parser (Cxx.Parse.code << eof) (dropWhile isSpace oldcodeblob) of
                   ParseSuccess oldcode _ _ _ → do
-                    code ← Cxx.Parse.code; eof; return $ return $ respond_and_remember $ EditableRequest (Evaluate $ Set.union evalopts oldopts) $ show $ Cxx.Operations.blob $ Cxx.Operations.resume (Cxx.Operations.shortcut_syntaxes oldcode) (Cxx.Operations.shortcut_syntaxes code)
+                    code ← Cxx.Parse.code; eof; return $ return $ respond_and_remember $ EditableRequest (Evaluate $ evalopts ∪ oldopts) $ show $ Cxx.Operations.blob $ Cxx.Operations.resume (Cxx.Operations.shortcut_syntaxes oldcode) (Cxx.Operations.shortcut_syntaxes code)
                   ParseFailure _ _ _ → return $ fail "Previous request too malformed to resume."
                 _ → return $ fail "Last (editable) request was not resumable."
               | otherwise → return . return . respond_and_remember =<< EditableRequest (Evaluate evalopts) . getInput }

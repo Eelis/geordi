@@ -10,6 +10,7 @@ import Editing.EditsPreparation (FindResult(..), FoundIn(..), findInStr)
 
 import Control.Monad (foldM)
 import Request (EditableRequest(..), EditableRequestKind(..))
+import Data.SetOps
 import Util ((.), E)
 
 import Prelude hiding ((.))
@@ -109,7 +110,7 @@ exec_edit e (EditableRequest k s) = case e of
       | Evaluate f ← k → return $ EditableRequest (Evaluate $ (Set.\\) f $ Set.fromList opts) s
       | otherwise → fail $ "Cannot remove evaluation options from \"" ++ show k ++ "\" request."
     AddOptions opts
-      | Evaluate f ← k → return $ EditableRequest (Evaluate $ Set.union f $ Set.fromList opts) s
+      | Evaluate f ← k → return $ EditableRequest (Evaluate $ f ∪ Set.fromList opts) s
       | otherwise → fail $ "Cannot use evaluation options for \"" ++ show k ++ "\" request."
 
 execute :: [Command] → EditableRequest → Either String EditableRequest

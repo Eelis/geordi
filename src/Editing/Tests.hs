@@ -258,7 +258,7 @@ basic_tests = do
   ct :: String → String → Either String String → IO ()
   ct x c o = test_cmp c o $ case parseOrFailE (Editing.Parse.commandsP << eof) c "command" of
     Left e → Left e
-    Right (cmds, _) → editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate Set.empty) x)
+    Right (cmds, _) → editable_body . Editing.Execute.execute cmds (EditableRequest (Evaluate (∅)) x)
 
   s, f :: String → String → String → IO ()
   s code cmdstring expectation = ct code cmdstring (Right expectation) -- test for success
