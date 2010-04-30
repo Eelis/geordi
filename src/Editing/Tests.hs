@@ -4,7 +4,6 @@ import qualified Editing.EditsPreparation
 import qualified Editing.Parse
 import qualified Editing.Execute
 import qualified Editing.Diff
-import qualified Data.Set as Set
 import qualified Cxx.Show
 import qualified Cxx.Parse
 
@@ -13,6 +12,7 @@ import Util (test_cmp, (<<), (.))
 import Request (EditableRequest(..), EditableRequestKind(..))
 
 import Prelude hiding ((.))
+import Data.SetOps
 
 basic_tests :: IO ()
 basic_tests = do
