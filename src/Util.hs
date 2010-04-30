@@ -6,12 +6,16 @@ import qualified System.Posix.IO
 import qualified Data.Monoid
 import qualified Prelude
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as NeList
 import Data.Maybe (listToMaybe, mapMaybe, fromMaybe)
 import Data.Monoid (Monoid(..))
 import Data.List (sortBy, minimumBy, isPrefixOf, tails, stripPrefix)
+import Data.List.NonEmpty ((|:), neTail, neHead, (.:))
 import Data.Char (isSpace, isAlphaNum, toLower, toUpper)
 import Data.Function (on)
+import Data.Foldable (toList)
 import Data.Generics (Data, Typeable)
+import Data.Traversable (mapM)
 import Control.Exception (bracket, evaluate)
 import Control.Arrow (Arrow, (>>>), arr, first, second, (&&&))
 import Control.Monad (liftM2, when, MonadPlus(..))
@@ -22,7 +26,7 @@ import Control.Parallel.Strategies (NFData, rnf)
 import System.Posix.Types (Fd(..))
 import System.IO (Handle, hClose)
 import Control.Applicative (Applicative(..))
-import Prelude hiding ((.), (!!))
+import Prelude hiding ((.), (!!), mapM)
 import Prelude.Unicode hiding ((∈), (∉))
 import Data.SetOps
 
@@ -138,6 +142,37 @@ findM _ [] = return Nothing
 findM p (x:xs) = do
   b ← p x
   if b then return (Just x) else findM p xs
+
+safeNth :: Int → [a] → Maybe a
+safeNth n = listToMaybe . if 0 ≤ n then drop n else drop (-n - 1) . reverse
+
+-- Non-empty lists
+
+type NeList = NeList.NonEmpty
+
+neElim :: NeList a → (a, [a])
+neElim = NeList.neHead &&& NeList.neTail
+
+neFilter :: (a → Bool) → NeList a → [a]
+neFilter p = filter p . toList
+
+prefixNeList :: [a] → NeList a → NeList a
+prefixNeList [] = id
+prefixNeList (h:t) = (h |:) . (t ++) . toList
+
+neInitLast :: NeList a → ([a], a)
+neInitLast = ((reverse . snd) &&& fst) . neElim . NeList.reverse
+
+neHomogenize :: (Functor m, Monad m) ⇒ (a → m b) → NeList (Either a b) → m (Either (NeList a) (NeList b))
+neHomogenize f l = case neTail l of
+  [] → return $ either (Left . return) (Right . return) (neHead l)
+  h:t → do
+    ht ← neHomogenize f $ h |: t
+    case (neHead l, ht) of
+      (Left x, Left y) → return $ Left $ x .: y
+      (Right x, Right y) → return $ Right $ x .: y
+      (Left x, Right y) → Right `fmap` (.: y) `fmap` f x
+      (Right x, Left y) → Right `fmap` (x .:) `fmap` mapM f y
 
 -- Test utilities
 

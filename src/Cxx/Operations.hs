@@ -1,23 +1,23 @@
-{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ScopedTypeVariables, ExistentialQuantification, TypeSynonymInstances, CPP #-}
+{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ScopedTypeVariables, ExistentialQuantification, TypeSynonymInstances, CPP, ViewPatterns #-}
 
 module Cxx.Operations (apply, mapply, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, find, is_pointer_or_reference, namedPathTo, findable_productions, make_edits) where
 
 import qualified Cxx.Show
 import qualified Data.List as List
-import qualified Data.NonEmptyList as NeList
+import Data.List.NonEmpty (neHead, neTail, (|:), (.:), toNonEmpty)
 import qualified Data.Char as Char
 import qualified Data.Maybe as Maybe
-import Data.NonEmptyList (NeList(..))
-import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..), Phantom(..))
+import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..), Phantom(..), neElim, NeList, orElse, neFilter)
 import Cxx.Basics
 import Editing.Basics (Range(..), Offsettable(..), Edit)
 import Editing.Diff (diff_as_Edits)
 import Data.Function (on)
+import Data.Foldable (toList, any)
 import Control.Arrow (first, second)
 import Control.Monad.Identity
 import Data.Generics (cast, gmapT, everywhere, Data, Typeable, gfoldl, dataTypeOf, toConstr, Constr, DataType, dataTypeName, constrType)
 
-import Prelude hiding ((.))
+import Prelude hiding ((.), any)
 import Prelude.Unicode
 
 -- Operations on Chunks/Code
@@ -155,7 +155,7 @@ instance Convert DeclSpecifier (Maybe DeclaratorId) where
   convert _ = Nothing
 instance Convert SimpleDeclaration (Maybe DeclaratorId) where
   convert (SimpleDeclaration _ (Just (InitDeclaratorList (Commad (InitDeclarator d _) []))) _) = Just $ convert d
-  convert (SimpleDeclaration (Just (DeclSpecifierSeq (NeList d []))) Nothing _) = convert d
+  convert (SimpleDeclaration (Just (DeclSpecifierSeq (neElim → (d, [])))) Nothing _) = convert d
   convert _ = Nothing
 instance Convert NamespaceAliasDefinition DeclaratorId where convert (NamespaceAliasDefinition _ i _ _ _ _) = convert i
 instance Convert BlockDeclaration (Maybe DeclaratorId) where
@@ -184,7 +184,7 @@ instance Convert MemberDeclaration (Maybe DeclaratorId) where
   convert (MemberUsingDeclaration _) = Nothing
   convert (MemberTemplateDeclaration d) = convert d
   convert (MemberDeclaration _ (Just (MemberDeclaratorList (Commad d []))) _) = convert d
-  convert (MemberDeclaration (Just (DeclSpecifierSeq (NeList d []))) Nothing _) = convert d
+  convert (MemberDeclaration (Just (DeclSpecifierSeq (neElim → (d, [])))) Nothing _) = convert d
   convert (MemberDeclaration _ _ _) = Nothing
 instance Convert ExceptionDeclaration (Maybe DeclaratorId) where
   convert (ExceptionDeclaration _ (Just (Left d))) = Just $ convert d
@@ -289,34 +289,35 @@ diag x = (x, x)
 
 finder :: Findable → TreePath → Maybe (Range Char, Range Char)
 finder f = case f of
-  FindableDataType t → (diag .) . simpleFinder ((== t) . applyAny dataTypeOf . NeList.head)
-  FindableConstr c → (diag .) . simpleFinder (constr_eq c . applyAny toConstr . NeList.head)
-  BodyOf d → (diag .) . applyAny (`bodyOf` d) . NeList.head
+  FindableDataType t → (diag .) . simpleFinder ((== t) . applyAny dataTypeOf . neHead)
+  FindableConstr c → (diag .) . simpleFinder (constr_eq c . applyAny toConstr . neHead)
+  BodyOf d → (diag .) . applyAny (`bodyOf` d) . neHead
   DeclarationOf d → (diag .) . simpleFinder (complete (`isDeclarationOf` d))
   Constructor → (diag .) . simpleFinder  (complete $ isSpecialFuncWith isConstructorId)
   Destructor → (diag .) . simpleFinder (complete $ isSpecialFuncWith isDestructorId)
   ConversionFunction → (diag .) . simpleFinder (complete $ isSpecialFuncWith isConversionFunctionId)
-  FindableParameterDeclaration → applyAny (listElem (Phantom :: Phantom ParameterDeclaration)) . NeList.head
-  TemplateParameter → applyAny (listElem (Phantom :: Phantom TemplateParameter)) . NeList.head
-  TemplateArgument → applyAny (listElem (Phantom :: Phantom TemplateArgument)) . NeList.head
+  FindableParameterDeclaration → applyAny (listElem (Phantom :: Phantom ParameterDeclaration)) . neHead
+  TemplateParameter → applyAny (listElem (Phantom :: Phantom TemplateParameter)) . neHead
+  TemplateArgument → applyAny (listElem (Phantom :: Phantom TemplateArgument)) . neHead
  where
-  simpleFinder p t@(NeList (AnyData x) _) = if p t then Just $ Range 0 $ length $ Cxx.Show.show_simple x else Nothing
+  simpleFinder p t | AnyData x ← neHead t =
+    if p t then Just $ Range 0 $ length $ Cxx.Show.show_simple x else Nothing
 
 find :: Data d ⇒ Findable → d → [(Range Char, Range Char)]
 find f = findRange (finder f) [] 0
 
 complete :: (forall d . Data d ⇒ d → Bool) → TreePath → Bool
-complete p (NeList (AnyData x) y) = p x ∧
-  case y of [] → True; AnyData h : _ → not $ p h
+complete p d | AnyData x ← neHead d =
+  p x ∧ case neTail d of [] → True; AnyData h : _ → not $ p h
 
 wraps :: Range a → Range a → Bool
 wraps (Range st si) (Range st' si') = st ≤ st' ∧ st' + si' ≤ st + si
 
 pathTo :: Data d ⇒ d → Range Char → Int → TreePath
   -- Precondition: the range is entirely within [0, length (show d)]
-pathTo x r i = NeList (AnyData x) $ case gfoldl_with_ranges i f x of
+pathTo x r i = AnyData x |: case gfoldl_with_ranges i f x of
   [] → []
-  l : _ → NeList.to_plain l
+  l : _ → toList l
   where f r'@(Range st _) y = [pathTo y r st | r' `wraps` r]
 
 findable_productions, all_productions :: [DataType]
@@ -382,10 +383,10 @@ all_productions = findable_productions ++ [P(ParameterDeclaration), P(TemplatePa
 
 namedPathTo :: Data d ⇒ d → Range Char → [String]
 namedPathTo d r = map Cxx.Show.dataType_abbreviated_productionName $
-  filter (∈ all_productions) $ NeList.to_plain $ fmap (applyAny dataTypeOf) (pathTo d r 0)
+  filter (∈ all_productions) $ toList $ fmap (applyAny dataTypeOf) (pathTo d r 0)
 
 findRange :: (Offsettable a, Data d) ⇒ (TreePath → Maybe a) → [AnyData] → Int → d → [a]
-findRange p tp i x = Maybe.maybeToList (offset i . p (NeList (AnyData x) tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
+findRange p tp i x = Maybe.maybeToList (offset i . p (AnyData x |: tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
 
 make_edits :: (Monad m, Data d) ⇒ Range Char → MakeDeclaration → Int → d → m [Edit]
 make_edits r m i d = do
@@ -575,43 +576,44 @@ class SplitDecls a where split_decls :: a → NeList a
 
 instance SplitDecls Declaration where
   split_decls (Declaration_BlockDeclaration bd) = fmap Declaration_BlockDeclaration $ split_decls bd
-  split_decls d = NeList d []
+  split_decls d = return d
 
 instance SplitDecls BlockDeclaration where
   split_decls (BlockDeclaration_SimpleDeclaration sd) = fmap BlockDeclaration_SimpleDeclaration $ split_decls sd
-  split_decls d = NeList d []
+  split_decls d = return d
 
 instance SplitDecls SimpleDeclaration where
-  split_decls d@(SimpleDeclaration _ Nothing _) = NeList d []
+  split_decls d@(SimpleDeclaration _ Nothing _) = return d
   split_decls (SimpleDeclaration specs (Just (InitDeclaratorList (Commad x l))) w) =
-    (\y → SimpleDeclaration specs (Just (InitDeclaratorList (Commad y []))) w) . NeList x (snd . l)
+    (\y → SimpleDeclaration specs (Just (InitDeclaratorList (Commad y []))) w) . (x |: (snd . l))
 
 instance SplitDecls Statement where
   split_decls (Statement_DeclarationStatement (DeclarationStatement d)) =
     Statement_DeclarationStatement . DeclarationStatement . split_decls d
   split_decls (Statement_CompoundStatement (CompoundStatement (Curlied x (Enclosed (Just (StatementSeq l))) y))) =
-    NeList (Statement_CompoundStatement $ CompoundStatement $ Curlied x (Enclosed $ Just $ StatementSeq $ NeList.concatMap split_decls l) y) []
+    return (Statement_CompoundStatement $ CompoundStatement $ Curlied x (Enclosed $ Just $ StatementSeq $ l >>= split_decls) y)
   split_decls (Statement_SelectionStatement (IfStatement k c s Nothing)) =
-    NeList (Statement_SelectionStatement $ IfStatement k c (compound_split_decls s) Nothing) [] -- todo: do else part as well
+    return (Statement_SelectionStatement $ IfStatement k c (compound_split_decls s) Nothing) -- todo: do else part as well
     -- todo: do while and do-loops as well.
-  split_decls s = NeList (gmapT split_all_decls s) []
+  split_decls s = return $ gmapT split_all_decls s
 
 instance SplitDecls MemberDeclaration where
   split_decls (MemberDeclaration specs (Just (MemberDeclaratorList (Commad d ds))) s) =
-    (\d' → MemberDeclaration specs (Just (MemberDeclaratorList (Commad d' []))) s) . NeList d (snd . ds)
-  split_decls d = NeList (gmapT split_all_decls d) []
+    (\d' → MemberDeclaration specs (Just (MemberDeclaratorList (Commad d' []))) s) . (d |: (snd . ds))
+  split_decls d = return $ gmapT split_all_decls d
 
 compound_split_decls :: Statement → Statement
-compound_split_decls s = case split_decls s of
-  NeList x [] → x
-  l → Statement_CompoundStatement $ CompoundStatement $ Curlied (OpenCurly_, White "") (Enclosed $ Just $ StatementSeq l) (CloseCurly_, White "")
+compound_split_decls s
+  | null (neTail l) = neHead l
+  | otherwise = Statement_CompoundStatement $ CompoundStatement $ Curlied (OpenCurly_, White "") (Enclosed $ Just $ StatementSeq l) (CloseCurly_, White "")
+  where l = split_decls s
 
 split_all_decls :: Data a ⇒ a → a
 split_all_decls = everywhere $ Maybe.fromMaybe id $ Maybe.listToMaybe . Maybe.catMaybes $
-  [ cast (NeList.concatMap split_decls :: NeList Declaration → NeList Declaration)
-  , cast (NeList.concatMap split_decls :: NeList Statement → NeList Statement)
+  [ cast ((>>= split_decls) :: NeList Declaration → NeList Declaration)
+  , cast ((>>= split_decls) :: NeList Statement → NeList Statement)
   , cast (compound_split_decls :: Statement → Statement)
-  , cast (concatMap (either (map Left . NeList.to_plain . split_decls) ((:[]) . Right)) :: [Either MemberDeclaration MemberAccessSpecifier] → [Either MemberDeclaration MemberAccessSpecifier])
+  , cast (concatMap (either (map Left . toList . split_decls) ((:[]) . Right)) :: [Either MemberDeclaration MemberAccessSpecifier] → [Either MemberDeclaration MemberAccessSpecifier])
   ]
 
 -- Qualifier/specifier classification
@@ -659,19 +661,19 @@ instance Apply DeclaratorId NoptrAbstractDeclarator NoptrDeclarator where
 -- Here and elsewhere, we always keep specifiers in the order they appeared in the source text as much as possible.
 
 instance Apply TypeSpecifier (NeList TypeSpecifier) (NeList TypeSpecifier) where
-  apply d (NeList x y) = NeList (with_trailing_white d) $ filter (compatible d) (x:y)
+  apply d = (with_trailing_white d |:) . filter (compatible d) . toList
 
 -- DeclSpecifier application
 
 instance Apply DeclSpecifier [DeclSpecifier] [DeclSpecifier] where
-  apply d l = with_trailing_white d : filter (compatible d) l
+  apply d = (with_trailing_white d :) . filter (compatible d)
 
 instance Apply DeclSpecifier (NeList DeclSpecifier) (NeList DeclSpecifier) where
-  apply d (NeList x y) = NeList (with_trailing_white d) $ filter (compatible d) (x:y)
+  apply d = (with_trailing_white d |:) . filter (compatible d) . toList
 
 instance Apply [DeclSpecifier] (NeList DeclSpecifier) (NeList DeclSpecifier) where
   apply [] l = l
-  apply l@(h:t) (NeList x y) = NeList h $ with_trailing_white t ++ filter (\s → all (compatible s) l) (x:y)
+  apply l@(h:t) x = h |: (with_trailing_white t ++ filter (\s → all (compatible s) l) (toList x))
 
 instance MaybeApply DeclSpecifier (NeList TypeSpecifier) where
   mapply (DeclSpecifier_TypeSpecifier x) typespecs = return $ apply x typespecs
@@ -757,9 +759,7 @@ instance MaybeApply MakeSpecifier PtrOperator where
 
 eraseCv :: CvQualifier → Maybe CvQualifierSeq → Maybe CvQualifierSeq
 eraseCv _ Nothing = Nothing
-eraseCv q (Just (CvQualifierSeq l)) = case filter ((≠ q) . fst) (NeList.to_plain l) of
-  [] → Nothing
-  h : t → Just $ CvQualifierSeq $ NeList h t
+eraseCv q (Just (CvQualifierSeq l)) = CvQualifierSeq . toNonEmpty (neFilter ((≠ q) . fst) l)
 
 instance MaybeApply MakeSpecifier (Maybe CvQualifierSeq) where
   mapply (MakeSpecifier_DeclSpecifier (DeclSpecifier_TypeSpecifier (TypeSpecifier_CvQualifier (cvq, _)))) =
@@ -797,9 +797,9 @@ instance Apply MakeSpecifier (NeList DeclSpecifier, PtrDeclarator) (NeList DeclS
   apply s (x, y) = maybe (apply s x, y) ((,) x) (mapply s y)
 
 nonIntSpec :: (Eq s, Eq t, Convert t (Maybe s), Convert (BasicType, White) t) ⇒ s → NeList t → NeList t
-nonIntSpec s l = case filter ((≠ Just s) . convert) (NeList.to_plain l) of
-    l'@(h:t) | (convert (Int', White "") ∈ l') ∨ (convert (Double', White "") ∈ l') → NeList h t
-    l' → NeList (convert (Int', White " ")) l'
+nonIntSpec s l = case neFilter ((≠ Just s) . convert) l of
+    l'@(h:t) | (convert (Int', White "") ∈ l') ∨ (convert (Double', White "") ∈ l') → h |: t
+    l' → convert (Int', White " ") |: l'
 
 instance MaybeApply MakeSpecifier (NeList TypeSpecifier) where
   mapply (MakeSpecifier_DeclSpecifier s) = mapply s
@@ -808,7 +808,7 @@ instance MaybeApply MakeSpecifier (NeList TypeSpecifier) where
   mapply (NonCv cvq) = return . filter_but_keep_nonempty ((≠ Just cvq) . convert)
   mapply (NonSign s) = return . nonIntSpec s
   mapply (NonLength s) = return . nonIntSpec s
-  mapply LongLong = return . NeList (convert LongSpec) . (convert LongSpec :) . filter (compatible (convert LongSpec :: TypeSpecifier)) . NeList.to_plain
+  mapply LongLong = return . (convert LongSpec |:) . (convert LongSpec :) . filter (compatible (convert LongSpec :: TypeSpecifier)) . toList
 
 instance MaybeApply MakeSpecifier TypeSpecifierSeq where
   mapply s (TypeSpecifierSeq l) = TypeSpecifierSeq . mapply s l
@@ -816,9 +816,7 @@ instance MaybeApply MakeSpecifier TypeSpecifierSeq where
 -- decl-specifier-seqs (which are always nonempty) always contain at least one primary specifier. Hence, removing, say, all cv-qualifiers, will always produce a proper (nonempty) decl-specifier-seq. However, the type system does not know that, and so we use the following ugly function:
 
 filter_but_keep_nonempty :: forall a . (a → Bool) → NeList a → NeList a
-filter_but_keep_nonempty p (NeList x y) = case NeList.from_plain (filter p (x : y)) of
-  Nothing → NeList.one x
-  Just r → r
+filter_but_keep_nonempty p l = toNonEmpty (filter p $ toList l) `orElse` return (neHead l)
 
 instance Apply MakeSpecifier (NeList DeclSpecifier) (NeList DeclSpecifier) where
   apply (MakeSpecifier_DeclSpecifier s) = apply s
@@ -827,15 +825,15 @@ instance Apply MakeSpecifier (NeList DeclSpecifier) (NeList DeclSpecifier) where
   apply (NonCv cvq) = filter_but_keep_nonempty $ (≠ Just cvq) . convert
   apply (NonSign s) = nonIntSpec s
   apply (NonLength s) = nonIntSpec s
-  apply LongLong = NeList (convert LongSpec) . (convert LongSpec :) . filter (compatible (convert LongSpec :: DeclSpecifier)) . NeList.to_plain
+  apply LongLong = (convert LongSpec |:) . (convert LongSpec :) . filter (compatible (convert LongSpec :: DeclSpecifier)) . toList
 
 instance Apply MakeSpecifier [DeclSpecifier] [DeclSpecifier] where
   apply (MakeSpecifier_DeclSpecifier d) = apply d
   apply (NonStorageClassSpecifier scs) = filter $ (≠ Just scs) . convert
   apply (NonFunctionSpecifier fs) = filter $ (≠ Just fs) . convert
   apply (NonCv cvq) = filter $ (≠ Just cvq) . convert
-  apply (NonSign s) = maybe [] (NeList.to_plain . nonIntSpec s) . NeList.from_plain
-  apply (NonLength s) = maybe [] (NeList.to_plain . nonIntSpec s) . NeList.from_plain
+  apply (NonSign s) = maybe [] (toList . nonIntSpec s) . toNonEmpty
+  apply (NonLength s) = maybe [] (toList . nonIntSpec s) . toNonEmpty
   apply LongLong = (convert LongSpec :) . (convert LongSpec :) . filter (compatible (convert LongSpec :: DeclSpecifier))
 
 -- PtrOperator application
@@ -899,12 +897,12 @@ instance Apply NoptrAbstractDeclarator NoptrAbstractDeclarator NoptrAbstractDecl
 
 -- MakeDeclaration application
 
-instance Convert [a] (Maybe (NeList a)) where convert [] = Nothing; convert (h : t) = Just $ NeList h t
+instance Convert [a] (Maybe (NeList a)) where convert = toNonEmpty
 
 instance Convert [DeclSpecifier] (Maybe DeclSpecifierSeq) where convert = fmap DeclSpecifierSeq . convert
 instance Convert (Maybe DeclSpecifierSeq) [DeclSpecifier] where
   convert Nothing = []
-  convert (Just (DeclSpecifierSeq l)) = NeList.to_plain l
+  convert (Just (DeclSpecifierSeq l)) = toList l
 
 instance Convert (Maybe DeclSpecifierSeq) [TypeSpecifier] where
   convert = convert . (convert :: Maybe DeclSpecifierSeq → [DeclSpecifier])
@@ -918,10 +916,10 @@ instance Apply MakeDeclaration (Maybe DeclSpecifierSeq, Declarator, Maybe (Eithe
 -- cv-qualifier application
 
 instance Apply CvQualifier (Maybe CvQualifierSeq) (Maybe CvQualifierSeq) where
-  apply cvq Nothing = Just $ CvQualifierSeq $ NeList (cvq, White " ") []
+  apply cvq Nothing = Just $ CvQualifierSeq $ return (cvq, White " ")
   apply cvq (Just x) = Just $ apply cvq x
 instance Apply CvQualifier CvQualifierSeq CvQualifierSeq where
-  apply cvq (CvQualifierSeq l) = CvQualifierSeq $ if any ((== cvq) . fst) (NeList.to_plain l) then l else NeList (cvq, White " ") (NeList.to_plain l)
+  apply cvq (CvQualifierSeq l) = CvQualifierSeq $ if any ((== cvq) . fst) l then l else (cvq, White " ") .: l
 
 instance MaybeApply CvQualifier a ⇒ MaybeApply [CvQualifier] a where
   mapply l x = foldM (flip mapply) x l
@@ -935,7 +933,7 @@ instance (Convert CvQualifier t, Compatible t t) ⇒ Apply CvQualifier [t] [t] w
   apply cvq l = let x = convert cvq in if any (not . compatible x) l then l else x : l
 
 instance (Convert CvQualifier t, Compatible t t) ⇒ Apply CvQualifier (NeList t) (NeList t) where
-  apply cvq l = let x = convert cvq in if any (not . compatible x) (NeList.to_plain l) then l else NeList x (NeList.to_plain l)
+  apply cvq l = let x = convert cvq in if any (not . compatible x) (toList l) then l else x .: l
   -- todo: merge last two using ListLike
 
 instance Apply CvQualifier x x ⇒ Apply CvQualifier (x, Maybe PtrAbstractDeclarator) (x, Maybe PtrAbstractDeclarator) where
@@ -971,7 +969,7 @@ instance Apply CvQualifier ([TypeSpecifier], Either TypeSpecifier PtrAbstractDec
   apply cvq (l, Right ad)
     | Just ad' ← mapply cvq ad = (l, Right ad')
     | otherwise = (apply cvq l, Right ad)
-  apply cvq (l, Left s) = let (NeList s' l') = apply cvq (NeList s l) in (l', Left s')
+  apply cvq (l, Left s) = let (s', l') = neElim $ apply cvq (s |: l) in (l', Left s')
 
 instance MaybeApply CvQualifier PtrAbstractDeclarator where
   mapply cvq (PtrAbstractDeclarator_NoptrAbstractDeclarator d) =

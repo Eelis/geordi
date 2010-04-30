@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeSynonymInstances, FlexibleContexts, UndecidableInstances, OverlappingInstances, CPP, PatternGuards #-}
+{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeSynonymInstances, FlexibleContexts, UndecidableInstances, OverlappingInstances, CPP, PatternGuards, ViewPatterns #-}
 
 module Editing.EditsPreparation (use_tests, findInStr, FindResult(..), FoundIn(..)) where
 
@@ -8,20 +8,21 @@ import qualified Cxx.Operations
 import qualified Editing.Diff
 import qualified Editing.Show
 import qualified Data.List as List
-import qualified Data.NonEmptyList as NeList
 import qualified Data.Char as Char
-import Control.Monad (liftM2, forM)
+import Data.Foldable (toList)
+import Data.Traversable (forM, mapM, sequence)
+import Data.List.NonEmpty ((|:), toNonEmpty, neHead, neTail)
+import Control.Monad (liftM2, join)
 import Control.Monad.Error ()
-import Data.NonEmptyList (NeList (..))
 import Data.SetOps
-import Util ((.), Convert(..), Op(..), ops_cost, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, multiplicative_numeral, E, or_fail, pairs)
+import Util ((.), Convert(..), Op(..), ops_cost, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, multiplicative_numeral, E, or_fail, pairs, NeList, neElim, neHomogenize, safeNth)
 
 -- One property that might be suitable for formal verification is that finders only return anchor/ranges/edits contained in the range they received, and that no anchor/range/edit ever goes out of bounds.
 
 #define case_of \case_of_detail → case case_of_detail of
   -- Todo: Move to utility header..
 
-import Prelude hiding (last, (.), all, (!!))
+import Prelude hiding (last, (.), all, (!!), sequence, mapM)
 import Prelude.Unicode hiding ((∈))
 import Editing.Basics
 
@@ -47,7 +48,7 @@ class InGiven_to_InWf b ⇒ Find a b | a → b where find :: a → Resolver b
 -- We will describe the InGiven_to_InWf class in a moment. Some fairly obvious Find instances are:
 
 instance (Find x a, Find y a) ⇒ Find (Either x y) a where find = either find find
-instance Find a b ⇒ Find (AndList a) (NeList b) where find = NeList.sequence . (find .) . andList
+instance Find a b ⇒ Find (AndList a) (NeList b) where find = sequence . (find .) . andList
 
 -- The _given and search_range fields in ResolutionContext simply specify a string and subrange of that string for the finder to search in. The context_suffix field describes the context (e.g. "after third statement in body of f"). Its only purpose is to make for nicer error messages: when Find instances fail, context_suffix lets us produce error messages like "Could not find `beh` after third statement in body of f."
 
@@ -79,7 +80,7 @@ instance Functor FindResult where fmap f (Found x y) = Found x (f y)
 instance Find String (NeList (FindResult DualARange)) where
   find x = do
     ResolutionContext _ s r _ ← ask
-    case NeList.from_plain $ find_occs x $ selectRange r s of
+    case toNonEmpty $ find_occs x $ selectRange r s of
       Nothing → fail_with_context $ "String `" ++ x ++ "` does not occur"
       Just l → return $ (Found InGiven . convert . (\o → arange (Anchor After $ start r + o) (Anchor Before $ start r + o + length x))) . l
 
@@ -89,7 +90,7 @@ For our next example, we consider the Find instance for "in"-clauses: -}
 
 instance (Find a (NeList b)) ⇒ Find (In a) (NeList b) where
   find (In o Nothing) = find o
-  find (In o (Just incl)) = ((full_range .) .) . find incl >>= (NeList.concat .) . NeList.mapM (\(Found a x) →
+  find (In o (Just incl)) = ((full_range .) .) . find incl >>= (join .) . mapM (\(Found a x) →
     (case a of InGiven → id; InWf → inwf) $ narrow (Editing.Show.show incl) (convert x) $ find o)
 
 -- For the nontrivial case, we first simply search for incl, which yields a number of DualARanges, which we map to their full_range components. Then, for each ARange x that was found, we distinguish between two cases. If x is relative to the current _given, we just use |narrow| to focus our attention on x, and try to find |o| there. If x is relative to the well-formed snippet, then we should find |o| in there, too. So in this case, we want to force the Find instance for |o| to search in the well-formed snippet. We do this by first changing _given to the well-formed snippet and setting the Anchor transformer in well_formed to |return|, and then proceeding with |narrow| as before. We realize this with the following utility function:
@@ -117,7 +118,7 @@ instance Find Cxx.Basics.Findable (NeList (FindResult DualARange)) where
   find d = inwf $ do
     (tree, _) ← well_formed . ask >>= or_fail
     r ← search_range . ask
-    case NeList.from_plain $ filter ((`contained_in` r) . fst) $ Cxx.Operations.find d tree of
+    case toNonEmpty $ filter ((`contained_in` r) . fst) $ Cxx.Operations.find d tree of
       Nothing → fail_with_context $ "Could not find " ++ show d
       Just l → return $ fmap (\(q, r'@(Range u h)) →
         let m = length $ takeWhile (==' ') $ reverse $ selectRange r' (Cxx.Show.show_simple tree) in
@@ -128,12 +129,12 @@ instance Find Cxx.Basics.Findable (NeList (FindResult DualARange)) where
 In several other places we can see given-vs.-wf considerations: -}
 
 instance (Invertible a, Find a b, Convert (FindResult ARange) b) ⇒ Find (Relative a) (NeList b) where
-  find (Absolute x) = NeList.one . find x
+  find (Absolute x) = return . find x
   find (Relative o (AndList bas) w) = do
     Found c (Range st si) ← ((unanchor_range . full_range) .) . find w
     (case c of InGiven → id; InWf → inwf) $ do
     Range a b ← search_range . ask
-    NeList.forM bas $ \ba → do
+    forM bas $ \ba → do
       let h = Editing.Show.show ba ++ " " ++ Editing.Show.show w
       case ba of
         Before → narrow h (Range a (st - a)) $ find (invert o)
@@ -144,7 +145,7 @@ instance (Invertible a, Find a b, Convert (FindResult ARange) b) ⇒ Find (Relat
     Range st si ← search_range . ask
     narrow ("after " ++ Editing.Show.show b) (Range p (st + si - p)) $ do
     Found d y ← (either ($ After) id .) . find e
-    NeList.one . convert . Found d . flip arange y . (case d of InGiven → return; InWf → toWf) p'
+    return . convert . Found d . flip arange y . (case d of InGiven → return; InWf → toWf) p'
   find (Between o be@(Betw b e)) = do
     Found c x ← find b
     Found d y ← find e
@@ -152,7 +153,7 @@ instance (Invertible a, Find a b, Convert (FindResult ARange) b) ⇒ Find (Relat
     y' ← (if (c, d) == (InGiven, InGiven) ∨ d == InWf then return else toWf) y
     (if (c, d) == (InGiven, InGiven) then id else inwf) $ do
     let (p, q) = if either ($ Before) id x' ≤ either ($ Before) id y' then (x', y') else (y', x')
-    narrow (Editing.Show.show be) (convert $ arange (either ($ After) id p) (either ($ Before) id q)) $ NeList.one . find o
+    narrow (Editing.Show.show be) (convert $ arange (either ($ After) id p) (either ($ Before) id q)) $ return . find o
 
 -- More documentation some other time!
 
@@ -162,13 +163,13 @@ findInStr s e x = runReaderT (find x) $ ResolutionContext "." s (Range 0 $ lengt
 instance Find (Around Substrs) (NeList (FindResult DualARange)) where find (Around x) = find x
 
 instance Convert (FindResult ARange) (NeList (FindResult DualARange)) where
-  convert (Found c x) = NeList.one $ Found c $ convert x
+  convert (Found c x) = return $ Found c $ convert x
 
 instance Find Substrs (NeList (FindResult DualARange)) where
-  find (Substrs l) = NeList.concat . NeList.concat . find l
+  find (Substrs l) = join . join . find l
 
 instance Find MakeSubject (NeList (FindResult DualARange)) where
-  find (MakeSubject l) = NeList.concat . NeList.concat . find l
+  find (MakeSubject l) = join . join . find l
 
 class OccurrenceError a where
   doesNotOccur_n_times :: a → Int → String
@@ -191,28 +192,28 @@ instance Editing.Show.Show a ⇒ OccurrenceError a where
   multipleOccur s = Editing.Show.show s ++ " occurs multiple times"
 
 instance (OccurrenceError a, Find a (NeList (FindResult DualARange))) ⇒ Find (Ranked a) (FindResult DualARange) where
-  find (Sole x) = find x >>= case_of NeList z [] → return z; _ → fail_with_context $ multipleOccur x
-  find (Ranked (Ordinal n) s) = NeList.nth n . find s >>= maybe (fail_with_context $ doesNotOccur_n_times s n) return
+  find (Sole x) = find x >>= \l → if null (neTail l) then return $ neHead l else fail_with_context $ multipleOccur x
+  find (Ranked (Ordinal n) s) = safeNth n . toList . find s >>= maybe (fail_with_context $ doesNotOccur_n_times s n) return
 
 instance (OccurrenceError a, Find a (NeList (FindResult DualARange))) ⇒ Find (Rankeds a) (NeList (FindResult DualARange)) where
   find (All x) = find x
   find (Sole' x) =
-    find x >>= case_of l@(NeList _ []) → return l; _ → fail_with_context $ multipleOccur x
-  find (Rankeds rs s) = NeList.sequence ((\r → find (Ranked r s)) . flatten_occ_clauses rs)
+    find x >>= \l → if null (neTail l) then return l else fail_with_context $ multipleOccur x
+  find (Rankeds rs s) = sequence ((\r → find (Ranked r s)) . flatten_occ_clauses rs)
   find (AllBut rs s) =
-    erase_indexed (ordinal_carrier . NeList.to_plain (flatten_occ_clauses rs)) . NeList.to_plain . find s >>= case_of
+    erase_indexed (ordinal_carrier . toList (flatten_occ_clauses rs)) . toList . find s >>= case_of
       [] → fail "All occurrences excluded." -- Todo: Better error.
-      x:y → return $ NeList x y
+      x:y → return $ x |: y
 
 flatten_occ_clauses :: AndList OccurrencesClause → NeList Ordinal
-flatten_occ_clauses (AndList rs) = NeList.concat $ (\(OccurrencesClause l) → l) . rs
+flatten_occ_clauses (AndList rs) = join $ (\(OccurrencesClause l) → l) . rs
 
 findResult_as_either :: FindResult a → Either a a
 findResult_as_either (Found c a) = (case c of InGiven → Left; InWf → Right) a
 
 merge_contiguous_FindResult_ARanges :: NeList (FindResult ARange) → Resolver (FindResult (NeList ARange))
 merge_contiguous_FindResult_ARanges l =
-  NeList.homogenize toWf (findResult_as_either . l) >>= case_of
+  neHomogenize toWf (findResult_as_either . l) >>= case_of
     Left xs → return $ Found InGiven $ merge_contiguous xs
     Right xs → return $ Found InWf $ merge_contiguous xs
   -- This is not optimal, because wf-ness of one contiguous range should not imply wf-ness of all ranges.
@@ -222,11 +223,11 @@ instance Find Substr (FindResult DualARange) where
   find (NotEverything x) = find x
 
 instance Find (EverythingOr (Rankeds (Either Cxx.Basics.Findable String))) (NeList (FindResult DualARange)) where
-  find Everything = NeList.one . Found InGiven . convert . wide_range . search_range . ask
+  find Everything = return . Found InGiven . convert . wide_range . search_range . ask
   find (NotEverything x) = find x
 
 instance Find (EverythingOr (Rankeds (Either Cxx.Basics.Findable ImplicitDeclarationOf))) (NeList (FindResult DualARange)) where
-  find Everything = NeList.one . Found InGiven . convert . wide_range . search_range . ask
+  find Everything = return . Found InGiven . convert . wide_range . search_range . ask
   find (NotEverything x) = find x
 
 instance Find ImplicitBodyOf (NeList (FindResult DualARange)) where
@@ -235,7 +236,7 @@ instance Find ImplicitBodyOf (NeList (FindResult DualARange)) where
 instance Find ImplicitDeclarationOf (NeList (FindResult DualARange)) where
   find (ImplicitDeclarationOf x) = find $ Cxx.Basics.DeclarationOf x
 
-instance Find InClause (NeList (FindResult DualARange)) where find (InClause x) = NeList.concat . NeList.concat . find x
+instance Find InClause (NeList (FindResult DualARange)) where find (InClause x) = join . join . find x
 
 instance Find AppendPositionsClause (NeList (FindResult Anchor)) where
   find (NonAppendPositionsClause pc) = find pc
@@ -248,29 +249,29 @@ instance Find PrependPositionsClause (NeList (FindResult Anchor)) where
 instance Find PositionsClause (NeList (FindResult Anchor)) where
   find (PositionsClause (AndList bas) x) = do
     Found w l ← ((full_range .) .) . find x >>= merge_contiguous_FindResult_ARanges
-    return $ NeList.concatMap (\e → (\ba → Found w $ e ba) . bas) l
+    return $ l >>= (\e → (\ba → Found w $ e ba) . bas)
 
 instance Find Replacer (NeList (FindResult Edit)) where
   find (Replacer p r) = do
     Found c v ← ((replace_range .) .) . find p >>= merge_contiguous_FindResult_ARanges
     return $ ((flip RangeReplaceEdit r . unanchor_range) .) . Found c . v
-  find (ReplaceOptions o o') = return $ fmap (Found InGiven) $ NeList (RemoveOptions o) [AddOptions o']
+  find (ReplaceOptions o o') = return $ fmap (Found InGiven) $ RemoveOptions o |: [AddOptions o']
 
 instance Find Changer (NeList (FindResult Edit)) where
   find (Changer p r) = find (Replacer p r)
   find (ChangeOptions o o') = find (ReplaceOptions o o')
 
 instance Find Eraser [FindResult Edit] where
-  find (EraseText x) = (((flip RangeReplaceEdit "" . unanchor_range . full_range) .) .) . NeList.to_plain . find x
+  find (EraseText x) = (((flip RangeReplaceEdit "" . unanchor_range . full_range) .) .) . toList . find x
   find (EraseOptions o) = return [Found InGiven $ RemoveOptions o]
   find (EraseAround (Wrapping x y) (Around z)) = do
-    l ← (((unanchor_range . full_range) .) .) . NeList.to_plain . find z
+    l ← (((unanchor_range . full_range) .) .) . toList . find z
     (concat .) $ forM l $ \(Found v (Range p q)) →
       (case v of InGiven → id; InWf → inwf) $ do
       Range a b ← search_range . ask
       (concat .) $ forM [(Before, x, -1, Range a (p-a)), (After, y, 0, Range (p+q) (a+b-(p+q)))] $ \(ba, xy, i, r) →
         narrow (Editing.Show.show ba ++ " " ++ Editing.Show.show z) r $
-          find $ EraseText $ Substrs $ and_one $ flip In Nothing $ Absolute $ NotEverything $ Rankeds (and_one $ OccurrencesClause $ NeList.one $ Ordinal i) (Right xy)
+          find $ EraseText $ Substrs $ and_one $ flip In Nothing $ Absolute $ NotEverything $ Rankeds (and_one $ OccurrencesClause $ return $ Ordinal i) (Right xy)
 
 instance Find Bound (FindResult (Either ARange Anchor)) where
   find (Bound Nothing Everything) = Found InGiven . Left . arange (Anchor Before 0) . Anchor After . size . search_range . ask
@@ -281,9 +282,9 @@ instance Find Bound (FindResult (Either ARange Anchor)) where
 instance Find RelativeBound (FindResult (Either ARange Anchor)) where
   find Front = Found InGiven . Right . Anchor Before . start . search_range . ask
   find Back = Found InGiven . Right . Anchor After . end . search_range . ask
-  find (RelativeBound mba p) = find p >>= case_of
-    NeList x [] → return $ maybe Left (\ba → Right . ($ ba)) mba . full_range . x
-    _ → fail "Relative bound must be singular."
+  find (RelativeBound mba p) = find p >>= \l → if null (neTail l)
+    then return $ maybe Left (\ba → Right . ($ ba)) mba . full_range . neHead l
+    else fail "Relative bound must be singular."
 
 class ToWf a where toWf :: a → Resolver a
 
@@ -315,12 +316,12 @@ makeSwapEdit a b = do
 instance Find Mover [FindResult Edit] where
   find (Mover o p) = do
     a ← find p
-    NeList.to_plain . find o >>= mapM (makeMoveEdit' a . (full_range .)) . reverse
+    toList . find o >>= mapM (makeMoveEdit' a . (full_range .)) . reverse
 
 instance Find Position (FindResult Anchor) where
-  find (Position ba x) = find x >>= case_of
-    NeList y [] → return $ flip full_range ba . y
-    _ → fail "Anchor position must be singular."
+  find (Position ba x) = find x >>= \l → if null (neTail l)
+    then return $ flip full_range ba . (neHead l)
+    else fail "Anchor position must be singular."
 
 instance Find UsePattern (FindResult (Range Char)) where
   find (UsePattern z) = do
@@ -337,7 +338,7 @@ instance Invertible UsePattern where invert = id
 instance Convert (FindResult (Range Char)) (FindResult (Range Char)) where convert = id
 
 instance Find UseClause (NeList (FindResult Edit)) where
-  find (UseOptions o) = return $ NeList.one $ Found InGiven $ AddOptions o
+  find (UseOptions o) = return $ return $ Found InGiven $ AddOptions o
   find (UseString ru@(In b _)) = case unrelative b of
     Nothing → fail "Nonsensical use-command."
     Just (UsePattern v) → (((flip RangeReplaceEdit v) .) .) . find ru
@@ -364,21 +365,21 @@ token_edit_cost (ReplaceOp _ _) = 10
   -- The precise values of these costs are fine-tuned to make the tests pass, and that is their only justification. We're trying to approximate the human intuition for what substring should be replaced, as codified in the tests.
 
 instance Find Command [FindResult Edit] where
-  find (Use l) = NeList.to_plain . NeList.concat . find l
+  find (Use l) = toList . join . find l
   find (Append x Nothing) = do
     r ← search_range . ask
     return [Found InGiven $ InsertEdit (Anchor After (size r)) x]
   find (Prepend x Nothing) = return [Found InGiven $ InsertEdit (Anchor Before 0) x]
-  find (Append r (Just p)) = NeList.to_plain . ((flip InsertEdit r .) .) . NeList.concat . find p
-  find (Prepend r (Just p)) = NeList.to_plain . ((flip InsertEdit r .) .) . NeList.concat . find p
-  find (Erase (AndList l)) = concat . sequence (find . NeList.to_plain l)
-  find (Replace (AndList l)) = concat . sequence ((NeList.to_plain .) . find . NeList.to_plain l)
-  find (Change (AndList l)) = concat . sequence ((NeList.to_plain .) . find . NeList.to_plain l)
-  find (Insert (SimpleInsert r) p) = NeList.to_plain . ((flip InsertEdit r .) .) . NeList.concat . find p
+  find (Append r (Just p)) = toList . ((flip InsertEdit r .) .) . join . find p
+  find (Prepend r (Just p)) = toList . ((flip InsertEdit r .) .) . join . find p
+  find (Erase (AndList l)) = concat . sequence (find . toList l)
+  find (Replace (AndList l)) = concat . sequence ((toList .) . find . toList l)
+  find (Change (AndList l)) = concat . sequence ((toList .) . find . toList l)
+  find (Insert (SimpleInsert r) p) = toList . ((flip InsertEdit r .) .) . join . find p
   find (Insert (WrapInsert (Wrapping x y)) (AndList z)) =
-    concatMap (\(Found v a, Found w b) → [Found v $ InsertEdit a x, Found w $ InsertEdit b y]) . pairs . concat . map NeList.to_plain . sequence (map find $ NeList.to_plain z)
-  find (Move (AndList movers)) = concat . sequence (find . NeList.to_plain movers)
-  find (Swap substrs Nothing) = NeList.to_plain . ((replace_range .) .) . find substrs >>= f
+    concatMap (\(Found v a, Found w b) → [Found v $ InsertEdit a x, Found w $ InsertEdit b y]) . pairs . concat . map toList . sequence (map find $ toList z)
+  find (Move (AndList movers)) = concat . sequence (find . toList movers)
+  find (Swap substrs Nothing) = toList . ((replace_range .) .) . find substrs >>= f
     where
       f [] = return []
       f (a:b:c) = liftM2 (++) (makeSwapEdit a b) (f c)
@@ -386,13 +387,13 @@ instance Find Command [FindResult Edit] where
   find (Swap substrs (Just substrs')) = do
     Found v x ← ((full_range .) .) . find substrs >>= merge_contiguous_FindResult_ARanges
     Found w y ← ((full_range .) .) . find substrs' >>= merge_contiguous_FindResult_ARanges
-    case (Found v . x, Found w . y) of
-      (NeList a [], NeList b []) → makeSwapEdit a b
-      _ → fail "Swap operands must be contiguous ranges."
+    let a = Found v . x; b = Found w . y
+    if null (neTail a) && null (neTail b) then makeSwapEdit (neHead a) (neHead b)
+     else fail "Swap operands must be contiguous ranges."
   find (Make s b) = inwf $ do
     (tree, _) ← well_formed . ask >>= or_fail
     l ← (fmap (\(Found _ x) → replace_range x)) . find s
-    (Found InGiven .) . concat . NeList.to_plain . NeList.forM l (\x →
+    (Found InGiven .) . concat . toList . forM l (\x →
       Cxx.Operations.make_edits (convert x) b 0 tree)
 
 use_tests :: IO ()
@@ -456,7 +457,7 @@ use_tests = do
   u txt pattern match d rd =
     case runReaderT (find (UseString $ flip In Nothing $ Absolute $ UsePattern pattern)) (ResolutionContext "." txt (Range 0 (length txt)) (fail "-")) of
       Left e → fail e
-      Right (NeList (Found _ (RangeReplaceEdit rng _)) []) → do
+      Right (neElim → (Found _ (RangeReplaceEdit rng _), [])) → do
         test_cmp pattern match (selectRange rng txt)
         let r = replaceRange rng pattern txt
         test_cmp pattern d $ show $ Editing.Diff.diff txt r

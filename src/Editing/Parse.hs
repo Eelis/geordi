@@ -1,4 +1,4 @@
-{-# LANGUAGE OverlappingInstances, UndecidableInstances, Arrows, FlexibleInstances, TypeSynonymInstances, CPP #-}
+{-# LANGUAGE OverlappingInstances, UndecidableInstances, Arrows, FlexibleInstances, TypeSynonymInstances, CPP, PatternGuards #-}
 
 module Editing.Parse (commandsP, finalCommandP) where
 
@@ -6,14 +6,14 @@ import qualified Cxx.Parse
 import qualified Cxx.Basics
 import qualified Cxx.Operations
 import qualified Parsers as P
-import qualified Data.NonEmptyList as NeList
-import Data.NonEmptyList (NeList(..))
+import Data.Foldable (toList)
+import Data.List.NonEmpty (( |:))
 import Control.Monad.Error ()
 import Control.Category (Category, (.), id)
 import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA)
 import Data.Generics (DataType, Constr, toConstr, Data)
 import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, many1Till, optParser, try, many, satisfy, spaces)
-import Util ((<<), liftA2, Ordinal(..), apply_if, cardinals, plural, indefinite)
+import Util ((<<), liftA2, Ordinal(..), apply_if, cardinals, plural, indefinite, neElim)
 import Cxx.Basics (DeclaratorId)
 import Request (EvalOpt)
 
@@ -82,7 +82,7 @@ instance Parse String where
     Parser (Terminators False [] []) $ \t _ → quoted <|> unquoted t
    where
     quoted = char '`' >> fmap Right (many $ satisfy (/= '`')) << char '`' << spaces
-    unquoted t = fmap (Right . NeList.to_plain . fst) $ many1Till (P.silent anySymbol) $ try $ apply_if (term_eof t) (eof <|>) $ lookAhead
+    unquoted t = fmap (Right . toList . fst) $ many1Till (P.silent anySymbol) $ try $ apply_if (term_eof t) (eof <|>) $ lookAhead
       (choice ((\k → try $ symbols (' ': k) >> (eof <|> P.char_unit ' ')) `fmap` term_keywords t)) >> P.char_unit ' '
     cs :: [([String], String)]
     cs = map (\(x, y) → ([x, indefinite x], y)) named_characters
@@ -91,7 +91,7 @@ instance ParsePlural String where
   parsePlural = label "verbatim string" $ select $ map (first ((:[]) . plural)) named_characters
 
 instance Parse a ⇒ Parse (AndList a) where
-  parse = liftA2 NeList parse ((and parse >>> arr (NeList.to_plain . andList)) <||> arr (const [])) >>> arr AndList
+  parse = liftA2 ( |:) parse ((and parse >>> arr (toList . andList)) <||> arr (const [])) >>> arr AndList
 
 pzero :: Parser x a
 pzero = Parser (Terminators False [] []) $ \_ _ → P.pzero
@@ -133,8 +133,8 @@ instance Parse BefAft where parse = select [(["before"], Before), (["after"], Af
 
 instance Parse (AndList BefAft) where
   parse =
-    (kwd ["around"] >>> arr (const $ AndList $ NeList Before [After])) <||>
-    (liftA2 NeList parse ((and parse >>> arr (NeList.to_plain . andList)) <||> arr (const [])) >>> arr AndList)
+    (kwd ["around"] >>> arr (const $ AndList $ Before |: [After])) <||>
+    (liftA2 ( |:) parse ((and parse >>> arr (toList . andList)) <||> arr (const [])) >>> arr AndList)
 
 instance Parse RelativeBound where
   parse = select [(end_kwds, Back), (begin, Front)] <||> auto2 RelativeBound
@@ -152,9 +152,9 @@ parseSmallPositiveCardinal = select $ map (\(x,y) → ([x {-, show y-}], y)) $ t
 
 instance Parse OccurrencesClause where
   parse = label "ordinal" $ (>>> arr OccurrencesClause) $  -- Todo: FIx inappropriate label.
-    (optional (kwd ["the"]) >>> kwd ["first"] >>> parseSmallPositiveCardinal >>> arr (\n → fmap Ordinal $ NeList 0 [1 .. n-1])) <||>
-    (optional (kwd ["the"]) >>> kwd ["last"] >>> parseSmallPositiveCardinal >>> arr (\n → fmap Ordinal $ NeList (-1) [-n .. -2])) <||>
-    auto1 NeList.one
+    (optional (kwd ["the"]) >>> kwd ["first"] >>> parseSmallPositiveCardinal >>> arr (\n → fmap Ordinal $ 0 |: [1 .. n-1])) <||>
+    (optional (kwd ["the"]) >>> kwd ["last"] >>> parseSmallPositiveCardinal >>> arr (\n → fmap Ordinal $ (-1) |: [-n .. -2])) <||>
+    auto1 return
 
 everything_kwds :: [String]
 everything_kwds = ["everything", "code"]
@@ -215,7 +215,8 @@ instance Parse a ⇒ Parse (Relative a) where parse = parse >>> relative
 
 instance Parse (Relative (EverythingOr (Rankeds (Either Cxx.Basics.Findable String)))) where
   parse = (relative_everything_orA <||>) $ (parse >>>) $ proc x → case x of
-    Rankeds (AndList (NeList (OccurrencesClause (NeList r [])) [])) s → do
+    Rankeds (AndList l) s | (OccurrencesClause l', []) ← neElim l, (r, []) ← neElim l' → do
+      -- Writing this with view patterns causes GHC to panic..
         u ← kwd till >>> parse -< ()
         returnA -< Between Everything (Betw (Bound (Just Before) $ NotEverything $ Ranked r s) u)
       <||> (relative -< NotEverything x)
@@ -369,7 +370,7 @@ instance Parse FinalCommand where
     (kwd ["diff"] >>> arr (const Diff))
 
 instance Parse ([Command], Maybe FinalCommand) where
-  parse = liftA2 (,) (parse >>> arr (NeList.to_plain . andList)) (option $ and parse)
+  parse = liftA2 (,) (parse >>> arr (toList . andList)) (option $ and parse)
 
 uncool :: Parser () a → Terminators → P.Parser Char (Either String a)
 uncool (Parser _ f) t = f t ()

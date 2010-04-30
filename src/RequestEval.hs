@@ -11,16 +11,16 @@ import qualified Cxx.Parse
 import qualified Cxx.Operations
 import qualified Cxx.Show
 import qualified Data.List as List
-import qualified Data.NonEmptyList as NeList
-import Data.NonEmptyList (NeList(..))
 
 import Control.Monad.Error ()
 import Control.Monad (join)
 import Data.Char (isPrint, isSpace)
 import Data.Either (lefts)
+import Data.Foldable (toList)
+import Data.List.NonEmpty ((|:), neHead, toNonEmpty)
 import Editing.Basics (FinalCommand(..))
 import Parsers ((<|>), eof, optParser, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail, commit)
-import Util ((.), (<<), (.∨.), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert, maybeLast, orElse, E)
+import Util ((.), (<<), (.∨.), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert, maybeLast, orElse, E, NeList)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
 import Data.SetOps
 import Prelude hiding (catch, (.))
@@ -41,7 +41,7 @@ diff (EditableRequest MakeType y) (EditableRequest MakeType x) = pretty $ show .
 diff (EditableRequest Precedence y) (EditableRequest Precedence x) = pretty $ show . Editing.Diff.diff x y
 diff (EditableRequest (Evaluate flags) y) (EditableRequest (Evaluate flags') x) =
   pretty $ f "removed" flags' flags ++ f "added" flags flags' ++ show . Editing.Diff.diff x y
-    where f n fl fl' = maybe [] (\l → [n ++ " " ++ concat (List.intersperse " and " $ map show_long_opt $ NeList.to_plain l)]) (NeList.from_plain $ Set.elems $ (Set.\\) fl fl')
+    where f n fl fl' = maybe [] (\l → [n ++ " " ++ concat (List.intersperse " and " $ map show_long_opt $ toList l)]) (toNonEmpty $ Set.elems $ (Set.\\) fl fl')
 diff _ _ = "Requests differ in kind."
 
 pretty :: [String] → String -- Todo: This is awkward.
@@ -49,21 +49,20 @@ pretty [] = "Requests are identical."
 pretty l = capitalize (commas_and l) ++ "."
 
 ellipsis_options :: [(String, Bool)] → NeList [String]
-ellipsis_options [] = NeList.one []
+ellipsis_options [] = return []
 ellipsis_options ((y, _) : ys) = work ((y, False) : ys)
   where
     dummy = " → ..."
-    work [] = NeList.one []
-    work [(x, _)] = NeList.one [x]
+    work [] = return []
+    work [(x, _)] = return [x]
     work ((x, False) : xs) = fmap (x:) (work xs)
-    work ((x, True) : xs) =
-      NeList.concatMap (\o → if dummy ∈ o
-        then (NeList.one $ if head o == dummy then o else dummy : o)
-        else NeList (dummy : o) [x : o]) (work xs)
+    work ((x, True) : xs) = work xs >>= \o → if dummy ∈ o
+        then (return $ if head o == dummy then o else dummy : o)
+        else (dummy : o) |: [x : o]
 
 nicer_namedPathTo :: [String] → String
-nicer_namedPathTo l = drop 4 $ concat $ maybeLast (takeWhile ((≤ 140) . length . concat) $ NeList.to_plain n) `orElse` h
-  where n@(NeList h _) = ellipsis_options $ map (\s → (" → " ++ s, "expr" `List.isSuffixOf` s)) l
+nicer_namedPathTo l = drop 4 $ concat $ maybeLast (takeWhile ((≤ 140) . length . concat) $ toList n) `orElse` neHead n
+  where n = ellipsis_options $ map (\s → (" → " ++ s, "expr" `List.isSuffixOf` s)) l
     -- Todo: Also don't abbreviate when there's enough space.
 
 evaluator :: Cxx.Show.Highlighter → IO (String → Context → IO Response)
@@ -97,12 +96,12 @@ evaluator h = do
     final_cmd _ [] = fail "There is no previous request."
     final_cmd (Show Nothing) (er:_) = return $ show_EditableRequest h er
     final_cmd (Show (Just substrs)) (EditableRequest (Evaluate _) c : _) = do
-      l ← ((\(Editing.EditsPreparation.Found _ x) → x) .) . NeList.to_plain . Editing.EditsPreparation.findInStr c (flip (,) return . Cxx.Parse.parseRequest c) substrs
+      l ← ((\(Editing.EditsPreparation.Found _ x) → x) .) . toList . Editing.EditsPreparation.findInStr c (flip (,) return . Cxx.Parse.parseRequest c) substrs
       return $ commas_and (map (\x → '`' : strip (Editing.Basics.selectRange (convert $ Editing.Basics.replace_range x) c) ++ "`") l) ++ "."
     final_cmd (Show (Just _)) (_:_) = fail "Last (editable) request was not an evaluation request."
     final_cmd (Identify substrs) (EditableRequest (Evaluate _) c : _) = do
       tree ← Cxx.Parse.parseRequest c
-      l ← ((\(Editing.EditsPreparation.Found _ x) → x) .) . NeList.to_plain . Editing.EditsPreparation.findInStr c (Right (tree, return)) substrs
+      l ← ((\(Editing.EditsPreparation.Found _ x) → x) .) . toList . Editing.EditsPreparation.findInStr c (Right (tree, return)) substrs
       return $ concat $ List.intersperse ", " $ map (nicer_namedPathTo . Cxx.Operations.namedPathTo tree . convert . Editing.Basics.replace_range) l
     final_cmd Parse (EditableRequest (Evaluate _) c : _) =
       Cxx.Parse.parseRequest c >> return "Looks fine to me."

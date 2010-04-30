@@ -26,12 +26,11 @@ This C++ parser is probably extremely inefficient. Fortunately, geordi only ever
 
 module Cxx.Parse (Code, Chunk(..), code, charLit, stringLit, makeType, precedence, parseRequest, makeDeclParser, declaratorIdParser, highlight) where
 
+import qualified Data.Char as Char
 import qualified Data.List as List
-import qualified Data.NonEmptyList as NeList
+import qualified Data.List.NonEmpty as NeList
 import qualified Parsers as P
 import qualified Cxx.Show
-
-import qualified Data.Char as Char
 import Control.Arrow (first, second)
 import Control.Applicative (Applicative(..))
 import Control.Monad.Fix (fix)
@@ -39,11 +38,12 @@ import Control.Monad.Instances ()
 import Control.Monad.Error ()
 import Control.Monad (liftM2, liftM3)
 import Data.List ((\\))
-import Data.NonEmptyList (NeList(..))
+import Data.List.NonEmpty (neHead, neTail, (|:))
 import Data.Generics (Data, Typeable, dataTypeOf)
 import Data.Maybe (mapMaybe)
 import Data.Function (on)
-import Util ((<<), (.), Convert(..), isIdChar, Finite(..), Phantom(..), cardinals, partitionMaybe, TriBool(..), (.∨.))
+import Data.Foldable (toList)
+import Util ((<<), (.), Convert(..), isIdChar, Finite(..), Phantom(..), cardinals, partitionMaybe, TriBool(..), (.∨.), NeList, neElim, prefixNeList, neInitLast)
 import Cxx.Basics
 import Cxx.Show (pretty_with_precedence, Highlighter)
 import Cxx.Operations (apply, squared, is_primary_TypeSpecifier, parenthesized, specT, split_all_decls, is_pointer_or_reference)
@@ -132,7 +132,7 @@ charLit, stringLit, plain, parens, curlies, squares, multiComment, singleComment
 
 charLit = CharLiteral . textLit '\''
 stringLit = StringLiteral' . textLit '"'
-plain = Plain . ((:[]) . oneOf ";\\" <|> (NeList.to_plain . many1 (noneOf "'\"{([])}/;\\" <|> (symbol '/' << lookAhead (noneOf "*/")))))
+plain = Plain . ((:[]) . oneOf ";\\" <|> (toList . many1 (noneOf "'\"{([])}/;\\" <|> (symbol '/' << lookAhead (noneOf "*/")))))
 parens = Parens . (symbol '(' >> code << symbol ')')
 curlies = Curlies . (symbol '{' >> code << symbol '}')
 squares = Squares . (symbol '[' >> code << symbol ']')
@@ -212,11 +212,11 @@ takingP =
   ((kwd "nothing" <|> (kwd "no" >> kwd "arguments")) >> return (ParameterDeclarationClause Nothing Nothing)) <|> mkParameterDeclarationClause . concat . sepBy1 takingClause (delim >> ((kwd "returning" >> pzero) <|> return ()))
 
 commad :: NeList x → Commad x
-commad (NeList h t) = Commad h $ (,) (CommaOp, White " ") . t
+commad l = Commad (neHead l) $ (,) (CommaOp, White " ") . neTail l
 
 mkParameterDeclarationClause :: [ParameterDeclaration] → ParameterDeclarationClause
 mkParameterDeclarationClause l =
-  ParameterDeclarationClause (case l of [] → Nothing; h:t → (Just $ ParameterDeclarationList $ commad $ NeList h t)) Nothing
+  ParameterDeclarationClause (case l of [] → Nothing; h:t → (Just $ ParameterDeclarationList $ commad $ h |: t)) Nothing
 
 instance Parse (CvQualifier, White) where
   parse = (<?> "cv-qualifier") $ do
@@ -289,12 +289,12 @@ type_desc = (<?> "type description") $ do
   where
     specdDesc :: Parser Char ([TypeSpecifier], Either TypeSpecifier PtrAbstractDeclarator)
     specdDesc = (<?> "type description") $ flip fix [] $ \self specs → do
-      morespecs ← liftM2 NeList parsePrimarySpec (many parseSecondarySpec)
-      let ne = NeList.app_plain_left specs morespecs
+      morespecs ← liftM2 (|:) parsePrimarySpec (many parseSecondarySpec)
+      let ne = prefixNeList specs morespecs
       mad ← parse :: Parser Char (Maybe PtrAbstractDeclarator)
       return $ case mad of
-        Nothing → let (x, y) = NeList.init_last ne in (x, Left y)
-        Just ad → (NeList.to_plain ne, Right ad)
+        Nothing → second Left $ neInitLast ne
+        Just ad → (toList ne, Right ad)
      <|> do
       sspec ← parseSecondarySpec
       self (specs ++ [sspec]) <|> return ([], Left sspec)
@@ -303,8 +303,8 @@ type_desc = (<?> "type description") $ do
       first (noncvs ++) . apply (map fst cvs) . type_desc
 
 with_default :: [TypeSpecifier] → NeList TypeSpecifier
-with_default [] = NeList specT []
-with_default l@(h:t) = if any is_primary_TypeSpecifier l then NeList h t else NeList specT l
+with_default [] = return specT
+with_default l@(h:t) = if any is_primary_TypeSpecifier l then h |: t else specT |: l
 
 instance Parse GeordiRequestWithoutWhite where
   parse = auto3 GeordiRequest_Print <|> auto2 GeordiRequest_Block <|> auto1 GeordiRequest_TU
@@ -349,13 +349,13 @@ instance Parse TypeName where autoname_parse = auto1 TypeName_ClassName
 
 instance Parse FloatingLiteral where
   autoname_parse = (FloatingLiteral .) $ (>++> optSuffix) $
-    (symbols "." >++> (NeList.to_plain . many1 digit) >++> option "" exponentPart) <|>
-    ((NeList.to_plain . many1 digit) >++> ((symbols "." >++> many digit >++> option "" exponentPart >++> optSuffix) <|> exponentPart))
+    (symbols "." >++> (toList . many1 digit) >++> option "" exponentPart) <|>
+    ((toList . many1 digit) >++> ((symbols "." >++> many digit >++> option "" exponentPart >++> optSuffix) <|> exponentPart))
     where
       (>++>) = liftM2 (++)
       digit = satisfy Char.isDigit
       optSuffix = option "" $ (:[]) . (symbol 'f' <|> symbol 'l' <|> symbol 'F' <|> symbol 'L')
-      exponentPart = (symbols "e" <|> symbols "E") >++> option "" (symbols "+" <|> symbols "-") >++> (NeList.to_plain . many1 digit)
+      exponentPart = (symbols "e" <|> symbols "E") >++> option "" (symbols "+" <|> symbols "-") >++> (toList . many1 digit)
 instance Parse IntegerLiteral where
   autoname_parse = (IntegerLiteral .) $ (p <|>) $ do
     b ← makeTypeExtensions . parseOptions
@@ -558,16 +558,16 @@ typeP :: (Parse c, Convert b (Maybe (CvQualifier, White)), Convert TypeSpecifier
   (Maybe PtrAbstractDeclarator → c) → (NeList b → c → a) → Parser Char a
 typeP g h = makeTypeExtensions . parseOptions >>= \b → flip fix [] $ \self specs → do
     pspec ← parsePrimarySpec; sspecs ← many parseSecondarySpec
-    let (NeList p q) = NeList.reverse (NeList pspec specs)
+    let (p, q) = neElim $ NeList.reverse $ pspec |: specs
     r ← parse
-    return $ h (NeList p (q ++ sspecs)) r
+    return $ h (p |: (q ++ sspecs)) r
    <|> (((: specs) . parseSecondarySpec) >>= self)
    <|> if not b then pzero else do
     let (noncvs, cvs) = partitionMaybe (\x → convert x :: Maybe (CvQualifier, White)) specs
     (x, y) ← apply (map fst cvs) . type_desc
     return $ uncurry h $ second g $ case y of
-      Left s →  (NeList.app_plain_left noncvs (fmap convert $ with_default (s:x)), Nothing)
-      Right ad → (NeList.app_plain_left noncvs (fmap convert $ with_default x), Just ad)
+      Left s → (prefixNeList noncvs (fmap convert $ with_default (s:x)), Nothing)
+      Right ad → (prefixNeList noncvs (fmap convert $ with_default x), Just ad)
 
 instance Parse Initializer where autoname_parse = auto1 Initializer_Parenthesized <|> auto1 Initializer_BraceOrEqualInitializer
 instance Parse BraceOrEqualInitializer where autoname_parse = auto2 EqualInitializer <|> auto1 BraceInitializer
@@ -618,7 +618,7 @@ instance ParseSpecifier MakeSpecifier where
 
 instance Parse TypeSpecifierSeq where
   autoname_parse =
-    TypeSpecifierSeq . (liftM2 NeList parsePrimarySpec (many parseSecondarySpec) <|> liftM2 NeList parseSecondarySpec lp)
+    TypeSpecifierSeq . (liftM2 (|:) parsePrimarySpec (many parseSecondarySpec) <|> liftM2 (|:) parseSecondarySpec lp)
     where lp = liftM2 (:) parsePrimarySpec (many parseSecondarySpec) <|> liftM2 (:) parseSecondarySpec lp <|> return []
 
 instance Parse DeclSpecifier where autoname_parse = parsePrimarySpec <|> parseSecondarySpec

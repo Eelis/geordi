@@ -3,18 +3,18 @@
 module Parsers where
 
 import qualified Data.List as List
-import qualified Data.NonEmptyList as NeList
-import Data.NonEmptyList (NeList(..))
 import qualified Text.ParserCombinators.Parsec as PS
 import qualified Editing.Basics
 import qualified Editing.Show ()
 import qualified Data.Char as Ch
 
+import Data.List.NonEmpty ((|:))
+import Data.Foldable (toList)
 import Control.Monad (liftM, liftM2)
 import Control.Arrow (first)
 import Data.List ((\\))
 import Data.Maybe (fromMaybe)
-import Util ((.), Finite(..), commas_or, Option(..), (.∨.), isIdChar, (<<))
+import Util ((.), Finite(..), commas_or, Option(..), (.∨.), isIdChar, (<<), NeList)
 
 import Prelude hiding ((.))
 import Prelude.Unicode
@@ -58,7 +58,7 @@ manyTill :: ParserLike m t ⇒ m a → m b → m ([a], b)
 manyTill p e = ((,) [] . e) <|> liftM2 (\x (y, z) → (x:y, z)) p (manyTill p e)
 
 many1Till :: ParserLike m t ⇒ m a → m b → m (NeList a, b)
-many1Till p e = p >>= \v → first (NeList v) . manyTill p e
+many1Till p e = p >>= \v → first (v |:) . manyTill p e
 
 optionMaybe :: ParserLike m t ⇒ m a → m (Maybe a)
 optionMaybe p = Just . p <|> return Nothing
@@ -79,7 +79,7 @@ many :: ParserLike m t ⇒ m a → m [a]
 many p = liftM2 (:) p (many p) <|> return []
 
 many1 :: ParserLike m t ⇒ m a → m (NeList a)
-many1 p = liftM2 NeList p (many p)
+many1 p = liftM2 (|:) p (many p)
 
 spaces :: ParserLike m Char ⇒ m String
 spaces = many $ symbol ' '
@@ -94,7 +94,7 @@ sep :: ParserLike m t ⇒ m a → m b → m (a, [(b, a)])
 sep p p' = liftM2 (,) p (many (liftM2 (,) p' p))
 
 sepBy1' :: ParserLike m t ⇒ m a → m b → m (NeList a)
-sepBy1' x y = (\(h,t) → NeList h $ map snd t) . sep x y
+sepBy1' x y = (\(h, t) → h |: map snd t) . sep x y
 
 sepBy1 :: ParserLike m t ⇒ m a → m b → m [a]
 sepBy1 p e = liftM2 (:) p ((e >> sepBy1 p e) <|> return [])
@@ -207,7 +207,7 @@ silent (Parser p) = Parser $ \s → case p s of
 optParser :: (Monad m, Functor m, Finite o, Option o) ⇒ Parser Char (m [o])
 optParser = (<?> "option") $ (char '-' >>) $ do
     char '-'
-    n ← (<?> "option name") $ NeList.to_plain . many1 (satisfy $ isIdChar .∨. (== '-'))
+    n ← (<?> "option name") $ toList . many1 (satisfy $ isIdChar .∨. (== '-'))
     spaces
     case List.find ((== n) . long) all_values of
       Nothing → return $ fail $ "No such option: --" ++ n
@@ -220,7 +220,7 @@ optParser = (<?> "option") $ (char '-' >>) $ do
         Just o → return o
     spaces
     y ← option (return []) optParser
-    return (liftM2 (++) (sequence $ NeList.to_plain x) y)
+    return (liftM2 (++) (sequence $ toList x) y)
 
 -- Misc:
 

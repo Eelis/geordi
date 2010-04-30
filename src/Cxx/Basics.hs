@@ -31,8 +31,7 @@ Missing:
 module Cxx.Basics where
 
 import Data.Generics (Data, Typeable, DataType, Constr)
-import Util (Phantom(..), TriBool(..))
-import Data.NonEmptyList (NeList(..))
+import Util (Phantom(..), TriBool(..), NeList)
 import Control.Arrow (second)
 
 relational_ops, accessSpecifiers, classKeys, basic_simple_type_specifiers, casts, keywords, make_type_keywords, arithmetic_ops, ops, long_ops :: [String]

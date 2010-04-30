@@ -1,12 +1,14 @@
-{-# LANGUAGE MultiParamTypeClasses, PatternGuards, FlexibleInstances, TypeSynonymInstances, OverlappingInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, PatternGuards, FlexibleInstances, TypeSynonymInstances, OverlappingInstances, ViewPatterns #-}
 
 module Editing.Basics where
 
 import qualified Cxx.Basics
 import qualified Request
 import qualified Data.List as List
+import qualified Data.List.NonEmpty as NeList
 import qualified Data.Char as Char
 import Data.Function (on)
+import Data.Foldable (toList)
 import Data.Ord (comparing)
 import Control.Arrow ((&&&))
 import Prelude.Unicode
@@ -14,9 +16,8 @@ import Prelude.Unicode
 import Cxx.Basics (DeclaratorId, Findable)
 
 import Data.Monoid (Monoid(..))
-import qualified Data.NonEmptyList as NeList
-import Data.NonEmptyList (NeList(..))
-import Util (Convert(..), Invertible(..), Ordinal(..), (.), findMaybe, take_atleast, isIdChar)
+import Util (Convert(..), Invertible(..), Ordinal(..), (.), findMaybe, take_atleast, isIdChar, NeList, neElim)
+import Data.List.NonEmpty ((|:), (.:))
 
 import Prelude hiding ((.))
 
@@ -27,10 +28,10 @@ newtype AndList a = AndList { andList :: NeList a }
 instance Functor AndList where fmap f (AndList l) = AndList (fmap f l)
 
 and_one :: a → AndList a
-and_one = AndList . NeList.one
+and_one = AndList . return
 
 and_and :: AndList a → AndList a → AndList a
-and_and (AndList (NeList x y)) (AndList (NeList a b)) = AndList $ NeList x (y ++ a : b)
+and_and (AndList x) (AndList y) = AndList $ x NeList..++ y
 
 -- Positions, ranges, and anchors.
 
@@ -79,14 +80,16 @@ two_contiguous x y
   | otherwise = Nothing
 
 contiguous :: NeList ARange → Maybe ARange
-contiguous (NeList h []) = Just h
-contiguous (NeList h t) = findWithRest (two_contiguous h) t >>= contiguous . uncurry NeList
+contiguous l = case NeList.neTail l of 
+  [] → Just $ NeList.neHead l
+  t → findWithRest (two_contiguous $ NeList.neHead l) t >>= contiguous . uncurry (|:)
 
 merge_contiguous :: NeList ARange → NeList ARange
-merge_contiguous (NeList h []) = NeList h []
-merge_contiguous (NeList h t@(x:xs)) = case findWithRest (two_contiguous h) t of
-  Nothing → NeList.cons h $ merge_contiguous $ NeList x xs
-  Just (h', t') → merge_contiguous $ NeList h' t'
+merge_contiguous l = case neElim l of
+  (_, []) → l
+  (h, t@(x:xs)) → case findWithRest (two_contiguous h) t of
+    Nothing → h .: (merge_contiguous $ x |: xs)
+    Just (h', t') → merge_contiguous $ h' |: t'
 
 class Offsettable a where offset :: Int → a → a
 
@@ -192,7 +195,7 @@ newtype Identifier = Identifier { identifier_string :: String }
 data MakeClause = MakeClause (AndList DeclaratorId) Cxx.Basics.MakeDeclaration
 
 flatten_MakeClauses :: AndList MakeClause → [(Cxx.Basics.MakeDeclaration, DeclaratorId)]
-flatten_MakeClauses = concatMap (\(MakeClause (AndList l) d) → map ((,) d) (NeList.to_plain l)) . NeList.to_plain . andList
+flatten_MakeClauses = concatMap (\(MakeClause (AndList l) d) → map ((,) d) (toList l)) . toList . andList
 
 -- Convenience constructors
 
@@ -223,7 +226,7 @@ instance Functor Relative where
   fmap _ (FromTill a b) = FromTill a b
 
 instance Convert (Ranked a) (Rankeds a) where
-  convert (Ranked o x) = Rankeds (and_one $ OccurrencesClause $ NeList.one o) x
+  convert (Ranked o x) = Rankeds (and_one $ OccurrencesClause $ return o) x
   convert (Sole x) = Sole' x
 
 instance Convert (Range a) (Range a) where convert = id
@@ -258,8 +261,10 @@ unrelative _ = Nothing
 merge_commands :: [Command] → [Command]
 merge_commands [] = []
 merge_commands (Erase l : Erase l' : r) = merge_commands $ Erase (l `and_and` l') : r
-merge_commands (Replace (AndList (NeList (Replacer (Substrs x) []) [])) : Replace (AndList (NeList (Replacer (Substrs y) []) [])) : r) =
-  merge_commands $ Replace (and_one $ Replacer (Substrs $ x `and_and` y) []) : r
+merge_commands
+  (Replace (AndList (neElim → (Replacer (Substrs x) [], []))) :
+  Replace (AndList (neElim → (Replacer (Substrs y) [], []))) : r) =
+    merge_commands $ Replace (and_one $ Replacer (Substrs $ x `and_and` y) []) : r
 merge_commands (h:t) = h : merge_commands t
 
 describe_position_after :: Pos Char → String → Position
