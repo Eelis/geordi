@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, PatternGuards #-}
+{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FlexibleInstances, PatternGuards #-}
 
 module Data.NonEmptyList where
 
@@ -7,8 +7,10 @@ import Control.Arrow (first)
 import qualified Prelude
 import Prelude hiding (mapM, concatMap)
 import Prelude.Unicode
+import Data.Data (Data)
+import Data.Typeable (Typeable)
 
-data NeList a = NeList a [a] deriving (Eq, Show)
+data NeList a = NeList a [a] deriving (Eq, Show, Data, Typeable)
 
 head :: NeList a → a
 head (NeList x _) = x
