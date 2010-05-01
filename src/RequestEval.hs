@@ -61,7 +61,7 @@ ellipsis_options ((y, _) : ys) = work ((y, False) : ys)
         else (dummy : o) |: [x : o]
 
 nicer_namedPathTo :: [String] → String
-nicer_namedPathTo l = drop 4 $ concat $ maybeLast (takeWhile ((≤ 140) . length . concat) $ toList n) `orElse` neHead n
+nicer_namedPathTo l = drop 3 $ concat $ maybeLast (takeWhile ((≤ 140) . length . concat) $ toList n) `orElse` neHead n
   where n = ellipsis_options $ map (\s → (" → " ++ s, "expr" `List.isSuffixOf` s)) l
     -- Todo: Also don't abbreviate when there's enough space.
 
