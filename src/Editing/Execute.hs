@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PatternGuards, ScopedTypeVariables, TypeSynonymInstances, ViewPatterns #-}
 
 module Editing.Execute (execute) where
 
@@ -9,7 +9,11 @@ import qualified Editing.Show
 import Editing.EditsPreparation (FindResult(..), FoundIn(..), findInStr)
 
 import Control.Monad (foldM)
+import Data.Monoid (Monoid(..))
+import Control.Applicative ((<|>))
+import Control.Arrow ((&&&))
 import Request (EditableRequest(..), EditableRequestKind(..))
+import Cxx.Basics (GeordiRequest)
 import Data.SetOps
 import Util ((.), E)
 
@@ -86,42 +90,88 @@ adjustEdit e (MoveEdit ba p r@(Range st si)) = do
 adjustEdit e (RangeReplaceEdit r s) =
   flip RangeReplaceEdit s . (if null s then adjustEraseRange else adjustRange) e r
 
-adjustByEdits :: String → Edit → [Edit] → E (Maybe Edit) -- Returns Nothing if edit would be redundant.
-adjustByEdits _ e [] = return $ Just e
-adjustByEdits s e (h : t)
-  | h == e = return Nothing
-  | Just e' ← adjustEdit h e = adjustByEdits s e' t
-  | otherwise = fail $ "Overlapping edits: " ++ Editing.Show.showEdit s h ++ " and " ++ Editing.Show.showEdit s e ++ "."
+-- Adjusters:
+
+data Adjuster = Adjuster
+  { editAdjuster :: Edit → E (Maybe Edit)
+  , anchorAdjuster :: Anchor → E Anchor }
+
+instance Monoid Adjuster where
+  mempty = Adjuster { editAdjuster = return . return, anchorAdjuster = return }
+  mappend x y = Adjuster
+    { editAdjuster = (>>= maybe (return Nothing) (editAdjuster y)) . editAdjuster x
+    , anchorAdjuster = \a → anchorAdjuster x a >>= anchorAdjuster y }
+
+adjuster :: String → Edit → Adjuster
+adjuster s add = Adjuster
+  { editAdjuster = \e → if add == e then return Nothing else case adjustEdit add e of
+      Just e' → return $ Just e'
+      _ → fail $ "Overlapping edits: " ++ Editing.Show.showEdit s add ++ " and " ++ Editing.Show.showEdit s e ++ "."
+  , anchorAdjuster = nothingAsError msg . adjustAnchor add }
+  where msg = "Could not adjust anchor in original snippet to anchor in well formed snippet."
 
 exec_edit :: Monad m ⇒ Edit → EditableRequest → m EditableRequest
 exec_edit e (EditableRequest k s) = case e of
-    RangeReplaceEdit r repl →
-      let (x, _, b) = splitRange r s in return $ EditableRequest k $ x ++ repl ++ b
-    InsertEdit (Anchor _ p) repl →
-      let (x, y) = splitAt p s in return $ EditableRequest k $ x ++ repl ++ y
-    MoveEdit _ p r@(Range st si)
-      | p < 0 → do
-        let (x, y) = splitAt (st + p) s; (a, _, c) = splitRange (Range (-p) si) y
-        return $ EditableRequest k $ x ++ selectRange r s ++ a ++ c
-      | otherwise → do
-        let (x, y) = splitAt (st + si + p) s; (a, _, c) = splitRange r x
-        return $ EditableRequest k $ a ++ c ++ selectRange r s ++ y
-    RemoveOptions opts
-      | Evaluate f ← k → return $ EditableRequest (Evaluate $ (Set.\\) f $ Set.fromList opts) s
-      | otherwise → fail $ "Cannot remove evaluation options from \"" ++ show k ++ "\" request."
-    AddOptions opts
-      | Evaluate f ← k → return $ EditableRequest (Evaluate $ f ∪ Set.fromList opts) s
-      | otherwise → fail $ "Cannot use evaluation options for \"" ++ show k ++ "\" request."
+  RangeReplaceEdit r repl →
+    let (x, _, b) = splitRange r s in return $ EditableRequest k $ x ++ repl ++ b
+  InsertEdit (Anchor _ p) repl →
+    let (x, y) = splitAt p s in return $ EditableRequest k $ x ++ repl ++ y
+  MoveEdit _ p r@(Range st si)
+    | p < 0 → do
+      let (x, y) = splitAt (st + p) s; (a, _, c) = splitRange (Range (-p) si) y
+      return $ EditableRequest k $ x ++ selectRange r s ++ a ++ c
+    | otherwise → do
+      let (x, y) = splitAt (st + si + p) s; (a, _, c) = splitRange r x
+      return $ EditableRequest k $ a ++ c ++ selectRange r s ++ y
+  RemoveOptions opts
+    | Evaluate f ← k → return $ EditableRequest (Evaluate $ (Set.\\) f $ Set.fromList opts) s
+    | otherwise → fail $ "Cannot remove evaluation options from \"" ++ show k ++ "\" request."
+  AddOptions opts
+    | Evaluate f ← k → return $ EditableRequest (Evaluate $ f ∪ Set.fromList opts) s
+    | otherwise → fail $ "Cannot use evaluation options for \"" ++ show k ++ "\" request."
 
-execute :: [Command] → EditableRequest → Either String EditableRequest
-execute cmds r@(EditableRequest _ str) = do
-  (_, r'', _) ← foldM (\(i, r'@(EditableRequest _ str'), m) cmd → do
-    let m' = case m of Left _ → (\req → (req, str', i, [])) . Cxx.Parse.parseRequest str'; _ → m
-    es ← findInStr str ((\(x, _, z, _) → (x, (\v → case foldM (flip adjustAnchor) v z of Nothing → fail "Could not adjust anchor in original snippet to anchor in well formed snippet."; Just g → return g))) . m') cmd >>=
-      foldM (\j (Found f e) → (j++) . maybe [] (:[]) . case f of
-          InGiven → adjustByEdits str e $ i ++ j
-          InWf → case m' of Left _ → fail "oops"; Right (_, s, _, k) → adjustByEdits s e $ k ++ j) []
-    r'' ← foldM (flip exec_edit) r' es
-    return (i ++ es, r'', (\(a, b, c, d) → (a, b, c, d ++ es)) . m')
-    ) ([], r, fail "oops") cmds
-  return r''
+nothingAsError :: String → Maybe a → E a
+nothingAsError s = maybe (fail s) return
+
+data FoldState = FoldState
+  { adjust_since_start :: Adjuster
+  , current_request :: EditableRequest
+  , milepost :: E WellFormedMilepost }
+
+data WellFormedMilepost = WellFormedMilepost
+  { tree :: GeordiRequest
+  , adjust_to_wf :: Adjuster
+  , adjust_since_wf :: Adjuster }
+      -- The earliest well-formed AST of the request body, its String version, an adjuster adjusting anchors in the original request to anchors in the well-formed request, and an adjuster adjusting edits in the well-formed request to edits in the current request.
+
+fold_edit :: Edit → FoldState → E FoldState
+  -- The edit must be relative to the current request in the fold state (sequence_edit's job).
+fold_edit e fs = do
+  r ← exec_edit e $ current_request fs
+  let
+    f req = WellFormedMilepost req (adjust_since_start new) mempty
+    a = adjuster (editable_body $ current_request fs) e
+    new = FoldState
+      (adjust_since_start fs `mappend` a)
+      r
+      (((\mp → mp { adjust_since_wf = adjust_since_wf mp `mappend` a }) . milepost fs) <|>
+        f . Cxx.Parse.parseRequest (editable_body r))
+  return new
+
+sequence_edit :: FoldState → FindResult Edit → E FoldState
+sequence_edit fs (Found f e) = do
+  a :: Adjuster ← case f of
+    InGiven → return $ adjust_since_start fs
+    InWf → adjust_since_wf . milepost fs
+  t ← editAdjuster a e
+  maybe return fold_edit t fs
+
+exec_cmd :: String → FoldState → Command → E FoldState
+exec_cmd s fs = (>>= foldM sequence_edit fs) .
+  findInStr s ((tree &&& anchorAdjuster . adjust_to_wf) . milepost fs)
+
+execute :: [Command] → EditableRequest → E EditableRequest
+execute l r@(EditableRequest _ s) = current_request . foldM (exec_cmd s) fs l
+  where
+    f t = WellFormedMilepost t mempty mempty
+    fs = (FoldState mempty r $ f . Cxx.Parse.parseRequest s)

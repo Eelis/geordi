@@ -19,13 +19,13 @@ import Data.Traversable (mapM)
 import Control.Exception (bracket, evaluate)
 import Control.Arrow (Arrow, (>>>), arr, first, second, (&&&))
 import Control.Monad (liftM2, when, MonadPlus(..))
-import Control.Monad.Error ()
+import Control.Monad.Error (Error(..))
 import Control.Monad.State (MonadState, modify, StateT(..))
 import Control.Monad.Instances ()
 import Control.Parallel.Strategies (NFData, rnf)
 import System.Posix.Types (Fd(..))
 import System.IO (Handle, hClose)
-import Control.Applicative (Applicative(..))
+import Control.Applicative (Applicative(..), Alternative(..))
 import Prelude hiding ((.), (!!), mapM)
 import Prelude.Unicode hiding ((∈), (∉))
 import Data.SetOps
@@ -466,3 +466,15 @@ or_fail = either fail return
 strip_utf8_bom :: String → String
 strip_utf8_bom ('\239':'\187':'\191':s) = s
 strip_utf8_bom s = s
+
+instance Error e => Applicative (Either e) where
+  pure = Right
+  Left e <*> _ = Left e
+  _ <*> Left e = Left e
+  Right f <*> Right x = Right $ f x
+
+instance Error e => Alternative (Either e) where
+  empty = Left noMsg
+  Left _ <|> x = x
+  x <|> _ = x
+

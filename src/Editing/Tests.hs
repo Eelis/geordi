@@ -244,6 +244,7 @@ basic_tests = do
   t "replace all 2 with 3 and replace second 2 with x" $ Left "Overlapping edits: replace 2 with 3 and replace 2 with x."
   t "erase everything before first 3 and replace first 2 with x" $ Left "Overlapping edits: erase `1 2 ` and replace 2 with x."
   t "erase 5 between 1 and 4" $ Left "String `5` does not occur between 1 and 4."
+  t "prepend x and replace 4 with a and replace 4 with b" $ fail "Overlapping edits: replace 4 with a and replace 4 with b."
   -- Syntax errors:
   t "isnert 3 before 4" $ Left "Unexpected `isnert` at start. Expected edit command."
   t "insert " $ Left "Unexpected end of command. Expected option, wrapping description, or verbatim string."
