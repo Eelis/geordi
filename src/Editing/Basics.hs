@@ -18,6 +18,7 @@ import Cxx.Basics (DeclaratorId, Findable)
 import Data.Monoid (Monoid(..))
 import Util (Convert(..), Invertible(..), Ordinal(..), (.), findMaybe, take_atleast, isIdChar, NeList, neElim)
 import Data.List.NonEmpty ((|:), (.:))
+import Data.Semigroup (Semigroup(..))
 
 import Prelude hiding ((.))
 
@@ -30,8 +31,8 @@ instance Functor AndList where fmap f (AndList l) = AndList (fmap f l)
 and_one :: a → AndList a
 and_one = AndList . return
 
-and_and :: AndList a → AndList a → AndList a
-and_and (AndList x) (AndList y) = AndList $ x NeList..++ y
+instance Semigroup (AndList a) where
+  AndList x .++. AndList y = AndList $ x .++. y
 
 -- Positions, ranges, and anchors.
 
@@ -260,11 +261,11 @@ unrelative _ = Nothing
 
 merge_commands :: [Command] → [Command]
 merge_commands [] = []
-merge_commands (Erase l : Erase l' : r) = merge_commands $ Erase (l `and_and` l') : r
+merge_commands (Erase l : Erase l' : r) = merge_commands $ Erase (l .++. l') : r
 merge_commands
   (Replace (AndList (neElim → (Replacer (Substrs x) [], []))) :
   Replace (AndList (neElim → (Replacer (Substrs y) [], []))) : r) =
-    merge_commands $ Replace (and_one $ Replacer (Substrs $ x `and_and` y) []) : r
+    merge_commands $ Replace (and_one $ Replacer (Substrs $ x .++. y) []) : r
 merge_commands (h:t) = h : merge_commands t
 
 describe_position_after :: Pos Char → String → Position
