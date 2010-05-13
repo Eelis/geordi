@@ -307,7 +307,7 @@ with_default [] = return specT
 with_default l@(h:t) = if any is_primary_TypeSpecifier l then h :| t else specT :| l
 
 instance Parse GeordiRequestWithoutWhite where
-  parse = auto3 GeordiRequest_Print <|> auto2 GeordiRequest_Block <|> auto1 GeordiRequest_TU
+  parse = auto3 GeordiRequest_Print <|> auto2 GeordiRequest_Block <|> auto1 GeordiRequest_TU <|> auto2 GeordiRequest_Call
 
 parseAnyMixOf :: Parser t a → Parser t b → Parser t (AnyMixOf a b)
 parseAnyMixOf p q = (p >>= \x → MixAB x . q <|> return (MixA x)) <|> (q >>= \y → MixBA y . p <|> return (MixB y)) <|> return MixNone

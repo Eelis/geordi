@@ -43,6 +43,7 @@ is_short_request (dropWhile isSpace → s) = case s of
   '{' : s' | not $ all isSpace s' → Just s
     -- A '{' on a line of its own can occur as part of a small code fragments pasted in a channel. Of course, so can a '{' followed by more code on the same line, but for a '{' on a line of its own, we /know/ it's not intended for geordi.
   '<' : '<' : _ → Just s
+  '(' : _ → Just s
   _ → Nothing
 
 is_addressed_request :: String → Maybe (Nick, String)
@@ -51,7 +52,7 @@ is_addressed_request txt = either (const Nothing) Just (parse p "" txt)
    p = do
     spaces
     nick ← nickP
-    oneOf ":," <|> (spaces >> lookAhead (oneOf "<{-"))
+    oneOf ":," <|> (spaces >> lookAhead (oneOf "<{-("))
     r ← getInput
     return (nick, r)
 

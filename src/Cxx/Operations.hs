@@ -34,6 +34,7 @@ map_plain _ x = x
 expand :: ShortCode → Code
 expand (LongForm c) = c
 expand (Block c c') = c' ++ [Plain "\nint main(int argc, char * argv[])", Curlies c]
+expand (Call c c') = expand $ Block ([Plain "printf"] ++ c ++ [Plain "\n;"]) c'
 expand (Print c c') = expand $ Block ([Plain "::std::cout << "] ++ c ++ [Plain "\n;"]) c'
   -- The newline before the semicolon makes //-style comments work.
 
@@ -49,23 +50,28 @@ expand_without_main (LongForm d) = erase_main d
     erase_main (x : y) = (x :) $ erase_main y
     erase_main c = c
 expand_without_main (Print _ c) = c
+expand_without_main (Call _ c) = c
 expand_without_main (Block _ c) = c
 
 blob :: ShortCode → Code
 blob (LongForm c) = c
 blob (Print c c') = [Plain "<<"] ++ c ++ [Plain ";"] ++ c'
 blob (Block c c') = Curlies c : c'
+blob (Call c c') = c ++ [Plain ";"] ++ c'
 
 resume :: ShortCode → ShortCode → ShortCode
 resume old new = case new of
     LongForm c → LongForm $ old' ++ c
     Print c c' → Print c $ old' ++ c'
     Block c c' → Block c $ old' ++ c'
+    Call c c' → Call c $ old' ++ c'
   where old' = cstyle_comments $ expand_without_main old
 
 shortcut_syntaxes :: Code → ShortCode
 shortcut_syntaxes (Curlies c : b) = Block c b
 shortcut_syntaxes (Plain ('<':'<':x) : y) = uncurry Print $ second total_tail $ break (== Plain ";") $ Plain x : y
+shortcut_syntaxes (Parens c : b) = Call (Parens c : x) (total_tail y)
+  where (x, y) = break (== Plain ";") b
 shortcut_syntaxes c = LongForm c
 
 line_breaks ::Code → Code

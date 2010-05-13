@@ -57,6 +57,7 @@ data ShortCode
   = LongForm Code
   | Print Code Code -- Does not include the semicolon.
   | Block Code Code -- Does not include Curlies.
+  | Call Code Code -- /Does/ include Parens.
 
 data Chunk
   = CharLiteral String | StringLiteral' String
@@ -226,7 +227,7 @@ data AnyMixOf a b = MixNone | MixA a | MixB b | MixAB a b | MixBA b a deriving (
 
 data OptQualified = OptQualified (Maybe (ScopeRes, White)) (Maybe NestedNameSpecifier) deriving (Data, Typeable, Eq)
 
-data GeordiRequestWithoutWhite = GeordiRequest_TU TranslationUnit | GeordiRequest_Print (LeftShiftOp, White) AdditiveExpression (Maybe ((SemicolonOperator, White), TranslationUnit)) | GeordiRequest_Block FunctionBody TranslationUnit deriving (Data, Typeable)
+data GeordiRequestWithoutWhite = GeordiRequest_TU TranslationUnit | GeordiRequest_Print (LeftShiftOp, White) AdditiveExpression (Maybe ((SemicolonOperator, White), TranslationUnit)) | GeordiRequest_Block FunctionBody TranslationUnit | GeordiRequest_Call (Parenthesized (Maybe ExpressionList)) (Maybe ((SemicolonOperator, White), TranslationUnit)) deriving (Data, Typeable)
 
 type GeordiRequest = (White, GeordiRequestWithoutWhite)
 
