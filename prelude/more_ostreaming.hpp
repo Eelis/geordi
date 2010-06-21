@@ -16,6 +16,7 @@
 #include <boost/optional.hpp>
 #include "geordi.hpp"
 #include "literal_escape.hpp"
+#include "delimited_ostream.hpp"
 
 template <typename C, typename Tr>
 std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, utsname const & u)
