@@ -43,6 +43,14 @@
 
 namespace type_strings_detail {
 
+struct type_info: std::type_info { char const * name() const; static type_info const & from_std(std::type_info const&); };
+
+BOOST_STATIC_ASSERT(sizeof(type_info) == sizeof(std::type_info));
+
+template<typename Ch, typename Tr>
+std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, type_info const & t)
+{ return o << t.name(); }
+
 template <typename I>
 std::string commas_and (I b, I e)
 {
@@ -55,17 +63,14 @@ std::string commas_and (I b, I e)
 
 // Type strings in ordinary C++ syntax
 
-struct wrapped_string { std::string s; };
+template <typename> struct identity {};
 
-template <typename>
-wrapped_string type_helper()
-{ std::string r (__PRETTY_FUNCTION__); r.resize(r.size() - 1);
-  wrapped_string const w = { r.substr(r.find('=') + 2) }; return w; }
-
-template <typename T> std::string type() { return type_helper<T>().s; }
-  // Note: Depends on specific string format used by __PRETTY_FUNCTION__.
-  // Note: The wrapped_string and helper are there because starting with gcc 4.5, things like "string = basic_string<char>" started showing up in __PRETTY_FUNCTION__.
-  // Todo: Consider __func__ in C++0x.
+template <typename T> std::string type() {
+  std::string r(type_info::from_std(typeid(identity<T>)).name()
+    + sizeof("type_strings_detail::identity<") - 1);
+  r.resize(r.size() - 1);
+  return r;
+}
 
 // Note: Since type relies on passing the type as a template argument, it will not work for locally defined types (in C++03).
 
@@ -578,14 +583,6 @@ template <typename T> std::string type_desc (bool const plural)
   // The double parentheses around __VA_ARGS__ in the __typeof__ expressions are a workaround for GCC bug 11701.
 
 #endif
-
-struct type_info: std::type_info { char const * name() const; static type_info const & from_std(std::type_info const&); };
-
-BOOST_STATIC_ASSERT(sizeof(type_info) == sizeof(std::type_info));
-
-template<typename Ch, typename Tr>
-std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, type_info const & t)
-{ return o << t.name(); }
 
 } // type_strings_detail
 
