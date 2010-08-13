@@ -40,6 +40,8 @@ namespace geordi
     YES(char16_t) YES(char32_t)
   #endif
   #undef YES
+
+  char const * demangle(char const *);
 }
 
 std::ostream & operator<<(std::ostream &, wchar_t);

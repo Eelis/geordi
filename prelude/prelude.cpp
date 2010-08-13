@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <ctime>
+#include <cassert>
 #include <ios>
 #include <set>
 #include <functional>
@@ -108,6 +109,24 @@ namespace geordi
     if (uname(&r)) throw std::runtime_error(std::strerror(errno));
     return r;
   }
+
+  char const * demangle(char const * const name)
+  {
+    int st;
+    char * const p = abi::__cxa_demangle(name, 0, 0, &st);
+
+    switch (st)
+    {
+      case 0: return p;
+      case -1: throw std::runtime_error("A memory allocation failure occurred.");
+      case -2: throw std::runtime_error("Not a valid name under the GCC C++ ABI mangling rules.");
+      case -3: throw std::runtime_error("One of the arguments is invalid.");
+      default: assert(!"unexpected demangle status");
+    }
+
+    // We could return a std::string and free p, but since deallocation is not a concern (and is even a no-op) in geordi anyway, we don't bother.
+  }
+
 } // namespace geordi
 
 std::ostream & operator<<(std::ostream & o, wchar_t const c)

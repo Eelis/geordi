@@ -9,7 +9,7 @@ fi
 
 . "${DATA}/compile-config"
 cd "${DATA}/prelude"
-$GXX $COMPILE_FLAGS -c prelude.cpp tracked.cpp type_strings.cpp more_ostreaming.cpp
+$GXX $COMPILE_FLAGS -c prelude.cpp tracked.cpp more_ostreaming.cpp
 cd "${DATA}"
 rm -f rt/prelude.a
 ar -rsc rt/prelude.a prelude/*.o

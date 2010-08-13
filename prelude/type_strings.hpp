@@ -43,7 +43,11 @@
 
 namespace type_strings_detail {
 
-struct type_info: std::type_info { char const * name() const; static type_info const & from_std(std::type_info const&); };
+struct type_info: std::type_info
+{
+  char const * name() const { return geordi::demangle(std::type_info::name()); }
+  static type_info const & from_std(std::type_info const & i) { return static_cast<type_info const&>(i); }
+};
 
 BOOST_STATIC_ASSERT(sizeof(type_info) == sizeof(std::type_info));
 
