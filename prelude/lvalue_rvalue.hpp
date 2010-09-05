@@ -15,7 +15,7 @@
   #include <type_traits>
 
   #define IS_LVALUE(...) \
-    (std::identity<decltype(::lvalue_rvalue_detail::deduce(((::lvalue_rvalue_detail::helper(), (__VA_ARGS__)), ::lvalue_rvalue_detail::helper())))>::type::value)
+    (::lvalue_rvalue_detail::identity<decltype(::lvalue_rvalue_detail::deduce(((::lvalue_rvalue_detail::helper(), (__VA_ARGS__)), ::lvalue_rvalue_detail::helper())))>::type::value)
   #define IS_RVALUE(...) (!IS_LVALUE(__VA_ARGS__))
 
   #define MAY_BE_LVALUE(...) (IS_LVALUE(__VA_ARGS__))
@@ -23,6 +23,7 @@
 
   namespace lvalue_rvalue_detail
   {
+    template <typename T> struct identity { typedef T type; };
     struct helper {};
 
     template <typename T> struct copy_ref { typedef int type; };
