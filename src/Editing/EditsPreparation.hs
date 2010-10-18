@@ -13,7 +13,7 @@ import Data.Foldable (toList)
 import Data.Traversable (forM, mapM, sequence)
 import Data.List.NonEmpty ((|:), toNonEmpty, neHead, neTail)
 import Control.Monad (liftM2, join)
-import Control.Monad.Error ()
+import Control.Monad.Error (throwError)
 import Data.SetOps
 import Util ((.), Convert(..), Op(..), ops_cost, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, multiplicative_numeral, E, or_fail, pairs, NeList, neElim, neHomogenize, safeNth)
 
@@ -53,7 +53,7 @@ instance Find a b ⇒ Find (AndList a) (NeList b) where find = sequence . (find 
 -- The _given and search_range fields in ResolutionContext simply specify a string and subrange of that string for the finder to search in. The context_suffix field describes the context (e.g. "after third statement in body of f"). Its only purpose is to make for nicer error messages: when Find instances fail, context_suffix lets us produce error messages like "Could not find `beh` after third statement in body of f."
 
 fail_with_context :: String → Resolver a
-fail_with_context s = (s ++) . context_suffix . ask >>= fail
+fail_with_context s = (s ++) . context_suffix . ask >>= throwError
 
 -- Find instances for things like Relative typically invoke Find instances for constituent clauses on subranges of the range they received themselves. For this we define |narrow|, which simultaneously modifies the search_range and extends the context_suffix:
 
@@ -202,7 +202,7 @@ instance (OccurrenceError a, Find a (NeList (FindResult DualARange))) ⇒ Find (
   find (Rankeds rs s) = sequence ((\r → find (Ranked r s)) . flatten_occ_clauses rs)
   find (AllBut rs s) =
     erase_indexed (ordinal_carrier . toList (flatten_occ_clauses rs)) . toList . find s >>= case_of
-      [] → fail "All occurrences excluded." -- Todo: Better error.
+      [] → throwError "All occurrences excluded." -- Todo: Better error.
       x:y → return $ x |: y
 
 flatten_occ_clauses :: AndList OccurrencesClause → NeList Ordinal
@@ -284,7 +284,7 @@ instance Find RelativeBound (FindResult (Either ARange Anchor)) where
   find Back = Found InGiven . Right . Anchor After . end . search_range . ask
   find (RelativeBound mba p) = find p >>= \l → if null (neTail l)
     then return $ maybe Left (\ba → Right . ($ ba)) mba . full_range . neHead l
-    else fail "Relative bound must be singular."
+    else throwError "Relative bound must be singular."
 
 class ToWf a where toWf :: a → Resolver a
 
@@ -321,7 +321,7 @@ instance Find Mover [FindResult Edit] where
 instance Find Position (FindResult Anchor) where
   find (Position ba x) = find x >>= \l → if null (neTail l)
     then return $ flip full_range ba . (neHead l)
-    else fail "Anchor position must be singular."
+    else throwError "Anchor position must be singular."
 
 instance Find UsePattern (FindResult (Range Char)) where
   find (UsePattern z) = do
@@ -340,7 +340,7 @@ instance Convert (FindResult (Range Char)) (FindResult (Range Char)) where conve
 instance Find UseClause (NeList (FindResult Edit)) where
   find (UseOptions o) = return $ return $ Found InGiven $ AddOptions o
   find (UseString ru@(In b _)) = case unrelative b of
-    Nothing → fail "Nonsensical use-command."
+    Nothing → throwError "Nonsensical use-command."
     Just (UsePattern v) → (((flip RangeReplaceEdit v) .) .) . find ru
 
 token_edit_cost :: Op String → Cost
@@ -383,13 +383,13 @@ instance Find Command [FindResult Edit] where
     where
       f [] = return []
       f (a:b:c) = liftM2 (++) (makeSwapEdit a b) (f c)
-      f _ = fail "Cannot swap uneven number of operands."
+      f _ = throwError "Cannot swap uneven number of operands."
   find (Swap substrs (Just substrs')) = do
     Found v x ← ((full_range .) .) . find substrs >>= merge_contiguous_FindResult_ARanges
     Found w y ← ((full_range .) .) . find substrs' >>= merge_contiguous_FindResult_ARanges
     let a = Found v . x; b = Found w . y
     if null (neTail a) && null (neTail b) then makeSwapEdit (neHead a) (neHead b)
-     else fail "Swap operands must be contiguous ranges."
+     else throwError "Swap operands must be contiguous ranges."
   find (Make s b) = inwf $ do
     (tree, _) ← well_formed . ask >>= or_fail
     l ← (fmap (\(Found _ x) → replace_range x)) . find s
@@ -455,7 +455,7 @@ use_tests = do
  where
   u :: String → String → String → String → String → IO ()
   u txt pattern match d rd =
-    case runReaderT (find (UseString $ flip In Nothing $ Absolute $ UsePattern pattern)) (ResolutionContext "." txt (Range 0 (length txt)) (fail "-")) of
+    case runReaderT (find (UseString $ flip In Nothing $ Absolute $ UsePattern pattern)) (ResolutionContext "." txt (Range 0 (length txt)) (Left "-")) of
       Left e → fail e
       Right (neElim → (Found _ (RangeReplaceEdit rng _), [])) → do
         test_cmp pattern match (selectRange rng txt)

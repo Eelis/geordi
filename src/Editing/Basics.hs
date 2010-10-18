@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, PatternGuards, FlexibleInstances, TypeSynonymInstances, OverlappingInstances, ViewPatterns #-}
+{-# LANGUAGE MultiParamTypeClasses, PatternGuards, FlexibleInstances, TypeSynonymInstances, OverlappingInstances, ViewPatterns, FlexibleContexts #-}
 
 module Editing.Basics where
 
@@ -11,6 +11,7 @@ import Data.Function (on)
 import Data.Foldable (toList)
 import Data.Ord (comparing)
 import Control.Arrow ((&&&))
+import Control.Monad.Error (MonadError(..))
 import Prelude.Unicode
 
 import Cxx.Basics (DeclaratorId, Findable)
@@ -134,11 +135,11 @@ data Edit
     deriving Eq
   -- We don't just use a RangeReplaceEdit with range length 0 for insertions, because it is not expressive enough. For instance, given "xy", insertions at the positions "after x" and "before y" would both designate position 1, but a prior "add z after x" edit should increment the latter position but not the former. InsertEdit's BefAft argument expresses this difference.
 
-makeMoveEdit :: Monad m ⇒ Anchor → Range Char → m Edit
+makeMoveEdit :: MonadError String m ⇒ Anchor → Range Char → m Edit
 makeMoveEdit (Anchor ba p) r@(Range st si)
   | p ≤ st = return $ MoveEdit ba (p - st) r
   | st + si ≤ p = return $ MoveEdit ba (p - st - si) r
-  | otherwise = fail "Move destination lies in source range."
+  | otherwise = throwError "Move destination lies in source range."
 
 -- Command grammar
 

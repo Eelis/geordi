@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards, ScopedTypeVariables, TypeSynonymInstances, ViewPatterns #-}
+{-# LANGUAGE PatternGuards, ScopedTypeVariables, TypeSynonymInstances, ViewPatterns, FlexibleContexts #-}
 
 module Editing.Execute (execute) where
 
@@ -12,6 +12,7 @@ import Control.Monad (foldM)
 import Data.Monoid (Monoid(..))
 import Control.Applicative ((<|>))
 import Control.Arrow ((&&&))
+import Control.Monad.Error (MonadError(..))
 import Request (EditableRequest(..), EditableRequestKind(..))
 import Cxx.Basics (GeordiRequest)
 import Data.SetOps
@@ -106,11 +107,11 @@ adjuster :: String → Edit → Adjuster
 adjuster s add = Adjuster
   { editAdjuster = \e → if add == e then return Nothing else case adjustEdit add e of
       Just e' → return $ Just e'
-      _ → fail $ "Overlapping edits: " ++ Editing.Show.showEdit s add ++ " and " ++ Editing.Show.showEdit s e ++ "."
+      _ → Left $ "Overlapping edits: " ++ Editing.Show.showEdit s add ++ " and " ++ Editing.Show.showEdit s e ++ "."
   , anchorAdjuster = nothingAsError msg . adjustAnchor add }
   where msg = "Could not adjust anchor in original snippet to anchor in well formed snippet."
 
-exec_edit :: Monad m ⇒ Edit → EditableRequest → m EditableRequest
+exec_edit :: MonadError String m ⇒ Edit → EditableRequest → m EditableRequest
 exec_edit e (EditableRequest k s) = case e of
   RangeReplaceEdit r repl →
     let (x, _, b) = splitRange r s in return $ EditableRequest k $ x ++ repl ++ b
@@ -125,13 +126,13 @@ exec_edit e (EditableRequest k s) = case e of
       return $ EditableRequest k $ a ++ c ++ selectRange r s ++ y
   RemoveOptions opts
     | Evaluate f ← k → return $ EditableRequest (Evaluate $ (Set.\\) f $ Set.fromList opts) s
-    | otherwise → fail $ "Cannot remove evaluation options from \"" ++ show k ++ "\" request."
+    | otherwise → throwError $ "Cannot remove evaluation options from \"" ++ show k ++ "\" request."
   AddOptions opts
     | Evaluate f ← k → return $ EditableRequest (Evaluate $ f ∪ Set.fromList opts) s
-    | otherwise → fail $ "Cannot use evaluation options for \"" ++ show k ++ "\" request."
+    | otherwise → throwError $ "Cannot use evaluation options for \"" ++ show k ++ "\" request."
 
 nothingAsError :: String → Maybe a → E a
-nothingAsError s = maybe (fail s) return
+nothingAsError s = maybe (Left s) return
 
 data FoldState = FoldState
   { adjust_since_start :: Adjuster

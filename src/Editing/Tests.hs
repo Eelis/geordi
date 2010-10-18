@@ -244,15 +244,15 @@ basic_tests = do
   t "replace all 2 with 3 and replace second 2 with x" $ Left "Overlapping edits: replace 2 with 3 and replace 2 with x."
   t "erase everything before first 3 and replace first 2 with x" $ Left "Overlapping edits: erase `1 2 ` and replace 2 with x."
   t "erase 5 between 1 and 4" $ Left "String `5` does not occur between 1 and 4."
-  t "prepend x and replace 4 with a and replace 4 with b" $ fail "Overlapping edits: replace 4 with a and replace 4 with b."
+  t "prepend x and replace 4 with a and replace 4 with b" $ Left "Overlapping edits: replace 4 with a and replace 4 with b."
   -- Syntax errors:
   t "isnert 3 before 4" $ Left "Unexpected `isnert` at start. Expected edit command."
   t "insert " $ Left "Unexpected end of command. Expected option, wrapping description, or verbatim string."
   t "insert kung fu" $ Left "Unexpected end of command. Expected \" and\", \" in\", \" at\", \" around\", \" before\", or \" after\"."
-  t "move " $ fail "Unexpected end of command. Expected \"till\", \"until\", \"from\", \"everything\", \"code\", \"before\", \"between\", \"after\", \"declaration\", \"body\", production-name, verbatim string, \"all\", \"any\", \"every\", \"each\", or ordinal."
+  t "move " $ Left "Unexpected end of command. Expected \"till\", \"until\", \"from\", \"everything\", \"code\", \"before\", \"between\", \"after\", \"declaration\", \"body\", production-name, verbatim string, \"all\", \"any\", \"every\", \"each\", or ordinal."
   t "move x " $ Left "Unexpected end of command. Expected \" till\", \" until\", \" around\", \" before\", \" after\", \" between\", \" in\", \" and\", or \" to\"."
   t "move x to "$ Left "Unexpected end of command. Expected \"beginning\", \"begin\", \"front\", \"start\", \"end\", \"back\", \"before\", or \"after\"."
-  t "erase all 2 and " $ fail "Unexpected end of command. Expected verbatim string, \"till\", \"until\", \"from\", \"everything\", \"code\", \"before\", \"between\", \"after\", \"declaration\", \"body\", production-name, \"all\", \"any\", \"every\", \"each\", ordinal, wrapping description, option, or edit command."
+  t "erase all 2 and " $ Left "Unexpected end of command. Expected verbatim string, \"till\", \"until\", \"from\", \"everything\", \"code\", \"before\", \"between\", \"after\", \"declaration\", \"body\", production-name, \"all\", \"any\", \"every\", \"each\", ordinal, wrapping description, option, or edit command."
   putStrLn "All basics tests passed."
 
  where

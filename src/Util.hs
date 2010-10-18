@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, UndecidableInstances, PatternGuards, DeriveDataTypeable, OverlappingInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, UndecidableInstances, PatternGuards, DeriveDataTypeable, OverlappingInstances, FlexibleContexts #-}
 
 module Util (module Data.SetOps, module Prelude.Unicode, module Util) where
 
@@ -19,7 +19,7 @@ import Data.Traversable (mapM)
 import Control.Exception (bracket, evaluate)
 import Control.Arrow (Arrow, (>>>), arr, first, second, (&&&))
 import Control.Monad (liftM2, when, MonadPlus(..))
-import Control.Monad.Error (Error(..))
+import Control.Monad.Error (Error(..), MonadError(..))
 import Control.Monad.State (MonadState, modify, StateT(..))
 import Control.Monad.Instances ()
 import Control.DeepSeq (NFData, rnf)
@@ -389,7 +389,7 @@ mebi = kibi * kibi
 readEither :: Read a ⇒ String → Either String a
 readEither s
   | [(x, r)] ← reads s, all isSpace r = return x
-  | otherwise = fail "parse failure"
+  | otherwise = throwError "parse failure"
 
 readTypedFile :: Read a ⇒ FilePath → IO a
 readTypedFile f = either (const $ fail $ "parsing \"" ++ f ++ "\"") return =<< readEither . readFile f
@@ -446,7 +446,7 @@ instance Monad MaybeEitherString where
   MaybeEitherString Nothing >>= _ = MaybeEitherString Nothing
   MaybeEitherString (Just (Left e)) >>= _ = MaybeEitherString $ Just $ Left e
   MaybeEitherString (Just (Right x)) >>= f = f x
-  fail = MaybeEitherString . return . fail
+  fail = MaybeEitherString . return . Left
 
 instance MonadPlus MaybeEitherString where
   mzero = MaybeEitherString Nothing
@@ -458,10 +458,14 @@ instance Functor MaybeEitherString where
   fmap _ (MaybeEitherString (Just (Left e))) = MaybeEitherString $ Just $ Left e
   fmap _ (MaybeEitherString Nothing) = MaybeEitherString Nothing
 
+instance MonadError [Char] MaybeEitherString where
+  throwError = MaybeEitherString . Just . Left
+  catchError = error "sorry, not implemented"
+
 type E = Either String
 
-or_fail :: Monad m ⇒ E a → m a
-or_fail = either fail return
+or_fail :: MonadError String m ⇒ E a → m a
+or_fail = either throwError return
 
 strip_utf8_bom :: String → String
 strip_utf8_bom ('\239':'\187':'\191':s) = s
@@ -478,3 +482,7 @@ instance Error e => Alternative (Either e) where
   Left _ <|> x = x
   x <|> _ = x
 
+instance MonadError [Char] Maybe where
+  throwError = const Nothing
+  catchError Nothing f = f "error"
+  catchError m _ = m

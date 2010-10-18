@@ -15,7 +15,7 @@ import qualified Cxx.Operations
 import qualified Cxx.Show
 import qualified Data.List as List
 
-import Control.Monad.Error ()
+import Control.Monad.Error (throwError)
 import Control.Monad (join)
 import Control.Arrow (first)
 import Cxx.Show (Highlighter)
@@ -122,12 +122,12 @@ respond_and_remember evf er = Response (Just $ AddLast er) . either (return . ("
 
 final_cmd :: Highlighter → FinalCommand → [EditableRequest] → E String
 final_cmd h = go where
-  go _ [] = fail "There is no previous request."
+  go _ [] = throwError "There is no previous request."
   go (Show Nothing) (er:_) = return $ show_EditableRequest h er
   go (Show (Just substrs)) (EditableRequest (Evaluate _) c : _) = do
     l ← (\(Editing.EditsPreparation.Found _ x) → x) ‥ toList . Editing.EditsPreparation.findInStr c (flip (,) return . Cxx.Parse.parseRequest c) substrs
     return $ commas_and (map (\x → '`' : strip (Editing.Basics.selectRange (convert $ Editing.Basics.replace_range x) c) ++ "`") l) ++ "."
-  go (Show (Just _)) (_:_) = fail "Last (editable) request was not an evaluation request."
+  go (Show (Just _)) (_:_) = throwError "Last (editable) request was not an evaluation request."
   go (Identify substrs) (EditableRequest (Evaluate _) c : _) = do
     tree ← Cxx.Parse.parseRequest c
     l ← (\(Editing.EditsPreparation.Found _ x) → x) ‥ toList . Editing.EditsPreparation.findInStr c (Right (tree, return)) substrs
@@ -135,18 +135,18 @@ final_cmd h = go where
   go Parse (EditableRequest (Evaluate _) c : _) =
     Cxx.Parse.parseRequest c >> return "Looks fine to me."
   go Diff (x : y : _) = return $ diff x y
-  go Diff [_] = fail "History exhausted."
-  go _ (_:_) = fail "Last (editable) request was not an evaluation request."
+  go Diff [_] = throwError "History exhausted."
+  go _ (_:_) = throwError "Last (editable) request was not an evaluation request."
 
 editcmd :: Highlighter → CxxEvaluator → [EditableRequest] → Parser Char (E (EditableRequest, IO String))
 editcmd h evf prevs = do
   oe ← Editing.Parse.commandsP; commit $ (eof >>) $ parseSuccess $ do
   case prevs of
-    [] → fail "There is no prior request."
+    [] → throwError "There is no prior request."
     prev : _ → do
       (cs, mfcmd) ← oe
       edited ← Editing.Execute.execute cs prev
-      if length_ge 1000 (editable_body edited) then fail "Request would become too large." else do
+      if length_ge 1000 (editable_body edited) then throwError "Request would become too large." else do
       (,) edited . case mfcmd of
         Just fcmd → return . final_cmd h fcmd (edited : prevs)
         Nothing → noErrors $ case respond evf edited of
@@ -172,7 +172,7 @@ p h evf compile_cfg prevs = (spaces >>) $ do
           y ← editcmd h evf old; return $ do
           (edited, output) ← y
           return $ Response (Just $ ReplaceLast edited) . output)
-      _ → parseSuccess $ fail "History exhausted."
+      _ → parseSuccess $ throwError "History exhausted."
   <|> do
     kwds ["--precedence", "precedence"]
     parseSuccess . noErrors . respond_and_remember evf . EditableRequest Precedence =<< getInput
@@ -187,7 +187,7 @@ p h evf compile_cfg prevs = (spaces >>) $ do
     parseSuccess $ noErrors $ pureIO $ Response Nothing $ unwords $ EvalCxx.compileFlags compile_cfg
   <|> do
     optional (kwd "try"); kwd "again"; commit $ (eof >>) $ return $ case prevs of
-      [] → fail "There is no repeatable request."
+      [] → throwError "There is no repeatable request."
       x : _ → Response Nothing ‥ respond evf x
   <|> do
     y ← editcmd h evf prevs
@@ -199,13 +199,13 @@ p h evf compile_cfg prevs = (spaces >>) $ do
       | Help ∈ eph_opts → parseSuccess $ noErrors help_response
       | Version ∈ eph_opts → parseSuccess $ noErrors version_response
       | Resume ∈ eph_opts → flip fmap (Cxx.Parse.code << eof) $ \code → case prevs of
-        [] → fail "There is no previous resumable request."
+        [] → throwError "There is no previous resumable request."
         EditableRequest (Evaluate oldopts) oldcodeblob : _ → do
           case run_parser (Cxx.Parse.code << eof) (dropWhile isSpace oldcodeblob) of
             ParseSuccess oldcode _ _ _ → noErrors $ respond_and_remember evf $
               EditableRequest (Evaluate $ evalopts ∪ oldopts) $ show $ Cxx.Operations.blob $ Cxx.Operations.resume (Cxx.Operations.shortcut_syntaxes oldcode) (Cxx.Operations.shortcut_syntaxes code)
-            ParseFailure _ _ _ → fail "Previous request too malformed to resume."
-        _ → fail "Last (editable) request was not resumable."
+            ParseFailure _ _ _ → throwError "Previous request too malformed to resume."
+        _ → throwError "Last (editable) request was not resumable."
       | otherwise → parseSuccess . noErrors . respond_and_remember evf =<< EditableRequest (Evaluate evalopts) . getInput }
   where
     help_response = cout_response evf "help"

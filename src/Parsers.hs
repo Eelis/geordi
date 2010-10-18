@@ -12,6 +12,7 @@ import Data.List.NonEmpty ((|:))
 import Data.Foldable (toList)
 import Control.Monad (liftM, liftM2)
 import Control.Arrow (first)
+import Control.Monad.Error (MonadError(..))
 import Data.List ((\\))
 import Data.Maybe (fromMaybe)
 import Util ((.), Finite(..), commas_or, Option(..), (.∨.), isIdChar, (<<), NeList)
@@ -204,19 +205,19 @@ silent (Parser p) = Parser $ \s → case p s of
   ParseFailure _ _ b → ParseFailure 0 [] b
   ParseSuccess r t n _ → ParseSuccess r t n Nothing
 
-optParser :: (Monad m, Functor m, Finite o, Option o) ⇒ Parser Char (m [o])
+optParser :: (MonadError String m, Functor m, Finite o, Option o) ⇒ Parser Char (m [o])
 optParser = (<?> "option") $ (char '-' >>) $ do
     char '-'
     n ← (<?> "option name") $ toList . many1 (satisfy $ isIdChar .∨. (== '-'))
     spaces
     case List.find ((== n) . long) all_values of
-      Nothing → return $ fail $ "No such option: --" ++ n
+      Nothing → return $ throwError $ "No such option: --" ++ n
       Just o → ((o:) .) . option (return []) optParser
   <|> do
     x ← many1 $ do
       d ← satisfy Ch.isAlpha <?> "option letter"
       return $ case List.find ((== Just d) . short) all_values of
-        Nothing → fail $ "No such option: -" ++ [d]
+        Nothing → throwError $ "No such option: -" ++ [d]
         Just o → return o
     spaces
     y ← option (return []) optParser
@@ -254,11 +255,11 @@ offset n (Just (i, s)) = Just (i + n, s)
 
 parseOrFailE :: Parser Char (Either String a) → String → String → Either String a
 parseOrFailE p input desc = case run_parser p input of
-  ParseSuccess (Left e) _ _ _ → fail e
+  ParseSuccess (Left e) _ _ _ → throwError e
   ParseSuccess (Right x) _ _ _ → return x
-  ParseFailure x y _ → fail $ showParseError desc input x y
+  ParseFailure x y _ → throwError $ showParseError desc input x y
 
 parseOrFail :: Parser Char a → String → String → Either String a
 parseOrFail p input desc = case run_parser p input of
   ParseSuccess x _ _ _ → return x
-  ParseFailure x y _ → fail $ showParseError desc input x y
+  ParseFailure x y _ → throwError $ showParseError desc input x y
