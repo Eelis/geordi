@@ -530,8 +530,23 @@ template <typename T> std::string type_desc (bool const plural)
 // The following macros are variadic so that things like TYPE(pair<int, bool>) and ETYPE(pair<bool, int>(true, 3)) work (note the commas).
 // The E* variants are necessary because decltype does not allow type arguments, and eventually we will want to remove the __typeof__ implementation.
 
-#define TYPE(...) (::type_strings_detail::type<__VA_ARGS__>())
-#define TYPE_DESC(...) (::type_strings_detail::type_desc<__VA_ARGS__>())
+template <typename> struct type_desc_tag {};
+template <typename> struct type_tag {};
+
+template <typename Ch, typename Tr, typename T>
+std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, void(type_desc_tag<T>))
+{ return o << type_desc<T>(); }
+
+template <typename Ch, typename Tr, typename T>
+std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, void(type_tag<T>))
+{ return o << type<T>(); }
+
+} // type_strings_detail
+
+template <typename T> void TYPE_DESC(type_strings_detail::type_desc_tag<T>) {}
+template <typename T> void TYPE(type_strings_detail::type_tag<T>) {}
+
+namespace type_strings_detail {
 
 /* Regarding ETYPE(_DESC) semantics:
 
@@ -561,11 +576,11 @@ template <typename T> std::string type_desc (bool const plural)
 
   // We can't do the remove_reference in the ETYPE(_DESC) macros because there would be no correct choice for whether or not to use typename, since whether std::remove_reference<T>::type is a dependent type depends on the context. Hence the separate etype(_desc) functions.
 
-  #define ETYPE(...) \
+  #define TYPE(...) \
     ((IS_LVALUE(__VA_ARGS__) ? "lvalue " : "rvalue ") + \
     ::type_strings_detail::etype<decltype(void(), (__VA_ARGS__))>())
 
-  #define ETYPE_DESC(...) \
+  #define TYPE_DESC(...) \
     ((IS_LVALUE(__VA_ARGS__) ? "lvalue " : "rvalue ") + \
     ::type_strings_detail::etype_desc<decltype(void(), (__VA_ARGS__))>())
 
@@ -576,17 +591,21 @@ template <typename T> std::string type_desc (bool const plural)
       ? (MAY_BE_RVALUE(__VA_ARGS__) ? "" : "lvalue ") \
       : "rvalue ")
 
-  #define ETYPE(...) \
+  #define TYPE(...) \
     (TYPE_STRINGS_DETAIL_LVALUE_RVALUE_TAG(__VA_ARGS__) + \
     ::type_strings_detail::type<__typeof__((__VA_ARGS__))>())
 
-  #define ETYPE_DESC(...) \
+  #define TYPE_DESC(...) \
     (TYPE_STRINGS_DETAIL_LVALUE_RVALUE_TAG(__VA_ARGS__) + \
     ::type_strings_detail::type_desc<__typeof__((__VA_ARGS__))>())
 
   // The double parentheses around __VA_ARGS__ in the __typeof__ expressions are a workaround for GCC bug 11701.
 
 #endif
+
+  // Backward compatibility:
+#define ETYPE(...) TYPE(__VA_ARGS__)
+#define ETYPE_DESC(...) TYPE_DESC(__VA_ARGS__)
 
 } // type_strings_detail
 
