@@ -5,7 +5,7 @@ module Editing.Basics where
 import qualified Cxx.Basics
 import qualified Request
 import qualified Data.List as List
-import qualified Data.List.NonEmpty as NeList
+import qualified Data.Stream.NonEmpty as NeList
 import qualified Data.Char as Char
 import Data.Function (on)
 import Data.Foldable (toList)
@@ -18,7 +18,7 @@ import Cxx.Basics (DeclaratorId, Findable)
 
 import Data.Monoid (Monoid(..))
 import Util (Convert(..), Invertible(..), Ordinal(..), (.), findMaybe, take_atleast, isIdChar, NeList, neElim)
-import Data.List.NonEmpty ((|:), (.:))
+import Data.Stream.NonEmpty (NonEmpty((:|)))
 import Data.Semigroup (Semigroup(..))
 
 import Prelude hiding ((.))
@@ -33,7 +33,7 @@ and_one :: a → AndList a
 and_one = AndList . return
 
 instance Semigroup (AndList a) where
-  AndList x .++. AndList y = AndList $ x .++. y
+  AndList x <> AndList y = AndList $ x <> y
 
 -- Positions, ranges, and anchors.
 
@@ -82,16 +82,16 @@ two_contiguous x y
   | otherwise = Nothing
 
 contiguous :: NeList ARange → Maybe ARange
-contiguous l = case NeList.neTail l of 
-  [] → Just $ NeList.neHead l
-  t → findWithRest (two_contiguous $ NeList.neHead l) t >>= contiguous . uncurry (|:)
+contiguous l = case NeList.tail l of
+  [] → Just $ NeList.head l
+  t → findWithRest (two_contiguous $ NeList.head l) t >>= contiguous . uncurry (:|)
 
 merge_contiguous :: NeList ARange → NeList ARange
 merge_contiguous l = case neElim l of
   (_, []) → l
   (h, t@(x:xs)) → case findWithRest (two_contiguous h) t of
-    Nothing → h .: (merge_contiguous $ x |: xs)
-    Just (h', t') → merge_contiguous $ h' |: t'
+    Nothing → NeList.cons h (merge_contiguous $ x :| xs)
+    Just (h', t') → merge_contiguous $ h' :| t'
 
 class Offsettable a where offset :: Int → a → a
 
@@ -262,11 +262,11 @@ unrelative _ = Nothing
 
 merge_commands :: [Command] → [Command]
 merge_commands [] = []
-merge_commands (Erase l : Erase l' : r) = merge_commands $ Erase (l .++. l') : r
+merge_commands (Erase l : Erase l' : r) = merge_commands $ Erase (l <> l') : r
 merge_commands
   (Replace (AndList (neElim → (Replacer (Substrs x) [], []))) :
   Replace (AndList (neElim → (Replacer (Substrs y) [], []))) : r) =
-    merge_commands $ Replace (and_one $ Replacer (Substrs $ x .++. y) []) : r
+    merge_commands $ Replace (and_one $ Replacer (Substrs $ x <> y) []) : r
 merge_commands (h:t) = h : merge_commands t
 
 describe_position_after :: Pos Char → String → Position

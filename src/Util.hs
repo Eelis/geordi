@@ -6,11 +6,11 @@ import qualified System.Posix.IO
 import qualified Data.Monoid
 import qualified Prelude
 import qualified Data.List as List
-import qualified Data.List.NonEmpty as NeList
+import qualified Data.Stream.NonEmpty as NeList
 import Data.Maybe (listToMaybe, mapMaybe, fromMaybe)
 import Data.Monoid (Monoid(..))
 import Data.List (sortBy, minimumBy, isPrefixOf, tails, stripPrefix)
-import Data.List.NonEmpty ((|:), neTail, neHead, (.:))
+import Data.Stream.NonEmpty (NonEmpty(..))
 import Data.Char (isSpace, isAlphaNum, toLower, toUpper)
 import Data.Function (on)
 import Data.Foldable (toList)
@@ -19,13 +19,13 @@ import Data.Traversable (mapM)
 import Control.Exception (bracket, evaluate)
 import Control.Arrow (Arrow, (>>>), arr, first, second, (&&&))
 import Control.Monad (liftM2, when, MonadPlus(..))
-import Control.Monad.Error (Error(..), MonadError(..))
+import Control.Monad.Error (MonadError(..))
 import Control.Monad.State (MonadState, modify, StateT(..))
 import Control.Monad.Instances ()
 import Control.DeepSeq (NFData, rnf)
 import System.Posix.Types (Fd(..))
 import System.IO (Handle, hClose)
-import Control.Applicative (Applicative(..), Alternative(..))
+import Control.Applicative (Applicative(..))
 import Prelude hiding ((.), (!!), mapM)
 import Prelude.Unicode hiding ((∈), (∉))
 import Data.SetOps
@@ -151,28 +151,28 @@ safeNth n = listToMaybe . if 0 ≤ n then drop n else drop (-n - 1) . reverse
 type NeList = NeList.NonEmpty
 
 neElim :: NeList a → (a, [a])
-neElim = NeList.neHead &&& NeList.neTail
+neElim = NeList.head &&& NeList.tail
 
 neFilter :: (a → Bool) → NeList a → [a]
 neFilter p = filter p . toList
 
 prefixNeList :: [a] → NeList a → NeList a
 prefixNeList [] = id
-prefixNeList (h:t) = (h |:) . (t ++) . toList
+prefixNeList (h:t) = (h :|) . (t ++) . toList
 
 neInitLast :: NeList a → ([a], a)
 neInitLast = ((reverse . snd) &&& fst) . neElim . NeList.reverse
 
 neHomogenize :: (Functor m, Monad m) ⇒ (a → m b) → NeList (Either a b) → m (Either (NeList a) (NeList b))
-neHomogenize f l = case neTail l of
-  [] → return $ either (Left . return) (Right . return) (neHead l)
+neHomogenize f l = case NeList.tail l of
+  [] → return $ either (Left . return) (Right . return) (NeList.head l)
   h:t → do
-    ht ← neHomogenize f $ h |: t
-    case (neHead l, ht) of
-      (Left x, Left y) → return $ Left $ x .: y
-      (Right x, Right y) → return $ Right $ x .: y
-      (Left x, Right y) → Right `fmap` (.: y) `fmap` f x
-      (Right x, Left y) → Right `fmap` (x .:) `fmap` mapM f y
+    ht ← neHomogenize f $ h :| t
+    case (NeList.head l, ht) of
+      (Left x, Left y) → return $ Left $ NeList.cons x y
+      (Right x, Right y) → return $ Right $ NeList.cons x y
+      (Left x, Right y) → Right `fmap` (`NeList.cons` y) `fmap` f x
+      (Right x, Left y) → Right `fmap` NeList.cons x `fmap` mapM f y
 
 -- Test utilities
 
@@ -470,17 +470,6 @@ or_fail = either throwError return
 strip_utf8_bom :: String → String
 strip_utf8_bom ('\239':'\187':'\191':s) = s
 strip_utf8_bom s = s
-
-instance Error e => Applicative (Either e) where
-  pure = Right
-  Left e <*> _ = Left e
-  _ <*> Left e = Left e
-  Right f <*> Right x = Right $ f x
-
-instance Error e => Alternative (Either e) where
-  empty = Left noMsg
-  Left _ <|> x = x
-  x <|> _ = x
 
 instance MonadError [Char] Maybe where
   throwError = const Nothing

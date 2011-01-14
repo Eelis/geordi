@@ -28,7 +28,7 @@ module Cxx.Parse (Code, Chunk(..), code, charLit, stringLit, makeType, precedenc
 
 import qualified Data.Char as Char
 import qualified Data.List as List
-import qualified Data.List.NonEmpty as NeList
+import qualified Data.Stream.NonEmpty as NeList
 import qualified Parsers as P
 import qualified Cxx.Show
 import Control.Arrow (first, second)
@@ -38,7 +38,7 @@ import Control.Monad.Instances ()
 import Control.Monad.Error ()
 import Control.Monad (liftM2, liftM3)
 import Data.List ((\\))
-import Data.List.NonEmpty (neHead, neTail, (|:))
+import Data.Stream.NonEmpty (NonEmpty(..))
 import Data.Generics (Data, Typeable, dataTypeOf)
 import Data.Maybe (mapMaybe)
 import Data.Function (on)
@@ -212,11 +212,11 @@ takingP =
   ((kwd "nothing" <|> (kwd "no" >> kwd "arguments")) >> return (ParameterDeclarationClause Nothing Nothing)) <|> mkParameterDeclarationClause . concat . sepBy1 takingClause (delim >> ((kwd "returning" >> pzero) <|> return ()))
 
 commad :: NeList x → Commad x
-commad l = Commad (neHead l) $ (,) (CommaOp, White " ") . neTail l
+commad l = Commad (NeList.head l) $ (,) (CommaOp, White " ") . NeList.tail l
 
 mkParameterDeclarationClause :: [ParameterDeclaration] → ParameterDeclarationClause
 mkParameterDeclarationClause l =
-  ParameterDeclarationClause (case l of [] → Nothing; h:t → (Just $ ParameterDeclarationList $ commad $ h |: t)) Nothing
+  ParameterDeclarationClause (case l of [] → Nothing; h:t → (Just $ ParameterDeclarationList $ commad $ h :| t)) Nothing
 
 instance Parse (CvQualifier, White) where
   parse = (<?> "cv-qualifier") $ do
@@ -289,7 +289,7 @@ type_desc = (<?> "type description") $ do
   where
     specdDesc :: Parser Char ([TypeSpecifier], Either TypeSpecifier PtrAbstractDeclarator)
     specdDesc = (<?> "type description") $ flip fix [] $ \self specs → do
-      morespecs ← liftM2 (|:) parsePrimarySpec (many parseSecondarySpec)
+      morespecs ← liftM2 (:|) parsePrimarySpec (many parseSecondarySpec)
       let ne = prefixNeList specs morespecs
       mad ← parse :: Parser Char (Maybe PtrAbstractDeclarator)
       return $ case mad of
@@ -304,7 +304,7 @@ type_desc = (<?> "type description") $ do
 
 with_default :: [TypeSpecifier] → NeList TypeSpecifier
 with_default [] = return specT
-with_default l@(h:t) = if any is_primary_TypeSpecifier l then h |: t else specT |: l
+with_default l@(h:t) = if any is_primary_TypeSpecifier l then h :| t else specT :| l
 
 instance Parse GeordiRequestWithoutWhite where
   parse = auto3 GeordiRequest_Print <|> auto2 GeordiRequest_Block <|> auto1 GeordiRequest_TU
@@ -558,9 +558,9 @@ typeP :: (Parse c, Convert b (Maybe (CvQualifier, White)), Convert TypeSpecifier
   (Maybe PtrAbstractDeclarator → c) → (NeList b → c → a) → Parser Char a
 typeP g h = makeTypeExtensions . parseOptions >>= \b → flip fix [] $ \self specs → do
     pspec ← parsePrimarySpec; sspecs ← many parseSecondarySpec
-    let (p, q) = neElim $ NeList.reverse $ pspec |: specs
+    let (p, q) = neElim $ NeList.reverse $ pspec :| specs
     r ← parse
-    return $ h (p |: (q ++ sspecs)) r
+    return $ h (p :| (q ++ sspecs)) r
    <|> (((: specs) . parseSecondarySpec) >>= self)
    <|> if not b then pzero else do
     let (noncvs, cvs) = partitionMaybe (\x → convert x :: Maybe (CvQualifier, White)) specs
@@ -618,7 +618,7 @@ instance ParseSpecifier MakeSpecifier where
 
 instance Parse TypeSpecifierSeq where
   autoname_parse =
-    TypeSpecifierSeq . (liftM2 (|:) parsePrimarySpec (many parseSecondarySpec) <|> liftM2 (|:) parseSecondarySpec lp)
+    TypeSpecifierSeq . (liftM2 (:|) parsePrimarySpec (many parseSecondarySpec) <|> liftM2 (:|) parseSecondarySpec lp)
     where lp = liftM2 (:) parsePrimarySpec (many parseSecondarySpec) <|> liftM2 (:) parseSecondarySpec lp <|> return []
 
 instance Parse DeclSpecifier where autoname_parse = parsePrimarySpec <|> parseSecondarySpec

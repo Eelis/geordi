@@ -14,6 +14,7 @@ import qualified Cxx.Parse
 import qualified Cxx.Operations
 import qualified Cxx.Show
 import qualified Data.List as List
+import qualified Data.Stream.NonEmpty as NeList
 
 import Control.Monad.Error (throwError)
 import Control.Monad (join)
@@ -22,7 +23,7 @@ import Cxx.Show (Highlighter)
 import Data.Char (isPrint, isSpace)
 import Data.Either (partitionEithers)
 import Data.Foldable (toList)
-import Data.List.NonEmpty ((|:), neHead, toNonEmpty)
+import Data.Stream.NonEmpty (NonEmpty((:|)), nonEmpty)
 import Data.Set (Set)
 import Editing.Basics (FinalCommand(..))
 import Parsers ((<|>), eof, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail, commit)
@@ -49,7 +50,7 @@ diff (EditableRequest MakeType y) (EditableRequest MakeType x) = pretty $ show .
 diff (EditableRequest Precedence y) (EditableRequest Precedence x) = pretty $ show . Editing.Diff.diff x y
 diff (EditableRequest (Evaluate flags) y) (EditableRequest (Evaluate flags') x) =
   pretty $ f "removed" flags' flags ++ f "added" flags flags' ++ show . Editing.Diff.diff x y
-    where f n fl fl' = maybe [] (\l → [n ++ " " ++ concat (List.intersperse " and " $ map show_long_opt $ toList l)]) (toNonEmpty $ Set.elems $ (Set.\\) fl fl')
+    where f n fl fl' = maybe [] (\l → [n ++ " " ++ concat (List.intersperse " and " $ map show_long_opt $ toList l)]) (nonEmpty $ Set.elems $ (Set.\\) fl fl')
 diff _ _ = "Requests differ in kind."
 
 pretty :: [String] → String -- Todo: This is awkward.
@@ -66,10 +67,10 @@ ellipsis_options ((y, _) : ys) = work ((y, False) : ys)
     work ((x, False) : xs) = fmap (x:) (work xs)
     work ((x, True) : xs) = work xs >>= \o → if dummy ∈ o
         then (return $ if head o == dummy then o else dummy : o)
-        else (dummy : o) |: [x : o]
+        else (dummy : o) :| [x : o]
 
 nicer_namedPathTo :: [String] → String
-nicer_namedPathTo l = drop 3 $ concat $ maybeLast (takeWhile ((≤ 140) . length . concat) $ toList n) `orElse` neHead n
+nicer_namedPathTo l = drop 3 $ concat $ maybeLast (takeWhile ((≤ 140) . length . concat) $ toList n) `orElse` NeList.head n
   where n = ellipsis_options $ map (\s → (" → " ++ s, "expr" `List.isSuffixOf` s)) l
     -- Todo: Also don't abbreviate when there's enough space.
 
