@@ -521,11 +521,11 @@ with_trailing_white = \x → case f x of WithoutAlternate y → y; WithAlternate
   where
     f :: Data d ⇒ d → WithAlternate d
     f | Just h ← cast (\w@(White s) → WithAlternate w (White $ if null s then " " else s)) = h
-      | otherwise = flip gfoldl WithoutAlternate $ \e d → case e of
+      | otherwise = gfoldl (\e d → case e of
         (WithAlternate h i) → case f d of
           WithoutAlternate x → WithAlternate (h x) (i x)
           WithAlternate x y → WithAlternate (h x) (h y)
-        (WithoutAlternate h) → h . f d
+        (WithoutAlternate h) → h . f d) WithoutAlternate
 
 -- Specifier/qualifier conversion
 

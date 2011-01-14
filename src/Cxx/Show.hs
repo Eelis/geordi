@@ -204,9 +204,7 @@ instance Show White where show (White w) = w
 
 pretty :: forall a. (Data a) ⇒ a → PrettyOptions → String
 pretty =
-  flip ext1Q (\(Enclosed x) → prettyEnclosed $ pretty x) $
-  \x → let au = gmapQr (<++>) (pure "") pretty x in case () of
-
+  ext1Q  (\x → let au = gmapQr (<++>) (pure "") pretty x in case () of
 #define KWD(t) ()| Just s ← cast x → \o → wrap (highlighter o Keyword) (show (s :: t));
     KWD(KwdSizeof) KWD(KwdIf) KWD(KwdNew) KWD(KwdAlignof) KWD(KwdTypeid) KWD(KwdTemplate) KWD(KwdClass) KWD(KwdFor) KWD(KwdExtern) KWD(KwdWhile) KWD(KwdDo) KWD(KwdGoto) KWD(KwdContinue) KWD(KwdElse) KWD(KwdAuto) KWD(KwdDefault) KWD(KwdSwitch) KWD(KwdCase) KWD(KwdBreak) KWD(KwdNamespace) KWD(KwdTypedef) KWD(KwdThis) KWD(KwdFriend) KWD(KwdDelete) KWD(KwdStaticAssert) KWD(KwdConstexpr) KWD(KwdExport) KWD(KwdThrow) KWD(KwdUsing) KWD(KwdTry) KWD(KwdDecltype) KWD(KwdAsm) KWD(KwdCatch) KWD(KwdStruct) KWD(KwdEnum) KWD(KwdTypename) KWD(KwdOperator) KWD(KwdReturn) KWD(NewStyleCast) KWD(FunctionSpecifier) KWD(StorageClassSpecifier) KWD(CvQualifier) KWD(LengthSpec) KWD(BasicType) KWD(ClassKey) KWD(StorageClassSpecifier)
 #undef KWD
@@ -252,6 +250,8 @@ pretty =
     ()| Just (Expression_Comma _ _ _) ← cast x → extraParentheses au
     ()| Just (ThrowExpression _ (Just _)) ← cast x → extraParentheses au
     ()| otherwise → au
+   ) (\(Enclosed x) → prettyEnclosed $ pretty x)
+    
   -- This pretty is very slow, probably due to all the list concatenations. Use the ShowS trick.
 
 extraCurliesStmt :: Statement → PrettyA String
