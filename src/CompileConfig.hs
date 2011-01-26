@@ -22,10 +22,10 @@ readCompileConfig = do
   CompileConfig . var "GXX" <*> (words . var "COMPILE_FLAGS") <*> (words . var "LINK_FLAGS")
  where
   file = "compile-config"
-  parseLine :: Int -> String -> Maybe (String, String)
+  parseLine :: Int → String → Maybe (String, String)
   parseLine linenum line
-    | s@(c:_) <- dropWhile Char.isSpace line, c ≠ '#' =
+    | s@(c:_) ← dropWhile Char.isSpace line, c ≠ '#' =
       case span (≠ '=') s of
-        (key, _ : right) | [(value, _)] ← reads right -> Just (key, value)
-        _ -> error $ "Syntax error on line " ++ show linenum ++ " in " ++ file ++ "."
+        (key, _ : right) | [(value, _)] ← reads right → Just (key, value)
+        _ → error $ "Syntax error on line " ++ show linenum ++ " in " ++ file ++ "."
     | otherwise = Nothing
