@@ -27,7 +27,7 @@ import Data.Stream.NonEmpty (NonEmpty((:|)), nonEmpty)
 import Data.Set (Set)
 import Editing.Basics (FinalCommand(..))
 import Parsers ((<|>), eof, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail, commit)
-import Util ((.), (‥), (<<), (.∨.), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert, maybeLast, orElse, E, NeList)
+import Util ((.), (‥), (<<), (.∨.), commas_and, capitalize, length_ge, replace, replaceWithMany, show_long_opt, strip, convert, maybeLast, orElse, E, NeList)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..))
 import Data.SetOps
 import Prelude hiding (catch, (.))
@@ -218,4 +218,4 @@ evaluator h = do
   (ev, compile_cfg) ← EvalCxx.evaluator
   return $ \r (Context prevs) → do
   either (return . Response Nothing . ("error: " ++)) id $
-    join (parseOrFail (p h (filter (isPrint .∨. (== '\n')) ‥ show ‥ ev) compile_cfg prevs) (replace no_break_space ' ' r) "request")
+    join (parseOrFail (p h (filter (isPrint .∨. (== '\n')) ‥ replaceWithMany '\a' "*BEEP*" ‥ show ‥ ev) compile_cfg prevs) (replace no_break_space ' ' r) "request")

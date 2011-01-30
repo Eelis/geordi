@@ -87,8 +87,14 @@ maybeLastAndRest :: [a] → Maybe ([a], a)
 maybeLastAndRest [] = Nothing
 maybeLastAndRest (h:t) = maybe (Just ([], h)) (Just . first (h:)) (maybeLastAndRest t)
 
+recognize :: Eq a ⇒ a → b → (a → b) → (a → b)
+recognize a b f = \x → if a == x then b else f x
+
 replace :: Eq a ⇒ a → a → [a] → [a]
-replace x y = map (\c → if c == x then y else c)
+replace x y = map $ recognize x y id
+
+replaceWithMany :: Eq a ⇒ a → [a] → [a] → [a]
+replaceWithMany x y = concatMap $ recognize x y (:[])
 
 (!!) :: [a] → Int → a
 l !! i = (Prelude.!!) l (i `mod` length l)
