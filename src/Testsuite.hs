@@ -109,7 +109,7 @@ tests "misc" =
   , test "line breaks" "#define X \"\\\\\" \\ #define Y X \\ int main() { cout \\ << Y Y; }" $ ExactMatch "\\\\"
   , test "-v" "-v" $ PrefixMatch "g++ (GCC) 4"
   , test "getopt" "-monkey chicken" $ ExactMatch "error: No such option: -m"
-  , test "operator new/delete overriding" "{ cerr << \"| \"; list<int> v(5); } void * operator new(size_t const s) throw(bad_alloc) { cerr << s << ' '; return malloc(s); } void operator delete(void * const p) throw() { free(p); }" $ RegexMatch "[^-]*\\| [[:digit:] ]+"
+  , test "operator new/delete overriding" "{ printf(\"| \"); list<int> v(5); } void * operator new(size_t const s) throw(bad_alloc) { printf(\"%lu \", (unsigned long)s); return malloc(s); } void operator delete(void * const p) throw() { free(p); }" $ RegexMatch "[^-]*\\| [[:digit:] ]+"
   ]
 
 tests "diagnostics" =
@@ -124,7 +124,7 @@ tests "diagnostics" =
   , test "Ditto." "{ int * const p = new int; delete p; new int; delete p; }" $ ExactMatch "error: tried to delete already deleted pointer. Aborted"
   , test "Custom terminate() handler" "{ throw std::logic_error(\"It is not logical, Captain.\"); }" $
     ExactMatch "terminated by logic_error: It is not logical, Captain."
-  , test "libstdc++ debug mode" "{ boost::rational<int> r(2, 3); cout << r << flush; vector<int>::iterator x, y(x); }" $ PrefixMatch "2/3 error: "
+  , test "libstdc++ debug mode" "<< *vector<int>().begin()" $ PrefixMatch "error: attempt to dereference a past-the-end iterator"
   , test "Fatal warnings" "{} int f() {}" $ PrefixMatch "warning: "
   ]
 
