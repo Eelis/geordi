@@ -145,7 +145,10 @@ namespace tracked
     B::B(char const * const x): Tracked(x) { set_name("B"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
       // todo: Delegating ctors should make this much cleaner.
     B & B::operator=(B const & b) { Tracked::operator=(b); detail::info const i; print(i()); i() << '='; b.print(i()); return *this; }
-    B::~B() { detail::info const i; print(i()); i() << '~'; }
+    B::~B() {
+      assert_status_below(this, detail::destructed, "destruct");
+      detail::info const i; print(i()); i() << '~';
+    }
 
     void * B::operator new(std::size_t const s)
     { return detail::op_new(s, false, ::operator new(s), "B"); }
@@ -226,7 +229,10 @@ namespace tracked
     D::D(char const * const x): B(x) { set_name("D"); detail::info const i; print(i()); i() << "*(" << x << ')'; }
 
     D & D::operator=(D const & d) { B::operator=(d); detail::info const i; print(i()); i() << '='; d.print(i()); return *this; }
-    D::~D() { detail::info const i; print(i()); i() << '~'; }
+    D::~D() {
+      assert_status_below(this, detail::destructed, "destruct");
+      detail::info const i; print(i()); i() << '~';
+    }
 
     void * D::operator new(std::size_t const s)
     { return detail::op_new(s, false, ::operator new(s), "D"); }
