@@ -533,18 +533,22 @@ template <typename T> std::string type_desc (bool const plural)
 template <typename> struct type_desc_tag {};
 template <typename> struct type_tag {};
 
+struct adl_hint {};
+
 template <typename Ch, typename Tr, typename T>
-std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, void(type_desc_tag<T>))
+std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, adl_hint(type_desc_tag<T>))
 { return o << type_desc<T>(); }
 
 template <typename Ch, typename Tr, typename T>
-std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, void(type_tag<T>))
+std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, adl_hint(type_tag<T>))
 { return o << type<T>(); }
 
 } // type_strings_detail
 
-template <typename T> void TYPE_DESC(type_strings_detail::type_desc_tag<T>) {}
-template <typename T> void TYPE(type_strings_detail::type_tag<T>) {}
+template <typename T> type_strings_detail::adl_hint
+  TYPE_DESC(type_strings_detail::type_desc_tag<T>) { return type_strings_detail::adl_hint(); }
+template <typename T> type_strings_detail::adl_hint
+  TYPE(type_strings_detail::type_tag<T>) { return type_strings_detail::adl_hint(); }
 
 namespace type_strings_detail {
 
