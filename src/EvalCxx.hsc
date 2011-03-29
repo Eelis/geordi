@@ -53,7 +53,7 @@ In our code, M is close_range_end.
 
 -}
 
-module EvalCxx (evaluator, EvaluationResult(..), Request(..), CompileConfig(..)) where
+module EvalCxx (evaluator, WithEvaluation, withEvaluation, EvaluationResult(..), Request(..), CompileConfig(..)) where
 
 import qualified Ptrace
 import qualified Codec.Binary.UTF8.String as UTF8
@@ -67,6 +67,7 @@ import qualified Data.Char as Char
 
 import Paths_geordi (getDataFileName)
 
+import Data.Pointed (Pointed(..))
 import Sys (wait, WaitResult(..), strsignal, syscall_off, syscall_ret, fdOfFd, nonblocking_read, chroot, strerror)
 import SysCalls (SysCall(..))
 import Control.Monad (when, forM_)
@@ -257,12 +258,29 @@ evaluate cfg req = do
   gxx (["t.o", "-o", "t"] ++ cf ++ linkFlags cfg) Link $ do
   EvaluationResult Run . capture_restricted "/t" ["second", "third", "fourth"] (env ++ prog_env) (resources Run)
 
-evaluator :: IO (Request → IO EvaluationResult, CompileConfig)
+data WithEvaluation a
+  = WithoutEvaluation a
+  | WithEvaluation Request (EvaluationResult → a)
+
+instance Functor WithEvaluation where
+  fmap f (WithoutEvaluation x) = WithoutEvaluation (f x)
+  fmap f (WithEvaluation r g) = WithEvaluation r (f . g)
+
+instance Pointed WithEvaluation where
+  point = WithoutEvaluation
+
+withEvaluation :: Request → (EvaluationResult → a) → WithEvaluation a
+withEvaluation = WithEvaluation
+
+evaluator :: IO (WithEvaluation a → IO a, CompileConfig)
 evaluator = do
   cap_fds
   cfg ← readCompileConfig
   jail
-  return (evaluate cfg, cfg)
+  return (\we → case we of
+      WithoutEvaluation x → return x
+      WithEvaluation r g → g . evaluate cfg r
+    , cfg)
 
 ------------- Config (or at least things that are likely more prone to per-site modification):
 

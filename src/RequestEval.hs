@@ -20,9 +20,11 @@ import Control.Monad.Error (throwError)
 import Control.Monad (join)
 import Control.Arrow (first)
 import Cxx.Show (Highlighter)
+import EvalCxx (WithEvaluation)
 import Data.Char (isPrint, isSpace)
 import Data.Either (partitionEithers)
 import Data.Foldable (toList)
+import Data.Pointed (point)
 import Data.Stream.NonEmpty (NonEmpty((:|)), nonEmpty)
 import Data.Set (Set)
 import Editing.Basics (FinalCommand(..))
@@ -104,22 +106,19 @@ optParser = first Set.fromList ‥ partitionEithers ‥ option (return []) P.opt
 prel :: String
 prel = "#include \"prelude.hpp\"\n"
 
-type CxxEvaluator = EvalCxx.Request → IO String
+respond :: EditableRequest → E (WithEvaluation String)
+respond (EditableRequest MakeType d) = point . Cxx.Show.show_simple . Cxx.Parse.makeType d
+respond (EditableRequest Precedence t) = point . Cxx.Parse.precedence t
+respond (EditableRequest (Evaluate opts) code) = do
+  sc ← parseOrFail (Cxx.Parse.code << eof) (dropWhile isSpace code) "request"
+  noErrors $ evaluate $ EvalCxx.Request
+    (prel ++ (if NoUsingStd ∈ opts then "" else "using namespace std;\n")
+      ++ (if Terse ∈ opts then "#include \"terse.hpp\"\n" else "")
+      ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc))
+    (CompileOnly ∉ opts) (NoWarn ∈ opts)
 
-respond :: CxxEvaluator → EditableRequest → E (IO String)
-respond evf = case_of
-  EditableRequest MakeType d → pureIO . Cxx.Show.show_simple . Cxx.Parse.makeType d
-  EditableRequest Precedence t → pureIO . Cxx.Parse.precedence t
-  EditableRequest (Evaluate opts) code → do
-    sc ← parseOrFail (Cxx.Parse.code << eof) (dropWhile isSpace code) "request"
-    return $ evf $ EvalCxx.Request
-      (prel ++ (if NoUsingStd ∈ opts then "" else "using namespace std;\n")
-        ++ (if Terse ∈ opts then "#include \"terse.hpp\"\n" else "")
-        ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc))
-      (CompileOnly ∉ opts) (NoWarn ∈ opts)
-
-respond_and_remember :: CxxEvaluator → EditableRequest → IO Response
-respond_and_remember evf er = Response (Just $ AddLast er) . either (return . ("error: " ++)) id (respond evf er)
+respond_and_remember :: EditableRequest → WithEvaluation Response
+respond_and_remember er = Response (Just $ AddLast er) . either (point . ("error: " ++)) id (respond er)
 
 final_cmd :: Highlighter → FinalCommand → [EditableRequest] → E String
 final_cmd h = go where
@@ -139,8 +138,8 @@ final_cmd h = go where
   go Diff [_] = throwError "History exhausted."
   go _ (_:_) = throwError "Last (editable) request was not an evaluation request."
 
-editcmd :: Highlighter → CxxEvaluator → [EditableRequest] → Parser Char (E (EditableRequest, IO String))
-editcmd h evf prevs = do
+editcmd :: Highlighter → [EditableRequest] → Parser Char (E (EditableRequest, WithEvaluation String))
+editcmd h prevs = do
   oe ← Editing.Parse.commandsP; commit $ (eof >>) $ parseSuccess $ do
   case prevs of
     [] → throwError "There is no prior request."
@@ -149,49 +148,50 @@ editcmd h evf prevs = do
       edited ← Editing.Execute.execute cs prev
       if length_ge 1000 (editable_body edited) then throwError "Request would become too large." else do
       (,) edited . case mfcmd of
-        Just fcmd → return . final_cmd h fcmd (edited : prevs)
-        Nothing → noErrors $ case respond evf edited of
-          Left e → return $ "error: " ++ e
+        Just fcmd → point . final_cmd h fcmd (edited : prevs)
+        Nothing → noErrors $ case respond edited of
+          Left e → point $ "error: " ++ e
           Right x → x
 
-cout_response :: CxxEvaluator → String → IO Response
-cout_response evf s = Response Nothing .
-  evf (EvalCxx.Request (prel ++ "int main() { std::cout << " ++ s ++ "; }") True False)
+cout_response :: String → WithEvaluation Response
+cout_response s = Response Nothing . evaluate (EvalCxx.Request (prel ++ "int main() { std::cout << " ++ s ++ "; }") True False)
 
-p :: Highlighter → CxxEvaluator → EvalCxx.CompileConfig → [EditableRequest] → Parser Char (E (IO Response))
-p h evf compile_cfg prevs = (spaces >>) $ do
-    fcmd_or_error ← Editing.Parse.finalCommandP; commit $ (eof >>) $ return $ do
+p :: Highlighter → EvalCxx.CompileConfig → [EditableRequest] → Parser Char (E (WithEvaluation Response))
+p h compile_cfg prevs = (spaces >>) $ do
+    fcmd_or_error ← Editing.Parse.finalCommandP
+    commit $ (eof >>) $ return $ do
     fcmd ← fcmd_or_error
-    return . Response Nothing . final_cmd h fcmd prevs
+    point . Response Nothing . final_cmd h fcmd prevs
   <|> do
     kwds ["undo", "revert"]; commit $ case prevs of
       _ : old → kwd "and" >> (do
           fcmd_or_error ← Editing.Parse.finalCommandP; commit $ (eof >>) $ return $ do
           fcmd ← fcmd_or_error
-          return . Response (Just DropLast) . final_cmd h fcmd old
+          point . Response (Just DropLast) . final_cmd h fcmd old
         <|> do
-          y ← editcmd h evf old; return $ do
+          y ← editcmd h old
+          parseSuccess $ do
           (edited, output) ← y
-          return $ Response (Just $ ReplaceLast edited) . output)
+          noErrors $ Response (Just $ ReplaceLast edited) . output)
       _ → parseSuccess $ throwError "History exhausted."
   <|> do
     kwds ["--precedence", "precedence"]
-    parseSuccess . noErrors . respond_and_remember evf . EditableRequest Precedence =<< getInput
+    parseSuccess . noErrors . respond_and_remember . EditableRequest Precedence =<< getInput
   <|> do
     kwds ["--make-type", "make type"]
-    parseSuccess . noErrors . respond_and_remember evf . EditableRequest MakeType =<< getInput
+    parseSuccess . noErrors . respond_and_remember . EditableRequest MakeType =<< getInput
   <|> do kwds ["help"]; return $ return help_response
   <|> do kwds ["version"]; return $ return version_response
   <|> do kwds ["uname"]; return $ return uname_response
   <|> do
     kwd "--show-compile-flags"
-    parseSuccess $ noErrors $ pureIO $ Response Nothing $ unwords $ EvalCxx.compileFlags compile_cfg
+    parseSuccess $ noErrors $ point $ Response Nothing $ unwords $ EvalCxx.compileFlags compile_cfg
   <|> do
     optional (kwd "try"); kwd "again"; commit $ (eof >>) $ return $ case prevs of
       [] → throwError "There is no repeatable request."
-      x : _ → Response Nothing ‥ respond evf x
+      x : _ → Response Nothing ‥ respond x
   <|> do
-    y ← editcmd h evf prevs
+    y ← editcmd h prevs
     parseSuccess $ inE $ (\(edited, output) → Response (Just $ AddLast edited) . output) . y
   <|> do
     mopts ← optParser; spaces
@@ -203,19 +203,23 @@ p h evf compile_cfg prevs = (spaces >>) $ do
         [] → throwError "There is no previous resumable request."
         EditableRequest (Evaluate oldopts) oldcodeblob : _ → do
           case run_parser (Cxx.Parse.code << eof) (dropWhile isSpace oldcodeblob) of
-            ParseSuccess oldcode _ _ _ → noErrors $ respond_and_remember evf $
+            ParseSuccess oldcode _ _ _ → noErrors $ respond_and_remember $
               EditableRequest (Evaluate $ evalopts ∪ oldopts) $ show $ Cxx.Operations.blob $ Cxx.Operations.resume (Cxx.Operations.shortcut_syntaxes oldcode) (Cxx.Operations.shortcut_syntaxes code)
             ParseFailure _ _ _ → throwError "Previous request too malformed to resume."
         _ → throwError "Last (editable) request was not resumable."
-      | otherwise → parseSuccess . noErrors . respond_and_remember evf =<< EditableRequest (Evaluate evalopts) . getInput }
-  where
-    help_response = cout_response evf "help"
-    version_response = cout_response evf "\"g++ (GCC) \" << __VERSION__"
-    uname_response = cout_response evf "geordi::uname()"
+      | otherwise → parseSuccess . noErrors . respond_and_remember =<< EditableRequest (Evaluate evalopts) . getInput }
+
+help_response, version_response, uname_response :: WithEvaluation Response
+help_response = cout_response "help"
+version_response = cout_response "\"g++ (GCC) \" << __VERSION__"
+uname_response = cout_response "geordi::uname()"
+
+evaluate :: EvalCxx.Request → WithEvaluation String
+evaluate r = EvalCxx.withEvaluation r (filter (isPrint .∨. (== '\n')) . replaceWithMany '\a' "*BEEP*" . show)
 
 evaluator :: Highlighter → IO (String → Context → IO Response)
 evaluator h = do
   (ev, compile_cfg) ← EvalCxx.evaluator
   return $ \r (Context prevs) → do
   either (return . Response Nothing . ("error: " ++)) id $
-    join (parseOrFail (p h (filter (isPrint .∨. (== '\n')) ‥ replaceWithMany '\a' "*BEEP*" ‥ show ‥ ev) compile_cfg prevs) (replace no_break_space ' ' r) "request")
+    join (parseOrFail (ev ‥ p h compile_cfg prevs) (replace no_break_space ' ' r) "request")

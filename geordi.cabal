@@ -34,7 +34,7 @@ executable geordi-local
   ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
   extensions: UnicodeSyntax
   build-tools: hsc2hs
-  build-depends: base>=4, deepseq, mtl, syb, unix, utf8-string, network, containers, readline, parsec<3, Diff, directory, regex-compat, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.1.1, semigroups>=0.3.3
+  build-depends: base>=4, deepseq, mtl, syb, unix, utf8-string, network, containers, readline, parsec<3, Diff, directory, regex-compat, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.1.1, semigroups>=0.3.3, pointed>=0.1
   main-is: Local.hs
   hs-source-dirs: src
 
@@ -45,7 +45,7 @@ executable geordi-testsuite
     ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
     extensions: UnicodeSyntax
     build-tools: hsc2hs
-    build-depends: base>=4, deepseq, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.1.1, semigroups>=0.3.3
+    build-depends: base>=4, deepseq, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.1.1, semigroups>=0.3.3, pointed>=0.1
     hs-source-dirs: src
   else
     buildable: False
@@ -57,7 +57,7 @@ executable geordi-irc
     ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
     extensions: UnicodeSyntax
     build-tools: hsc2hs
-    build-depends: base>=4, deepseq, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, irc, bytestring, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.1.1, semigroups>=0.3.3
+    build-depends: base>=4, deepseq, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, irc, bytestring, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.1.1, semigroups>=0.3.3, pointed>=0.1
     hs-source-dirs: src
   else
     buildable: False
@@ -69,7 +69,7 @@ executable geordi-xmpp
     ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans
     extensions: UnicodeSyntax
     build-tools: hsc2hs
-    build-depends: base, deepseq, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, XMPP, base-unicode-symbols>=0.1.4, setops>=0.1
+    build-depends: base, deepseq, mtl, syb, unix, utf8-string, network, containers, parsec<3, Diff, directory, regex-compat, XMPP, base-unicode-symbols>=0.1.4, setops>=0.1, pointed>=0.1
     hs-source-dirs: src
   else
     buildable: False
