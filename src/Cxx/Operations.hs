@@ -60,12 +60,12 @@ blob (Block c c') = Curlies c : c'
 blob (Call c c') = c ++ [Plain ";"] ++ c'
 
 resume :: ShortCode → ShortCode → ShortCode
-resume old new = case new of
-    LongForm c → LongForm $ old' ++ c
-    Print c c' → Print c $ old' ++ c'
-    Block c c' → Block c $ old' ++ c'
-    Call c c' → Call c $ old' ++ c'
-  where old' = cstyle_comments $ expand_without_main old
+resume (cstyle_comments . expand_without_main → old) new =
+  case new of
+    LongForm c → LongForm $ old ++ c
+    Print (cstyle_comments → c) c' → Print c $ old ++ c'
+    Block (cstyle_comments → c) c' → Block c $ old ++ c'
+    Call (cstyle_comments → c) c' → Call c $ old ++ c'
 
 shortcut_syntaxes :: Code → ShortCode
 shortcut_syntaxes (Curlies c : b) = Block c b
