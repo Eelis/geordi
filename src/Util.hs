@@ -481,3 +481,7 @@ instance MonadError [Char] Maybe where
   throwError = const Nothing
   catchError Nothing f = f "error"
   catchError m _ = m
+
+propagateE :: Monad m ⇒ E a → (a → m (E b)) → m (E b)
+propagateE (Left e) _ = return $ Left e
+propagateE (Right x) f = f x

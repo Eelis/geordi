@@ -140,8 +140,14 @@ instance Functor (ParseResult t) where
 
 newtype Parser t a = Parser { run_parser :: [t] → ParseResult t a }
 
+peek :: Parser t [t]
+peek = Parser $ \s → ParseSuccess s s 0 Nothing
+
 drain :: Parser t [t]
 drain = Parser $ \s → ParseSuccess s [] (length s) Nothing
+
+parseSuccess :: a → Parser t a
+parseSuccess = return
 
 -- Parser is a Functor, a Monad, and ParserLike:
 

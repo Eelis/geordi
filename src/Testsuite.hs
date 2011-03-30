@@ -1,5 +1,6 @@
 import qualified Request
 import qualified RequestEval
+import qualified Cxx.Show
 
 import Control.Exception ()
 import Control.Monad (unless, forM_)
@@ -53,7 +54,7 @@ utest = test "unnamed test"
 main :: IO ()
 main = do
 
-  evalRequest ← RequestEval.evaluator (const ("", ""))
+  evalRequest ← RequestEval.evaluator
 
   putStrLn
     "\nNote: In several tests, output is expected to include an error (sometimes on a separate line), so seeing an error in a test's output does not mean the test failed. A test failed if its output is colored red.\n"
@@ -66,7 +67,7 @@ main = do
     forM_ (tests set) $ \(Test n r p pn) → do
       putStrLn $ "\nTest: " ++ yellow n
       putStrLn $ "Request: " ++ cyan r
-      out ← fmap Request.response_output $ evalRequest r (Request.Context [])
+      out ← fmap Request.response_output $ evalRequest r (Request.Context Cxx.Show.noHighlighting [])
       let success = p out
       putStrLn $ "Output: " ++ (if success then green else red) (if out == "" then "<none>" else out)
       unless success $ putStrLn $ "Expected: " ++ pn

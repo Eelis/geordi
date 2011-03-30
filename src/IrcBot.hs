@@ -90,7 +90,7 @@ main = do
   putStrLn $ "Connecting to " ++ server cfg ++ ":" ++ show (port cfg)
   withResource (connect (server cfg) (fromIntegral $ port cfg)) $ \h → do
   putStrLn "Connected"
-  evalRequest ← RequestEval.evaluator Cxx.Show.noHighlighting
+  evalRequest ← RequestEval.evaluator
   limit_rate ← rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
   let send m = limit_rate >> IRC.send h (IRC.Message Nothing m)
   maybeM (password cfg) $ send . Pass
@@ -190,7 +190,7 @@ on_msg eval cfg full_size m@(IRC.Message prefix c) = execWriterT $ do
           if full_size ∧ none (`isSuffixOf` r) ["}", ";"] then reply $ "Request likely truncated after `" ++ takeBack 15 r ++ "`." else do
             -- The "}"/";" test gains a reduction in false positives at the cost of an increase in false negatives.
           mmem ← Map.lookup wher . lift readState
-          let con = (context . mmem) `orElse` Request.Context []
+          let con = (context . mmem) `orElse` Request.Context Cxx.Show.noHighlighting []
           Request.Response history_modification output ← lift $ lift $ eval r con
           let output' = describe_lines $ dropWhile null $ lines output
           lift $ mapState' $ insert (wher, ChannelMemory

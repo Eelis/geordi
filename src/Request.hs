@@ -1,15 +1,17 @@
 {-# LANGUAGE FlexibleInstances, UndecidableInstances, OverlappingInstances, ViewPatterns #-}
 
-module Request (is_addressed_request, is_short_request, EditableRequest(..), EditableRequestKind(..), Context(..), Response(..), EvalOpt(..), EphemeralOpt(..), HistoryModification(..), modify_history) where
+module Request (is_addressed_request, is_short_request, EditableRequest(..), EditableRequestKind(..), Context(..), Response(..), EvalOpt(..), EphemeralOpt(..), HistoryModification(..), modify_history, popContext) where
 
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Control.Monad.Error (throwError)
+import Cxx.Show (Highlighter)
 import Control.Exception ()
 import Data.Char (isAlpha, isDigit, isSpace)
 import Data.List (intercalate)
 import Control.Monad.Error ()
 import Text.ParserCombinators.Parsec (getInput, (<|>), oneOf, lookAhead, spaces, satisfy, CharParser, many1, parse)
-import Util (Option(..), (.), (.∨.), total_tail, partitionMaybe)
+import Util (Option(..), (.), (.∨.), total_tail, partitionMaybe, E)
 import Prelude hiding (catch, (.))
 import Prelude.Unicode
 
@@ -56,7 +58,11 @@ is_addressed_request txt = either (const Nothing) Just (parse p "" txt)
     r ← getInput
     return (nick, r)
 
-data Context = Context { request_history :: [EditableRequest] }
+data Context = Context { highlighter :: Highlighter, previousRequests :: [EditableRequest] }
+
+popContext :: Context → E (EditableRequest, Context)
+popContext c@Context{previousRequests=x:xs} = return (x, c{previousRequests=xs})
+popContext _ = throwError "History exhausted."
 
 data EditableRequestKind = MakeType | Precedence | Evaluate (Set EvalOpt)
 instance Show EditableRequestKind where
@@ -70,7 +76,7 @@ data EditableRequest = EditableRequest { kind :: EditableRequestKind, editable_b
 data HistoryModification = ReplaceLast EditableRequest | AddLast EditableRequest | DropLast
 
 modify_history :: HistoryModification → Context → Context
-modify_history m (Context l) = Context $ case m of
+modify_history m (Context h l) = Context h $ case m of
   ReplaceLast e → e : total_tail l
   AddLast e → e : l
   DropLast → total_tail l

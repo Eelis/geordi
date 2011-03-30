@@ -53,7 +53,7 @@ In our code, M is close_range_end.
 
 -}
 
-module EvalCxx (evaluator, WithEvaluation, withEvaluation, EvaluationResult(..), Request(..), CompileConfig(..)) where
+module EvalCxx (evaluator, WithEvaluation, withEvaluation, noEvaluation, EvaluationResult(..), Request(..), CompileConfig(..)) where
 
 import qualified Ptrace
 import qualified Codec.Binary.UTF8.String as UTF8
@@ -271,6 +271,9 @@ instance Pointed WithEvaluation where
 
 withEvaluation :: Request → (EvaluationResult → a) → WithEvaluation a
 withEvaluation = WithEvaluation
+
+noEvaluation :: a → WithEvaluation a
+noEvaluation = point
 
 evaluator :: IO (WithEvaluation a → IO a, CompileConfig)
 evaluator = do
