@@ -367,7 +367,8 @@ instance Parse FinalCommand where
     (kwd ["show", "display"] >>> commit (option parse >>> arr Show)) <||>
     (kwd ["identify"] >>> commit (auto1 Identify)) <||>
     (kwd ["parse"] >>> arr (const Parse)) <||>
-    (kwd ["diff"] >>> arr (const Diff))
+    (kwd ["diff"] >>> arr (const Diff)) <||>
+    (((optional (kwd ["try"]) >>> kwd ["again"]) <||> kwd ["run"]) >>> arr (const Run))
 
 instance Parse ([Command], Maybe FinalCommand) where
   parse = liftA2 (,) (parse >>> arr (toList . andList)) (option $ and parse)

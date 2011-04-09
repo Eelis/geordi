@@ -28,7 +28,7 @@ import Data.Pointed (Pointed(..))
 import Data.Stream.NonEmpty (NonEmpty((:|)), nonEmpty)
 import Data.Set (Set)
 import Editing.Basics (FinalCommand(..))
-import Parsers ((<|>), eof, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), optional, parseOrFail, commit, peek, parseSuccess)
+import Parsers ((<|>), eof, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), parseOrFail, commit, peek, parseSuccess)
 import Util ((.), (‥), (<<), (.∨.), commas_and, capitalize, length_ge, replace, replaceWithMany, show_long_opt, strip, convert, maybeLast, orElse, E, NeList, propagateE)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..), popContext)
 import Data.SetOps
@@ -110,20 +110,21 @@ execEditableRequest (EditableRequest kind (dropWhile isSpace → body)) = case k
 respond_and_remember :: EditableRequest → WithEvaluation Response
 respond_and_remember er = Response (Just $ AddLast er) . tagError (execEditableRequest er)
 
-execFinalCommand :: Context → FinalCommand → E String
+execFinalCommand :: Context → FinalCommand → E (WithEvaluation String)
 execFinalCommand context@Context{..} = case_of
-  Show Nothing → show_EditableRequest highlighter . fst . popContext context
+  Show Nothing → noEvaluation . show_EditableRequest highlighter . fst . popContext context
   Show (Just substrs) → do
     c ← evalRequestBody
     l ← (\(Editing.EditsPreparation.Found _ x) → x) ‥ toList . Editing.EditsPreparation.findInStr c (flip (,) return . Cxx.Parse.parseRequest c) substrs
-    return $ commas_and (map (\x → '`' : strip (Editing.Basics.selectRange (convert $ Editing.Basics.replace_range x) c) ++ "`") l) ++ "."
+    return $ noEvaluation $ commas_and (map (\x → '`' : strip (Editing.Basics.selectRange (convert $ Editing.Basics.replace_range x) c) ++ "`") l) ++ "."
   Identify substrs → do
     c ← evalRequestBody
     tree ← Cxx.Parse.parseRequest c
     l ← (\(Editing.EditsPreparation.Found _ x) → x) ‥ toList . Editing.EditsPreparation.findInStr c (Right (tree, return)) substrs
-    return $ concat $ List.intersperse ", " $ map (nicer_namedPathTo . Cxx.Operations.namedPathTo tree . convert . Editing.Basics.replace_range) l
-  Parse → evalRequestBody >>= Cxx.Parse.parseRequest >> return "Looks fine to me."
-  Diff → do (x, context') ← popContext context; diff x . fst . popContext context'
+    return $ noEvaluation $ concat $ List.intersperse ", " $ map (nicer_namedPathTo . Cxx.Operations.namedPathTo tree . convert . Editing.Basics.replace_range) l
+  Parse → evalRequestBody >>= Cxx.Parse.parseRequest >> return (noEvaluation "Looks fine to me.")
+  Diff → do (x, context') ← popContext context; noEvaluation . diff x . fst . popContext context'
+  Run → fst . popContext context >>= execEditableRequest
  where
   evalRequestBody :: E String
   evalRequestBody = do
@@ -135,7 +136,7 @@ execEditCommand context@Context{..} (cs, mfcmd) = do
   edited ← fst . popContext context >>= Editing.Execute.execute cs
   when (length_ge 1000 (editable_body edited)) $ throwError "Request would become too large."
   (,) edited . case mfcmd of
-    Just fcmd → point . execFinalCommand context{previousRequests = edited : previousRequests} fcmd
+    Just fcmd → execFinalCommand context{previousRequests = edited : previousRequests} fcmd
     Nothing → execEditableRequest edited
 
 cout :: String → Parser Char (E (WithEvaluation Response))
@@ -143,11 +144,11 @@ cout s = parseSuccess $ Response Nothing ‥ execEditableRequest (EditableReques
 
 p :: EvalCxx.CompileConfig → Context → Parser Char (E (WithEvaluation Response))
 p compile_cfg context@Context{..} = (spaces >>) $ do
-    noEvaluation ‥ Response Nothing ‥ (>>=  execFinalCommand context) . (Editing.Parse.finalCommandP << commit eof)
+    (Response Nothing .) ‥ (>>=  execFinalCommand context) . (Editing.Parse.finalCommandP << commit eof)
   <|> do
     kwds ["undo", "revert"]; commit $ propagateE (snd . popContext context) $ \context' → do
     kwd "and"
-    noEvaluation ‥ Response (Just DropLast) ‥ (>>= execFinalCommand context') . (Editing.Parse.finalCommandP << commit eof)
+    (Response (Just DropLast) .) ‥ (>>= execFinalCommand context') . (Editing.Parse.finalCommandP << commit eof)
      <|> (\(edited, output) → Response (Just $ ReplaceLast edited) . output) ‥ (>>= execEditCommand context') . (Editing.Parse.commandsP << commit eof)
   <|> do
     kwds ["--precedence", "precedence"]
@@ -159,8 +160,6 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
   <|> do
     kwd "--show-compile-flags"
     parseSuccess $ noErrors $ noEvaluation $ Response Nothing $ unwords $ EvalCxx.compileFlags compile_cfg
-  <|> do
-    optional (kwd "try") >> kwd "again" >> commit eof >> parseSuccess (Response Nothing ‥ (fst . popContext context >>= execEditableRequest))
   <|> (\(edited, output) → Response (Just $ AddLast edited) . output) ‥ (>>= execEditCommand context) . (Editing.Parse.commandsP << commit eof)
   <|> do
     mopts ← optParser; spaces

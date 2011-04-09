@@ -191,6 +191,7 @@ data FinalCommand
   | Identify Substrs
   | Parse
   | Diff
+  | Run
 
 newtype Identifier = Identifier { identifier_string :: String }
 
