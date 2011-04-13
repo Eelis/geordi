@@ -379,7 +379,8 @@ instance Parse TranslationUnit where parse = TranslationUnit . parse
 instance Parse PrimaryExpression where
   autoname_parse =
     auto1 PrimaryExpression_This <|> auto1 PrimaryExpression_Literal <|>
-    auto1 PrimaryExpression_Expression <|> auto1 PrimaryExpression_IdExpression
+    auto1 PrimaryExpression_Expression <|> auto1 PrimaryExpression_IdExpression <|>
+    auto1 PrimaryExpression_LambdaExpression
 instance Parse IdExpression where autoname_parse = auto1 IdExpression
 instance Parse UnqualifiedId where
   autoname_parse =
@@ -395,6 +396,21 @@ instance Parse NestedNameSpecifier where
     (auto2 NestedNameSpecifier_TypeName)
     (many $ auto3 (\x y z u → NestedNameSpecifier_SimpleTemplateId u x y z) <|> auto2 (\x y z → NestedNameSpecifier_Identifier z x y))
       -- We can't distinguish a simple class-name from a namespace-name anyway, so we only try to parse a type-name here.
+instance Parse LambdaExpression where autoname_parse = auto3 LambdaExpression
+instance Parse LambdaIntroducer where autoname_parse = auto1 LambdaIntroducer
+instance Parse LambdaCapture where
+  autoname_parse = (do
+      def ← parse
+      let sofar = LambdaCapture (Just def)
+      m ← optionMaybe (liftM2 (,) parse parse)
+      return $ case m of
+        Just ((c,w), l) → sofar (Just (c, w)) (Just l)
+        Nothing → sofar Nothing Nothing
+    ) <|> auto1 (LambdaCapture Nothing Nothing . Just)
+instance Parse CaptureDefault where autoname_parse = auto1 CaptureDefault
+instance Parse CaptureList where autoname_parse = auto1 CaptureList
+instance Parse Capture where autoname_parse = auto2 Capture_Identifier <|> auto1 Capture_This
+instance Parse LambdaDeclarator where autoname_parse = auto4 LambdaDeclarator
 instance Parse PostfixExpression where
   autoname_parse = liftM2 (foldl $ flip ($)) basic $ many $ (<?> "postfix operator") $
       auto3 (\o t e' e → PostfixExpression_Member e o t e') <|> flip PostfixExpression_IncDec . parse <|> flip PostfixExpression_FunctionCall . parse <|> flip PostfixExpression_Squared . parse <|> auto2 (\o n e → PostfixExpression_PseudoDestructor e o n)
@@ -512,7 +528,9 @@ instance Parse SimpleTypeSpecifier where
       w ← parse
       (parse >>= \nns → (auto2 (SimpleTypeSpecifier_SimpleTemplateId w nns) <|> SimpleTypeSpecifier_TypeName (OptQualified w (Just nns)) . parse)) <|> SimpleTypeSpecifier_TypeName (OptQualified w Nothing) . parse
 instance Parse TypeSpecifier where
-  autoname_parse = auto1 TypeSpecifier_CvQualifier <|> auto1 TypeSpecifier_SimpleTypeSpecifier <|> auto1 TypeSpecifier_TypenameSpecifier <|> auto1 TypeSpecifier_ClassSpecifier <|> auto1 TypeSpecifier_EnumSpecifier <|> auto1 TypeSpecifier_ElaboratedTypeSpecifier
+  autoname_parse = auto1 TypeSpecifier_TrailingTypeSpecifier <|> auto1 TypeSpecifier_ClassSpecifier <|> auto1 TypeSpecifier_EnumSpecifier
+instance Parse TrailingTypeSpecifier where
+  autoname_parse = auto1 TrailingTypeSpecifier_CvQualifier <|> auto1 TrailingTypeSpecifier_SimpleTypeSpecifier <|> auto1 TrailingTypeSpecifier_TypenameSpecifier <|> auto1 TrailingTypeSpecifier_ElaboratedTypeSpecifier
 instance Parse ElaboratedTypeSpecifier where autoname_parse = auto3 ElaboratedTypeSpecifier
 instance Parse EnumHead where autoname_parse = auto3 EnumHead
 instance Parse EnumBase where autoname_parse = auto2 EnumBase
@@ -542,7 +560,8 @@ instance Parse InitDeclarator where
       then InitDeclarator declarator . optionMaybe ((<?> "initializer") $ Initializer_Parenthesized . parseParenthesized (Enclosed . ExpressionList . InitializerList . flip Commad [] . parse) <|> auto1 Initializer_BraceOrEqualInitializer)
       else auto1 (InitDeclarator declarator)
 
-instance Parse Declarator where autoname_parse = auto1 Declarator_PtrDeclarator
+instance Parse Declarator where
+  autoname_parse = auto1 Declarator_PtrDeclarator <|> auto3 Declarator_TrailingReturnType
 instance Parse PtrDeclarator where autoname_parse = liftM2 (flip $ foldl $ flip PtrDeclarator) (reverse . parse) (PtrDeclarator_NoptrDeclarator . parse)
 
 instance Parse NoptrDeclarator where
@@ -577,6 +596,8 @@ instance Parse ParametersAndQualifiers where autoname_parse = memoize $ auto4 Pa
       { int b; a(a(a(a(a(a(a(a(a(a(a(a(a(a(a(a(a(a(a(a(a(a(a(a(b+b)))))))))))))))))))))))); }
   -}
 
+instance Parse TrailingReturnType where autoname_parse = auto3 TrailingReturnType
+
 instance Parse ParameterDeclarationClause where
   autoname_parse =
     ParameterDeclarationClause Nothing . Just . parse <|> (do
@@ -593,9 +614,13 @@ instance Parse ParameterDeclaration where autoname_parse = typeP (Right . (Abstr
 
 class ParseSpecifier s where parsePrimarySpec, parseSecondarySpec :: Parser Char s
 
+instance ParseSpecifier TrailingTypeSpecifier where
+  parsePrimarySpec = (<?> "trailing-type-specifier") $ TrailingTypeSpecifier_SimpleTypeSpecifier . primarySimpleTypeSpecifier <|> TrailingTypeSpecifier_TypenameSpecifier . parse <|> TrailingTypeSpecifier_ElaboratedTypeSpecifier . parse
+  parseSecondarySpec = (<?> "trailing-type-specifier") $ TrailingTypeSpecifier_CvQualifier . parse <|> TrailingTypeSpecifier_SimpleTypeSpecifier . LengthSpec . parse <|> TrailingTypeSpecifier_SimpleTypeSpecifier . SignSpec . parse <|> TrailingTypeSpecifier_SimpleTypeSpecifier . SimpleTypeSpecifier_BasicType . parse
+
 instance ParseSpecifier TypeSpecifier where
-  parsePrimarySpec = (<?> "type-specifier") $ TypeSpecifier_SimpleTypeSpecifier . primarySimpleTypeSpecifier <|> TypeSpecifier_ClassSpecifier . parse <|> TypeSpecifier_TypenameSpecifier . parse <|> TypeSpecifier_EnumSpecifier . parse <|> TypeSpecifier_ElaboratedTypeSpecifier . parse
-  parseSecondarySpec = (<?> "type-specifier") $ TypeSpecifier_CvQualifier . parse <|> TypeSpecifier_SimpleTypeSpecifier . LengthSpec . parse <|> TypeSpecifier_SimpleTypeSpecifier . SignSpec . parse <|> TypeSpecifier_SimpleTypeSpecifier . SimpleTypeSpecifier_BasicType . parse
+  parsePrimarySpec = (<?> "type-specifier") $ TypeSpecifier_TrailingTypeSpecifier . parsePrimarySpec <|> TypeSpecifier_ClassSpecifier . parse <|> TypeSpecifier_EnumSpecifier . parse
+  parseSecondarySpec = (<?> "type-specifier") $ TypeSpecifier_TrailingTypeSpecifier . parseSecondarySpec
 
 instance ParseSpecifier DeclSpecifier where
   parsePrimarySpec = DeclSpecifier_TypeSpecifier . parsePrimarySpec
@@ -620,6 +645,8 @@ instance Parse TypeSpecifierSeq where
   autoname_parse =
     TypeSpecifierSeq . (liftM2 (:|) parsePrimarySpec (many parseSecondarySpec) <|> liftM2 (:|) parseSecondarySpec lp)
     where lp = liftM2 (:) parsePrimarySpec (many parseSecondarySpec) <|> liftM2 (:) parseSecondarySpec lp <|> return []
+
+instance Parse TrailingTypeSpecifierSeq where autoname_parse = auto1 TrailingTypeSpecifierSeq
 
 instance Parse DeclSpecifier where autoname_parse = parsePrimarySpec <|> parseSecondarySpec
 

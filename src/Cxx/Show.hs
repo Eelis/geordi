@@ -77,7 +77,9 @@ abbreviate w = case w of
   "argument" → "arg"
   "arguments" → "args"
   "identifier" → "ident"
+  "lambda" → "λ"
   _ → w
+    -- Todo: Make this bidirectional and let users use abbreviations in the "show" command.
 
 dataType_to_camelProd :: DataType → String
 dataType_to_camelProd = reverse . takeWhile (≠ '.') . reverse . dataTypeName
@@ -206,7 +208,7 @@ pretty :: forall a. (Data a) ⇒ a → PrettyOptions → String
 pretty =
   ext1Q  (\x → let au = gmapQr (<++>) (pure "") pretty x in case () of
 #define KWD(t) ()| Just s ← cast x → \o → wrap (highlighter o Keyword) (show (s :: t));
-    KWD(KwdSizeof) KWD(KwdIf) KWD(KwdNew) KWD(KwdAlignof) KWD(KwdTypeid) KWD(KwdTemplate) KWD(KwdClass) KWD(KwdFor) KWD(KwdExtern) KWD(KwdWhile) KWD(KwdDo) KWD(KwdGoto) KWD(KwdContinue) KWD(KwdElse) KWD(KwdAuto) KWD(KwdDefault) KWD(KwdSwitch) KWD(KwdCase) KWD(KwdBreak) KWD(KwdNamespace) KWD(KwdTypedef) KWD(KwdThis) KWD(KwdFriend) KWD(KwdDelete) KWD(KwdStaticAssert) KWD(KwdConstexpr) KWD(KwdExport) KWD(KwdThrow) KWD(KwdUsing) KWD(KwdTry) KWD(KwdDecltype) KWD(KwdAsm) KWD(KwdCatch) KWD(KwdStruct) KWD(KwdEnum) KWD(KwdTypename) KWD(KwdOperator) KWD(KwdReturn) KWD(NewStyleCast) KWD(FunctionSpecifier) KWD(StorageClassSpecifier) KWD(CvQualifier) KWD(LengthSpec) KWD(BasicType) KWD(ClassKey) KWD(StorageClassSpecifier)
+    KWD(KwdSizeof) KWD(KwdIf) KWD(KwdNew) KWD(KwdAlignof) KWD(KwdTypeid) KWD(KwdTemplate) KWD(KwdClass) KWD(KwdFor) KWD(KwdExtern) KWD(KwdWhile) KWD(KwdDo) KWD(KwdGoto) KWD(KwdContinue) KWD(KwdElse) KWD(KwdAuto) KWD(KwdDefault) KWD(KwdSwitch) KWD(KwdCase) KWD(KwdBreak) KWD(KwdNamespace) KWD(KwdTypedef) KWD(KwdThis) KWD(KwdFriend) KWD(KwdDelete) KWD(KwdStaticAssert) KWD(KwdConstexpr) KWD(KwdExport) KWD(KwdThrow) KWD(KwdUsing) KWD(KwdTry) KWD(KwdDecltype) KWD(KwdAsm) KWD(KwdCatch) KWD(KwdStruct) KWD(KwdEnum) KWD(KwdTypename) KWD(KwdOperator) KWD(KwdReturn) KWD(NewStyleCast) KWD(FunctionSpecifier) KWD(StorageClassSpecifier) KWD(CvQualifier) KWD(LengthSpec) KWD(BasicType) KWD(ClassKey) KWD(StorageClassSpecifier) KWD(KwdMutable)
 #undef KWD
 
     ()| Just s ← cast x → \o → wrap (highlighter o Literal) (show (s :: Literal))
@@ -218,7 +220,7 @@ pretty =
     ()| Just s ← cast x → \o → wrap (highlighter o RoundParen) (show (s :: CloseParen_))
 
 #define SHOW(t) ()| Just s ← cast x → pure $ show (s :: t);
-    SHOW(SemicolonOperator) SHOW(CommaOp) SHOW(ScopeRes) SHOW(UnaryOperator) SHOW(AssignmentOperator) SHOW(RelationalOperator) SHOW(QuestionOp) SHOW(ColonOp) SHOW(IncDecOperator) SHOW(AdditiveOperator) SHOW(MultiplicativeOperator) SHOW(PmOperator)  SHOW(MemberOperator) SHOW(IsOperator) SHOW(Tilde_) SHOW(Sign) SHOW(OpenSquare_) SHOW(CloseSquare_) SHOW(LeftShiftOp) SHOW(OpenAngle_) SHOW(CloseAngle_) SHOW(AccessSpecifier) SHOW(StarOperator) SHOW(AndOperator) SHOW(LogicalAndOperator) SHOW(LogicalOrOperator) SHOW(ExclusiveOrOperator) SHOW(InclusiveOrOperator) SHOW(EqualityOperator) SHOW(ShiftOperator) SHOW(RefQualifier) SHOW(StringLiteral) SHOW(KwdZero) SHOW(ArrowOp) SHOW(Ellipsis_) SHOW(EncodingPrefix)
+    SHOW(SemicolonOperator) SHOW(CommaOp) SHOW(ScopeRes) SHOW(UnaryOperator) SHOW(AssignmentOperator) SHOW(RelationalOperator) SHOW(QuestionOp) SHOW(ColonOp) SHOW(IncDecOperator) SHOW(AdditiveOperator) SHOW(MultiplicativeOperator) SHOW(PmOperator)  SHOW(MemberOperator) SHOW(IsOperator) SHOW(Tilde_) SHOW(Sign) SHOW(OpenSquare_) SHOW(CloseSquare_) SHOW(LeftShiftOp) SHOW(OpenAngle_) SHOW(CloseAngle_) SHOW(AccessSpecifier) SHOW(StarOperator) SHOW(AndOperator) SHOW(LogicalAndOperator) SHOW(LogicalOrOperator) SHOW(ExclusiveOrOperator) SHOW(InclusiveOrOperator) SHOW(EqualityOperator) SHOW(ShiftOperator) SHOW(RefQualifier) SHOW(StringLiteral) SHOW(KwdZero) SHOW(ArrowOp) SHOW(Ellipsis_) SHOW(EncodingPrefix) SHOW(AmperProd)
 #undef SHOW
     ()| Just (Identifier s (White w)) ← cast x → pure $ s ++ w
     ()| Just s ← cast x → pure s

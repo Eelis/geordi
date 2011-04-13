@@ -146,6 +146,7 @@ KWD(KwdExport, "export")
 KWD(KwdTry, "try")
 KWD(KwdCatch, "catch")
 KWD(KwdThrow, "throw")
+KWD(KwdMutable, "mutable")
 
 #undef KWD
 
@@ -171,6 +172,7 @@ OP(IsOperator, Is)
 OP(Tilde_, Tilde)
 OP(Ellipsis_, Ellipsis)
 OP(ScopeRes, ColonColon)
+OP(AmperProd, Amper)
 
 #undef OP
 
@@ -277,11 +279,19 @@ newtype TranslationUnit = TranslationUnit (Maybe DeclarationSeq) deriving (Data,
 
 -- A.4 Expressions [gram.expr]
 
-data PrimaryExpression = PrimaryExpression_Literal Literal | PrimaryExpression_This (KwdThis, White) | PrimaryExpression_Expression (Parenthesized Expression) | PrimaryExpression_IdExpression IdExpression deriving (Data, Typeable, Eq)
+data PrimaryExpression = PrimaryExpression_Literal Literal | PrimaryExpression_This (KwdThis, White) | PrimaryExpression_Expression (Parenthesized Expression) | PrimaryExpression_IdExpression IdExpression | PrimaryExpression_LambdaExpression LambdaExpression deriving (Data, Typeable, Eq)
 newtype IdExpression = IdExpression (Either QualifiedId UnqualifiedId) deriving (Data, Typeable, Eq)
 data UnqualifiedId = UnqualifiedId_Identifier Identifier | UnqualifiedId_OperatorFunctionId OperatorFunctionId | UnqualifiedId_ConversionFunctionId ConversionFunctionId | UnqualifiedId_Destructor (Tilde_, White) ClassName | UnqualifiedId_TemplateId TemplateId deriving (Data, Typeable, Eq)
 data QualifiedId = NestedUnqualifiedId (Maybe (ScopeRes, White)) NestedNameSpecifier (Maybe (KwdTemplate, White)) UnqualifiedId | GlobalIdentifier (ScopeRes, White) Identifier | GlobalOperatorFunctionId (ScopeRes, White) OperatorFunctionId | GlobalTemplateId (ScopeRes, White) TemplateId deriving (Data, Typeable, Eq)
 data NestedNameSpecifier = NestedNameSpecifier_TypeName TypeName (ScopeRes, White) | NestedNameSpecifier_NamespaceName NamespaceName (ScopeRes, White) | NestedNameSpecifier_Identifier NestedNameSpecifier Identifier (ScopeRes, White) | NestedNameSpecifier_SimpleTemplateId NestedNameSpecifier (Maybe White) SimpleTemplateId (ScopeRes, White) deriving (Data, Typeable, Eq)
+data LambdaExpression = LambdaExpression LambdaIntroducer (Maybe LambdaDeclarator) CompoundStatement deriving (Data, Typeable, Eq)
+newtype LambdaIntroducer = LambdaIntroducer (Squared (Maybe LambdaCapture)) deriving (Data, Typeable, Eq)
+data LambdaCapture = LambdaCapture (Maybe CaptureDefault) (Maybe (CommaOp, White)) (Maybe CaptureList) deriving (Data, Typeable, Eq)
+newtype CaptureDefault = CaptureDefault (Either (AmperProd, White) (IsOperator, White)) deriving (Data, Typeable, Eq)
+  -- Todo: Why not integrate the White's into the operator production ADTs?
+newtype CaptureList = CaptureList (Commad Capture) deriving (Data, Typeable, Eq)
+data Capture = Capture_Identifier (Maybe (AmperProd, White)) Identifier | Capture_This (KwdThis, White) deriving (Data, Typeable, Eq)
+data LambdaDeclarator = LambdaDeclarator (Parenthesized ParameterDeclarationClause) (Maybe (KwdMutable, White)) (Maybe ExceptionSpecification) (Maybe TrailingReturnType) deriving (Data, Typeable, Eq) -- Todo: attr-spec-seq
 data PostfixExpression
   = PostfixExpression_PrimaryExpression PrimaryExpression
   | PostfixExpression_Squared PostfixExpression (Squared (Either Expression BracedInitList))
@@ -353,8 +363,10 @@ data FunctionSpecifier = Inline | Virtual | Explicit deriving (Enum, Bounded, Da
 data Sign = Signed | Unsigned deriving (Eq, Bounded, Enum, Data, Typeable)
 data LengthSpec = ShortSpec | LongSpec deriving (Eq, Bounded, Enum, Data, Typeable)
 data BasicType = Char' | Char16 | Char32 | Wchar | Bool' | Int' | Float' | Double' | Void deriving (Enum, Bounded, Data, Typeable, Eq)
-data TypeSpecifier = TypeSpecifier_SimpleTypeSpecifier SimpleTypeSpecifier | TypeSpecifier_ClassSpecifier ClassSpecifier | TypeSpecifier_EnumSpecifier EnumSpecifier | TypeSpecifier_ElaboratedTypeSpecifier ElaboratedTypeSpecifier | TypeSpecifier_TypenameSpecifier TypenameSpecifier | TypeSpecifier_CvQualifier (CvQualifier, White) deriving (Data, Typeable, Eq)
+data TypeSpecifier = TypeSpecifier_TrailingTypeSpecifier TrailingTypeSpecifier | TypeSpecifier_ClassSpecifier ClassSpecifier | TypeSpecifier_EnumSpecifier EnumSpecifier deriving (Data, Typeable, Eq)
+data TrailingTypeSpecifier = TrailingTypeSpecifier_SimpleTypeSpecifier SimpleTypeSpecifier | TrailingTypeSpecifier_ElaboratedTypeSpecifier ElaboratedTypeSpecifier | TrailingTypeSpecifier_TypenameSpecifier TypenameSpecifier | TrailingTypeSpecifier_CvQualifier (CvQualifier, White) deriving (Data, Typeable, Eq)
 newtype TypeSpecifierSeq = TypeSpecifierSeq (NeList TypeSpecifier) deriving (Data, Typeable, Eq)
+newtype TrailingTypeSpecifierSeq = TrailingTypeSpecifierSeq (NeList TrailingTypeSpecifier) deriving (Data, Typeable, Eq)
 data SimpleTypeSpecifier = SimpleTypeSpecifier_BasicType (BasicType, White) | SimpleTypeSpecifier_Auto (KwdAuto, White) | SimpleTypeSpecifier_DeclType (KwdDecltype, White) (Parenthesized Expression) | LengthSpec (LengthSpec, White) | SignSpec (Sign, White) | SimpleTypeSpecifier_TypeName OptQualified TypeName | SimpleTypeSpecifier_SimpleTemplateId (Maybe (ScopeRes, White)) NestedNameSpecifier White SimpleTemplateId deriving (Data, Typeable, Eq)
 data TypeName = TypeName_ClassName ClassName | TypeName_EnumName EnumName | TypeName_TypedefName TypedefName deriving (Data, Typeable, Eq)
 data ElaboratedTypeSpecifier = ElaboratedTypeSpecifier (ClassKey, White) OptQualified (Either (Maybe (KwdTemplate, White), SimpleTemplateId) Identifier) deriving (Data, Typeable, Eq)
@@ -379,10 +391,11 @@ data AlignmentSpecifier = AlignmentSpecifier (KwdAlignas, White) (Parenthesized 
 
 newtype InitDeclaratorList = InitDeclaratorList (Commad InitDeclarator) deriving (Data, Typeable, Eq)
 data InitDeclarator = InitDeclarator Declarator (Maybe Initializer) deriving (Data, Typeable, Eq)
-newtype Declarator = Declarator_PtrDeclarator PtrDeclarator deriving (Data, Typeable, Eq)
+data Declarator = Declarator_PtrDeclarator PtrDeclarator | Declarator_TrailingReturnType NoptrDeclarator ParametersAndQualifiers TrailingReturnType deriving (Data, Typeable, Eq)
 data PtrDeclarator = PtrDeclarator_NoptrDeclarator NoptrDeclarator | PtrDeclarator PtrOperator PtrDeclarator deriving (Data, Typeable, Eq)
 data NoptrDeclarator = NoptrDeclarator_Id DeclaratorId | NoptrDeclarator_WithParams NoptrDeclarator ParametersAndQualifiers | NoptrDeclarator_Squared NoptrDeclarator (Squared (Maybe ConstantExpression)) | NoptrDeclarator_Parenthesized (Parenthesized PtrDeclarator) deriving (Data, Typeable, Eq)
 data ParametersAndQualifiers = ParametersAndQualifiers (Parenthesized ParameterDeclarationClause) (Maybe CvQualifierSeq) (Maybe (RefQualifier, White)) (Maybe ExceptionSpecification) deriving (Data, Typeable, Eq)
+data TrailingReturnType = TrailingReturnType (ArrowOp, White) TrailingTypeSpecifierSeq (Maybe AbstractDeclarator) deriving (Data, Typeable, Eq)
 data PtrOperator = PtrOperator_Ptr (StarOperator, White) (Maybe CvQualifierSeq) | PtrOperator_Ref (RefQualifier, White) | PtrOperator_Nested (Maybe (ScopeRes, White)) NestedNameSpecifier (StarOperator, White) (Maybe CvQualifierSeq) deriving (Data, Typeable, Eq)
 newtype CvQualifierSeq = CvQualifierSeq (NeList (CvQualifier, White)) deriving (Data, Typeable, Eq)
 data CvQualifier = Const | Volatile deriving (Bounded, Enum, Data, Typeable, Eq)
