@@ -63,7 +63,7 @@ ellipsis_options :: [(String, Bool)] → NeList [String]
 ellipsis_options [] = return []
 ellipsis_options ((y, _) : ys) = work ((y, False) : ys)
   where
-    dummy = " → ..."
+    dummy = " → …"
     work [] = return []
     work [(x, _)] = return [x]
     work ((x, False) : xs) = fmap (x:) (work xs)
