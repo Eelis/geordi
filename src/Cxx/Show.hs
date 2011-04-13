@@ -4,7 +4,7 @@ module Cxx.Show (pretty_with_precedence, show_simple, show_plural, show_pretty, 
 
 import qualified Data.List as List
 import qualified Data.Char as Char
-import Util ((.), strip)
+import Util ((.), strip, orElse)
 import Control.Applicative (Applicative(..))
 import Data.Generics (cast, Data, gmapQr, ext1Q, dataTypeName, Constr, DataType)
 import Data.Foldable (toList)
@@ -49,37 +49,38 @@ camel_components s = case s of
 camel_to_prod :: String → String
 camel_to_prod = concat . List.intersperse "-" . camel_components
 
+abbreviations :: [(String, String)]
+abbreviations =
+  [ ("expression", "expr")
+  , ("statement", "stmt")
+  , ("initializer", "init")
+  , ("assignment", "ass")
+  , ("primary", "prim")
+  , ("qualified", "qual")
+  , ("qualifier", "qual")
+  , ("unqualified", "unqual")
+  , ("destructor", "dtor")
+  , ("operator", "op")
+  , ("definition", "def")
+  , ("function", "func")
+  , ("specifier", "spec")
+  , ("specification", "spec")
+  , ("declaration", "decl'ion")
+  , ("declarator", "decl'or")
+  , ("elaborated", "elab")
+  , ("enumerator", "enum")
+  , ("abstract", "abs")
+  , ("member", "mem")
+  , ("translation", "trans")
+  , ("parameter", "param")
+  , ("parameters", "params")
+  , ("argument", "arg")
+  , ("arguments", "args")
+  , ("identifier", "ident")
+  , ("lambda", "λ") ]
+
 abbreviate :: String → String
-abbreviate w = case w of
-  "expression" → "expr"
-  "statement" → "stmt"
-  "initializer" → "init"
-  "assignment" → "ass"
-  "primary" → "prim"
-  "qualified" → "qual"
-  "qualifier" → "qual"
-  "unqualified" → "unqual"
-  "destructor" → "dtor"
-  "operator" → "op"
-  "definition" → "def"
-  "function" → "func"
-  "specifier" → "spec"
-  "specification" → "spec"
-  "declaration" → "decl'ion"
-  "declarator" → "decl'or"
-  "elaborated" → "elab"
-  "enumerator" → "enum"
-  "abstract" → "abs"
-  "member" → "mem"
-  "translation" → "trans"
-  "parameter" → "param"
-  "parameters" → "params"
-  "argument" → "arg"
-  "arguments" → "args"
-  "identifier" → "ident"
-  "lambda" → "λ"
-  _ → w
-    -- Todo: Make this bidirectional and let users use abbreviations in the "show" command.
+abbreviate w = lookup w abbreviations `orElse` w
 
 dataType_to_camelProd :: DataType → String
 dataType_to_camelProd = reverse . takeWhile (≠ '.') . reverse . dataTypeName
