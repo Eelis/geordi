@@ -56,6 +56,8 @@
 
     <p>If this complains about missing executables like <kbd>as</kbd> and <kbd>ld</kbd> which are present in a non-standard location in your <kbd>PATH</kbd>, try</p><pre>  sudo env PATH=$PATH geordi-local "&lt;&lt; 'x'"</pre>
 
+    <p>If you get errors complaining about missing libraries and such (this can happen due to differing versions or configurations of gcc), try locating those on your system and manually copying them into the corresponding place in <kbd>$PREFIX/share/geordi-0/rt</kbd>.</p>
+
     <p>If your <kbd>compile-config</kbd> points to a custom-built gcc in a non-standard location <kbd>/foo/bar</kbd> and you get an error about <kbd>/t</kbd> missing some libraries, try adding <kbd>-Wl,-rlink,/foo/bar/lib</kbd> to <kbd>LINK_FLAGS</kbd> in <kbd>compile-config</kbd>.</p>
 
     <h3>1.4&emsp;Running the testsuite</h3>
