@@ -13,7 +13,7 @@ import Data.List (sortBy, minimumBy, isPrefixOf, tails, stripPrefix)
 import Data.Stream.NonEmpty (NonEmpty(..))
 import Data.Char (isSpace, isAlphaNum, toLower, toUpper)
 import Data.Function (on)
-import Data.Foldable (toList)
+import Data.Foldable (Foldable, toList, any)
 import Data.Generics (Data, Typeable)
 import Data.Traversable (mapM)
 import Control.Exception (bracket, evaluate)
@@ -26,7 +26,7 @@ import Control.DeepSeq (NFData, rnf)
 import System.Posix.Types (Fd(..))
 import System.IO (Handle, hClose)
 import Control.Applicative (Applicative(..))
-import Prelude hiding ((.), (!!), mapM)
+import Prelude hiding ((.), (!!), mapM, any)
 import Prelude.Unicode hiding ((∈), (∉))
 import Data.SetOps
 
@@ -75,8 +75,8 @@ findMaybe f = listToMaybe . mapMaybe f
 elemBy :: (a → a → Bool) → a → [a] → Bool
 elemBy f x = or . (f x .)
 
-none :: (a → Bool) → [a] → Bool
-none p = all (not . p)
+none :: Foldable t ⇒ (a → Bool) → t a → Bool
+none p = not . any p
 
 maybeLast :: [a] → Maybe a
 maybeLast [] = Nothing
