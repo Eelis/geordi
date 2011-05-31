@@ -4,8 +4,8 @@ module Cxx.Operations (apply, mapply, squared, parenthesized, is_primary_TypeSpe
 
 import qualified Cxx.Show
 import qualified Data.List as List
-import qualified Data.Stream.NonEmpty as NeList
-import Data.Stream.NonEmpty (NonEmpty((:|)), nonEmpty)
+import qualified Data.List.NonEmpty as NeList
+import Data.List.NonEmpty (NonEmpty((:|)), nonEmpty)
 import qualified Data.Char as Char
 import qualified Data.Maybe as Maybe
 import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..), Phantom(..), neElim, NeList, orElse, neFilter)

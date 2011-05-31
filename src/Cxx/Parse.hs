@@ -28,7 +28,7 @@ module Cxx.Parse (Code, Chunk(..), code, charLit, stringLit, makeType, precedenc
 
 import qualified Data.Char as Char
 import qualified Data.List as List
-import qualified Data.Stream.NonEmpty as NeList
+import qualified Data.List.NonEmpty as NeList
 import qualified Parsers as P
 import qualified Cxx.Show
 import Control.Arrow (first, second)
@@ -38,7 +38,7 @@ import Control.Monad.Instances ()
 import Control.Monad.Error ()
 import Control.Monad (liftM2, liftM3)
 import Data.List ((\\))
-import Data.Stream.NonEmpty (NonEmpty(..))
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Generics (Data, Typeable, dataTypeOf)
 import Data.Maybe (mapMaybe)
 import Data.Function (on)

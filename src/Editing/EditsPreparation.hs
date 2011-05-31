@@ -9,10 +9,10 @@ import qualified Editing.Diff
 import qualified Editing.Show
 import qualified Data.List as List
 import qualified Data.Char as Char
-import qualified Data.Stream.NonEmpty as NeList
+import qualified Data.List.NonEmpty as NeList
 import Data.Foldable (toList)
 import Data.Traversable (forM, mapM, sequence)
-import Data.Stream.NonEmpty (NonEmpty((:|)), nonEmpty)
+import Data.List.NonEmpty (NonEmpty((:|)), nonEmpty)
 import Control.Monad (liftM2, join)
 import Control.Monad.Error (throwError)
 import Data.SetOps

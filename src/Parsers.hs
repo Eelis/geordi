@@ -8,7 +8,7 @@ import qualified Editing.Basics
 import qualified Editing.Show ()
 import qualified Data.Char as Ch
 
-import Data.Stream.NonEmpty (NonEmpty((:|)))
+import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Foldable (toList)
 import Control.Monad (liftM, liftM2)
 import Control.Arrow (first)

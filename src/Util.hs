@@ -6,11 +6,11 @@ import qualified System.Posix.IO
 import qualified Data.Monoid
 import qualified Prelude
 import qualified Data.List as List
-import qualified Data.Stream.NonEmpty as NeList
+import qualified Data.List.NonEmpty as NeList
 import Data.Maybe (listToMaybe, mapMaybe, fromMaybe)
 import Data.Monoid (Monoid(..))
 import Data.List (sortBy, minimumBy, isPrefixOf, tails, stripPrefix)
-import Data.Stream.NonEmpty (NonEmpty(..))
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Char (isSpace, isAlphaNum, toLower, toUpper)
 import Data.Function (on)
 import Data.Foldable (Foldable, toList, any)

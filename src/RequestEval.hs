@@ -14,7 +14,7 @@ import qualified Cxx.Parse
 import qualified Cxx.Operations
 import qualified Cxx.Show
 import qualified Data.List as List
-import qualified Data.Stream.NonEmpty as NeList
+import qualified Data.List.NonEmpty as NeList
 
 import Control.Monad.Error (throwError)
 import Control.Monad (join, when)
@@ -25,7 +25,7 @@ import Data.Char (isPrint, isSpace)
 import Data.Either (partitionEithers)
 import Data.Foldable (toList)
 import Data.Pointed (Pointed(..))
-import Data.Stream.NonEmpty (NonEmpty((:|)), nonEmpty)
+import Data.List.NonEmpty (NonEmpty((:|)), nonEmpty)
 import Data.Set (Set)
 import Editing.Basics (FinalCommand(..))
 import Parsers ((<|>), eof, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), parseOrFail, commit, peek, parseSuccess)
