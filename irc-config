@@ -9,7 +9,7 @@ IrcBotConfig
 , nick_pass = Nothing
 , alternate_nick = "geordiclone_"
 , also_respond_to = []
-, allow_short_request_syntax_in = []
+, allow_nickless_requests_in = []
 , blacklist = []
 , no_output_msg = " "
 , channel_response_prefix = ""

@@ -40,7 +40,7 @@ data IrcBotConfig = IrcBotConfig
   , chans :: [String], key_chans :: [(String, String)]
   , nick :: String, nick_pass :: Maybe String, alternate_nick :: String
   , also_respond_to :: [String]
-  , allow_short_request_syntax_in :: [String]
+  , allow_nickless_requests_in :: [String]
   , blacklist :: [String]
   , no_output_msg :: String
   , channel_response_prefix :: String
@@ -120,8 +120,14 @@ data ChannelMemory = ChannelMemory { context :: Request.Context, last_output :: 
 type ChannelMemoryMap = Map String ChannelMemory
 
 is_request :: IrcBotConfig → Where → String → Maybe String
-is_request cfg _ s | Just (n, r) ← Request.is_addressed_request s, any (\(h:t) → n ∈ [toLower h : t, toUpper h : t]) (nick cfg : alternate_nick cfg : also_respond_to cfg) = Just r
-is_request cfg (InChannel c) s | elemBy caselessStringEq c (allow_short_request_syntax_in cfg), Just r ← Request.is_short_request s = Just r
+is_request cfg _ s
+  | Just (n, r) ← Request.is_addressed_request s
+  , any (\(h:t) → n ∈ [toLower h : t, toUpper h : t]) (nick cfg : alternate_nick cfg : also_respond_to cfg)
+    = Just r
+is_request cfg (InChannel c) s
+  | elemBy caselessStringEq c (allow_nickless_requests_in cfg)
+  , Just r ← Request.is_nickless_request s
+    = Just r
 is_request _ Private s = Just s
 is_request _ _ _ = Nothing
 
