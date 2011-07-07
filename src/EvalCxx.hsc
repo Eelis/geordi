@@ -292,7 +292,7 @@ evaluator = do
 ignored_syscalls, allowed_syscalls :: [SysCall]
 
 ignored_syscalls = -- These are effectively replaced with "return 0;".
-  [ SYS_chmod, SYS_fadvise64, SYS_unlink, SYS_munmap, SYS_madvise, SYS_umask, SYS_rt_sigaction, SYS_rt_sigprocmask, SYS_ioctl, SYS_setitimer, SYS_timer_settime, SYS_timer_delete, SYS_vfork {- see "Secure compilation" -}
+  [ SYS_fstatfs, SYS_chmod, SYS_fadvise64, SYS_unlink, SYS_munmap, SYS_madvise, SYS_umask, SYS_rt_sigaction, SYS_rt_sigprocmask, SYS_ioctl, SYS_setitimer, SYS_timer_settime, SYS_timer_delete, SYS_vfork {- see "Secure compilation" -}
   #ifdef __x86_64__
     , SYS_fcntl
   #else
@@ -305,7 +305,7 @@ allowed_syscalls =
 
   -- On x86_64, SYS_times is necessary for clock().
 
-  , SYS_getdents64, SYS_pread64, SYS_readv -- for gold
+  , SYS_getdents64, SYS_getdents, SYS_fallocate, SYS_pread64, SYS_pwrite64, SYS_readv -- for gold
 
   #ifdef __x86_64__
     , SYS_stat, SYS_fstat, SYS_arch_prctl, SYS_getrlimit, SYS_lseek, SYS_lstat, SYS_dup
