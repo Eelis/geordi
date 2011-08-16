@@ -292,7 +292,7 @@ evaluator = do
 ignored_syscalls, allowed_syscalls :: [SysCall]
 
 ignored_syscalls = -- These are effectively replaced with "return 0;".
-  [ SYS_fstatfs, SYS_chmod, SYS_fadvise64, SYS_unlink, SYS_munmap, SYS_madvise, SYS_umask, SYS_rt_sigaction, SYS_rt_sigprocmask, SYS_ioctl, SYS_setitimer, SYS_timer_settime, SYS_timer_delete, SYS_vfork {- see "Secure compilation" -}
+  [ SYS_setrlimit, SYS_fstatfs, SYS_chmod, SYS_fadvise64, SYS_unlink, SYS_munmap, SYS_madvise, SYS_umask, SYS_rt_sigaction, SYS_rt_sigprocmask, SYS_ioctl, SYS_setitimer, SYS_timer_settime, SYS_timer_delete, SYS_vfork {- see "Secure compilation" -}
   #ifdef __x86_64__
     , SYS_fcntl
   #else
