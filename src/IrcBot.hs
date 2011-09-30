@@ -13,7 +13,7 @@ import qualified IRC
 import IRC (Command(..))
 import Network.IRC (Prefix(..))
 import Control.Exception (bracketOnError)
-import System.IO (hGetLine, hSetBinaryMode, Handle, IOMode(..))
+import System.IO (hGetLine, hSetBinaryMode, hFlush, Handle, IOMode(..), stdout)
 import Control.Monad (forever, when)
 import Control.Arrow (first)
 import Control.Monad.Error ()
@@ -104,7 +104,7 @@ main = do
       Just m → do
         lift $ print m
         r ← on_msg evalRequest cfg (length raw == 511) m
-        lift $ mapM_ print r >> mapM_ send r
+        lift $ mapM_ print r >> hFlush stdout >> mapM_ send r
   return ()
 
 discarded_lines_description :: Int → String
