@@ -6,13 +6,13 @@ import qualified System.Environment
 import qualified RequestEval
 import qualified System.Console.Readline as RL
 import qualified Codec.Binary.UTF8.String as UTF8
-import qualified Sys
 import qualified Cxx.Show
 
 import Request (Response(..), HistoryModification(..), Context(..), modify_history)
 import Control.Monad (forM_, when)
 import Control.Monad.Fix (fix)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
+import System.Locale.SetLocale (setLocale, Category(..))
 import Data.IORef (newIORef, readIORef, writeIORef)
 
 import Prelude hiding ((.), readFile)
@@ -49,7 +49,7 @@ blankMemory = Memory (Context Cxx.Show.noHighlighting []) Nothing
 
 main :: IO ()
 main = do
-  Sys.setlocale_ALL_env
+  setLocale LC_ALL (Just "")
   RL.initialize -- Reads stuff from files not present in the chroot.
   (opts, rest) ← getArgs
   if Help ∈ opts then putStrLn help else do

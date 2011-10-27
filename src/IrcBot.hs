@@ -20,6 +20,7 @@ import Control.Monad.Error ()
 import Control.Monad.State (execStateT, lift, StateT)
 import Control.Monad.Writer (execWriterT, tell)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
+import System.Locale.SetLocale (setLocale, Category(..))
 import Text.Regex (Regex, subRegex, mkRegexWithOpts) -- Todo: Text.Regex truncates Char's >256. Get rid of it.
 import Data.Char (toUpper, toLower, isSpace, isPrint, isDigit)
 import Data.List (isSuffixOf)
@@ -82,7 +83,7 @@ do_censor cfg s = foldr (\r t → subRegex r t "<censored>") s (censor cfg)
 
 main :: IO ()
 main = do
-  Sys.setlocale_ALL_env
+  setLocale LC_ALL (Just "")
   opts ← getArgs
   if Help ∈ opts then putStrLn help else do
   cfg ← readTypedFile $ findMaybe (\o → case o of Config cf → Just cf; _ → Nothing) opts `orElse` "irc-config"

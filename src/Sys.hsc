@@ -26,7 +26,6 @@ import Foreign.C
 #include <sys/reg.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
-#include <locale.h>
 
 syscall_off, syscall_ret :: CLong
 #ifdef __x86_64__
@@ -113,11 +112,6 @@ chroot s = throwErrnoIfMinus1_ "chroot" (withCString s c_chroot)
 
 fdOfFd :: Fd → CInt
 fdOfFd (Fd fd) = fd
-
-foreign import ccall unsafe "locale.h setlocale" setlocale :: CInt → CString → IO CString
-
-setlocale_ALL_env :: IO ()
-setlocale_ALL_env = withCString "" $ \s → setlocale (#const LC_ALL) s >> return ()
 
 class Queue q e | q → e where
   qpush :: e → q → q
