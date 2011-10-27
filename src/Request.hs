@@ -4,12 +4,12 @@ module Request (is_addressed_request, is_nickless_request, EditableRequest(..), 
 
 import Data.Set (Set)
 import qualified Data.Set as Set
+import Control.Monad (liftM2)
 import Control.Monad.Error (throwError)
 import Cxx.Show (Highlighter)
 import Control.Exception ()
 import Data.Char (isAlpha, isDigit, isSpace)
 import Data.List (intercalate)
-import Control.Monad.Error ()
 import Text.ParserCombinators.Parsec (getInput, (<|>), oneOf, lookAhead, spaces, satisfy, CharParser, many1, parse)
 import Util (Option(..), (.), (.∨.), total_tail, partitionMaybe, E)
 import Prelude hiding (catch, (.))
@@ -49,13 +49,7 @@ is_nickless_request (dropWhile isSpace → s) = case s of
 
 is_addressed_request :: String → Maybe (Nick, String)
 is_addressed_request txt = either (const Nothing) Just (parse p "" txt)
-  where
-   p = do
-    spaces
-    nick ← nickP
-    oneOf ":," <|> (spaces >> lookAhead (oneOf "<{-("))
-    r ← getInput
-    return (nick, r)
+  where p = liftM2 (,) (spaces >> nickP) (spaces >> (oneOf ":," <|> lookAhead (oneOf "<{-(")) >> getInput)
 
 data Context = Context { highlighter :: Highlighter, previousRequests :: [EditableRequest] }
 
