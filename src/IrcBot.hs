@@ -22,7 +22,7 @@ import Control.Monad.Writer (execWriterT, tell)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import System.Locale.SetLocale (setLocale, Category(..))
 import Text.Regex (Regex, subRegex, mkRegexWithOpts) -- Todo: Text.Regex truncates Char's >256. Get rid of it.
-import Data.Char (toUpper, toLower, isSpace, isPrint, isDigit)
+import Data.Char (isSpace, isPrint, isDigit)
 import Data.List (isSuffixOf)
 import Data.Map (Map)
 import Data.SetOps
@@ -123,7 +123,7 @@ type ChannelMemoryMap = Map String ChannelMemory
 is_request :: IrcBotConfig → Where → String → Maybe String
 is_request cfg _ s
   | Just (n, r) ← Request.is_addressed_request s
-  , any (\(h:t) → n ∈ [toLower h : t, toUpper h : t]) (nick cfg : alternate_nick cfg : also_respond_to cfg)
+  , any (caselessStringEq n) (nick cfg : alternate_nick cfg : also_respond_to cfg)
     = Just r
 is_request cfg (InChannel c) s
   | elemBy caselessStringEq c (allow_nickless_requests_in cfg)
