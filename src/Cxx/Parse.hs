@@ -528,7 +528,7 @@ instance Parse SimpleTypeSpecifier where
       w ← parse
       (parse >>= \nns → (auto2 (SimpleTypeSpecifier_SimpleTemplateId w nns) <|> SimpleTypeSpecifier_TypeName (OptQualified w (Just nns)) . parse)) <|> SimpleTypeSpecifier_TypeName (OptQualified w Nothing) . parse
 instance Parse TypeSpecifier where
-  autoname_parse = auto1 TypeSpecifier_TrailingTypeSpecifier <|> auto1 TypeSpecifier_ClassSpecifier <|> auto1 TypeSpecifier_EnumSpecifier
+  autoname_parse = auto1 TypeSpecifier_ClassSpecifier <|> auto1 TypeSpecifier_TrailingTypeSpecifier <|> auto1 TypeSpecifier_EnumSpecifier
 instance Parse TrailingTypeSpecifier where
   autoname_parse = auto1 TrailingTypeSpecifier_CvQualifier <|> auto1 TrailingTypeSpecifier_SimpleTypeSpecifier <|> auto1 TrailingTypeSpecifier_TypenameSpecifier <|> auto1 TrailingTypeSpecifier_ElaboratedTypeSpecifier
 instance Parse ElaboratedTypeSpecifier where autoname_parse = auto3 ElaboratedTypeSpecifier
@@ -619,7 +619,7 @@ instance ParseSpecifier TrailingTypeSpecifier where
   parseSecondarySpec = (<?> "trailing-type-specifier") $ TrailingTypeSpecifier_CvQualifier . parse <|> TrailingTypeSpecifier_SimpleTypeSpecifier . LengthSpec . parse <|> TrailingTypeSpecifier_SimpleTypeSpecifier . SignSpec . parse <|> TrailingTypeSpecifier_SimpleTypeSpecifier . SimpleTypeSpecifier_BasicType . parse
 
 instance ParseSpecifier TypeSpecifier where
-  parsePrimarySpec = (<?> "type-specifier") $ TypeSpecifier_TrailingTypeSpecifier . parsePrimarySpec <|> TypeSpecifier_ClassSpecifier . parse <|> TypeSpecifier_EnumSpecifier . parse
+  parsePrimarySpec = (<?> "type-specifier") $ TypeSpecifier_ClassSpecifier . parse <|> TypeSpecifier_TrailingTypeSpecifier . parsePrimarySpec <|> TypeSpecifier_EnumSpecifier . parse
   parseSecondarySpec = (<?> "type-specifier") $ TypeSpecifier_TrailingTypeSpecifier . parseSecondarySpec
 
 instance ParseSpecifier DeclSpecifier where
