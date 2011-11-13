@@ -252,18 +252,18 @@ instance Find PositionsClause (NeList (FindResult Anchor)) where
     Found w l ← ((full_range .) .) . find x >>= merge_contiguous_FindResult_ARanges
     return $ l >>= (\e → (\ba → Found w $ e ba) . bas)
 
-instance Find Replacer (NeList (FindResult Edit)) where
+instance Find Replacer (NeList (FindResult RequestEdit)) where
   find (Replacer p r) = do
     Found c v ← ((replace_range .) .) . find p >>= merge_contiguous_FindResult_ARanges
-    return $ ((flip RangeReplaceEdit r . unanchor_range) .) . Found c . v
+    return $ ((TextEdit . flip RangeReplaceEdit r . unanchor_range) .) . Found c . v
   find (ReplaceOptions o o') = return $ fmap (Found InGiven) $ RemoveOptions o :| [AddOptions o']
 
-instance Find Changer (NeList (FindResult Edit)) where
+instance Find Changer (NeList (FindResult RequestEdit)) where
   find (Changer p r) = find (Replacer p r)
   find (ChangeOptions o o') = find (ReplaceOptions o o')
 
-instance Find Eraser [FindResult Edit] where
-  find (EraseText x) = (((flip RangeReplaceEdit "" . unanchor_range . full_range) .) .) . toList . find x
+instance Find Eraser [FindResult RequestEdit] where
+  find (EraseText x) = (((TextEdit . flip RangeReplaceEdit "" . unanchor_range . full_range) .) .) . toList . find x
   find (EraseOptions o) = return [Found InGiven $ RemoveOptions o]
   find (EraseAround (Wrapping x y) (Around z)) = do
     l ← (((unanchor_range . full_range) .) .) . toList . find z
@@ -299,7 +299,7 @@ instance (ToWf a, ToWf b) ⇒ ToWf (Either a b) where
   toWf (Left x) = Left . toWf x
   toWf (Right x) = Right . toWf x
 
-makeMoveEdit' :: FindResult Anchor → FindResult ARange → Resolver (FindResult Edit)
+makeMoveEdit' :: FindResult Anchor → FindResult ARange → Resolver (FindResult TextEdit)
 makeMoveEdit' (Found InGiven a) (Found InGiven r) = Found InGiven . makeMoveEdit a (unanchor_range r)
 makeMoveEdit' (Found InWf a) (Found c x) = do
   r ← (case c of InGiven → toWf; InWf → return) x
@@ -308,13 +308,13 @@ makeMoveEdit' (Found c x) (Found InWf r) = do
   a' ← (case c of InGiven → toWf; InWf → return)  x
   Found InWf . makeMoveEdit a' (unanchor_range r)
 
-makeSwapEdit :: FindResult ARange → FindResult ARange → Resolver [FindResult Edit]
+makeSwapEdit :: FindResult ARange → FindResult ARange → Resolver [FindResult TextEdit]
 makeSwapEdit a b = do
   some ← makeMoveEdit' (($ Before) . b) a
   more ← makeMoveEdit' (($ Before) . a) b
   return [some, more]
 
-instance Find Mover [FindResult Edit] where
+instance Find Mover [FindResult TextEdit] where
   find (Mover o p) = do
     a ← find p
     toList . find o >>= mapM (makeMoveEdit' a . (full_range .)) . reverse
@@ -338,11 +338,11 @@ instance Invertible UsePattern where invert = id
 
 instance Convert (FindResult (Range Char)) (FindResult (Range Char)) where convert = id
 
-instance Find UseClause (NeList (FindResult Edit)) where
+instance Find UseClause (NeList (FindResult RequestEdit)) where
   find (UseOptions o) = return $ return $ Found InGiven $ AddOptions o
   find (UseString ru@(In b _)) = case unrelative b of
     Nothing → throwError "Nonsensical use-command."
-    Just (UsePattern v) → (((flip RangeReplaceEdit v) .) .) . find ru
+    Just (UsePattern v) → (((TextEdit . flip RangeReplaceEdit v) .) .) . find ru
 
 token_edit_cost :: Op String → Cost
 token_edit_cost (SkipOp (' ':_)) = 0
@@ -365,37 +365,37 @@ token_edit_cost (ReplaceOp x@(c:_) y@(d:_)) | Char.isAlphaNum c, Char.isAlphaNum
 token_edit_cost (ReplaceOp _ _) = 10
   -- The precise values of these costs are fine-tuned to make the tests pass, and that is their only justification. We're trying to approximate the human intuition for what substring should be replaced, as codified in the tests.
 
-instance Find Command [FindResult Edit] where
+instance Find Command [FindResult RequestEdit] where
   find (Use l) = toList . join . find l
   find (Append x Nothing) = do
     r ← search_range . ask
-    return [Found InGiven $ InsertEdit (Anchor After (size r)) x]
-  find (Prepend x Nothing) = return [Found InGiven $ InsertEdit (Anchor Before 0) x]
-  find (Append r (Just p)) = toList . ((flip InsertEdit r .) .) . join . find p
-  find (Prepend r (Just p)) = toList . ((flip InsertEdit r .) .) . join . find p
+    return [Found InGiven $ TextEdit $ InsertEdit (Anchor After (size r)) x]
+  find (Prepend x Nothing) = return [Found InGiven $ TextEdit $ InsertEdit (Anchor Before 0) x]
+  find (Append r (Just p)) = toList . (((TextEdit . flip InsertEdit r) .) .) . join . find p
+  find (Prepend r (Just p)) = toList . (((TextEdit . flip InsertEdit r) .) .) . join . find p
   find (Erase (AndList l)) = concat . sequence (find . toList l)
   find (Replace (AndList l)) = concat . sequence ((toList .) . find . toList l)
   find (Change (AndList l)) = concat . sequence ((toList .) . find . toList l)
-  find (Insert (SimpleInsert r) p) = toList . ((flip InsertEdit r .) .) . join . find p
+  find (Insert (SimpleInsert r) p) = toList . (((TextEdit . flip InsertEdit r) .) .) . join . find p
   find (Insert (WrapInsert (Wrapping x y)) (AndList z)) =
-    concatMap (\(Found v a, Found w b) → [Found v $ InsertEdit a x, Found w $ InsertEdit b y]) . pairs . concat . map toList . sequence (map find $ toList z)
-  find (Move (AndList movers)) = concat . sequence (find . toList movers)
+    concatMap (\(Found v a, Found w b) → [Found v $ TextEdit $ InsertEdit a x, Found w $ TextEdit $ InsertEdit b y]) . pairs . concat . map toList . sequence (map find $ toList z)
+  find (Move (AndList movers)) = ((TextEdit .) .) . concat . sequence (find . toList movers)
   find (Swap substrs Nothing) = toList . ((replace_range .) .) . find substrs >>= f
     where
       f [] = return []
-      f (a:b:c) = liftM2 (++) (makeSwapEdit a b) (f c)
+      f (a:b:c) = liftM2 (++) (((TextEdit .) .) . makeSwapEdit a b) (f c)
       f _ = throwError "Cannot swap uneven number of operands."
   find (Swap substrs (Just substrs')) = do
     Found v x ← ((full_range .) .) . find substrs >>= merge_contiguous_FindResult_ARanges
     Found w y ← ((full_range .) .) . find substrs' >>= merge_contiguous_FindResult_ARanges
     let a = Found v . x; b = Found w . y
-    if null (NeList.tail a) && null (NeList.tail b) then makeSwapEdit (NeList.head a) (NeList.head b)
+    if null (NeList.tail a) && null (NeList.tail b) then ((TextEdit .) .) . makeSwapEdit (NeList.head a) (NeList.head b)
      else throwError "Swap operands must be contiguous ranges."
   find (Make s b) = inwf $ do
     (tree, _) ← well_formed . ask >>= or_fail
     l ← (fmap (\(Found _ x) → replace_range x)) . find s
     (Found InGiven .) . concat . toList . forM l (\x →
-      Cxx.Operations.make_edits (convert x) b 0 tree)
+      (TextEdit .) . Cxx.Operations.make_edits (convert x) b 0 tree)
 
 use_tests :: IO ()
 use_tests = do
@@ -458,7 +458,7 @@ use_tests = do
   u txt pattern match d rd =
     case runReaderT (find (UseString $ flip In Nothing $ Absolute $ UsePattern pattern)) (ResolutionContext "." txt (Range 0 (length txt)) (Left "-")) of
       Left e → fail e
-      Right (neElim → (Found _ (RangeReplaceEdit rng _), [])) → do
+      Right (neElim → (Found _ (TextEdit (RangeReplaceEdit rng _)), [])) → do
         test_cmp pattern match (selectRange rng txt)
         let r = replaceRange rng pattern txt
         test_cmp pattern d $ show $ Editing.Diff.diff txt r

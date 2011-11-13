@@ -81,7 +81,8 @@ import Data.List ((\\), isPrefixOf)
 import System.Posix.User
   (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
 import System.Posix
-  (Signal, sigALRM, sigSTOP, sigTRAP, sigKILL, sigSEGV, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
+  (Signal, sigALRM, sigSTOP, sigTRAP, sigKILL, sigSEGV, sigILL, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
+import Gcc (Stage(..))
 import CompileConfig
 
 #ifdef __x86_64__
@@ -199,21 +200,20 @@ subst_parseps = f
       s' → ' ' : s'
     f (c:s) = c : f s
 
-data Stage = Compile | Assemble | Link | Run
-
 data EvaluationResult = EvaluationResult Stage CaptureResult
   -- The capture result of the last stage attempted.
 
 instance Show EvaluationResult where
-  show (EvaluationResult stage (CaptureResult r o)) = subst_parseps $ case (stage, r, o) of
-    (Compile, Exited ExitSuccess, "") → strerror eOK
-    (Compile, Exited _, _) → ErrorFilters.cc1plus o
-    (Assemble, Exited (ExitFailure _), _) → ErrorFilters.as o
-    (Run, Exited ExitSuccess, _) → ErrorFilters.prog o
-    (Run, Signaled s, _) | s == sigSEGV → o ++ parsep : "Undefined behavior detected."
-    (Run, _, _) → ErrorFilters.prog $ o ++ parsep : show r
-    (Link, Exited (ExitFailure _), _) → ErrorFilters.ld o
-    _ → "g++: " ++ show r
+  show (EvaluationResult stage (CaptureResult r o)) = subst_parseps $ ErrorFilters.cleanup_output stage o ++
+    if stage == Run
+      then case r of
+        Exited ExitSuccess → ""
+        Signaled s | s ∈ [sigSEGV, sigILL] → parsep : "Undefined behavior detected."
+        _ → parsep : show r
+      else case r of
+        Exited ExitSuccess → if null o then strerror eOK else ""
+        Exited (ExitFailure _) | not (null o) → ""
+        _ → parsep : show stage ++ ": " ++ show r
 
 prog_env :: [(String, String)]
 prog_env =
@@ -269,8 +269,8 @@ instance Functor WithEvaluation where
 instance Pointed WithEvaluation where
   point = WithoutEvaluation
 
-withEvaluation :: Request → (EvaluationResult → a) → WithEvaluation a
-withEvaluation = WithEvaluation
+withEvaluation :: Request → WithEvaluation EvaluationResult
+withEvaluation r = WithEvaluation r id
 
 noEvaluation :: a → WithEvaluation a
 noEvaluation = point

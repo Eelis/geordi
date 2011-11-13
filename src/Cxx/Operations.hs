@@ -10,7 +10,7 @@ import qualified Data.Char as Char
 import qualified Data.Maybe as Maybe
 import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..), Phantom(..), neElim, NeList, orElse, neFilter)
 import Cxx.Basics
-import Editing.Basics (Range(..), Offsettable(..), Edit)
+import Editing.Basics (Range(..), Offsettable(..), TextEdit(..))
 import Editing.Diff (diff_as_Edits)
 import Data.Function (on)
 import Data.Foldable (toList, any)
@@ -400,7 +400,7 @@ namedPathTo d r = map Cxx.Show.dataType_abbreviated_productionName $
 findRange :: (Offsettable a, Data d) ⇒ (TreePath → Maybe a) → [AnyData] → Int → d → [a]
 findRange p tp i x = Maybe.maybeToList (offset i . p (AnyData x :| tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
 
-make_edits :: (MonadError String m, Data d) ⇒ Range Char → MakeDeclaration → Int → d → m [Edit]
+make_edits :: (MonadError String m, Data d) ⇒ Range Char → MakeDeclaration → Int → d → m [TextEdit]
 make_edits r m i d = do
   ot ← gfoldl_with_lengthsM i (make_edits r m) d
   oi ← (if Range i (length $ strip $ Cxx.Show.show_simple d) == r

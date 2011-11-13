@@ -101,11 +101,10 @@ instance Offsettable ARange where offset = (.) . offset
 instance (Offsettable a, Offsettable b) ⇒ Offsettable (a, b) where offset i (x, y) = (offset i x, offset i y)
 instance (Offsettable a, Functor f) ⇒ Offsettable (f a) where offset = fmap . offset
 instance Offsettable Int where offset = (+)
-instance Offsettable Edit where
+instance Offsettable TextEdit where
   offset i (RangeReplaceEdit r s) = RangeReplaceEdit (offset i r) s
   offset i (MoveEdit ba j r) = MoveEdit ba (offset i j) (offset i r)
   offset i (InsertEdit a s) = InsertEdit (offset i a) s
-  offset _ e = e
 
 find_occs :: Eq a ⇒ [a] → [a] → [Pos a]
 find_occs x = map fst . filter (List.isPrefixOf x . snd) . zip [0..] . List.tails
@@ -124,22 +123,25 @@ unanchor_range r | Anchor _ x ← r Before, Anchor _ y ← r After = Range x (y 
 
 instance Ord Anchor where compare = comparing (anchor_pos &&& anchor_befAft)
 
-  -- This BefAft will probably need to be generalized to Before|After|Both for "insert x between 3 and 4".
-data Edit
+data TextEdit
   = RangeReplaceEdit (Range Char) String
   | InsertEdit Anchor String
   | MoveEdit BefAft Int (Range Char)
-    -- The Int is an offset. If it is a nonnegative number n, the insert position is n characters beyond the end of the source range. If it is a negative number -n, the insert position is n characters before the start of the source range. We use this instead of a normal Anchor because it ensures that silly "move into self"-edits are not representable. This constructor must not be used by anyone but the makeMoveEdit smart constructor, which detects such edits.
-  | AddOptions [Request.EvalOpt]
-  | RemoveOptions [Request.EvalOpt]
     deriving Eq
-  -- We don't just use a RangeReplaceEdit with range length 0 for insertions, because it is not expressive enough. For instance, given "xy", insertions at the positions "after x" and "before y" would both designate position 1, but a prior "add z after x" edit should increment the latter position but not the former. InsertEdit's BefAft argument expresses this difference.
+    -- The Int is an offset. If it is a nonnegative number n, the insert position is n characters beyond the end of the source range. If it is a negative number -n, the insert position is n characters before the start of the source range. We use this instead of a normal Anchor because it ensures that silly "move into self"-edits are not representable. This constructor must not be used by anyone but the makeMoveEdit smart constructor, which detects such edits.
+    -- We don't just use a RangeReplaceEdit with range length 0 for insertions, because it is not expressive enough. For instance, given "xy", insertions at the positions "after x" and "before y" would both designate position 1, but a prior "add z after x" edit should increment the latter position but not the former. InsertEdit's BefAft argument expresses this difference.
+    -- The BefAft will probably need to be generalized to Before|After|Both for "insert x between 3 and 4".
 
-makeMoveEdit :: MonadError String m ⇒ Anchor → Range Char → m Edit
+makeMoveEdit :: MonadError String m ⇒ Anchor → Range Char → m TextEdit
 makeMoveEdit (Anchor ba p) r@(Range st si)
   | p ≤ st = return $ MoveEdit ba (p - st) r
   | st + si ≤ p = return $ MoveEdit ba (p - st - si) r
   | otherwise = throwError "Move destination lies in source range."
+
+data RequestEdit
+  = TextEdit TextEdit
+  | AddOptions [Request.EvalOpt]
+  | RemoveOptions [Request.EvalOpt]
 
 -- Command grammar
 

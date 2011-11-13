@@ -2,11 +2,11 @@
 
 -- Virtually everything here is GCC specific.
 
-module ErrorFilters (cc1plus, as, ld, prog) where
+module ErrorFilters (cleanup_output) where
 
 import qualified Cxx.Parse
 import Control.Monad (ap, liftM2, mzero, guard)
-import Text.Regex (Regex, matchRegexAll, mkRegex, subRegex)
+import Text.Regex (Regex, matchRegexAll, mkRegex, mkRegexWithOpts, subRegex)
 import Data.Char (toLower)
 import Data.Maybe (mapMaybe, fromMaybe)
 import Data.List (intersperse, isPrefixOf, isSuffixOf, tails)
@@ -14,6 +14,7 @@ import Text.ParserCombinators.Parsec
   (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, many1, anyChar, noneOf, option, count, CharParser, notFollowedBy, choice, setInput, eof, oneOf)
 import Text.ParserCombinators.Parsec.Prim (GenParser)
 import Control.Applicative (Applicative(..))
+import Gcc (Stage(..))
 import Util ((.), (<<), isIdChar, (>+>), strip, replaceInfix, parsep, maybeLast, (!!))
 import Prelude hiding (catch, (.), (!!))
 
@@ -25,21 +26,20 @@ instance Applicative (GenParser Char st) where pure = return; (<*>) = ap
 -- Using the following more general instance causes overlapping instance problems elsewhere:
 --   instance (Monad m, Functor m) ⇒ Applicative m where pure = return; (<*>) = ap
 
-cc1plus, as, ld, prog :: String → String
+uncapitalize :: String → String
+uncapitalize "" = ""
+uncapitalize (c:s) = toLower c : s
 
-cc1plus e = cleanup_stdlib_templates $ replace_withs $ hide_clutter_namespaces
-  $ fromMaybe e $ maybeLast $ flip mapMaybe (lines e) $ \l → do
+cleanup_output :: Stage → String → String
+cleanup_output stage e = case stage of
+  Compile → cleanup_stdlib_templates $ replace_withs $ hide_clutter_namespaces $ fromMaybe e $ maybeLast $ flip mapMaybe (lines e) $ \l → do
     (_, _, x, _) ← matchRegexAll (mkRegex "(^|\n)[^:]+:([[:digit:]]+:)+ ") l
     guard $ not $ "note:" `isPrefixOf` x
     return x
-  -- Even though we use -Wfatal-errors, we may still get several "instantiated from ..." lines. Only the last of these (the one we're interested in) actually says "error"/"warning". We used to have the regex match on that, greatly simplifying the above, but that broke when a language other than English was used.
-
-as e = maybe e (\(_, m:ms, _, _) → toLower m : ms) $ matchRegexAll (mkRegex "\\b(Error|Warning): [^\n]*") e
-
-ld e = maybe e (\(_, m, _, _) → "error: " ++ m) $ matchRegexAll (mkRegex "\\bundefined reference to [^\n]*") e
-
-prog = replaceInfix "E7tKRJpMcGq574LY:" [parsep] . cleanup_stdlib_templates . replace_withs . hide_clutter_namespaces
+      -- Even though we use -Wfatal-errors, we may still get several "instantiated from ..." lines. Only the last of these (the one we're interested in) actually says "error"/"warning". We used to have the regex match on that, greatly simplifying the above, but that broke when a language other than English was used.
+  Run → replaceInfix "E7tKRJpMcGq574LY:" [parsep] $ cleanup_stdlib_templates $ replace_withs $ hide_clutter_namespaces e
   -- We also clean up successful output, because it might include dirty assertion failures and {E}TYPE strings. The "E7tKRJpMcGq574LY:" is for libstdc++ debug mode errors; see prelude.hpp.
+  _ {- Assemble, Link -} → maybe e (\(_, x, _, _) → uncapitalize x) $ matchRegexAll (mkRegexWithOpts "\\b(error|warning): [^\n]*|\\bundefined reference to [^\n]*" True False) e
 
 cxxArg :: CharParser st String
 cxxArg = strip . ce

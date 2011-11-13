@@ -179,7 +179,7 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
       | otherwise → parseSuccess . noErrors . respond_and_remember =<< EditableRequest (Evaluate evalopts) . getInput }
 
 evaluate :: EvalCxx.Request → WithEvaluation String
-evaluate r = EvalCxx.withEvaluation r (filter (isPrint .∨. (== '\n')) . replaceWithMany '\a' "*BEEP*" . show)
+evaluate r = filter (isPrint .∨. (== '\n')) . replaceWithMany '\a' "*BEEP*" . show . EvalCxx.withEvaluation r
 
 evaluator :: IO (String → Context → IO Response)
 evaluator = do
