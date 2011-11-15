@@ -32,6 +32,7 @@ uncapitalize (c:s) = toLower c : s
 
 cleanup_output :: Stage → String → String
 cleanup_output stage e = case stage of
+  Preprocess → unlines $ dropWhile ("#" `isPrefixOf`) $ lines e
   Compile → cleanup_stdlib_templates $ replace_withs $ hide_clutter_namespaces $ fromMaybe e $ maybeLast $ flip mapMaybe (lines e) $ \l → do
     (_, _, x, _) ← matchRegexAll (mkRegex "(^|\n)[^:]+:([[:digit:]]+:)+ ") l
     guard $ not $ "note:" `isPrefixOf` x

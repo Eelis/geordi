@@ -15,6 +15,7 @@ import qualified Cxx.Operations
 import qualified Cxx.Show
 import qualified Data.List as List
 import qualified Data.List.NonEmpty as NeList
+import qualified Gcc
 
 import Control.Monad.Error (throwError)
 import Control.Monad (join, when)
@@ -95,11 +96,16 @@ optParser = first Set.fromList ‥ partitionEithers ‥ option (return []) P.opt
 
 makeEvalCxxRequest :: Set EvalOpt → Cxx.Parse.Code → EvalCxx.Request
 makeEvalCxxRequest opts sc = EvalCxx.Request
-  (prel ++ (if NoUsingStd ∈ opts then "" else "using namespace std;\n")
+  (prel ++ (if NoUsingStd ∈ opts || PreprocessOnly ∈ opts then "" else "using namespace std;\n")
     ++ (if Terse ∈ opts then "#include \"terse.hpp\"\n" else "")
     ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc))
-  (CompileOnly ∉ opts) (NoWarn ∈ opts)
- where prel = "#include \"prelude.hpp\"\n"
+  stageOfInterest (NoWarn ∈ opts)
+ where
+  prel = "#include \"prelude.hpp\"\n"
+  stageOfInterest
+    | CompileOnly ∈ opts = Gcc.Compile
+    | PreprocessOnly ∈ opts = Gcc.Preprocess
+    | otherwise = Gcc.Run
 
 execEditableRequest :: EditableRequest → E (WithEvaluation String)
 execEditableRequest (EditableRequest kind (dropWhile isSpace → body)) = case kind of

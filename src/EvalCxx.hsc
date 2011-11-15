@@ -234,7 +234,7 @@ jail = do
   setGroupID gid
   setUserID uid
 
-data Request = Request { code :: String, also_run, no_warn :: Bool }
+data Request = Request { code :: String, stageOfInterest :: Stage, no_warn :: Bool }
 
 pass_env :: String → Bool
 pass_env s = ("LC_" `isPrefixOf` s) || (s `elem` ["PATH", "LD_LIBRARY_PATH"])
@@ -245,18 +245,37 @@ evaluate cfg req = do
   Flock.exclusive lock_fd
   withFile "t.cpp" WriteMode $ \h → hSetEncoding h utf8 >> hPutStrLn h (code req)
     -- Same as utf8-string's System.IO.UTF8.writeFile, but I'm hoping that with GHC's improving UTF-8 support we can eventually drop the dependency on utf8-string altogether.
-  env ← filter (pass_env . fst) . getEnvironment
+  baseEnv ← filter (pass_env . fst) . getEnvironment
   let
-    gxx :: [String] → Stage → IO EvaluationResult → IO EvaluationResult
-    gxx argv stage act = do
-      cr ← capture_restricted (gxxPath cfg) argv env (resources stage)
-      if cr == CaptureResult (Exited ExitSuccess) "" then act else return $ EvaluationResult stage cr
-  let cf = if no_warn req then "-w" : compileFlags cfg else compileFlags cfg
-  gxx (["-S", "t.cpp"] ++ cf) Compile $ do
-  if not (also_run req) then return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "") else do
-  gxx (["-c", "t.s"] ++ cf) Assemble $ do
-  gxx (["t.o", "-o", "t"] ++ cf ++ linkFlags cfg) Link $ do
-  EvaluationResult Run . capture_restricted "/t" ["second", "third", "fourth"] (env ++ prog_env) (resources Run)
+    runStage :: Stage → Maybe (IO EvaluationResult) → IO EvaluationResult
+    runStage stage act = do
+      cr ← capture_restricted (path stage) (argv stage) (env stage) (resources stage)
+      case act of
+        Just a | cr == CaptureResult (Exited ExitSuccess) "", stage /= stageOfInterest req → a
+        _ → return $ EvaluationResult stage cr
+
+    path :: Stage → String
+    path Run = "/t"
+    path _ = gxxPath cfg
+
+    argv :: Stage → [String]
+    argv s = case s of
+        Run → ["second", "third", "fourth"]
+        Preprocess → ["-fpch-preprocess", "-E", "t.cpp"] ++ cf
+        Compile → ["-S", "t.cpp"] ++ cf
+        Assemble → ["-c", "t.s"] ++ cf
+        Link → ["t.o", "-o", "t"] ++ cf ++ linkFlags cfg
+      where cf = if no_warn req then "-w" : compileFlags cfg else compileFlags cfg
+
+    env :: Stage → [(String, String)]
+    env Run = baseEnv ++ prog_env
+    env _ = baseEnv
+
+  if stageOfInterest req == Preprocess then runStage Preprocess Nothing else do
+  runStage Compile $ Just $ do
+  runStage Assemble $ Just $ do
+  runStage Link $ Just $ do
+  runStage Run Nothing
 
 data WithEvaluation a
   = WithoutEvaluation a
@@ -268,6 +287,8 @@ instance Functor WithEvaluation where
 
 instance Pointed WithEvaluation where
   point = WithoutEvaluation
+
+-- WithEvaluation is not a monad because it only supports a single evaluation.
 
 withEvaluation :: Request → WithEvaluation EvaluationResult
 withEvaluation r = WithEvaluation r id
@@ -329,6 +350,7 @@ resources stage = Resources
     }
   where
     t = case stage of
+      Preprocess → 8
       Compile → 10
       Assemble → 5
       Link → 10

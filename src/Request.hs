@@ -15,17 +15,19 @@ import Util (Option(..), (.), (.∨.), total_tail, partitionMaybe, E)
 import Prelude hiding (catch, (.))
 import Prelude.Unicode
 
-data EvalOpt = CompileOnly | Terse | NoWarn | NoUsingStd
+data EvalOpt = CompileOnly | PreprocessOnly | Terse | NoWarn | NoUsingStd
   deriving (Eq, Enum, Bounded, Ord)
 
 instance Option EvalOpt where
   short CompileOnly = Just 'c'
   short Terse = Just 't'
   short NoWarn = Just 'w'
+  short PreprocessOnly = Nothing
   short NoUsingStd = Nothing
   long CompileOnly = "compile-only"
   long Terse = "terse"
   long NoWarn = "no-warn"
+  long PreprocessOnly = "preprocess"
   long NoUsingStd = "no-using-std"
 
 data EphemeralOpt = Resume | Help | Version deriving (Eq, Enum, Bounded)

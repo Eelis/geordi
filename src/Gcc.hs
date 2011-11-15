@@ -1,4 +1,4 @@
 module Gcc where
 
-data Stage = Compile | Assemble | Link | Run
+data Stage = Preprocess | Compile | Assemble | Link | Run
   deriving (Show, Eq)
