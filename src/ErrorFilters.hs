@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeSynonymInstances, UndecidableInstances #-}
+{-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeSynonymInstances, UndecidableInstances, ViewPatterns #-}
 
 -- Virtually everything here is GCC specific.
 
@@ -7,7 +7,7 @@ module ErrorFilters (cleanup_output) where
 import qualified Cxx.Parse
 import Control.Monad (ap, liftM2, mzero, guard)
 import Text.Regex (Regex, matchRegexAll, mkRegex, mkRegexWithOpts, subRegex)
-import Data.Char (toLower)
+import Data.Char (toLower, isSpace)
 import Data.Maybe (mapMaybe, fromMaybe)
 import Data.List (intersperse, isPrefixOf, isSuffixOf, tails)
 import Text.ParserCombinators.Parsec
@@ -32,7 +32,7 @@ uncapitalize (c:s) = toLower c : s
 
 cleanup_output :: Stage → String → String
 cleanup_output stage e = case stage of
-  Preprocess → unlines $ dropWhile ("#" `isPrefixOf`) $ lines e
+  Preprocess → unlines $ dropWhile (\(dropWhile isSpace → l) → null l || "#" `isPrefixOf` l) $ lines e
   Compile → cleanup_stdlib_templates $ replace_withs $ hide_clutter_namespaces $ fromMaybe e $ maybeLast $ flip mapMaybe (lines e) $ \l → do
     (_, _, x, _) ← matchRegexAll (mkRegex "(^|\n)[^:]+:([[:digit:]]+:)+ ") l
     guard $ not $ "note:" `isPrefixOf` x
