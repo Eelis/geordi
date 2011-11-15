@@ -121,18 +121,29 @@ namespace more_ostreaming
 }
 
 namespace more_ostreaming { namespace detail {
-  template <typename T> struct bytes_t { T const & value; };
-  template <typename C, typename Tr, typename T>
-  std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, bytes_t<T> const b)
-  {
-    unsigned char const * i = reinterpret_cast<unsigned char const *>(&b.value), * const e = i + sizeof(T);
+  struct bytes_t { unsigned char const * p; std::size_t n; };
+  template <typename C, typename Tr>
+  std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, bytes_t const b) {
     typedef unsigned int uint;
-    o << '{' << uint(*i); while (++i != e) o << ", " << uint(*i); return o << '}';
+    o << '{';
+    if(b.n != 0) o << uint(*b.p);
+    for(std::size_t i = 1; i != b.n; ++i) o << ", " << uint(b.p[i]);
+    return o << '}';
   }
 }}
 
 template <typename T>
-more_ostreaming::detail::bytes_t<T> bytes(T const & x) { more_ostreaming::detail::bytes_t<T> const r = { x }; return r; }
+more_ostreaming::detail::bytes_t bytes(T const & x) {
+  more_ostreaming::detail::bytes_t const r =
+    { reinterpret_cast<unsigned char const *>(&x.value), sizeof(T) };
+  return r;
+}
+
+inline more_ostreaming::detail::bytes_t bytes(void const * const p, std::size_t const n) {
+  more_ostreaming::detail::bytes_t const r =
+    { reinterpret_cast<unsigned char const *>(p), n };
+  return r;
+}
 
 namespace more_ostreaming { namespace detail {
   template <typename, typename T> struct snd { typedef T type; };
