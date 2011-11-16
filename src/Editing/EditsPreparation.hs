@@ -26,6 +26,8 @@ import Util ((.), Convert(..), Op(..), ops_cost, erase_indexed, levenshtein, rep
 import Prelude hiding (last, (.), all, (!!), sequence, mapM)
 import Prelude.Unicode hiding ((∈))
 import Editing.Basics
+import Editing.Commands
+import Request (RequestEdit(..))
 
 import Control.Monad.Reader (ReaderT(..), local, ask)
 

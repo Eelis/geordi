@@ -20,6 +20,7 @@ import Request (EvalOpt)
 import Prelude hiding ((.), id, and)
 import Prelude.Unicode
 import Editing.Basics
+import Editing.Commands
 
 data Terminators = Terminators { term_eof :: Bool, term_keywords :: [String], and_conts :: [String] } deriving Eq
   -- term_eof states whether eof is a valid termination of a directly preceding verbatim stings.

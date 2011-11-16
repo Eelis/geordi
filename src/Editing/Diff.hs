@@ -11,6 +11,7 @@ import Data.Maybe (listToMaybe)
 import Data.Monoid (Monoid(..))
 import Util (orElse, take_atleast, (.), isIdChar, invert)
 import Editing.Basics
+import Editing.Commands
 import Prelude hiding ((.))
 import Prelude.Unicode
 

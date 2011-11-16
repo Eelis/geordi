@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleInstances, UndecidableInstances, OverlappingInstances, ViewPatterns #-}
 
-module Request (is_addressed_request, is_nickless_request, EditableRequest(..), EditableRequestKind(..), Context(..), Response(..), EvalOpt(..), EphemeralOpt(..), HistoryModification(..), modify_history, popContext) where
+module Request (is_addressed_request, is_nickless_request, RequestEdit(..), EditableRequest(..), EditableRequestKind(..), Context(..), Response(..), EvalOpt(..), EphemeralOpt(..), HistoryModification(..), modify_history, popContext) where
 
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -12,11 +12,17 @@ import Data.Char (isAlpha, isDigit, isSpace)
 import Data.List (intercalate)
 import Text.ParserCombinators.Parsec (getInput, (<|>), oneOf, lookAhead, spaces, satisfy, CharParser, many1, parse)
 import Util (Option(..), (.), (.∨.), total_tail, partitionMaybe, E)
+import Editing.Basics (TextEdit)
 import Prelude hiding (catch, (.))
 import Prelude.Unicode
 
 data EvalOpt = CompileOnly | PreprocessOnly | Terse | NoWarn | NoUsingStd
   deriving (Eq, Enum, Bounded, Ord)
+
+data RequestEdit
+  = TextEdit TextEdit
+  | AddOptions [Request.EvalOpt]
+  | RemoveOptions [Request.EvalOpt]
 
 instance Option EvalOpt where
   short CompileOnly = Just 'c'

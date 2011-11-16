@@ -28,7 +28,7 @@ import Data.Foldable (toList)
 import Data.Pointed (Pointed(..))
 import Data.List.NonEmpty (NonEmpty((:|)), nonEmpty)
 import Data.Set (Set)
-import Editing.Basics (FinalCommand(..))
+import Editing.Commands (Command, FinalCommand(..))
 import Parsers ((<|>), eof, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), parseOrFail, commit, peek, parseSuccess)
 import Util ((.), (‥), (<<), (.∨.), commas_and, capitalize, length_ge, replace, replaceWithMany, show_long_opt, strip, convert, maybeLast, orElse, E, NeList, propagateE)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..), popContext)
@@ -137,7 +137,7 @@ execFinalCommand context@Context{..} = case_of
     EditableRequest kind body ← fst . popContext context
     case kind of Evaluate _ → return body; _ → throwError "Last (editable) request was not an evaluation request."
 
-execEditCommand :: Context → ([Editing.Basics.Command], Maybe FinalCommand) → E (EditableRequest, WithEvaluation String)
+execEditCommand :: Context → ([Editing.Commands.Command], Maybe FinalCommand) → E (EditableRequest, WithEvaluation String)
 execEditCommand context@Context{..} (cs, mfcmd) = do
   edited ← fst . popContext context >>= Editing.Execute.execute cs
   when (length_ge 1000 (editable_body edited)) $ throwError "Request would become too large."

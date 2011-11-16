@@ -8,7 +8,7 @@ import qualified Data.List.NonEmpty as NeList
 import Data.List.NonEmpty (NonEmpty((:|)), nonEmpty)
 import qualified Data.Char as Char
 import qualified Data.Maybe as Maybe
-import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..), Phantom(..), neElim, NeList, orElse, neFilter)
+import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..), Phantom(..), neElim, NeList, orElse, neFilter, Apply(..), MaybeApply(..))
 import Cxx.Basics
 import Editing.Basics (Range(..), Offsettable(..), TextEdit(..))
 import Editing.Diff (diff_as_Edits)
@@ -652,12 +652,6 @@ is_primary_MakeSpecifier :: MakeSpecifier → Bool
 is_primary_MakeSpecifier (MakeSpecifier_DeclSpecifier t) = is_primary_DeclSpecifier t
 is_primary_MakeSpecifier _ = False
 
--- Natural applications
-
-class Apply a b c | a b → c where apply :: a → b → c
-class MaybeApply a b where mapply :: (Functor m, MonadError String m) ⇒ a → b → m b
-
-instance Apply a b b ⇒ Apply (Maybe a) b b where apply m x = maybe x (flip apply x) m
 instance Apply a b b ⇒ Apply [a] b b where apply = flip $ foldl $ flip apply
 instance Apply a b c ⇒ Apply a (Enclosed b) (Enclosed c) where apply x (Enclosed y) = Enclosed $ apply x y
 instance MaybeApply a b ⇒ MaybeApply a (Enclosed b) where mapply x (Enclosed y) = Enclosed . mapply x y

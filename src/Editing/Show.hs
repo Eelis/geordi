@@ -9,17 +9,9 @@ import Util (isVowel, show_long_opts, capitalize, commas_and, Ordinal, none, isI
 import Cxx.Basics (DeclaratorId, Findable)
 import Data.Foldable (toList)
 import Editing.Basics
+import Editing.Commands
 import qualified Prelude
 import Prelude hiding (Show(..))
-
-showTextEdit :: String → TextEdit → String
-showTextEdit _ (RangeReplaceEdit (Range 0 0) r) = "prepend " ++ show r
-showTextEdit s (RangeReplaceEdit (Range t _) r) | t == length s = "append " ++ show r
-showTextEdit _ (RangeReplaceEdit (Range _ 0) r) = "insert " ++ show r
-showTextEdit _ (InsertEdit _ r) = "insert " ++ show r
-showTextEdit s (RangeReplaceEdit r "") = "erase " ++ show (selectRange r s)
-showTextEdit s (RangeReplaceEdit r s') = "replace " ++ show (selectRange r s) ++ " with " ++ show s'
-showTextEdit s (MoveEdit _ _ r) = "move " ++ show (selectRange r s)
 
 class Show a where show :: a → String
   -- To let us define our own instances for things like Either and String.

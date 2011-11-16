@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, UndecidableInstances, PatternGuards, DeriveDataTypeable, OverlappingInstances, FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, UndecidableInstances, PatternGuards, DeriveDataTypeable, OverlappingInstances, FlexibleContexts, FunctionalDependencies #-}
 
 module Util (module Data.SetOps, module Prelude.Unicode, module Util) where
 
@@ -470,6 +470,9 @@ instance MonadError [Char] MaybeEitherString where
 
 type E = Either String
 
+nothingAsError :: String → Maybe a → E a
+nothingAsError s = maybe (Left s) return
+
 or_fail :: MonadError String m ⇒ E a → m a
 or_fail = either throwError return
 
@@ -485,3 +488,10 @@ instance MonadError [Char] Maybe where
 propagateE :: Monad m ⇒ E a → (a → m (E b)) → m (E b)
 propagateE (Left e) _ = return $ Left e
 propagateE (Right x) f = f x
+
+-- Natural applications
+
+class Apply a b c | a b → c where apply :: a → b → c
+class MaybeApply a b where mapply :: (Functor m, MonadError String m) ⇒ a → b → m b
+
+instance Apply a b b ⇒ Apply (Maybe a) b b where apply m x = maybe x (flip apply x) m

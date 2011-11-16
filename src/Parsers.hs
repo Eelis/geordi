@@ -4,7 +4,7 @@ module Parsers where
 
 import qualified Data.List as List
 import qualified Text.ParserCombinators.Parsec as PS
-import qualified Editing.Basics
+import qualified Editing.Commands
 import qualified Editing.Show ()
 import qualified Data.Char as Ch
 
@@ -239,7 +239,7 @@ showParseError subject_desc input column expectation =
     unexpectation
       | h:t ← drop column input =
         '`' : (if Ch.isAlphaNum h then h : takeWhile Ch.isAlphaNum t else [h]) ++ "` " ++
-        show (Editing.Basics.describe_position_after column input)
+        show (Editing.Commands.describe_position_after column input)
       | otherwise = "end of " ++ subject_desc
     expectation' = (List.nub expectation \\ ["EOF", "' '"]) ++
       ["end of " ++ subject_desc | "EOF" ∈ expectation]
