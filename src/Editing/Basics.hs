@@ -3,13 +3,14 @@
 module Editing.Basics where
 
 import qualified Data.List as List
+import qualified Data.Char as Char
 import qualified Data.List.NonEmpty as NeList
 import Control.Arrow ((&&&))
 import Control.Monad.Error (MonadError(..))
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Monoid (Monoid(..))
 import Data.Ord (comparing)
-import Util ((.), NeList, neElim, E, nothingAsError, Apply(..))
+import Util ((.), NeList, neElim, E, nothingAsError, Apply(..), isIdChar, none)
 
 import Prelude.Unicode
 import Prelude hiding ((.))
@@ -99,6 +100,17 @@ unanchor_range :: ARange → Range a
 unanchor_range r | Anchor _ x ← r Before, Anchor _ y ← r After = Range x (y - x)
 
 -- Edits
+
+showEditOperand :: String → String
+showEditOperand " " = "space"
+showEditOperand "," = "comma"
+showEditOperand ":" = "colon"
+showEditOperand ";" = "semicolon"
+showEditOperand s
+  | all Char.isSpace s = "spaces"
+  | all isIdChar s = s
+  | none (`elem` " ,;") s, length s < 10 = s
+  | otherwise = '`' : s ++ "`"
 
 instance Ord Anchor where compare = comparing (anchor_pos &&& anchor_befAft)
 
@@ -194,13 +206,13 @@ adjustEdit e (RangeReplaceEdit r s) =
   flip RangeReplaceEdit s . (if null s then adjustEraseRange else adjustRange) e r
 
 showTextEdit :: String → TextEdit → String
-showTextEdit _ (RangeReplaceEdit (Range 0 0) r) = "prepend " ++ show r
-showTextEdit s (RangeReplaceEdit (Range t _) r) | t == length s = "append " ++ show r
-showTextEdit _ (RangeReplaceEdit (Range _ 0) r) = "insert " ++ show r
-showTextEdit _ (InsertEdit _ r) = "insert " ++ show r
-showTextEdit s (RangeReplaceEdit r "") = "erase " ++ show (selectRange r s)
-showTextEdit s (RangeReplaceEdit r s') = "replace " ++ show (selectRange r s) ++ " with " ++ show s'
-showTextEdit s (MoveEdit _ _ r) = "move " ++ show (selectRange r s)
+showTextEdit _ (RangeReplaceEdit (Range 0 0) r) = "prepend " ++ showEditOperand r
+showTextEdit s (RangeReplaceEdit (Range t _) r) | t == length s = "append " ++ showEditOperand r
+showTextEdit _ (RangeReplaceEdit (Range _ 0) r) = "insert " ++ showEditOperand r
+showTextEdit _ (InsertEdit _ r) = "insert " ++ showEditOperand r
+showTextEdit s (RangeReplaceEdit r "") = "erase " ++ showEditOperand (selectRange r s)
+showTextEdit s (RangeReplaceEdit r s') = "replace " ++ showEditOperand (selectRange r s) ++ " with " ++ showEditOperand s'
+showTextEdit s (MoveEdit _ _ r) = "move " ++ showEditOperand (selectRange r s)
 
 -- Adjusters:
 

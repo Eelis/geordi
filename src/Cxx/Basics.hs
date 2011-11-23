@@ -343,8 +343,10 @@ newtype StatementSeq = StatementSeq (NeList Statement) deriving (Data, Typeable,
 data SelectionStatement = IfStatement (KwdIf, White) (Parenthesized Condition) Statement (Maybe ((KwdElse, White), Statement)) | SwitchStatement (KwdSwitch, White) (Parenthesized Condition) Statement deriving (Data, Typeable, Eq)
 data Condition = Condition_Expression Expression | Condition_Declaration TypeSpecifierSeq Declarator BraceOrEqualInitializer deriving (Data, Typeable, Eq)
   -- Why doesn't the draft use brace-or-equal-initializer here?
-data IterationStatement = WhileStatement (KwdWhile, White) (Parenthesized Condition) Statement | DoWhileStatement (KwdDo, White) Statement (KwdWhile, White) (Parenthesized Expression) (SemicolonOperator, White) | ForStatement (KwdFor, White) (Parenthesized (ForInitStatement, Maybe Condition, (SemicolonOperator, White), Maybe Expression)) Statement deriving (Data, Typeable, Eq)
+data IterationStatement = WhileStatement (KwdWhile, White) (Parenthesized Condition) Statement | DoWhileStatement (KwdDo, White) Statement (KwdWhile, White) (Parenthesized Expression) (SemicolonOperator, White) | ForStatement (KwdFor, White) (Parenthesized (ForInitStatement, Maybe Condition, (SemicolonOperator, White), Maybe Expression)) Statement | RangeForStatement (KwdFor, White) (Parenthesized (ForRangeDeclaration, (ColonOp, White), ForRangeInitializer)) Statement deriving (Data, Typeable, Eq)
 data ForInitStatement = ForInitStatement_ExpressionStatement ExpressionStatement | ForInitStatement_SimpleDeclaration SimpleDeclaration deriving (Data, Typeable, Eq)
+data ForRangeDeclaration = ForRangeDeclaration DeclSpecifierSeq Declarator deriving (Data, Typeable, Eq)
+data ForRangeInitializer = ForRangeInitializer_Expression Expression | ForRangeInitializer_BracedInitList BracedInitList deriving (Data, Typeable, Eq)
 data JumpStatement = BreakStatement (KwdBreak, White) (SemicolonOperator, White) | ContinueStatement (KwdContinue, White) (SemicolonOperator, White) | ReturnStatement (KwdReturn, White) (Maybe Expression) (SemicolonOperator, White) | GotoStatement (KwdGoto, White) Identifier (SemicolonOperator, White) deriving (Data, Typeable, Eq)
 data DeclarationStatement = DeclarationStatement BlockDeclaration deriving (Data, Typeable, Eq)
 

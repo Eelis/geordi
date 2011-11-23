@@ -180,7 +180,7 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
           case run_parser (Cxx.Parse.code << eof) oldcodeblob of
             ParseSuccess oldcode _ _ _ → noErrors $ respond_and_remember $
               EditableRequest (Evaluate $ evalopts ∪ oldopts) $ show $ Cxx.Operations.blob $ Cxx.Operations.resume (Cxx.Operations.shortcut_syntaxes oldcode) (Cxx.Operations.shortcut_syntaxes code)
-            ParseFailure _ _ _ → throwError "Previous request too malformed to resume."
+            ParseFailure{} → throwError "Previous request too malformed to resume."
         _ → throwError "Last (editable) request was not resumable."
       | otherwise → parseSuccess . noErrors . respond_and_remember =<< EditableRequest (Evaluate evalopts) . getInput }
 

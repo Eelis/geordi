@@ -107,7 +107,7 @@ highlight :: Highlighter → String → String
 highlight h s =
   case P.run_parser p (dropWhile Char.isSpace s) of
     ParseSuccess r _ _ _ → Cxx.Show.show_pretty False h r
-    ParseFailure _ _ _ → s
+    ParseFailure{} → s
   where p = runReaderT (parse << eof) defaultParseOptions :: P.Parser Char GeordiRequest
 
 parseRequest :: String → Either String GeordiRequest
@@ -471,8 +471,10 @@ instance Parse Statement where
 
 instance Parse Label where parse = auto1 IdentifierLabel <|> auto2 CaseLabel <|> auto1 DefaultLabel
 instance Parse LabeledStatement where autoname_parse = auto3 LabeledStatement
-instance Parse IterationStatement where autoname_parse = auto3 WhileStatement <|> auto5 DoWhileStatement <|> auto3 ForStatement
+instance Parse IterationStatement where autoname_parse = auto3 WhileStatement <|> auto5 DoWhileStatement <|> auto3 ForStatement <|> auto3 RangeForStatement
 instance Parse ForInitStatement where autoname_parse = auto1 ForInitStatement_SimpleDeclaration <|> auto1 ForInitStatement_ExpressionStatement
+instance Parse ForRangeInitializer where autoname_parse = auto1 ForRangeInitializer_Expression <|> auto1 ForRangeInitializer_BracedInitList
+instance Parse ForRangeDeclaration where autoname_parse = uncurry ForRangeDeclaration . first DeclSpecifierSeq . many1Till parse parse
 instance Parse SelectionStatement where autoname_parse = auto4 IfStatement <|> auto3 SwitchStatement
 instance Parse JumpStatement where autoname_parse = auto2 BreakStatement <|> auto2 ContinueStatement <|> auto3 ReturnStatement <|> auto3 GotoStatement
 instance Parse ExpressionStatement where autoname_parse = auto2 ExpressionStatement

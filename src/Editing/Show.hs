@@ -5,7 +5,7 @@ module Editing.Show (showTextEdit, Show(..)) where
 import Cxx.Show ()
 import qualified Data.List as List
 import Data.Char as Char
-import Util (isVowel, show_long_opts, capitalize, commas_and, Ordinal, none, isIdChar)
+import Util (isVowel, show_long_opts, capitalize, commas_and, Ordinal)
 import Cxx.Basics (DeclaratorId, Findable)
 import Data.Foldable (toList)
 import Editing.Basics
@@ -108,16 +108,7 @@ instance Show UsePattern where show (UsePattern p) = p
 instance Show UseClause where show (UseString s) = show s; show (UseOptions o) = show_long_opts o
 instance Show Mover where show (Mover x y) = show x ++ " to " ++ show y
 
-instance Show String where
-  show " " = "space"
-  show "," = "comma"
-  show ":" = "colon"
-  show ";" = "semicolon"
-  show s
-    | all Char.isSpace s = "spaces"
-    | all isIdChar s = s
-    | none (`elem` " ,;") s, length s < 10 = s
-    | otherwise = '`' : s ++ "`"
+instance Show String where show  = showEditOperand
 
 instance Show a ⇒ Show (Around a) where show (Around a) = "around " ++ show a
 

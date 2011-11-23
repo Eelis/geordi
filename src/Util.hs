@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, UndecidableInstances, PatternGuards, DeriveDataTypeable, OverlappingInstances, FlexibleContexts, FunctionalDependencies #-}
+{-# LANGUAGE UnicodeSyntax, MultiParamTypeClasses, FlexibleInstances, UndecidableInstances, PatternGuards, DeriveDataTypeable, OverlappingInstances, FlexibleContexts, FunctionalDependencies #-}
 
 module Util (module Data.SetOps, module Prelude.Unicode, module Util) where
 

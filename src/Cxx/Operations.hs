@@ -99,12 +99,7 @@ apply_makedecl_to makedecl = Maybe.fromMaybe (const mzero) $ Maybe.listToMaybe .
         MakeDeclaration specs' mpad _ → return $ let (specs'', x') = apply (specs', mpad) (specs, x) in
           SimpleDeclaration specs'' (Just (InitDeclaratorList (Commad (InitDeclarator x' mi) []))) w
     _ → mzero) :: SimpleDeclaration → MaybeEitherString SimpleDeclaration)
-  , cast ((\d → case d of
-    ParameterDeclaration specs x m →
-      case makedecl of
-        MakeDeclaration _ _ Definitely → throwError "Cannot purify parameter-declaration."
-        MakeDeclaration specs' mpad _ → (\(specs'', x') → ParameterDeclaration specs'' x' m) . mapply (specs', mpad) (specs, x)
-    ) :: ParameterDeclaration → MaybeEitherString ParameterDeclaration)
+  , cast (mapply makedecl :: ParameterDeclaration → MaybeEitherString ParameterDeclaration)
   , cast ((\d → case d of
     ExceptionDeclaration u (Just (Left e)) →
       case makedecl of
@@ -117,13 +112,7 @@ apply_makedecl_to makedecl = Maybe.fromMaybe (const mzero) $ Maybe.listToMaybe .
       return $ let (specs', decl', ps') = apply makedecl (specs, decl, ps) in
         MemberDeclaration specs' (Just (MemberDeclaratorList (Commad (MemberDeclarator decl' ps') []))) semicolon
     _ → mzero) :: MemberDeclaration → MaybeEitherString MemberDeclaration)
-  , cast ((\d → case d of
-    FunctionDefinition specs decl body →
-      case makedecl of
-        MakeDeclaration _ _ Definitely → throwError "Cannot purify function-definition."
-        MakeDeclaration specs' mpad _ → return $ let (specs'', decl') = apply (specs', mpad) (specs, decl) in
-          FunctionDefinition specs'' decl' body
-    ) :: FunctionDefinition → MaybeEitherString FunctionDefinition)
+  , cast (mapply makedecl :: FunctionDefinition → MaybeEitherString FunctionDefinition)
   , cast ((\d → case d of
     Condition_Declaration u e i →
       case makedecl of
@@ -131,6 +120,7 @@ apply_makedecl_to makedecl = Maybe.fromMaybe (const mzero) $ Maybe.listToMaybe .
         MakeDeclaration specs mpad _ →
           (\(u', e') → Condition_Declaration u' e' i) . mapply (specs, mpad) (u, e)
     _ → mzero) :: Condition → MaybeEitherString Condition)
+  , cast (mapply makedecl :: ForRangeDeclaration → MaybeEitherString ForRangeDeclaration)
   ]
 
 -- Getting declarator-ids out of things.
@@ -203,6 +193,8 @@ instance Convert ParameterDeclaration (Maybe DeclaratorId) where
 instance Convert Condition (Maybe DeclaratorId) where
   convert (Condition_Declaration _ d _) = Just $ convert d
   convert _ = Nothing
+instance Convert ForRangeDeclaration DeclaratorId where
+  convert (ForRangeDeclaration _ d) = convert d
 instance Convert (OptQualified, Identifier) DeclaratorId where
   convert (OptQualified Nothing Nothing, i) = convert i
   convert (OptQualified (Just s) Nothing, i) = DeclaratorId_IdExpression Nothing $ IdExpression $ Left $ GlobalIdentifier s i
@@ -352,7 +344,7 @@ findable_productions =
 
     -- A.5 Statements [gram.stmt]
     , P(Statement), P(StatementSeq), P(Label), P(LabeledStatement), P(ExpressionStatement), P(CompoundStatement)
-    , P(SelectionStatement), P(Condition), P(IterationStatement), P(ForInitStatement), P(JumpStatement), P(DeclarationStatement)
+    , P(SelectionStatement), P(Condition), P(IterationStatement), P(ForInitStatement), P(ForRangeDeclaration), P(ForRangeInitializer), P(JumpStatement), P(DeclarationStatement)
 
     -- A.6 Declarations [gram.dcl]
     , P(Declaration), P(DeclarationSeq), P(BlockDeclaration), P(AliasDeclaration), P(SimpleDeclaration), P(StaticAssertDeclaration)
@@ -467,6 +459,7 @@ isDeclarationOf x did = Just did == case () of { ()
   | Just s ← cast x → convert (s :: ExceptionDeclaration)
   | Just s ← cast x → convert (s :: ParameterDeclaration)
   | Just s ← cast x → convert (s :: Condition)
+  | Just s ← cast x → Just $ convert (s :: ForRangeDeclaration)
   | otherwise → Nothing }
 
 -- Specifier/qualifier compatibility.
@@ -931,6 +924,21 @@ instance Apply MakeDeclaration (Maybe DeclSpecifierSeq, Declarator, Maybe (Eithe
     where
       (specs'', d') = first (convert :: Maybe DeclSpecifierSeq → [DeclSpecifier]) $ apply (specs, m) (specs', d)
       pure = if any (\ms → case ms of NonFunctionSpecifier Virtual → True; MakeSpecifier_DeclSpecifier (DeclSpecifier_StorageClassSpecifier (Static, _)) → True; _ → False) specs then Nothing else case b of Definitely → Just $ Left $ PureSpecifier (IsOperator, White " ") (KwdZero, White " "); Indeterminate → p; DefinitelyNot → Nothing
+
+instance MaybeApply MakeDeclaration FunctionDefinition where
+  mapply (MakeDeclaration _ _ Definitely) _ = throwError "Cannot purify function-definition."
+  mapply (MakeDeclaration specs' mpad _) (FunctionDefinition specs decl body) =
+    return $ FunctionDefinition specs'' decl' body
+   where (specs'', decl') = apply (specs', mpad) (specs, decl)
+
+instance MaybeApply MakeDeclaration ParameterDeclaration where
+  mapply (MakeDeclaration _ _ Definitely) _ = throwError "Cannot purify parameter-declaration."
+  mapply (MakeDeclaration specs' mpad _) (ParameterDeclaration specs x m) = (\(specs'', x') → ParameterDeclaration specs'' x' m) . mapply (specs', mpad) (specs, x)
+
+instance MaybeApply MakeDeclaration ForRangeDeclaration where
+  mapply (MakeDeclaration _ _ Definitely) _ = throwError "Cannot purify for-range-declaration."
+  mapply (MakeDeclaration specs' mpad _) (ForRangeDeclaration specs d) =
+    return $ uncurry ForRangeDeclaration $ apply (specs', mpad) (specs, d)
 
 -- cv-qualifier application
 
