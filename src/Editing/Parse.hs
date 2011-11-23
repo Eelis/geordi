@@ -11,7 +11,7 @@ import Data.List.NonEmpty (NonEmpty((:|)))
 import Control.Monad.Error ()
 import Control.Category (Category, (.), id)
 import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA)
-import Data.Generics (DataType, Constr, toConstr, Data)
+import Data.Generics (DataType, Constr, toConstr, Data, dataTypeOf)
 import Parsers (choice, eof, (<|>), (<?>), symbols, char, anySymbol, lookAhead, notFollowedBy, many1Till, optParser, try, many, satisfy, spaces)
 import Util ((<<), liftA2, Ordinal(..), apply_if, cardinals, plural, indefinite, neElim)
 import Cxx.Basics (DeclaratorId)
@@ -239,6 +239,7 @@ instance Parse Cxx.Basics.Findable where
     label "production-name" (
       auto1 Cxx.Basics.FindableDataType <||>
       auto1 Cxx.Basics.FindableConstr <||>
+      (kwd ["loop"] >>> arr (const (Cxx.Basics.FindableDataType (dataTypeOf (undefined :: Cxx.Basics.IterationStatement))))) <||>
       (kwd ["constructor", "ctor"] >>> arr (const Cxx.Basics.Constructor)) <||>
       (kwd ["destructor", "dtor"] >>> arr (const Cxx.Basics.Destructor)) <||>
       (kwd ["conversion-function"] >>> arr (const Cxx.Basics.ConversionFunction)) <||>
@@ -253,6 +254,7 @@ instance ParsePlural Cxx.Basics.Findable where
     label "production-name" (
       (parsePlural >>> arr Cxx.Basics.FindableDataType) <||>
       (parsePlural >>> arr Cxx.Basics.FindableConstr) <||>
+      (kwd ["loops"] >>> arr (const (Cxx.Basics.FindableDataType (dataTypeOf (undefined :: Cxx.Basics.IterationStatement))))) <||>
       (kwd ["constructors", "ctors"] >>> arr (const Cxx.Basics.Constructor)) <||>
       (kwd ["destructors", "dtors"] >>> arr (const Cxx.Basics.Destructor)) <||>
       (kwd ["conversion-functions"] >>> arr (const Cxx.Basics.ConversionFunction)) <||>
