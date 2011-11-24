@@ -1,4 +1,4 @@
-{-# LANGUAGE FunctionalDependencies, MultiParamTypeClasses, FlexibleContexts, FlexibleInstances, UndecidableInstances, PatternGuards, RecordWildCards, NamedFieldPuns, ViewPatterns, TypeSynonymInstances #-}
+{-# LANGUAGE UnicodeSyntax, FunctionalDependencies, MultiParamTypeClasses, FlexibleContexts, FlexibleInstances, UndecidableInstances, PatternGuards, RecordWildCards, NamedFieldPuns, ViewPatterns, TypeSynonymInstances #-}
 
 module Parsers where
 
@@ -15,6 +15,7 @@ import Control.Arrow (first)
 import Control.Monad.Error (MonadError(..))
 import Data.List ((\\))
 import Data.Maybe (fromMaybe)
+import Editing.Basics (positionIn)
 import Util ((.), Finite(..), commas_or, Option(..), (.∨.), isIdChar, (<<), NeList)
 
 import Prelude hiding ((.))
@@ -244,7 +245,7 @@ showParseError subject_desc input column expectation =
     unexpectation
       | h:t ← drop column input =
         '`' : (if Ch.isAlphaNum h then h : takeWhile Ch.isAlphaNum t else [h]) ++ "` " ++
-        show (Editing.Commands.describe_position_after column input)
+        show (Editing.Commands.describe_position_after (positionIn input column) input)
       | otherwise = "end of " ++ subject_desc
     expectation' = (List.nub expectation \\ ["EOF", "' '"]) ++
       ["end of " ++ subject_desc | "EOF" ∈ expectation]

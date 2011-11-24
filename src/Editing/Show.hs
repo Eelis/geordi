@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances, PatternGuards #-}
+{-# LANGUAGE UnicodeSyntax, TypeSynonymInstances, FlexibleInstances, PatternGuards #-}
 
 module Editing.Show (showTextEdit, Show(..)) where
 
@@ -35,7 +35,7 @@ instance Show a ⇒ Show (EverythingOr a) where
 instance (Show a, Show b) ⇒ Show (Either a b) where
   show (Left x) = show x; show (Right x) = show x
 
-instance Show BefAft where show Before = "before"; show After = "after"
+instance Show Side where show Before = "before"; show After = "after"
 
 instance Show a ⇒ Show (Ranked a) where
   show (Sole s) = show s

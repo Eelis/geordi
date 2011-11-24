@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, UndecidableInstances, OverlappingInstances, ViewPatterns #-}
+{-# LANGUAGE UnicodeSyntax, FlexibleInstances, UndecidableInstances, OverlappingInstances, ViewPatterns #-}
 
 module Request (is_addressed_request, is_nickless_request, RequestEdit(..), EditableRequest(..), EditableRequestKind(..), Context(..), Response(..), EvalOpt(..), EphemeralOpt(..), HistoryModification(..), modify_history, popContext) where
 
@@ -20,7 +20,7 @@ data EvalOpt = CompileOnly | PreprocessOnly | Terse | NoWarn | NoUsingStd
   deriving (Eq, Enum, Bounded, Ord)
 
 data RequestEdit
-  = TextEdit TextEdit
+  = TextEdit (TextEdit Char)
   | AddOptions [Request.EvalOpt]
   | RemoveOptions [Request.EvalOpt]
 

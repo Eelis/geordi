@@ -8,6 +8,7 @@ import qualified Editing.Parse
 import qualified Editing.Diff
 import qualified Editing.Execute
 import qualified Editing.Basics
+import qualified Editing.Commands
 import qualified Editing.EditsPreparation
 import qualified Parsers as P
 import qualified Cxx.Parse
@@ -28,7 +29,7 @@ import Data.Foldable (toList)
 import Data.Pointed (Pointed(..))
 import Data.List.NonEmpty (NonEmpty((:|)), nonEmpty)
 import Data.Set (Set)
-import Editing.Commands (Command, FinalCommand(..))
+import Editing.Commands (FinalCommand(..))
 import Parsers ((<|>), eof, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), parseOrFail, commit, peek, parseSuccess)
 import Util ((.), (‥), (<<), (.∨.), commas_and, capitalize, length_ge, replace, replaceWithMany, show_long_opt, strip, convert, maybeLast, orElse, E, NeList, propagateE)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..), popContext)
@@ -122,12 +123,12 @@ execFinalCommand context@Context{..} = case_of
   Show (Just substrs) → do
     c ← evalRequestBody
     l ← (\(Editing.EditsPreparation.Found _ x) → x) ‥ toList . Editing.EditsPreparation.findInStr c (flip (,) return . Cxx.Parse.parseRequest c) substrs
-    return $ noEvaluation $ commas_and (map (\x → '`' : strip (Editing.Basics.selectRange (convert $ Editing.Basics.replace_range x) c) ++ "`") l) ++ "."
+    return $ noEvaluation $ commas_and (map (\x → '`' : strip (Editing.Basics.selectRange (convert $ Editing.Commands.replace_range x) c) ++ "`") l) ++ "."
   Identify substrs → do
     c ← evalRequestBody
     tree ← Cxx.Parse.parseRequest c
     l ← (\(Editing.EditsPreparation.Found _ x) → x) ‥ toList . Editing.EditsPreparation.findInStr c (Right (tree, return)) substrs
-    return $ noEvaluation $ concat $ List.intersperse ", " $ map (nicer_namedPathTo . Cxx.Operations.namedPathTo tree . convert . Editing.Basics.replace_range) l
+    return $ noEvaluation $ concat $ List.intersperse ", " $ map (nicer_namedPathTo . Cxx.Operations.namedPathTo tree . convert . Editing.Commands.replace_range) l
   Parse → evalRequestBody >>= Cxx.Parse.parseRequest >> return (noEvaluation "Looks fine to me.")
   Diff → do (x, context') ← popContext context; noEvaluation . diff x . fst . popContext context'
   Run → fst . popContext context >>= execEditableRequest

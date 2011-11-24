@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ScopedTypeVariables, ExistentialQuantification, TypeSynonymInstances, CPP, ViewPatterns #-}
+{-# LANGUAGE UnicodeSyntax, DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ScopedTypeVariables, ExistentialQuantification, TypeSynonymInstances, CPP, ViewPatterns #-}
 
 module Cxx.Operations (apply, mapply, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, find, is_pointer_or_reference, namedPathTo, findable_productions, make_edits) where
 
@@ -10,7 +10,7 @@ import qualified Data.Char as Char
 import qualified Data.Maybe as Maybe
 import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..), Phantom(..), neElim, NeList, orElse, neFilter, Apply(..), MaybeApply(..))
 import Cxx.Basics
-import Editing.Basics (Range(..), Offsettable(..), TextEdit(..))
+import Editing.Basics (Range(..), Offsettable(..), TextEdit(..), Pos(Pos), pos, contained_in, fullRange)
 import Editing.Diff (diff_as_Edits)
 import Data.Function (on)
 import Data.Foldable (toList, any)
@@ -239,38 +239,38 @@ gfoldl_with_ranges :: Data a ⇒ Int → (forall d. Data d ⇒ Range Char → d 
 gfoldl_with_ranges i f = runIdentity . gfoldl_with_rangesM i ((Identity .) . f)
 
 gfoldl_with_lengthsM :: (Data a, Monad m) ⇒ Int → (forall d. Data d ⇒ Int → d → m [r]) → a → m [r]
-gfoldl_with_lengthsM i f = gfoldl_with_rangesM i (f . start)
+gfoldl_with_lengthsM i f = gfoldl_with_rangesM i (f . pos . start)
 
 data GfoldlWithLengthsIntermediary m r a = GfoldlWithLengthsIntermediary { gwli_result :: m [r], _off :: Int }
 
 gfoldl_with_rangesM :: (Data a, Monad m) ⇒ Int → (forall d. Data d ⇒ Range Char → d → m [r]) → a → m [r]
 gfoldl_with_rangesM i f = gwli_result . gfoldl (\(GfoldlWithLengthsIntermediary m o) y →
   let n = length (Cxx.Show.show_simple y) in
-  GfoldlWithLengthsIntermediary (liftM2 (++) m (f (Range o n) y)) (o + n)) (\_ → GfoldlWithLengthsIntermediary (return []) i)
+  GfoldlWithLengthsIntermediary (liftM2 (++) m (f (Range (Pos o) n) y)) (o + n)) (\_ → GfoldlWithLengthsIntermediary (return []) i)
 
 listElem :: forall a d . (Data a, Typeable a, Data d) ⇒ Phantom a → d → Maybe (Range Char, Range Char)
 listElem _ d
-  | Just (Commad x []) ← (cast d :: Maybe (Commad a)) =
-    Just $ diag $ Range 0 $ length $ Cxx.Show.show_simple x
-  | Just (Commad x ((cw, _):_)) ← (cast d :: Maybe (Commad a)) =
-    Just (Range 0 $ length $ Cxx.Show.show_simple (x, cw), Range 0 $ length $ Cxx.Show.show_simple x)
-  | Just x@(cw, r) ← (cast d :: Maybe ((CommaOp, White), a)) =
-    Just (Range 0 $ length $ Cxx.Show.show_simple x,
-      Range (length $ Cxx.Show.show_simple cw) (length $ Cxx.Show.show_simple r))
+  | Just (Commad x []) ← cast d :: Maybe (Commad a) =
+    Just $ diag $ fullRange (Cxx.Show.show_simple x)
+  | Just (Commad x ((cw, _):_)) ← cast d :: Maybe (Commad a) =
+    Just (fullRange $ Cxx.Show.show_simple (x, cw), fullRange $ Cxx.Show.show_simple x)
+  | Just x@(cw, r) ← cast d :: Maybe ((CommaOp, White), a) =
+    Just (fullRange $ Cxx.Show.show_simple x,
+      Range (Pos $ length $ Cxx.Show.show_simple cw) (length $ Cxx.Show.show_simple r))
   | otherwise = Nothing
 
 bodyOf :: Data d ⇒ d → DeclaratorId → Maybe (Range Char)
 bodyOf x did
   | Just (GeordiRequest_Block (FunctionBody _ (CompoundStatement (Curlied o b _))) _) ← cast x, strip (show did) == "main" =
-    Just $ Range (length $ Cxx.Show.show_simple o) (length $ Cxx.Show.show_simple b)
+    Just $ Range (Pos $ length $ Cxx.Show.show_simple o) (length $ Cxx.Show.show_simple b)
   | Just (ClassSpecifier classHead (Curlied o b _)) ← cast x, convert classHead == Just did =
-    Just $ Range (length $ Cxx.Show.show_simple (classHead, o)) (length $ Cxx.Show.show_simple b)
+    Just $ Range (Pos $ length $ Cxx.Show.show_simple (classHead, o)) (length $ Cxx.Show.show_simple b)
   | Just (EnumSpecifier enumHead (Curlied o b _)) ← cast x, convert enumHead == Just did =
-    Just $ Range (length $ Cxx.Show.show_simple (enumHead, o)) (length $ Cxx.Show.show_simple b)
+    Just $ Range (Pos $ length $ Cxx.Show.show_simple (enumHead, o)) (length $ Cxx.Show.show_simple b)
   | Just (FunctionDefinition specs declarator (FunctionBody ctorInitializer (CompoundStatement (Curlied o b _)))) ← cast x, convert declarator == did =
-    Just $ Range (length $ Cxx.Show.show_simple (specs, declarator, ctorInitializer, o)) (length $ Cxx.Show.show_simple b)
+    Just $ Range (Pos $ length $ Cxx.Show.show_simple (specs, declarator, ctorInitializer, o)) (length $ Cxx.Show.show_simple b)
   | Just (NamespaceDefinition inline kwd (Just identifier) (Curlied o b _)) ← cast x, convert identifier == did =
-    Just $ Range (length $ Cxx.Show.show_simple (inline, kwd, identifier, o)) (length $ Cxx.Show.show_simple b)
+    Just $ Range (Pos $ length $ Cxx.Show.show_simple (inline, kwd, identifier, o)) (length $ Cxx.Show.show_simple b)
   | otherwise = Nothing
 
 instance Eq DataType where (==) = (==) `on` dataTypeName
@@ -303,7 +303,7 @@ finder f = case f of
   TemplateArgument → applyAny (listElem (Phantom :: Phantom TemplateArgument)) . NeList.head
  where
   simpleFinder p t | AnyData x ← NeList.head t =
-    if p t then Just $ Range 0 $ length $ Cxx.Show.show_simple x else Nothing
+    if p t then Just $ fullRange $ Cxx.Show.show_simple x else Nothing
 
 find :: Data d ⇒ Findable → d → [(Range Char, Range Char)]
 find f = findRange (finder f) [] 0
@@ -312,15 +312,12 @@ complete :: (forall d . Data d ⇒ d → Bool) → TreePath → Bool
 complete p d | AnyData x ← NeList.head d =
   p x ∧ case NeList.tail d of [] → True; AnyData h : _ → not $ p h
 
-wraps :: Range a → Range a → Bool
-wraps (Range st si) (Range st' si') = st ≤ st' ∧ st' + si' ≤ st + si
-
 pathTo :: Data d ⇒ d → Range Char → Int → TreePath
   -- Precondition: the range is entirely within [0, length (show d)]
 pathTo x r i = AnyData x :| case gfoldl_with_ranges i f x of
   [] → []
   l : _ → toList l
-  where f r'@(Range st _) y = [pathTo y r st | r' `wraps` r]
+  where f r'@(Range st _) y = [pathTo y r (pos st) | r `contained_in` r']
 
 findable_productions, all_productions :: [DataType]
 findable_productions =
@@ -392,10 +389,10 @@ namedPathTo d r = map Cxx.Show.dataType_abbreviated_productionName $
 findRange :: (Offsettable a, Data d) ⇒ (TreePath → Maybe a) → [AnyData] → Int → d → [a]
 findRange p tp i x = Maybe.maybeToList (offset i . p (AnyData x :| tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
 
-make_edits :: (MonadError String m, Data d) ⇒ Range Char → MakeDeclaration → Int → d → m [TextEdit]
+make_edits :: (MonadError String m, Data d) ⇒ Range Char → MakeDeclaration → Int → d → m [TextEdit Char]
 make_edits r m i d = do
   ot ← gfoldl_with_lengthsM i (make_edits r m) d
-  oi ← (if Range i (length $ strip $ Cxx.Show.show_simple d) == r
+  oi ← (if Range (Pos i) (length $ strip $ Cxx.Show.show_simple d) == r
     then (case apply_makedecl_to m d of
       MaybeEitherString (Just (Right d')) → return $ offset i $ diff_as_Edits (Cxx.Show.show_simple d) (Cxx.Show.show_simple d')
       MaybeEitherString (Just (Left e)) → throwError e

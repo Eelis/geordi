@@ -1,4 +1,4 @@
-{-# LANGUAGE OverlappingInstances, UndecidableInstances, Arrows, FlexibleInstances, TypeSynonymInstances, CPP, PatternGuards #-}
+{-# LANGUAGE UnicodeSyntax, OverlappingInstances, UndecidableInstances, Arrows, FlexibleInstances, TypeSynonymInstances, CPP, PatternGuards #-}
 
 module Editing.Parse (commandsP, finalCommandP) where
 
@@ -130,9 +130,9 @@ end_kwds = ["end", "back"]
 
 instance Parse a ⇒ Parse (Ranked a) where parse = auto2 Ranked <||> auto1 Sole
 
-instance Parse BefAft where parse = select [(["before"], Before), (["after"], After)]
+instance Parse Side where parse = select [(["before"], Before), (["after"], After)]
 
-instance Parse (AndList BefAft) where
+instance Parse (AndList Side) where
   parse =
     (kwd ["around"] >>> arr (const $ AndList $ Before :| [After])) <||>
     (liftA2 (:|) parse ((and parse >>> arr (toList . andList)) <||> arr (const [])) >>> arr AndList)

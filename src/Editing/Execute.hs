@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards, ScopedTypeVariables, TypeSynonymInstances, ViewPatterns, FlexibleContexts, RecordWildCards, MultiParamTypeClasses #-}
+{-# LANGUAGE UnicodeSyntax, PatternGuards, ScopedTypeVariables, TypeSynonymInstances, ViewPatterns, FlexibleContexts, RecordWildCards, MultiParamTypeClasses #-}
 
 module Editing.Execute (execute) where
 
@@ -35,14 +35,14 @@ instance MaybeApply RequestEdit EditableRequest where
       | otherwise → throwError $ "Cannot use evaluation options for \"" ++ show kind ++ "\" request."
 
 data FoldState = FoldState
-  { adjust_since_start :: Adjuster
+  { adjust_since_start :: Adjuster Char
   , current_request :: EditableRequest
   , milepost :: E WellFormedMilepost }
 
 data WellFormedMilepost = WellFormedMilepost
   { tree :: GeordiRequest
-  , adjust_to_wf :: Adjuster
-  , adjust_since_wf :: Adjuster }
+  , adjust_to_wf :: Adjuster Char
+  , adjust_since_wf :: Adjuster Char }
       -- The earliest well-formed AST of the request body, its String version, an adjuster adjusting anchors in the original request to anchors in the well-formed request, and an adjuster adjusting edits in the well-formed request to edits in the current request.
 
 fold_edit :: RequestEdit → FoldState → E FoldState
@@ -61,7 +61,7 @@ fold_edit e fs = do
 
 sequence_edit :: FoldState → FindResult RequestEdit → E FoldState
 sequence_edit fs (Found f e) = do
-  a :: Adjuster ← case f of
+  a :: Adjuster Char ← case f of
     InGiven → return $ adjust_since_start fs
     InWf → adjust_since_wf . milepost fs
   case e of

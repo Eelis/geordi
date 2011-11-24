@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses, PatternGuards, FlexibleInstances, TypeSynonymInstances, OverlappingInstances, ViewPatterns, FlexibleContexts #-}
+{-# LANGUAGE UnicodeSyntax, MultiParamTypeClasses, PatternGuards, FlexibleInstances, TypeSynonymInstances, OverlappingInstances, ViewPatterns, FlexibleContexts #-}
 
 module Editing.Commands where
 
@@ -8,7 +8,7 @@ import qualified Data.List as List
 import qualified Data.Char as Char
 import Data.Function (on)
 import Data.Foldable (toList)
-import Editing.Basics (Pos, Anchor(..), BefAft(..), DualARange(..), ARange, Range(..), anchor_range, unanchor_range)
+import Editing.Basics (Pos(pos), Anchor(..), Side(..), StickyRange, Range(..), unanchor_range)
 import Cxx.Basics (DeclaratorId, Findable)
 
 import Data.Monoid (Monoid(..))
@@ -16,6 +16,9 @@ import Util (Convert(..), Invertible(..), Ordinal(..), (.), findMaybe, take_atle
 import Data.Semigroup (Semigroup(..))
 
 import Prelude hiding ((.))
+
+data DualStickyRange = DualStickyRange { full_range, replace_range :: StickyRange Char }
+  -- In "void f(int i, double d);", the command "replace first parameter-declaration with char c" should produce "void f(char c, double d);", while the command "erase first parameter-declaration" should produce "void f(double d);". Hence, in the former, the clause "first parameter-declaration" should match "char c", while in the latter, it should match "char c, ". To accomodate this, our substring resolution functions return DualStickyRanges containing both of these ranges.
 
 -- AndLists
 
@@ -35,20 +38,20 @@ data EverythingOr a = Everything | NotEverything a
 data Ranked a = Ranked Ordinal a | Sole a
 newtype OccurrencesClause = OccurrencesClause (NeList Ordinal)
 data Rankeds a = Rankeds (AndList OccurrencesClause) a | Sole' a | All a | AllBut (AndList OccurrencesClause) a
-data Bound = Bound (Maybe BefAft) Substr
-data RelativeBound = Front | Back | RelativeBound (Maybe BefAft) (Relative Substr)
-data Relative a = Absolute a | Relative a (AndList BefAft) (Ranked (Either Findable String)) | Between a Betw | FromTill Bound RelativeBound
+data Bound = Bound (Maybe Side) Substr
+data RelativeBound = Front | Back | RelativeBound (Maybe Side) (Relative Substr)
+data Relative a = Absolute a | Relative a (AndList Side) (Ranked (Either Findable String)) | Between a Betw | FromTill Bound RelativeBound
   -- FromTill is not the same as (Between Everything), because in the former, the second bound is interpreted relative to the first, whereas in the latter, both bounds are absolute.
   -- Strictly speaking, Absolute can be (and was at some point) encoded by (Between blabla). However, it isn't worth the trouble of the necessary special cases in Show, Parse, etc.
 data In a = In a (Maybe InClause)
-data PositionsClause = PositionsClause (AndList BefAft) Substrs
+data PositionsClause = PositionsClause (AndList Side) Substrs
 data InClause = InClause (AndList (In (Relative (Rankeds (Either Findable ImplicitBodyOf)))))
 data AppendPositionsClause = AppendIn InClause | NonAppendPositionsClause PositionsClause
 data PrependPositionsClause = PrependIn InClause | NonPrependPositionsClause PositionsClause
 type Substr = EverythingOr (Ranked (Either Findable String))
 newtype Substrs = Substrs (AndList (In (Relative (EverythingOr (Rankeds (Either Findable String))))))
 newtype MakeSubject = MakeSubject (AndList (In (Relative (Rankeds (Either Findable ImplicitDeclarationOf)))))
-data Position = Position BefAft (In (Relative Substr))
+data Position = Position Side (In (Relative Substr))
 data Replacer = Replacer Substrs String | ReplaceOptions [Request.EvalOpt] [Request.EvalOpt]
 data Changer = Changer Substrs String | ChangeOptions [Request.EvalOpt] [Request.EvalOpt]
 data Eraser = EraseText Substrs | EraseOptions [Request.EvalOpt] | EraseAround Wrapping (Around Substrs)
@@ -121,13 +124,11 @@ instance Convert (Ranked a) (Rankeds a) where
   convert (Sole x) = Sole' x
 
 instance Convert (Range a) (Range a) where convert = id
-instance Convert (Range a) [ARange] where convert = (:[]) . anchor_range
-instance Convert (Range a) ARange where convert = anchor_range
-instance Convert ARange (Range a) where convert = unanchor_range
-instance Convert Anchor (Pos a) where convert = anchor_pos
-instance Convert ARange DualARange where convert x = DualARange x x
+instance Convert (StickyRange a) (Range a) where convert = unanchor_range
+instance Convert (Anchor a) (Pos a) where convert = anchor_pos
+instance Convert (StickyRange Char) DualStickyRange where convert x = DualStickyRange x x
 
-instance Invertible BefAft where invert Before = After; invert After = Before
+instance Invertible Side where invert Before = After; invert After = Before
 
 instance Invertible (Ranked a) where
   invert (Ranked r s) = Ranked (invert r) s
@@ -160,9 +161,9 @@ merge_commands (h:t) = h : merge_commands t
 
 describe_position_after :: Pos Char → String → Position
 describe_position_after n s
-  | n == 0 = Position Before $ In (Absolute Everything) Nothing
-  | n == length s = Position After $ In (Absolute Everything) Nothing
-  | otherwise = Position After $ In (Absolute $ NotEverything $ Sole $ Right $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take n s) Nothing
+  | pos n == 0 = Position Before $ In (Absolute Everything) Nothing
+  | pos n == length s = Position After $ In (Absolute Everything) Nothing
+  | otherwise = Position After $ In (Absolute $ NotEverything $ Sole $ Right $ concat $ reverse $ take_atleast 7 length $ reverse $ edit_tokens isIdChar $ take (pos n) s) Nothing
 
 -- Tokenization:
 
