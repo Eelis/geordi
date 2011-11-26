@@ -657,7 +657,7 @@ instance Parse FunctionDefinition where
     (declspecs, (declarator, body)) ← manyTill parse (liftM2 (,) parse parse)
     return $ FunctionDefinition (convert (declspecs :: [DeclSpecifier])) declarator body
 
-instance Parse FunctionBody where autoname_parse = auto2 FunctionBody <|> auto1 FunctionBody_FunctionTryBlock
+instance Parse FunctionBody where autoname_parse = auto2 FunctionBody <|> auto1 FunctionBody_FunctionTryBlock <|> auto3 DefaultedFunctionBody <|> auto3 DeletedFunctionBody
 
 -- A.8 Classes [gram.class]
 
