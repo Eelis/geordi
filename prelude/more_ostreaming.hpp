@@ -135,7 +135,7 @@ namespace more_ostreaming { namespace detail {
 template <typename T>
 more_ostreaming::detail::bytes_t bytes(T const & x) {
   more_ostreaming::detail::bytes_t const r =
-    { reinterpret_cast<unsigned char const *>(&x.value), sizeof(T) };
+    { reinterpret_cast<unsigned char const *>(&x), sizeof(T) };
   return r;
 }
 
