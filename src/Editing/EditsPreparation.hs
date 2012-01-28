@@ -1,4 +1,4 @@
-{-# LANGUAGE UnicodeSyntax, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeSynonymInstances, FlexibleContexts, UndecidableInstances, OverlappingInstances, CPP, PatternGuards, ViewPatterns #-}
+{-# LANGUAGE UnicodeSyntax, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeSynonymInstances, FlexibleContexts, UndecidableInstances, OverlappingInstances, PatternGuards, ViewPatterns #-}
 
 module Editing.EditsPreparation (use_tests, findInStr, FindResult(..), FoundIn(..)) where
 
@@ -19,9 +19,6 @@ import Data.SetOps
 import Util ((.), (‥), Convert(..), Op(..), ops_cost, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, multiplicative_numeral, E, or_fail, pairs, NeList, neElim, neHomogenize, safeNth)
 
 -- One property that might be suitable for formal verification is that finders only return anchor/ranges/edits contained in the range they received, and that no anchor/range/edit ever goes out of bounds.
-
-#define case_of \case_of_detail → case case_of_detail of
-  -- Todo: Move to utility header..
 
 import Prelude hiding (last, (.), all, (!!), sequence, mapM)
 import Prelude.Unicode hiding ((∈))
@@ -204,7 +201,7 @@ instance (OccurrenceError a, Find a (NeList (FindResult DualStickyRange))) ⇒ F
     find x >>= \l → if null (NeList.tail l) then return l else fail_with_context $ multipleOccur x
   find (Rankeds rs s) = sequence ((\r → find (Ranked r s)) . flatten_occ_clauses rs)
   find (AllBut rs s) =
-    erase_indexed (ordinal_carrier . toList (flatten_occ_clauses rs)) . toList . find s >>= case_of
+    erase_indexed (ordinal_carrier . toList (flatten_occ_clauses rs)) . toList . find s >>= \z → case z of
       [] → throwError "All occurrences excluded." -- Todo: Better error.
       x:y → return $ x :| y
 
@@ -216,7 +213,7 @@ findResult_as_either (Found c a) = (case c of InGiven → Left; InWf → Right) 
 
 merge_contiguous_FindResult_StickyRanges :: NeList (FindResult (StickyRange Char)) → Resolver (FindResult (NeList (StickyRange Char)))
 merge_contiguous_FindResult_StickyRanges l =
-  neHomogenize toWf (findResult_as_either . l) >>= case_of
+  neHomogenize toWf (findResult_as_either . l) >>= \a → case a of
     Left xs → return $ Found InGiven $ merge_contiguous xs
     Right xs → return $ Found InWf $ merge_contiguous xs
   -- This is not optimal, because wf-ness of one contiguous range should not imply wf-ness of all ranges.

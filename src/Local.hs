@@ -1,7 +1,5 @@
 {-# LANGUAGE UnicodeSyntax, CPP #-}
 
-#include "Util.h"
-
 import qualified System.Environment
 import qualified RequestEval
 import qualified System.Console.Readline as RL
@@ -56,7 +54,7 @@ main = do
   eval ← RequestEval.evaluator
   forM_ rest $ \l → do Request.Response _ output ← eval l (Context Cxx.Show.noHighlighting []); putStrLn output
   addHistory ← make_history_adder
-  when (rest == []) $ flip fix blankMemory $ \loop mem → (UTF8.decodeString .) . RL.readline "geordi: " >>= case_of
+  when (rest == []) $ flip fix blankMemory $ \loop mem → (UTF8.decodeString .) . RL.readline "geordi: " >>= \line → case line of
     Nothing → putNewLn
     Just "" → loop mem
     Just l → do

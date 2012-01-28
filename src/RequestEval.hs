@@ -37,8 +37,6 @@ import Data.SetOps
 import Prelude hiding (catch, (.))
 import Prelude.Unicode hiding ((∈), (∉))
 
-#include "Util.h"
-
 show_EditableRequest :: Highlighter → EditableRequest → String
 show_EditableRequest h (EditableRequest (Evaluate f) s) | Set.null f = Cxx.Parse.highlight h s
 show_EditableRequest _ (EditableRequest k s) = show k ++ (if null s then "" else ' ' : s)
@@ -118,7 +116,7 @@ respond_and_remember :: EditableRequest → WithEvaluation Response
 respond_and_remember er = Response (Just $ AddLast er) . tagError (execEditableRequest er)
 
 execFinalCommand :: Context → FinalCommand → E (WithEvaluation String)
-execFinalCommand context@Context{..} = case_of
+execFinalCommand context@Context{..} fc = case fc of
   Show Nothing → noEvaluation . show_EditableRequest highlighter . fst . popContext context
   Show (Just substrs) → do
     c ← evalRequestBody
