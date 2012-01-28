@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE UnicodeSyntax, CPP #-}
 
 #include "Util.h"
 

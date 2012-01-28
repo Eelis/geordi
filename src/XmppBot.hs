@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE UnicodeSyntax, PatternGuards #-}
 
 import qualified System.Environment
 import qualified XMPP

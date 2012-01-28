@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE UnicodeSyntax, ForeignFunctionInterface #-}
 module Flock (exclusive) where
 
 import System.Posix.Types

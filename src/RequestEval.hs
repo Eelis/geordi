@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, ViewPatterns, RecordWildCards #-}
+{-# LANGUAGE UnicodeSyntax, CPP, ViewPatterns, RecordWildCards #-}
 
 module RequestEval (evaluator) where
 

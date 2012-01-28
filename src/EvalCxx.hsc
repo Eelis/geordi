@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE UnicodeSyntax, PatternGuards #-}
 
 {-- Correct ptrace-ing
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE UnicodeSyntax, PatternGuards #-}
 module IRC (Message(..), Command(..), encode, decode, UserName, ServerName, Prefix, send) where
 
 import qualified Network.IRC as Base

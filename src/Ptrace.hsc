@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE UnicodeSyntax, ForeignFunctionInterface #-}
 module Ptrace (traceme, syscall, peektext, peekuser, pokeuser, cont, kill, tracesysgood) where
 
 import Foreign.C

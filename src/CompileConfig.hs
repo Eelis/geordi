@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE UnicodeSyntax, PatternGuards #-}
 
 module CompileConfig where
 

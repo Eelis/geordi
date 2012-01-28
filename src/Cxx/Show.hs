@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types, FlexibleInstances, UndecidableInstances, RelaxedPolyRec, PatternGuards, OverlappingInstances, CPP #-}
+{-# LANGUAGE UnicodeSyntax, Rank2Types, FlexibleInstances, UndecidableInstances, RelaxedPolyRec, PatternGuards, OverlappingInstances, CPP #-}
 
 module Cxx.Show (pretty_with_precedence, show_simple, show_plural, show_pretty, Highlighter, Highlightable(..), noHighlighting, dataType_productionName, dataType_abbreviated_productionName) where
 

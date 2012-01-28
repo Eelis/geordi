@@ -1,3 +1,5 @@
+{-# LANGUAGE UnicodeSyntax #-}
+
 import qualified Request
 import qualified RequestEval
 import qualified Cxx.Show

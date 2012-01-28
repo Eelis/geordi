@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, CPP #-}
+{-# LANGUAGE UnicodeSyntax, DeriveDataTypeable, CPP #-}
 
 {- Notes:
 
