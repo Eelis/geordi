@@ -82,7 +82,7 @@ import System.Posix.User
   (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
 import System.Posix
   (Signal, sigALRM, sigSTOP, sigTRAP, sigKILL, sigSEGV, sigILL, createPipe, setFdOption, executeFile, raiseSignal, ProcessID, openFd, defaultFileFlags, forkProcess, dupTo, stdError, stdOutput, scheduleAlarm, OpenMode(..), exitImmediately, FdOption(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
-import Gcc (Stage(..))
+import Gcc (Stage(..), isMainMissingDiagnostic)
 import CompileConfig
 
 #ifdef __x86_64__
@@ -250,8 +250,10 @@ evaluate cfg req = do
     runStage :: Stage → Maybe (IO EvaluationResult) → IO EvaluationResult
     runStage stage act = do
       cr ← capture_restricted (path stage) (argv stage) (env stage) (resources stage)
-      case act of
-        Just a | cr == CaptureResult (Exited ExitSuccess) "", stage /= stageOfInterest req → a
+      case cr of
+        CaptureResult (Exited (ExitFailure _)) d | stage == Link, isMainMissingDiagnostic d
+          → return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "")
+        CaptureResult (Exited ExitSuccess) "" | stage /= stageOfInterest req, Just a ← act → a
         _ → return $ EvaluationResult stage cr
 
     path :: Stage → String
