@@ -4,7 +4,6 @@ module Editing.Show (showTextEdit, Show(..)) where
 
 import Cxx.Show ()
 import qualified Data.List as List
-import Data.Char as Char
 import Util (isVowel, show_long_opts, capitalize, commas_and, Ordinal)
 import Cxx.Basics (DeclaratorId, Findable)
 import Data.Foldable (toList)

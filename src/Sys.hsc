@@ -14,12 +14,14 @@ import Control.Monad.Instances ()
 import Control.Monad.Fix (fix)
 import System.Posix.Time (epochTime)
 import Network.Socket (Socket(..), setSocketOption, SocketOption(..))
-import Foreign (with, sizeOf, peek, Ptr, Word8, unsafePerformIO, allocaBytes)
-import Prelude hiding (catch, (.))
+import Foreign (with, sizeOf, peek, Ptr, Word8, allocaBytes)
+import System.IO.Unsafe (unsafePerformIO)
 import System.Exit (ExitCode(..))
-import System.Posix (Fd(..), CPid, ByteCount, Signal)
+import System.Posix (Fd(Fd), CPid(CPid), ByteCount, Signal)
 import Foreign.C
-  (CInt, CUInt, CLong, CString, getErrno, eCHILD, throwErrno, withCString, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen, Errno)
+  (CInt(CInt), CUInt(CUInt), CLong, CString, getErrno, eCHILD, throwErrno, withCString, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen, Errno(Errno))
+
+import Prelude hiding ((.))
 
 #include <syscall.h>
 #include <sys/ptrace.h>
