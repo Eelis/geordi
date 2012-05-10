@@ -4,7 +4,6 @@
 module Sys where
 
 import qualified System.Posix.Internals
-import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Data.Sequence as Seq
 import qualified Foreign.Ptr
 
@@ -14,7 +13,7 @@ import Control.Monad.Instances ()
 import Control.Monad.Fix (fix)
 import System.Posix.Time (epochTime)
 import Network.Socket (Socket(..), setSocketOption, SocketOption(..))
-import Foreign (with, sizeOf, peek, Ptr, Word8, allocaBytes)
+import Foreign (with, sizeOf, peek, Ptr, allocaBytes)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Exit (ExitCode(..))
 import System.Posix (Fd(Fd), CPid(CPid), ByteCount, Signal)
@@ -53,18 +52,18 @@ foreign import ccall unsafe "string.h strerror" c_strerror :: Errno → IO CStri
 strsignal :: CInt → String
 strerror :: Errno → String
 
-strsignal = UTF8.decodeString `fmap` unsafePerformIO `fmap` (peekCString =<<) `fmap` c_strsignal
-strerror = UTF8.decodeString `fmap` unsafePerformIO `fmap` (peekCString =<<) `fmap` c_strerror
+strsignal = unsafePerformIO `fmap` (peekCString =<<) `fmap` c_strsignal
+strerror = unsafePerformIO `fmap` (peekCString =<<) `fmap` c_strerror
 
-
-nonblocking_read :: Fd → ByteCount → IO [Word8]
-nonblocking_read (Fd fd) bc = do
+fdReadNonBlocking :: Fd → ByteCount → IO String
+fdReadNonBlocking (Fd fd) bc = do
   allocaBytes (fromIntegral bc) $ \buf → do
   r ← System.Posix.Internals.c_read fd (Foreign.Ptr.castPtr buf) bc
   case r of
     -1 → getErrno >>= \e → if e == eWOULDBLOCK then return [] else throwErrno "nonblocking_read"
-    n → (fromIntegral `fmap` fromEnum `fmap`) `fmap` peekCStringLen (buf, fromIntegral n)
-  -- Wrapping c_read ourselves is easier and more to the point than using fdRead and catching&filtering (stringized) eWOULDBLOCK errors.
+    n → peekCStringLen (buf, fromIntegral n)
+  -- Wrapping c_read ourselves is easier and more to the point than using fdRead and catching&filtering (stringized) eWOULDBLOCK errors. hGetBufNonBlocking works on a Handle, which is even worse.
+  -- Note that peekCStringLen decodes Chars according to the current locale.
 
 foreign import ccall "wait" c_wait :: Ptr CInt → IO CPid
 

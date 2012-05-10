@@ -56,7 +56,6 @@ In our code, M is close_range_end.
 module EvalCxx (evaluator, WithEvaluation, withEvaluation, noEvaluation, EvaluationResult(..), Request(..), CompileConfig(..)) where
 
 import qualified Ptrace
-import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Flock
 import qualified ErrorFilters
 import qualified System.Directory
@@ -68,7 +67,7 @@ import qualified Data.Char as Char
 import Paths_geordi (getDataFileName)
 
 import Data.Pointed (Pointed(..))
-import Sys (wait, WaitResult(..), strsignal, syscall_off, syscall_ret, fdOfFd, nonblocking_read, chroot, strerror)
+import Sys (wait, WaitResult(..), strsignal, syscall_off, syscall_ret, fdOfFd, fdReadNonBlocking, chroot, strerror)
 import SysCalls (SysCall(..))
 import Control.Monad (when, forM_)
 import Control.Monad.Fix (fix)
@@ -184,7 +183,7 @@ capture_restricted a argv env (Resources timeout rlims bs) =
       executeFile a False argv (Just env)
         -- The Haskell implementation of executeFile calls pPrPr_disableITimers, which calls setitimer to disable all interval timers, including ours set a few lines above. However, since by this time we're being ptraced, the setitimer calls are ignored.
       exitImmediately ExitSuccess
-    CaptureResult res . UTF8.decode . nonblocking_read pipe_r bs
+    CaptureResult res . fdReadNonBlocking pipe_r bs
 
 -- The actual output size is also limited by the pipe buffer.
 
