@@ -21,13 +21,10 @@ namespace tracked
         Tracked();
         Tracked(Tag const &);
         Tracked(Tracked const &);
+        Tracked(Tracked &&);
         void operator=(Tracked const &);
+        void operator=(Tracked &&);
         virtual ~Tracked();
-
-        #ifdef __GXX_EXPERIMENTAL_CXX0X__
-          Tracked(Tracked &&);
-          void operator=(Tracked &&);
-        #endif
 
         void set_name(char const *) const;
     };
@@ -72,12 +69,14 @@ namespace tracked
   {
     B();
     B(B const &);
+    B(B &&);
 
     B(detail::Tag const &);
     B(int); B(char); B(std::string const &); B(char const*);
       // These last four seem redundant, but are needed to make B b = ...; work properly.
 
     B & operator=(B const &);
+    B & operator=(B &&);
     virtual ~B();
 
     void * operator new(std::size_t);
@@ -99,11 +98,6 @@ namespace tracked
 
     detail::Tag const & tag() const;
 
-    #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      B(B &&);
-      B & operator=(B &&);
-    #endif
-
     template<typename C, typename Tr>
     friend std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> &, B const &);
 
@@ -122,11 +116,13 @@ namespace tracked
   {
     D();
     D(D const &);
+    D(D &&);
 
     D(detail::Tag const &);
     D(int); D(char); D(std::string const &); D(char const*);
 
     D & operator=(D const &);
+    D & operator=(D &&);
     ~D();
 
     void * operator new(std::size_t);
@@ -140,11 +136,6 @@ namespace tracked
 
     void f() const;
     virtual void vf() const;
-
-    #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      D(D &&);
-      D & operator=(D &&);
-    #endif
 
     template<typename C, typename Tr>
     friend std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> &, D const &);

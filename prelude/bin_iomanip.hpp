@@ -65,16 +65,12 @@ class bin_num_put: public std::num_put<Ch, Out>
 
   typedef std::ios_base IB;
 
-  #ifdef __GXX_EXPERIMENTAL_CXX0X__
-    typedef unsigned long long I;
+  typedef unsigned long long I;
 
-    virtual Out do_put(Out i, IB & io, Ch const fill, unsigned long const v) const
-    { return io.flags() & IB::basefield ? base::do_put(i, io, fill, v) : do_put(i, io, fill, I(v)); }
-    virtual Out do_put(Out const i, IB & io, Ch const fill, long long const v) const
-    { return io.flags() & IB::basefield ? base::do_put(i, io, fill, v) : do_put(i, io, fill, I(v)); }
-  #else
-    typedef unsigned long I;
-  #endif
+  virtual Out do_put(Out i, IB & io, Ch const fill, unsigned long const v) const
+  { return io.flags() & IB::basefield ? base::do_put(i, io, fill, v) : do_put(i, io, fill, I(v)); }
+  virtual Out do_put(Out const i, IB & io, Ch const fill, long long const v) const
+  { return io.flags() & IB::basefield ? base::do_put(i, io, fill, v) : do_put(i, io, fill, I(v)); }
 
   virtual Out do_put(Out i, IB & io, Ch const fill, I const v) const
   {

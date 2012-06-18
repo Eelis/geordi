@@ -94,19 +94,15 @@ namespace tracked
       entry(this)->status = fresh;
     }
 
-    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+    Tracked::Tracked(Tracked && r)
+    { assert_status_below(&r, pillaged, "move"); make_entry(this); entry(&r)->status = pillaged; }
 
-      Tracked::Tracked(Tracked && r)
-      { assert_status_below(&r, pillaged, "move"); make_entry(this); entry(&r)->status = pillaged; }
-
-      void Tracked::operator=(Tracked && r) {
-        assert_status_below(this, destructed, "move-assign to");
-        assert_status_below(&r, pillaged, "move");
-        entry(this)->status = fresh;
-        entry(&r)->status = pillaged;
-      }
-
-    #endif
+    void Tracked::operator=(Tracked && r) {
+      assert_status_below(this, destructed, "move-assign to");
+      assert_status_below(&r, pillaged, "move");
+      entry(this)->status = fresh;
+      entry(&r)->status = pillaged;
+    }
 
     Tracked::~Tracked()
     { assert_status_below(this, destructed, "re-destruct"); entry(this)->status = destructed; }
@@ -173,15 +169,13 @@ namespace tracked
       detail::info const i; print(i()); i() << ".vf()";
     }
 
-    #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      B::B(B && b): Tracked(std::move(b))
-      { set_name("B"); detail::info const i; b.print(i()); i() << "=>"; print(i()); i() << '*'; }
-      B & B::operator=(B && b) {
-        Tracked::operator=(std::move(b));
-        detail::info const i; b.print(i()); i() << "=>"; print(i());
-        return *this;
-      }
-    #endif
+    B::B(B && b): Tracked(std::move(b))
+    { set_name("B"); detail::info const i; b.print(i()); i() << "=>"; print(i()); i() << '*'; }
+    B & B::operator=(B && b) {
+      Tracked::operator=(std::move(b));
+      detail::info const i; b.print(i()); i() << "=>"; print(i());
+      return *this;
+    }
 
     B & B::operator++() {
       assert_status_below(this, detail::pillaged, "pre-increment");
@@ -268,15 +262,13 @@ namespace tracked
     template std::ostream & operator<<<char, std::char_traits<char> >(std::ostream &, D const &);
     template std::wostream & operator<<<wchar_t, std::char_traits<wchar_t> >(std::wostream &, D const &);
 
-    #ifdef __GXX_EXPERIMENTAL_CXX0X__
-      D::D(D && d): B(std::move(d))
-      { set_name("D"); detail::info const i; d.print(i()); i() << "=>"; print(i()); i() << '*'; }
-      D & D::operator=(D && d) {
-        B::operator=(std::move(d));
-        detail::info const i; d.print(i()); i() << "=>"; print(i());
-        return *this;
-      }
-    #endif
+    D::D(D && d): B(std::move(d))
+    { set_name("D"); detail::info const i; d.print(i()); i() << "=>"; print(i()); i() << '*'; }
+    D & D::operator=(D && d) {
+      B::operator=(std::move(d));
+      detail::info const i; d.print(i()); i() << "=>"; print(i());
+      return *this;
+    }
 
   // In the above, it looks like there is a lot of code duplication for B and D. Previous implementations of these tracking facilities used clever CRTP helper templates to factor out as much of the common code as possible. However, to prevent the cleverness from showing through in gcc diagnostics, small delegators had to be put in B/D for all operations (in addition to the ones for the constructors which were always there, since constructors cannot be inherited (yet)). In the end, the hassle was not worth the gain, so I reverted back to the simple straightforward approach.
 

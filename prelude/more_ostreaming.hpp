@@ -2,17 +2,17 @@
 #ifndef MORE_OSTREAMING_HPP
 #define MORE_OSTREAMING_HPP
 
+#include <chrono>
 #include <ostream>
 #include <valarray>
 #include <utility>
 #include <stack>
 #include <queue>
+#include <tuple>
 #include <cstdlib>
 #include <ctime>
 #include <algorithm>
 #include <boost/range.hpp>
-#include <boost/utility/enable_if.hpp>
-#include <boost/ref.hpp>
 #include <boost/optional.hpp>
 #include "geordi.hpp"
 #include "literal_escape.hpp"
@@ -22,12 +22,12 @@ template <typename C, typename Tr>
 std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, utsname const & u)
 { return o << u.sysname << ' ' << u.release << ' ' << u.version, u.machine; }
 
+template <typename C, typename Tr, typename T>
+std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::reference_wrapper<T> const & rw)
+{ T & r(rw); return o << r; }
+
 namespace boost
 {
-  template <typename C, typename Tr, typename T>
-  std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, boost::reference_wrapper<T> const & rw)
-  { T & r(rw); return o << r; }
-
   template <typename C, typename Tr, typename T>
   std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, boost::optional<T> const & x)
   { return x ? (o << *x) : (o << "none"); }
@@ -48,62 +48,44 @@ template <typename C, typename Tr>
 std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::ldiv_t const d)
 { print_div_t(o, d); return o; }
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
+template <typename C, typename Tr>
+std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::lldiv_t const d)
+{ print_div_t(o, d); return o; }
 
-  template <typename C, typename Tr>
-  std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::lldiv_t const d)
-  { print_div_t(o, d); return o; }
+template <typename C, typename T, typename R, typename... A>
+std::basic_ostream<C, T> & operator<<(std::basic_ostream<C, T> & o, R (* const p) (A...))
+{
+  void * q;
+  static_assert(sizeof(p) == sizeof(q), "void- and function-pointer differ in size");
+  std::copy(reinterpret_cast<char const *>(&p),
+    reinterpret_cast<char const *>(&p) + sizeof(p), reinterpret_cast<char *>(&q));
+  return o << q;
+}
 
-  template <typename C, typename T, typename R, typename... A>
-  std::basic_ostream<C, T> & operator<<(std::basic_ostream<C, T> & o, R (* const p) (A...))
+namespace more_ostreaming { namespace detail {
+
+  template <int O>
+  struct tuple_printer
   {
-    void * q;
-    static_assert(sizeof(p) == sizeof(q), "void- and function-pointer differ in size");
-    std::copy(reinterpret_cast<char const *>(&p),
-      reinterpret_cast<char const *>(&p) + sizeof(p), reinterpret_cast<char *>(&q));
-    return o << q;
-  }
-
-  #include <tr1/tuple>
-  #include <tuple>
-
-  namespace more_ostreaming { namespace detail {
-
-    template <int O>
-    struct tuple_printer
+    template <typename C, typename Tr, typename... P>
+    static void print (std::basic_ostream<C, Tr> & o, std::tuple<P...> const & t)
     {
-      template <typename C, typename Tr, typename... P>
-      static void print (std::basic_ostream<C, Tr> & o, std::tr1::tuple<P...> const & t)
-      {
-        if (O != 1) { tuple_printer<O-1>::print(o, t); o << ", "; }
-        o << escape(std::tr1::get<O-1>(t));
-      }
+      if (O != 1) { tuple_printer<O-1>::print(o, t); o << ", "; }
+      o << escape(std::get<O-1>(t));
+    }
+  };
 
-      template <typename C, typename Tr, typename... P>
-      static void print (std::basic_ostream<C, Tr> & o, std::tuple<P...> const & t)
-      {
-        if (O != 1) { tuple_printer<O-1>::print(o, t); o << ", "; }
-        o << escape(std::get<O-1>(t));
-      }
-    };
+  template <>
+  struct tuple_printer<0>
+  {
+    template <typename C, typename Tr, typename T>
+    static void print (std::basic_ostream<C, Tr> &, T const &) {}
+  };
+}}
 
-    template <>
-    struct tuple_printer<0>
-    {
-      template <typename C, typename Tr, typename T>
-      static void print (std::basic_ostream<C, Tr> &, T const &) {}
-    };
-  }}
-
-  template <typename C, typename Tr, typename... P>
-  std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::tr1::tuple<P...> const & t)
-  { o << '{'; more_ostreaming::detail::tuple_printer<sizeof...(P)>::print(o, t); return o << '}'; }
-
-  template <typename C, typename Tr, typename... P>
-  std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::tuple<P...> const & t)
-  { o << '{'; more_ostreaming::detail::tuple_printer<sizeof...(P)>::print(o, t); return o << '}'; }
-
-#endif
+template <typename C, typename Tr, typename... P>
+std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::tuple<P...> const & t)
+{ o << '{'; more_ostreaming::detail::tuple_printer<sizeof...(P)>::print(o, t); return o << '}'; }
 
 namespace more_ostreaming
 {
@@ -114,10 +96,8 @@ namespace more_ostreaming
     if (b != e) { o << escape(*b); while (++b != e) o << ", " << escape(*b); }
   }
 
-  #ifdef GEORDI_USE_EXTERN_TEMPLATE
-    extern template void delimit<char, std::char_traits<char>, std::vector<int> >(std::ostream &, std::vector<int> const &);
-      // vector<int> is the most used container for demonstrations, so it's worth making it print fast.
-  #endif
+  extern template void delimit<char, std::char_traits<char>, std::vector<int> >(std::ostream &, std::vector<int> const &);
+    // vector<int> is the most used container for demonstrations, so it's worth making it print fast.
 }
 
 namespace more_ostreaming { namespace detail {
@@ -220,35 +200,29 @@ namespace std
   { return o << underlying(q); }
 }
 
-#ifdef GEORDI_USE_CHRONO
+template <typename Ch, typename Tr, typename K, typename D>
+std::basic_ostream<Ch, Tr> &
+  operator<<(std::basic_ostream<Ch, Tr> & o, std::chrono::time_point<K, D> const & t)
+{ return o << "epoch + " << t.time_since_epoch(); }
 
-  #include <chrono>
+template<typename Ch, typename Tr, typename R, typename F>
+std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, std::chrono::duration<R, F> const & d)
+{ return o << d.count(); }
 
-  template <typename Ch, typename Tr, typename K, typename D>
-  std::basic_ostream<Ch, Tr> &
-    operator<<(std::basic_ostream<Ch, Tr> & o, std::chrono::time_point<K, D> const & t)
-  { return o << "epoch + " << t.time_since_epoch(); }
+#define T(r, s) \
+  template <typename Ch, typename Tr, typename R> std::basic_ostream<Ch, Tr> & \
+    operator<<(std::basic_ostream<Ch, Tr> & o, std::chrono::duration<R, std::r> const & d) \
+  { return o << d.count() << s; }
 
-  template<typename Ch, typename Tr, typename R, typename F>
-  std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, std::chrono::duration<R, F> const & d)
-  { return o << d.count(); }
+T(ratio<86400>, " d")
+T(ratio<3600>, " h")
+T(ratio<60>, " min")
+T(ratio<1>, " s")
+T(milli, " ms")
+T(micro, " µs")
+T(nano, " ns")
 
-  #define T(r, s) \
-    template <typename Ch, typename Tr, typename R> std::basic_ostream<Ch, Tr> & \
-      operator<<(std::basic_ostream<Ch, Tr> & o, std::chrono::duration<R, std::r> const & d) \
-    { return o << d.count() << s; }
-
-  T(ratio<86400>, " d")
-  T(ratio<3600>, " h")
-  T(ratio<60>, " min")
-  T(ratio<1>, " s")
-  T(milli, " ms")
-  T(micro, " µs")
-  T(nano, " ns")
-
-  #undef T
-
-#endif
+#undef T
 
 #endif // header guard
 
@@ -260,9 +234,7 @@ namespace std
 #include <list>
 #include <utility>
 #include <deque>
-
-#include <tr1/array>
-
+#include <array>
 #include <iostream>
 
 int main()

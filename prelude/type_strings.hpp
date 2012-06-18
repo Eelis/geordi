@@ -22,24 +22,19 @@
 #include <sstream>
 #include <ios>
 #include <cassert>
+#include <memory>
 
-#include <boost/shared_ptr.hpp>
-#include <boost/static_assert.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
-#include <boost/utility.hpp>
-#include <boost/array.hpp>
 #include <boost/type_traits/is_same.hpp>
 #include <boost/type_traits/is_union.hpp>
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-  #include <array>
-  #include <tuple>
-  #include <unordered_set>
-  #include <unordered_map>
-  #include <type_traits>
-  #include "tlists.hpp"
-#endif
+#include <array>
+#include <tuple>
+#include <unordered_set>
+#include <unordered_map>
+#include <type_traits>
+#include "tlists.hpp"
 
 namespace type_strings_detail {
 
@@ -49,7 +44,7 @@ struct type_info: std::type_info
   static type_info const & from_std(std::type_info const & i) { return static_cast<type_info const&>(i); }
 };
 
-BOOST_STATIC_ASSERT(sizeof(type_info) == sizeof(std::type_info));
+static_assert(sizeof(type_info) == sizeof(std::type_info), "type_info hack thwarted :-(");
 
 template<typename Ch, typename Tr>
 std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, type_info const & t)
@@ -60,9 +55,9 @@ std::string commas_and (I b, I e)
 {
   assert(b != e);
   if (e - b == 3) { std::string r = *b++; r += ", " + *b++; return r + ", and " + *b; }
-  else if (e - b == 2) return *b + " and " + *boost::next(b);
+  else if (e - b == 2) return *b + " and " + *std::next(b);
   else if (e - b == 1) return *b;
-  else return *b + ", " + commas_and(boost::next(b), e);
+  else return *b + ", " + commas_and(std::next(b), e);
 }
 
 // Type strings in ordinary C++ syntax
@@ -190,20 +185,11 @@ namespace textual_type_descriptions
   template <> struct type_desc_t<void *>: consonant
   { static std::string s (bool b) { return pl("pointer", b) + " to anything"; } };
 
-  #ifdef __GXX_EXPERIMENTAL_CXX0X__
-
   template <typename T> struct type_desc_t<T &>: Vowel
   { static std::string s (bool b) { return pl("lvalue reference", b) + " to " + an_or_many<T>(b); } };
 
   template <typename T> struct type_desc_t<T &&>: Vowel
   { static std::string s (bool b) { return pl("rvalue reference", b) + " to " + an_or_many<T>(b); } };
-
-  #else
-
-  template <typename T> struct type_desc_t<T &>: consonant
-  { static std::string s (bool b) { return pl("reference", b) + " to " + an_or_many<T>(b); } };
-
-  #endif
 
   #define TYPE_STRINGS_EMPTY
 
@@ -231,8 +217,6 @@ namespace textual_type_descriptions
 
   #undef TYPE_STRINGS_EMPTY
 
-  #ifdef __GXX_EXPERIMENTAL_CXX0X__
-
   template <typename> struct group_list_desc;
 
   template<size_t N, typename T, typename... U>
@@ -246,8 +230,6 @@ namespace textual_type_descriptions
   template <typename... T>
   struct list_desc: group_list_desc<typename tlists::group_successive<T...>::type> {};
 
-  #endif
-
   // functions
 
   template <typename T> struct type_desc_t<T ()>: consonant
@@ -255,8 +237,6 @@ namespace textual_type_descriptions
 
   template <typename T> struct type_desc_t<T (...)>: consonant
   { static std::string s (bool b) { return pl("variadic function", b) + " " + returning<T>(b); } };
-
-  #ifdef __GXX_EXPERIMENTAL_CXX0X__
 
   template <typename T, typename... U> struct type_desc_t<T (U...)>: consonant {
     static std::string s (bool b) {
@@ -269,20 +249,6 @@ namespace textual_type_descriptions
       std::vector<std::string> v; list_desc<U...>::s(v); v.push_back(returning<T>(b));
       return pl("variadic function", b) + " taking at least " + commas_and(v.begin(), v.end());
   } };
-
-  #else
-
-  template <typename T, typename U> struct type_desc_t<T (U)>: consonant
-  { static std::string s (bool b) { return pl("function", b) + " taking " + an_or_many<U>(b) + " and " + returning<T>(b); } };
-
-  template <typename T, typename U, typename V> struct type_desc_t<T (U, V)>: consonant
-  { static std::string s (bool b) { return pl("function", b) + " taking " + an<U>() + ", " + an<V>() + ", and " + returning<T>(b); } };
-
-  template <typename T, typename U, typename V, typename W>
-  struct type_desc_t<T (U, V, W)>: consonant
-  { static std::string s (bool b) { return pl("function", b) + " taking " + an<U>() + ", " + an<V>() + ", " + an<W>() + ", and " + returning<T>(b); } };
-
-  #endif
 
   template<typename T> std::string class_key()
   { return boost::is_union<T>::value ? "union" : "class";  }
@@ -327,8 +293,6 @@ namespace textual_type_descriptions
   template <typename T, typename U>
   struct type_desc_t<T (U:: *) (...) const volatile>: type_desc_t_mem_vari<T, U, cv_cv> {};
 
-  #ifdef __GXX_EXPERIMENTAL_CXX0X__
-
   template <typename T, typename U, char const * e, typename... P>
   struct type_desc_t_memN: consonant {
     static std::string s (bool b) {
@@ -362,54 +326,6 @@ namespace textual_type_descriptions
   struct type_desc_t<T (U:: *) (P..., ...) volatile>: type_desc_t_memN_vari<T, U, cv_v, P...> {};
   template <typename T, typename U, typename... P>
   struct type_desc_t<T (U:: *) (P..., ...) const volatile>: type_desc_t_memN_vari<T, U, cv_cv, P...> {};
-
-  #else
-
-  // member function with 1 param
-
-  template <typename T, typename U, typename V, char const * e> struct type_desc_t_mem1: consonant
-  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " taking " + an_or_many<V>(b) + " and " + returning<T>(b); } };
-
-  template <typename T, typename U, typename V>
-  struct type_desc_t<T (U:: *) (V)>: type_desc_t_mem1<T, U, V, cv_> {};
-  template <typename T, typename U, typename V>
-  struct type_desc_t<T (U:: *) (V) const>: type_desc_t_mem1<T, U, V, cv_c> {};
-  template <typename T, typename U, typename V>
-  struct type_desc_t<T (U:: *) (V) volatile>: type_desc_t_mem1<T, U, V, cv_v> {};
-  template <typename T, typename U, typename V>
-  struct type_desc_t<T (U:: *) (V) const volatile>: type_desc_t_mem1<T, U, V, cv_cv> {};
-
-  // member function with 2 params
-
-  template <typename T, typename U, typename V, typename W, char const * e>
-  struct type_desc_t_mem2: consonant
-  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " taking " + an_or_many<V>(b) + ", " + an_or_many<W>(b) + ", and " + returning<T>(b); } };
-
-  template <typename T, typename U, typename V, typename W>
-  struct type_desc_t<T (U:: *) (V, W)>: type_desc_t_mem2<T, U, V, W, cv_> {};
-  template <typename T, typename U, typename V, typename W>
-  struct type_desc_t<T (U:: *) (V, W) const>: type_desc_t_mem2<T, U, V, W, cv_c> {};
-  template <typename T, typename U, typename V, typename W>
-  struct type_desc_t<T (U:: *) (V, W) volatile>: type_desc_t_mem2<T, U, V, W, cv_v> {};
-  template <typename T, typename U, typename V, typename W>
-  struct type_desc_t<T (U:: *) (V, W) const volatile>: type_desc_t_mem2<T, U, V, W, cv_cv> {};
-
-  // member function with 3 params
-
-  template <typename T, typename U, typename V, typename W, typename X, char const * e>
-  struct type_desc_t_mem3: consonant
-  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " taking " + an_or_many<V>(b) + ", " + an_or_many<W>(b) + ", " + an_or_many<X>(b) + ", and " + returning<T>(b); }  };
-
-  template <typename T, typename U, typename V, typename W, typename X>
-  struct type_desc_t<T (U:: *) (V, W, X)>: type_desc_t_mem3<T, U, V, W, X, cv_> {};
-  template <typename T, typename U, typename V, typename W, typename X>
-  struct type_desc_t<T (U:: *) (V, W, X) const>: type_desc_t_mem3<T, U, V, W, X, cv_c> {};
-  template <typename T, typename U, typename V, typename W, typename X>
-  struct type_desc_t<T (U:: *) (V, W, X) volatile>: type_desc_t_mem3<T, U, V, W, X, cv_v> {};
-  template <typename T, typename U, typename V, typename W, typename X>
-  struct type_desc_t<T (U:: *) (V, W, X) const volatile>: type_desc_t_mem3<T, U, V, W, X, cv_cv> {};
-
-  #endif
 
   // Library components:
 
@@ -468,23 +384,13 @@ namespace textual_type_descriptions
 
     // Boost
 
-    template <typename T, size_t N> struct type_desc_t<boost::array<T, N> >: Vowel
-    { static std::string s (bool b) { return pl("array", b) + " of " +  count<T>(N); } };
-
     template <typename T> struct type_desc_t<boost::optional<T> >: Vowel
     { static std::string s (bool b) { return "optional " + type_desc<T>(b); } };
 
-    template <typename T> struct type_desc_t<boost::shared_ptr<T> >: consonant
-    { static std::string s (bool b) { return "shared " + type_desc<T*>(b); } };
-
-    // TR1
-
-    template <typename T, size_t N> struct type_desc_t<std::tr1::array<T, N> >: Vowel
-    { static std::string s (bool b) { return pl("array", b) + " of " + count<T>(N); } };
-
     // C++0x
 
-    #ifdef __GXX_EXPERIMENTAL_CXX0X__
+    template <typename T> struct type_desc_t<std::shared_ptr<T> >: consonant
+    { static std::string s (bool b) { return "shared " + type_desc<T*>(b); } };
 
     template <typename T, size_t N> struct type_desc_t<std::array<T, N> >: Vowel
     { static std::string s (bool b) { return pl("array", b) + " of " + count<T>(N); } };
@@ -519,8 +425,6 @@ namespace textual_type_descriptions
 
     template <typename T, typename H, typename P, typename A> struct type_desc_t<std::unordered_multiset<T, H, P, A>>: consonant
     { static std::string s (bool b) { return pl("unordered multi-set", b) + " of " + many<T>(); } };
-
-    #endif // C++0x
 
 } // textual_type_descriptions
 
@@ -570,8 +474,6 @@ namespace type_strings_detail {
 
 */
 
-#ifdef __GXX_EXPERIMENTAL_CXX0X__
-
   template <typename T> std::string etype()
   { return type<typename std::remove_reference<T>::type>(); }
 
@@ -587,25 +489,6 @@ namespace type_strings_detail {
   #define TYPE_DESC(...) \
     ((IS_LVALUE(__VA_ARGS__) ? "lvalue " : "rvalue ") + \
     ::type_strings_detail::etype_desc<decltype(void(), (__VA_ARGS__))>())
-
-#else
-
-  #define TYPE_STRINGS_DETAIL_LVALUE_RVALUE_TAG(...) \
-    (MAY_BE_LVALUE(__VA_ARGS__) \
-      ? (MAY_BE_RVALUE(__VA_ARGS__) ? "" : "lvalue ") \
-      : "rvalue ")
-
-  #define TYPE(...) \
-    (TYPE_STRINGS_DETAIL_LVALUE_RVALUE_TAG(__VA_ARGS__) + \
-    ::type_strings_detail::type<__typeof__((__VA_ARGS__))>())
-
-  #define TYPE_DESC(...) \
-    (TYPE_STRINGS_DETAIL_LVALUE_RVALUE_TAG(__VA_ARGS__) + \
-    ::type_strings_detail::type_desc<__typeof__((__VA_ARGS__))>())
-
-  // The double parentheses around __VA_ARGS__ in the __typeof__ expressions are a workaround for GCC bug 11701.
-
-#endif
 
   // Backward compatibility:
 #define ETYPE(...) TYPE(__VA_ARGS__)

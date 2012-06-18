@@ -146,7 +146,7 @@ tests "utilities" =
   [ test "-t/-c" "-tc use ns boost; tmp <tpn T> cls C { expl C (C co &); pvt: stc dub d; pub: void op() (); };" $
     ExactMatch "Success"
   , test "ETYPE" "{ int i = 4; cout << ETYPE(++i); }" $ ExactMatch "lvalue int"
-  , test "Range printing" "{ vector<int> v; v += 3, 5, 9, 4, 1; cout << v; }" $ ExactMatch "{3, 5, 9, 4, 1}"
+  , test "Range printing" "{ vector<int> v{3, 5, 9, 4, 1}; cout << v; }" $ ExactMatch "{3, 5, 9, 4, 1}"
   , test "Demangled printable typeid" "<< typeid(int)" $ ExactMatch "int"
   , test "Custom assert()/abort()" "{ assert(4 > 9); }" $ ExactMatch "Assertion `4 > 9' fails."
   , test "bin IO manipulator" "<< showbase << uppercase << bin << setfill('_') << internal << setw(10) << 53" $ ExactMatch "0B__110101"

@@ -53,6 +53,7 @@
 #include <streambuf>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <typeinfo>
 #include <utility>
 #include <valarray>
