@@ -56,7 +56,7 @@ cxxArg = strip . ce
 -- Todo: Use new C++ parser instead of cxxArg.
 
 hide_clutter_namespaces :: String → String
-hide_clutter_namespaces = subRegex' (mkRegex "(\\b|:: *)(std|boost|__(gnu_)?(debug(_def)?|norm|cxx))::") ""
+hide_clutter_namespaces = subRegex' (mkRegex "(\\b|:: *)(std|__(gnu_)?(debug(_def)?|norm|cxx))::") ""
 
 replace_withs :: String → String
 replace_withs s = either (const s) replace_withs $ parse (r >+> getInput) "" s
