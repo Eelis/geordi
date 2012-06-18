@@ -21,10 +21,10 @@
 #include "geordi.hpp"
 #include "bark.hpp"
 
-#include <stdint.h>
-
 #include <algorithm>
+#include <atomic>
 #include <bitset>
+#include <chrono>
 #include <complex>
 #include <deque>
 #include <exception>
@@ -52,14 +52,11 @@
 #include <strstream>
 #include <streambuf>
 #include <string>
+#include <thread>
 #include <typeinfo>
 #include <utility>
 #include <valarray>
 #include <vector>
-
-#ifdef GEORDI_USE_CHRONO
-  #include <chrono>
-#endif
 
 #include <cassert>
 #include <cctype>
@@ -73,6 +70,7 @@
 #include <csignal>
 #include <cstdarg>
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -80,24 +78,8 @@
 #include <cwchar>
 #include <cwctype>
 
-#include <tr1/array>
-#include <tr1/memory>
-#include <tr1/type_traits>
-#include <tr1/utility>
-
-/* these seem to increase the precompiled header size disproportionally:
-#include <tr1/tuple>
-#include <tr1/functional>
-#include <tr1/unordered_map>
-#include <tr1/unordered_set>
-*/
-
 #include <boost/version.hpp>
 #include <boost/any.hpp>
-#include <boost/array.hpp>
-#include <boost/assert.hpp>
-#include <boost/assign.hpp>
-#include <boost/bind.hpp>
 #include <boost/checked_delete.hpp>
 #include <boost/format.hpp>
 #include <boost/implicit_cast.hpp>
@@ -106,35 +88,17 @@
 #include <boost/iterator_adaptors.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/multi_array.hpp>
-#include <boost/next_prior.hpp>
-#include <boost/noncopyable.hpp>
 #include <boost/optional.hpp>
 #include <boost/range.hpp>
 #include <boost/rational.hpp>
-#include <boost/ref.hpp>
-#include <boost/scoped_array.hpp>
-#include <boost/scoped_ptr.hpp>
-#include <boost/shared_array.hpp>
-#include <boost/shared_ptr.hpp>
-#include <boost/smart_ptr.hpp>
-#include <boost/tokenizer.hpp>
 #include <boost/utility.hpp>
 #include <boost/variant.hpp>
 
-#if BOOST_VERSION >= 103400
-  #include <boost/foreach.hpp>
-#endif
-
-#ifdef GEORDI_USE_EXTERN_TEMPLATE
-  extern template class std::basic_ostream<char, std::char_traits<char>>;
-#endif
+extern template class std::basic_ostream<char>;
 
 char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
 
-#define RANGE(x) (::boost::begin(x)), (::boost::end(x))
-#define CRANGE(x) (::boost::const_begin(x)), (::boost::const_end(x))
-#define RRANGE(x) (::boost::rbegin(x)), (::boost::rend(x))
-#define CRRANGE(x) (::boost::const_rbegin(x)), (::boost::const_rend(x))
+#define RANGE(x) (::std::begin(x)), (::std::end(x))
 
 #define T(n) \
   namespace std \
@@ -163,5 +127,3 @@ namespace geordi { geordi::initializer_t const initializer; }
 #define assert(e) ((e) ? void() : (::std::printf("%s", "Assertion `" #e "' fails."), ::std::fclose(stdout), ::std::abort()))
 
 #define typeid(...) ::type_strings_detail::type_info::from_std(typeid(__VA_ARGS__))
-
-using namespace boost::assign;
