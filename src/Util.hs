@@ -35,13 +35,13 @@ import Data.SetOps
 class IOResource a where dealloc :: a → IO ()
 
 withResource :: IOResource a ⇒ IO a → (a → IO b) → IO b
-withResource x = bracket x $ noThrow . dealloc
+withResource x = bracket x dealloc
 
 instance IOResource Handle where dealloc = hClose
 instance IOResource Fd where dealloc = System.Posix.IO.closeFd
 
 instance (IOResource x, IOResource y) ⇒ IOResource (x, y) where
-  dealloc (x, y) = noThrow (dealloc x) >> dealloc y
+  dealloc (x, y) = dealloc x >> dealloc y
 
 -- Conversions
 
@@ -384,9 +384,6 @@ infixr 9 .
 x ‥ y = (x .) . y
 
 infixr 9 ‥
-
-noThrow :: IO () → IO ()
-noThrow x = x `catch` const (return ())
 
 kibi, mebi :: Integral a ⇒ a
 kibi = 1024

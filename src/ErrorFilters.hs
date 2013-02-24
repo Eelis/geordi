@@ -5,23 +5,20 @@
 module ErrorFilters (cleanup_output) where
 
 import qualified Cxx.Parse
-import Control.Monad (ap, liftM2, mzero, guard)
+import Control.Monad (mzero, guard)
 import Text.Regex (Regex, matchRegexAll, mkRegex, mkRegexWithOpts, subRegex)
 import Data.Char (toLower, isSpace)
 import Data.Maybe (mapMaybe, fromMaybe)
 import Data.List (intersperse, isPrefixOf, isSuffixOf, tails)
 import Text.ParserCombinators.Parsec
   (string, sepBy, parse, char, try, getInput, (<|>), satisfy, spaces, manyTill, many1, anyChar, noneOf, option, count, CharParser, notFollowedBy, choice, setInput, eof, oneOf)
-import Text.ParserCombinators.Parsec.Prim (GenParser)
-import Control.Applicative (Applicative(..))
+import Control.Applicative (Applicative((<*>)))
 import Gcc (Stage(..))
-import Util ((.), (<<), isIdChar, (>+>), strip, replaceInfix, parsep, maybeLast, (!!))
-import Prelude hiding (catch, (.), (!!))
+import Util ((.), (<<), isIdChar, (>+>), strip, replaceInfix, parsep, maybeLast)
+import Prelude hiding ((.), (!!))
 
 subRegex' :: Regex → String → String → String
 subRegex' = flip . subRegex
-
-instance Applicative (GenParser Char st) where pure = return; (<*>) = ap
 
 -- Using the following more general instance causes overlapping instance problems elsewhere:
 --   instance (Monad m, Functor m) ⇒ Applicative m where pure = return; (<*>) = ap
@@ -107,6 +104,8 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
     , tmpi "allocator" 1 >> "::" $> "size_type" >> noid >> return "size_t"
     , string "typename " >> return ""
         -- Shows up in assertion failures after replacements have been performed.
+
+    {- defaulters broken by Parsec 3:
     , defaulter ["list", "deque", "vector"] 1 $ tmpl "allocator"
     , defaulter ["set", "multiset", "basic_stringstream", "basic_stringbuf", "basic_string", "basic_ostringstream", "basic_istringstream"] 2 $ tmpl "allocator" . head
     , defaulter ["map", "multimap"] 3 $ \[k, v, _] → tmpl "allocator" (tmpl "pair" (try (("const " $> k) <|> (k $> "const")) `comma` v))
@@ -119,16 +118,19 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
         -- "int"/"long int" is what is printed for ptrdiff_t.
     , defaulter ["istream_iterator", "ostream_iterator"] 2 $ tmpl "char_traits" . (!!1)
     , defaulter ["istream_iterator", "ostream_iterator"] 1 $ const "char"
+    -}
     ] -- Together, these must be strongly normalizing.
 
   -- Things that go wrong but are hard to fix:
   --   set<T>::iterator displayed as const version. Same for multiset.
 
+{- broken by Parsec 3:
   defaulter :: Parser p st a ⇒ [String] → Int → ([String] → p) → CharParser st String
   defaulter names idx def =
     names $>> "<" $>> (count idx (cxxArg <$ char ',' << spaces) >>= \prec → parser (def prec) >> return (concat $ intersperse ", " prec)) $>> ">"
       where x $>> y = (parser x << spaces) >+> parser y
         -- Hides default template arguments.
+-}
 
   noid = notFollowedBy (satisfy isIdChar)
 
@@ -136,7 +138,12 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
   a $> b = parser a >> spaces >> parser b
 
   comma :: (Parser p st a, Parser q st b) ⇒ p → q → CharParser st (a, b)
-  comma x y = liftM2 (,) (x <$ char ',' << spaces) (parser y)
+  comma x y = do
+    a ← parser x
+    char ','
+    spaces
+    b ← parser y
+    return (a, b)
 
   tmpl n p = n $> '<' $> p <$ '>'
 

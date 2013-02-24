@@ -7,7 +7,7 @@ module Editing.Diff (diff, diff_as_Edits) where
 import qualified Cxx.Basics
 import qualified Editing.Basics
 import qualified Data.Char as Char
-import Data.Algorithm.Diff (DI(..), getDiff)
+import Data.Algorithm.Diff (Diff(..), getDiff)
 import Data.Maybe (listToMaybe)
 import Data.Monoid (Monoid(..))
 import Util (orElse, take_atleast, (.), isIdChar, invert)
@@ -72,12 +72,12 @@ describe_simpleEdit (SimpleEdit r s) t
       | source_elem ["}", ")", ";"] ∨ (toks_len sr ≤ 4 ∧ alpha Before) = rel After
       | otherwise = Absolute sole
 
-diffsAsSimpleEdits :: [(DI, a)] → [SimpleEdit a]
+diffsAsSimpleEdits :: [Diff a] → [SimpleEdit a]
 diffsAsSimpleEdits = work (positionIn [] 0) where
   work _ [] = []
-  work n ((F, _) : r) = SimpleEdit (Range n 1) [] : work (offset 1 n) r
-  work n ((S, x) : r) = SimpleEdit (Range n 0) [x] : work n r
-  work n ((B, _) : r) = work (offset 1 n) r
+  work n (First _ : r) = SimpleEdit (Range n 1) [] : work (offset 1 n) r
+  work n (Second x : r) = SimpleEdit (Range n 0) [x] : work n r
+  work n (Both _ _ : r) = work (offset 1 n) r
 
 merge_nearby_edits :: [a] → [SimpleEdit a] → [SimpleEdit a]
   -- Also produces replace edits from insert+erase edits.

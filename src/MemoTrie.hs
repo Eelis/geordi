@@ -48,7 +48,7 @@ instance Trie x tx ⇒ Trie [x] (ListTrie tx) where
   untrie (ListTrie p _) [] = p
   untrie (ListTrie _ q) (h:t) = untrie (untrie q h) t
 
-bits :: Bits.Bits t ⇒ t → [Bool]
+bits :: (Num t, Bits.Bits t) ⇒ t → [Bool]
 bits 0 = []
 bits x = Bits.testBit x 0 : bits (Bits.shiftR x 1)
 
@@ -56,7 +56,7 @@ unbit :: Num t ⇒ Bool → t
 unbit False = 0
 unbit True = 1
 
-unbits :: Bits.Bits t ⇒ [Bool] → t
+unbits :: (Num t, Bits.Bits t) ⇒ [Bool] → t
 unbits [] = 0
 unbits (x:xs) = (Bits..|.) (unbit x) (Bits.shiftL (unbits xs) 1)
 

@@ -13,7 +13,7 @@ import Data.List (intercalate)
 import Text.ParserCombinators.Parsec (getInput, (<|>), oneOf, lookAhead, spaces, satisfy, CharParser, many1, parse)
 import Util (Option(..), (.), (.∨.), total_tail, partitionMaybe, E)
 import Editing.Basics (TextEdit)
-import Prelude hiding (catch, (.))
+import Prelude hiding ((.))
 import Prelude.Unicode
 
 data EvalOpt = CompileOnly | PreprocessOnly | Terse | NoWarn | NoUsingStd
