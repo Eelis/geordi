@@ -76,7 +76,7 @@ namespace
 
 void * operator new(size_t const i, std::nothrow_t const &) throw ()
 { return op_new(i, ar_plain); }
-void * operator new(size_t const i) throw (std::bad_alloc)
+void * operator new(size_t const i)
 { if (void * const r = op_new(i, ar_plain)) return r; throw std::bad_alloc(); }
 void operator delete(void * const p, std::nothrow_t const &) throw () { operator delete(p); }
 void operator delete(void * const p) throw() { del(p, false); }
@@ -85,7 +85,7 @@ void operator delete(void * const p) throw() { del(p, false); }
 
 void * operator new[](size_t const i, std::nothrow_t const &) throw ()
 { return op_new(i, ar_array); }
-void * operator new[](size_t const i) throw (std::bad_alloc)
+void * operator new[](size_t const i)
 { if (void * const r = op_new(i, ar_array)) return r; throw std::bad_alloc(); }
 void operator delete[](void * const p, std::nothrow_t const &) throw () { operator delete[](p); }
 void operator delete[](void * const p) throw() { del(p, true); }
