@@ -11,7 +11,7 @@ import Prelude hiding ((.))
 import Prelude.Unicode
 import Util (readFileNow, (.))
 
-data CompileConfig = CompileConfig { gxxPath :: FilePath, compileFlags, linkFlags :: [String] }
+data CompileConfig = CompileConfig { gxxPath :: FilePath, objectFiles, compileFlags, linkFlags :: [String] }
 
 readCompileConfig :: IO CompileConfig
 readCompileConfig = do
@@ -19,7 +19,7 @@ readCompileConfig = do
   let
     m = Map.fromList $ Maybe.catMaybes $ (uncurry parseLine .) $ zip [1..] l
     var k = maybe (fail $ "Missing variable in " ++ file ++ ": " ++ k) return (Map.lookup k m)
-  CompileConfig . var "GXX" <*> (words . var "COMPILE_FLAGS") <*> (words . var "LINK_FLAGS")
+  CompileConfig . var "GXX" <*> (words . var "OBJECT_FILES") <*> (words . var "COMPILE_FLAGS") <*> (words . var "LINK_FLAGS")
  where
   file = "compile-config"
   parseLine :: Int → String → Maybe (String, String)
