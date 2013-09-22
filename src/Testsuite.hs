@@ -112,7 +112,7 @@ tests "misc" =
   , test "line breaks" "#define X \"\\\\\" \\ #define Y X \\ int main() { cout \\ << Y Y; }" $ ExactMatch "\\\\"
   , test "-v" "-v" $ PrefixMatch "g++ (GCC) 4"
   , test "getopt" "-monkey chicken" $ ExactMatch "error: No such option: -m"
-  , test "operator new/delete overriding" "{ printf(\"| \"); list<int> v(5); } void * operator new(size_t const s) throw(bad_alloc) { printf(\"%lu \", (unsigned long)s); return malloc(s); } void operator delete(void * const p) throw() { free(p); }" $ RegexMatch "[^-]*\\| [[:digit:] ]+"
+  , test "operator new/delete overriding" "{ printf(\"| \"); list<int> v(5); } void * operator new(size_t const s) { printf(\"%lu \", (unsigned long)s); return malloc(s); } void operator delete(void * const p) throw() { free(p); }" $ RegexMatch "[^-]*\\| [[:digit:] ]+"
   ]
 
 tests "diagnostics" =
