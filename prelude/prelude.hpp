@@ -86,7 +86,6 @@
 #include <boost/integer.hpp>
 #include <boost/integer_traits.hpp>
 #include <boost/iterator_adaptors.hpp>
-#include <boost/lexical_cast.hpp>
 #include <boost/multi_array.hpp>
 #include <boost/optional.hpp>
 #include <boost/range.hpp>

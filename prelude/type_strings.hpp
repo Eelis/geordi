@@ -6,8 +6,6 @@
 
 #include "lvalue_rvalue.hpp"
 
-#include <tr1/array>
-
 #include <list>
 #include <map>
 #include <string>
@@ -24,7 +22,6 @@
 #include <cassert>
 #include <memory>
 
-#include <boost/lexical_cast.hpp>
 #include <boost/optional.hpp>
 #include <boost/type_traits/is_same.hpp>
 #include <boost/type_traits/is_union.hpp>
@@ -110,7 +107,7 @@ namespace textual_type_descriptions
   { if (plural) return many<T>(); else return an<T>(); }
 
   template <typename T> std::string count (size_t const i)
-  { return boost::lexical_cast<std::string>(i) + " " + type_desc<T>(i != 1); }
+  { return std::to_string(i) + " " + type_desc<T>(i != 1); }
 
   template <typename T> std::string an_or_count (size_t const i) { return i == 1 ? an<T>() : count<T>(i); }
 
@@ -400,7 +397,7 @@ namespace textual_type_descriptions
     template <typename... T> struct type_desc_t<std::tuple<T...>> {
       static std::string s (bool b) {
         std::vector<std::string> v; list_desc<T...>::s(v);
-        return boost::lexical_cast<std::string>(sizeof...(T)) + "-" + pl("tuple", b) + " of " + commas_and(v.begin(), v.end());
+        return std::to_string(sizeof...(T)) + "-" + pl("tuple", b) + " of " + commas_and(v.begin(), v.end());
       }
       enum { vowel = num_vowel<sizeof...(T)>::vowel };
     };
