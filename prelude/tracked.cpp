@@ -63,7 +63,7 @@ namespace tracked
       error()() << "tried to " << s << (e->status == pillaged ? " pillaged " : " destructed ") << *e << '.';
     }
 
-    void * op_new(std::size_t const s, bool const array, void * const r, char const * const name) {
+    void * op_new(std::size_t, bool const array, void * const r, char const * const name) {
       if (!r) return 0;
       info()() << "new(" << name << (array ? "[]" : "") << ")";
       return r;
