@@ -27,6 +27,7 @@
 #include <complex>
 #include <deque>
 #include <exception>
+#include <forward_list>
 #include <fstream>
 #include <functional>
 #include <iomanip>
