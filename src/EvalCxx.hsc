@@ -343,7 +343,7 @@ resources stage = Resources
     { walltime = t
     , rlimits = (\(r, l) → (r, ResourceLimits (ResourceLimit l) (ResourceLimit l))) .
       [ (ResourceCPUTime, fromIntegral t)
-      , (ResourceTotalMemory, 200 * mebi)
+      , (ResourceTotalMemory, 500 * mebi)
       , (ResourceFileSize, 5 * mebi)
         -- Note: We don't add ResourceOpenFiles here, because it is already set as part of the fd closing scheme described in the "Inherited file descriptors" section at the top of this file, and that "global" limit is sufficient.
       ]
