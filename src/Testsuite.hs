@@ -90,7 +90,7 @@ tests "resources" =
   , test "Working directory" "<< get_current_dir_name()" $ ExactMatch "/"
   , test "File I/O" "{ { ofstream f (__FILE__); f << \"foo\"; } cout << ifstream(__FILE__).rdbuf(); }" $
     ExactMatch "foo"
-  , test "Memory limit" "{ int i = 0; while (new (nothrow) char [1 << 20]) ++i; assert(i < 250); }" NoOutput
+  , test "Memory limit" "{ int i = 0; while (new (nothrow) char [1 << 20]) ++i; assert(i < 600); }" NoOutput
   , test "Fd limit" "{ int i = 0; while (open(__FILE__, 0) != -1) ++i; assert(errno == EMFILE); assert(i < 50); }  extern \"C\" int open (char const *, int);" NoOutput
   , test "File size limit" "{ ofstream f (__FILE__); string meg (1 << 20, 'x'); for (;;) { f << meg << flush; cout << '+' << flush; } }" $
     RegexMatch "\\+{1,50} File size limit exceeded$"
