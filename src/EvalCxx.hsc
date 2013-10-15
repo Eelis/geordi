@@ -84,9 +84,11 @@ import System.Posix
 import Gcc (Stage(..), isMainMissingDiagnostic)
 import CompileConfig
 
-#ifdef __x86_64__
-import Foreign ((.&.))
+#ifndef __x86_64__
+#error only x86_64 is supported
 #endif
+
+import Foreign ((.&.))
 
 import Prelude hiding ((.))
 import Util
@@ -127,7 +129,6 @@ supervise pid = alloca $ \wstatp → do
             when (sc `elem` ignored_syscalls) $ Ptrace.pokeuser pid syscall_ret 0
             Ptrace.syscall pid; sv Nothing
           Nothing → do
-            #ifdef __x86_64__
             rip ← Ptrace.peekuser pid $ 8 * #const RIP
             instr ← Ptrace.peektext pid (rip - 2)
             if instr .&. 0xffff == i386_syscall_instruction
@@ -137,7 +138,6 @@ supervise pid = alloca $ \wstatp → do
                 sv (Just SYS_exit_group)
                 return $ Signaled sigKILL -- Not entirely accurate, but it's not worth the hassle to add a new alternative to SuperviseResult.
               else
-            #endif
                 SysCalls.fromNumber . Ptrace.peekuser pid syscall_off >>= \syscall → case () of
                   ()| syscall `elem` ignored_syscalls → do
                     Ptrace.pokeuser pid syscall_off $ SysCalls.toNumber SYS_getpid
@@ -314,26 +314,14 @@ evaluator = do
 ignored_syscalls, allowed_syscalls :: [SysCall]
 
 ignored_syscalls = -- These are effectively replaced with "return 0;".
-  [ SYS_setrlimit, SYS_fstatfs, SYS_chmod, SYS_fadvise64, SYS_unlink, SYS_munmap, SYS_madvise, SYS_umask, SYS_rt_sigaction, SYS_rt_sigprocmask, SYS_ioctl, SYS_setitimer, SYS_timer_settime, SYS_timer_delete, SYS_vfork {- see "Secure compilation" -}
-  #ifdef __x86_64__
-    , SYS_fcntl
-  #else
-    , SYS_fcntl64
-  #endif
+  [ SYS_setrlimit, SYS_fstatfs, SYS_chmod, SYS_fadvise64, SYS_unlink, SYS_munmap, SYS_madvise, SYS_umask, SYS_rt_sigaction, SYS_rt_sigprocmask, SYS_ioctl, SYS_setitimer, SYS_timer_settime, SYS_timer_delete, SYS_fcntl
+  , SYS_vfork {- see "Secure compilation" -}
   ]
 
 allowed_syscalls =
-  [ SYS_open, SYS_write, SYS_uname, SYS_brk, SYS_read, SYS_mmap, SYS_exit_group, SYS_getpid, SYS_access, SYS_getrusage, SYS_close, SYS_gettimeofday, SYS_time, SYS_clock_gettime, SYS_writev, SYS_execve, SYS_mprotect, SYS_getcwd, SYS_times
-
-  -- On x86_64, SYS_times is necessary for clock().
+  [ SYS_open, SYS_write, SYS_uname, SYS_brk, SYS_read, SYS_mmap, SYS_exit_group, SYS_getpid, SYS_access, SYS_getrusage, SYS_close, SYS_gettimeofday, SYS_time, SYS_clock_gettime, SYS_writev, SYS_execve, SYS_mprotect, SYS_getcwd, SYS_times, SYS_stat, SYS_fstat, SYS_arch_prctl, SYS_getrlimit, SYS_lseek, SYS_lstat, SYS_dup
 
   , SYS_getdents64, SYS_getdents, SYS_fallocate, SYS_pread64, SYS_pwrite64, SYS_readv -- for gold
-
-  #ifdef __x86_64__
-    , SYS_stat, SYS_fstat, SYS_arch_prctl, SYS_getrlimit, SYS_lseek, SYS_lstat, SYS_dup
-  #else
-    , SYS_fstat64, SYS_lstat64, SYS_stat64, SYS_ugetrlimit, SYS__llseek, SYS_mmap2, SYS_mremap, SYS_set_thread_area, SYS_readlink
-  #endif
   ]
 
 -- Resources:

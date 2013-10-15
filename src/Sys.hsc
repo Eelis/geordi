@@ -29,13 +29,8 @@ import Prelude hiding ((.))
 #include <netinet/tcp.h>
 
 syscall_off, syscall_ret :: CLong
-#ifdef __x86_64__
 syscall_off = (#const ORIG_RAX) * 8
 syscall_ret = (#const RAX) * 8
-#else
-syscall_off = (#const ORIG_EAX) * 4
-syscall_ret = (#const EAX) * 4
-#endif
 
 foreign import ccall unsafe "__hsunix_wifexited" c_WIFEXITED :: CInt → CInt
 foreign import ccall unsafe "__hsunix_wexitstatus" c_WEXITSTATUS :: CInt → CInt
