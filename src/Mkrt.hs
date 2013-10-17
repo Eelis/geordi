@@ -62,7 +62,7 @@ compiler_files = (nub .) $ do
       Just f → (f:) . ldd f
   gxxlibs ← ldd gxx
   return $ gxx : gxxlibs ++ fs ++ fs'
- where l = words "crt1.o crti.o crtn.o crtbegin.o crtend.o libgcc.a libgcc_s.so libstdc++.so libstdc++.so.6 libmcheck.a libc.so libc_nonshared.a libm.so libm.so.6 libc.so.6 libgcc_s.so.1"
+ where l = words "crt1.o crti.o crtn.o crtbegin.o crtend.o libgcc.a libgcc_s.so libstdc++.so libstdc++.so.6 libmcheck.a libc.so libc_nonshared.a libm.so libm.so.6 libc.so.6 libgcc_s.so.1 ld-linux-x86-64.so.2 libseccomp.so.2 libseccomp.so.1"
 
 main :: IO ()
 main = do

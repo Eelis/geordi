@@ -11,9 +11,13 @@ fi
 cd "${DATA}/prelude"
 $GXX $COMPILE_FLAGS -c prelude.cpp tracked.cpp more_ostreaming.cpp
 cd "${DATA}"
+g++ -std=c++11 lockdown/lockdown.cpp `pkg-config --cflags --libs libseccomp` -o rt/lockdown
 rm -f rt/prelude.a
 ar -rsc rt/prelude.a prelude/*.o
 $GXX $COMPILE_FLAGS -c -x c++-header prelude/prelude.hpp -o rt/prelude.hpp.gch
 chmod 644 rt/prelude.a rt/prelude.hpp.gch
 cp prelude/terse.hpp rt/
-$GXX $COMPILE_FLAGS -fPIC -shared -Wl,-soname,libtpreload.so.0 -o rt/libtpreload.so.0.0 prelude/tpreload.cpp
+mkdir -p rt/usr/include
+cp /usr/include/stdc-predef.h rt/usr/include/
+$GXX $COMPILE_FLAGS -fPIC -shared -o rt/libtpreload.so prelude/tpreload.cpp
+gcc -fPIC -shared -Wall -o rt/libdiagnose_sigsys.so diagnose_sigsys/diagnose_sigsys.c

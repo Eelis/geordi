@@ -82,7 +82,7 @@ main = do
 tests :: String → [Test]
 
 tests "resources" =
-  [ test "Program timeout" "{ for(;;) ; }" $ ExactMatch "Killed"
+  [ test "Program timeout" "{ for(;;) ; }" $ ExactMatch "CPU time limit exceeded"
   , test "Stack overflow" "<< f(3); int f(int i) { if (i % 10000 == 0) cout << '+' << flush; return -f(++i); }" $
     RegexMatch "\\++ Undefined behavior detected."
   , test "Open FDs" "{ for(int i = 0; i != 1024; ++i) assert(i == 1 || i == 2 || close(i) == -1); }" NoOutput
@@ -94,11 +94,11 @@ tests "resources" =
   , test "Fd limit" "{ int i = 0; while (open(__FILE__, 0) != -1) ++i; assert(errno == EMFILE); assert(i < 50); }  extern \"C\" int open (char const *, int);" NoOutput
   , test "File size limit" "{ ofstream f (__FILE__); string meg (1 << 20, 'x'); for (;;) { f << meg << flush; cout << '+' << flush; } }" $
     RegexMatch "\\+{1,50} File size limit exceeded$"
-  , test "System call interception" "<< fork()" $ RegexMatch "SYS_[^:]*: Operation not permitted"
+  , test "System call interception" "<< fork()" $ ExactMatch "Operation not permitted: clone"
   , test "Signal" "{ int x = 0; cout << 3 / x; }" $ ExactMatch "Floating point exception"
   , test "Recursive exec()"
     "int main (int const argc, char const * const * argv) { string s; if (argc >= 2) s = argv[1]; s += 'x'; if (s.size() % 100 == 0) cout << '+' << flush; execl(\"/t\", \"/t\", s.c_str(), 0); }" $
-    RegexMatch "\\++( Killed)?$"
+    RegexMatch "\\++( CPU time limit exceeded)?$"
   ]
 
 tests "misc" =
