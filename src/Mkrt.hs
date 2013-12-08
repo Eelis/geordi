@@ -47,6 +47,7 @@ ldd f = do
 compiler_files :: IO [FilePath]
 compiler_files = (nub .) $ do
   gxx ← gxxPath . readCompileConfig
+  l ← objectFiles . readCompileConfig
   let
     query_gxx q = do
       (status, out, err) ← readProcessWithExitCode gxx [q] ""
@@ -62,7 +63,6 @@ compiler_files = (nub .) $ do
       Just f → (f:) . ldd f
   gxxlibs ← ldd gxx
   return $ gxx : gxxlibs ++ fs ++ fs'
- where l = words "crt1.o crti.o crtn.o crtbegin.o crtend.o libgcc.a libgcc_s.so libstdc++.so libstdc++.so.6 libmcheck.a libc.so libc_nonshared.a libm.so libm.so.6 libc.so.6 libgcc_s.so.1"
 
 main :: IO ()
 main = do
