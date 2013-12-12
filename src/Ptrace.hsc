@@ -7,7 +7,6 @@ import Control.Monad (when)
 import Prelude
 
 #include <sys/ptrace.h>
-#include <linux/ptrace.h>
 #include <syscall.h>
 
 foreign import ccall "sys/ptrace.h ptrace" c_ptrace :: CInt → CPid → CLong → CLong → IO CLong
