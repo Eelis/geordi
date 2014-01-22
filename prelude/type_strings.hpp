@@ -225,7 +225,7 @@ namespace textual_type_descriptions
       v.push_back(an_or_count<T>(N)); group_list_desc<tlists::tlist<U...> >::s(v);
   } };
 
-  template <> struct group_list_desc<tlists::tlist<> > { static void s (std::vector<std::string> & v) {} };
+  template <> struct group_list_desc<tlists::tlist<> > { static void s (std::vector<std::string> &) {} };
 
   template <typename... T>
   struct list_desc: group_list_desc<typename tlists::group_successive<T...>::type> {};
