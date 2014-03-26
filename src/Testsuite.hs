@@ -104,8 +104,8 @@ tests "resources" =
 tests "misc" =
   [ test "Simple output" "<< 3" $ ExactMatch "3"
   , let quine = "{string t,u,y(1,34);stringstream i(\"{string t,u,y(1,34);stringstream i(!);getline(i,t,'!')>>u;cout<<t<<y<<i.str()<<y<<u;}\");getline(i,t,'!')>>u;cout<<t<<y<<i.str()<<y<<u;}" in test "Quine" quine $ ExactMatch quine
-  , test "UTF-8 handling" "<< 'b' << char(215) << char(144) << 'c'" $
-    ExactMatch "bאc"
+  , test "UTF-8 handling" "<< 'b' << char(215) << char(144) << 'c' << char(-5) << 'd'" $
+    ExactMatch "bאc�d"
   , let s = "dicekjhbagfl" in
     test "Nontrivial program (Brainfuck interpreter)" ("{b(program);}char program[]=\">>,[>>,]<<[[-<+<]>[>[>>]<[.[-]<[[>>+<<-]<]>>]>]<<]\",input[]=\"" ++ s ++ "\", *i=input,m[512]={},*p=m;void b(char*c){for(;*c&&*c!=']';++c){(*((p+=*c=='>')-=*c=='<')+=*c=='+') -=*c=='-';*c=='.'&&cout<<*p;if(*c==',')*p=*i++;if(*c=='['){for(++c;*p;)b(c);for(int d=0;*c!=']'||d--;++c)d+=*c=='[';}}}") $ ExactMatch (sort s)
   , test "srand()/time()" "{ srand(time(0)); }" NoOutput

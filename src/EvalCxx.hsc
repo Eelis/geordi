@@ -47,6 +47,8 @@ import Sys (strsignal, chroot, strerror)
 import Control.Monad (when, liftM2)
 import System.Environment (getEnvironment)
 import System.IO (withFile, IOMode(..), hSetEncoding, utf8, hPutStrLn, hGetContents)
+import GHC.IO.Encoding.UTF8 (mkUTF8)
+import GHC.IO.Encoding.Failure (CodingFailureMode(TransliterateCodingFailure))
 import Foreign.C (CInt, eOK)
 import System.Exit (ExitCode(..))
 import Data.List ((\\), isPrefixOf)
@@ -106,7 +108,7 @@ capture_restricted a argv envi = do
     close_fds = True,
     create_group = False,
     delegate_ctlc = False}
-
+  hSetEncoding stdout_hdl $ mkUTF8 TransliterateCodingFailure
   liftM2 CaptureResult
     (recognizeSignaled . waitForProcess p)
     (hGetContents stdout_hdl)
