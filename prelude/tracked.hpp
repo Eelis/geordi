@@ -2,7 +2,6 @@
 #define TRACKED_HPP
 
 #include <boost/noncopyable.hpp>
-#include <boost/variant.hpp>
 #include <iosfwd>
 #include <string>
 
@@ -10,16 +9,11 @@ namespace tracked
 {
   namespace detail
   {
-    typedef boost::variant<int, char, std::string> Tag;
-
     class Tracked
     {
       protected:
 
-        Tag tag;
-
         Tracked();
-        Tracked(Tag const &);
         Tracked(Tracked const &);
         Tracked(Tracked &&);
         void operator=(Tracked const &);
@@ -71,10 +65,6 @@ namespace tracked
     B(B const &);
     B(B &&);
 
-    B(detail::Tag const &);
-    B(int); B(char); B(std::string const &); B(char const*);
-      // These last four seem redundant, but are needed to make B b = ...; work properly.
-
     B & operator=(B const &);
     B & operator=(B &&);
     virtual ~B();
@@ -96,8 +86,6 @@ namespace tracked
 
     void operator*() const;
 
-    detail::Tag const & tag() const;
-
     template<typename C, typename Tr>
     friend std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> &, B const &);
 
@@ -117,9 +105,6 @@ namespace tracked
     D();
     D(D const &);
     D(D &&);
-
-    D(detail::Tag const &);
-    D(int); D(char); D(std::string const &); D(char const*);
 
     D & operator=(D const &);
     D & operator=(D &&);
