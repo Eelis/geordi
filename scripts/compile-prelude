@@ -9,7 +9,7 @@ fi
 
 . "${DATA}/compile-config"
 cd "${DATA}/prelude"
-$GXX $COMPILE_FLAGS -c prelude.cpp tracked.cpp more_ostreaming.cpp
+$GXX $COMPILE_FLAGS -c prelude.cpp tracked.cpp more_ostreaming.cpp bark.cpp
 cd "${DATA}"
 g++ -std=c++11 lockdown/lockdown.cpp `pkg-config --cflags --libs libseccomp` -o rt/lockdown
 rm -f rt/prelude.a
