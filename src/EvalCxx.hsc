@@ -1,4 +1,4 @@
-{-# LANGUAGE UnicodeSyntax, PatternGuards #-}
+{-# LANGUAGE UnicodeSyntax, PatternGuards, RecordWildCards, LambdaCase, ViewPatterns #-}
 
 {-- Secure compilation
 
@@ -168,21 +168,20 @@ pass_env :: String → Bool
 pass_env s = ("LC_" `isPrefixOf` s) || (s `elem` ["PATH", "LD_LIBRARY_PATH", "LD_PRELOAD"])
 
 evaluate :: CompileConfig → Request → IO EvaluationResult
-evaluate cfg req = do
+evaluate cfg Request{..} = do
   withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd → do
   Flock.exclusive lock_fd
-  withFile "t.cpp" WriteMode $ \h → hSetEncoding h utf8 >> hPutStrLn h (code req)
-    -- Same as utf8-string's System.IO.UTF8.writeFile, but I'm hoping that with GHC's improving UTF-8 support we can eventually drop the dependency on utf8-string altogether.
+  withFile "t.cpp" WriteMode $ \h → hSetEncoding h utf8 >> hPutStrLn h code
   baseEnv ← filter (pass_env . fst) . getEnvironment
   let
-    runStage :: Stage → Maybe (IO EvaluationResult) → IO EvaluationResult
-    runStage stage act = do
-      cr ← capture_restricted (path stage) (argv stage) (envi stage)
-      case cr of
-        CaptureResult (Exited (ExitFailure _)) d | stage == Link, isMainMissingDiagnostic d
+    runStages :: [Stage] → IO EvaluationResult
+    runStages [] = error "assert failed ;)"
+    runStages (stage : more) = do
+      capture_restricted (path stage) (argv stage) (envi stage) >>= \case
+        CaptureResult (Exited (ExitFailure _)) (isMainMissingDiagnostic -> True) | stage == Link
           → return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "")
-        CaptureResult (Exited ExitSuccess) "" | stage /= stageOfInterest req, Just a ← act → a
-        _ → return $ EvaluationResult stage cr
+        CaptureResult (Exited ExitSuccess) "" | not (null more) → runStages more
+        cr → return $ EvaluationResult stage cr
 
     path :: Stage → String
     path Run = "/t"
@@ -195,17 +194,13 @@ evaluate cfg req = do
         Compile → ["-S", "t.cpp"] ++ cf
         Assemble → ["-c", "t.s"] ++ cf
         Link → ["t.o", "-o", "t"] ++ cf ++ linkFlags cfg
-      where cf = if no_warn req then "-w" : compileFlags cfg else compileFlags cfg
+      where cf = if no_warn then "-w" : compileFlags cfg else compileFlags cfg
 
     envi :: Stage → [(String, String)]
     envi Run = baseEnv ++ prog_env
     envi _ = baseEnv ++ compile_env
 
-  if stageOfInterest req == Preprocess then runStage Preprocess Nothing else do
-  runStage Compile $ Just $ do
-  runStage Assemble $ Just $ do
-  runStage Link $ Just $ do
-  runStage Run Nothing
+  runStages $ if stageOfInterest == Preprocess then [Preprocess] else [Compile .. stageOfInterest]
 
 data WithEvaluation a
   = WithoutEvaluation a

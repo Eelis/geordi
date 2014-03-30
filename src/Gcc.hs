@@ -6,7 +6,7 @@ import Data.Maybe (isJust)
 import Text.Regex (mkRegex, matchRegex)
 
 data Stage = Preprocess | Compile | Assemble | Link | Run
-  deriving (Show, Eq)
+  deriving (Show, Eq, Enum)
 
 isMainMissingDiagnostic :: String → Bool
 isMainMissingDiagnostic =
