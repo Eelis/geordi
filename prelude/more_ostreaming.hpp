@@ -12,8 +12,6 @@
 #include <cstdlib>
 #include <ctime>
 #include <algorithm>
-#include <boost/range.hpp>
-#include <boost/optional.hpp>
 #include "geordi.hpp"
 #include "literal_escape.hpp"
 #include "delimited_ostream.hpp"
@@ -25,13 +23,6 @@ std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, utsname co
 template <typename C, typename Tr, typename T>
 std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::reference_wrapper<T> const & rw)
 { T & r(rw); return o << r; }
-
-namespace boost
-{
-  template <typename C, typename Tr, typename T>
-  std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, boost::optional<T> const & x)
-  { return x ? (o << *x) : (o << "none"); }
-}
 
 template <typename C, typename Tr, typename A, typename B>
 std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::pair<A, B> const & p)
@@ -92,8 +83,8 @@ namespace more_ostreaming
   template <typename C, typename Tr, typename Range>
   void delimit(std::basic_ostream<C, Tr> & o, Range const & r)
   {
-    typename boost::range_const_iterator<Range>::type b = boost::begin(r), e = boost::end(r);
-    if (b != e) { o << escape(*b); while (++b != e) o << ", " << escape(*b); }
+    bool first = false;
+    for (auto && x : r) { if (!first) o << ", "; o << escape(x); }
   }
 
   extern template void delimit<char, std::char_traits<char>, std::vector<int> >(std::ostream &, std::vector<int> const &);
@@ -139,7 +130,7 @@ typename more_ostreaming::detail::snd<typename R::iterator, std::basic_ostream<C
 namespace std { using ::operator<<; }
 
 template <typename C, typename Tr, typename T, size_t N>
-typename boost::disable_if<geordi::is_character<T>, std::basic_ostream<C, Tr> &>::type
+typename std::enable_if<!geordi::is_character<T>::value, std::basic_ostream<C, Tr> &>::type
   operator<<(std::basic_ostream<C, Tr> & o, T const (& a) [N])
 { o << '{'; more_ostreaming::delimit(o, a); return o << '}'; }
 
