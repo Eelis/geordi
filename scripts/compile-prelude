@@ -11,7 +11,7 @@ fi
 cd "${DATA}/prelude"
 $GXX $COMPILE_FLAGS -c prelude.cpp tracked.cpp more_ostreaming.cpp bark.cpp
 cd "${DATA}"
-g++ -std=c++11 lockdown/lockdown.cpp `pkg-config --cflags --libs libseccomp` -o rt/lockdown
+g++ -static-libstdc++ -static-libgcc -std=c++11 -O2 lockdown/lockdown.cpp `pkg-config --cflags --libs libseccomp` -o rt/lockdown
 rm -f rt/prelude.a
 ar -rsc rt/prelude.a prelude/*.o
 $GXX $COMPILE_FLAGS -c -x c++-header prelude/prelude.hpp -o rt/prelude.hpp.gch
