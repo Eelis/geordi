@@ -83,8 +83,8 @@ namespace more_ostreaming
   template <typename C, typename Tr, typename Range>
   void delimit(std::basic_ostream<C, Tr> & o, Range const & r)
   {
-    bool first = false;
-    for (auto && x : r) { if (!first) o << ", "; o << escape(x); }
+    bool first = true;
+    for (auto && x : r) { if (first) first = false; else o << ", "; o << escape(x); }
   }
 
   extern template void delimit<char, std::char_traits<char>, std::vector<int> >(std::ostream &, std::vector<int> const &);
