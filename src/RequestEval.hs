@@ -34,7 +34,7 @@ import Parsers ((<|>), eof, option, spaces, getInput, kwd, kwds, Parser, run_par
 import Util ((.), (‥), (<<), (.∨.), commas_and, capitalize, length_ge, replace, replaceWithMany, show_long_opt, strip, convert, maybeLast, orElse, E, NeList, propagateE)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..), popContext)
 import Data.SetOps
-import Prelude hiding (catch, (.))
+import Prelude hiding ((.))
 import Prelude.Unicode hiding ((∈), (∉))
 
 show_EditableRequest :: Highlighter → EditableRequest → String
