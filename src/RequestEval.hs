@@ -101,7 +101,7 @@ makeEvalCxxRequest opts sc = EvalCxx.Request{..}
   pre = "#include \"prelude.hpp\"\n"
     ++ (if NoUsingStd ∈ opts || PreprocessOnly ∈ opts then "" else "using namespace std;\n")
   units' :: [String]
-  units' = (pre ++) . unlines . splitBy ((== "#") . strip) (lines $ show code)
+  units' = (pre ++) . unlines . splitBy null (lines $ show code)
   units = (head units' ++ ((show . generatedMain) `orElse` "")) : tail units'
   stageOfInterest
     | CompileOnly ∈ opts = Gcc.Compile
