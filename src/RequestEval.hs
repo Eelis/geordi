@@ -96,7 +96,6 @@ optParser = first Set.fromList ‥ partitionEithers ‥ option (return []) P.opt
 makeEvalCxxRequest :: Set EvalOpt → Cxx.Parse.Code → EvalCxx.Request
 makeEvalCxxRequest opts sc = EvalCxx.Request
   (prel ++ (if NoUsingStd ∈ opts || PreprocessOnly ∈ opts then "" else "using namespace std;\n")
-    ++ (if Terse ∈ opts then "#include \"terse.hpp\"\n" else "")
     ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc))
   stageOfInterest (NoWarn ∈ opts)
  where
