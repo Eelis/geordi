@@ -1,4 +1,4 @@
-{-# LANGUAGE UnicodeSyntax, PatternGuards, RecordWildCards, LambdaCase, ViewPatterns #-}
+{-# LANGUAGE UnicodeSyntax, PatternGuards, RecordWildCards, LambdaCase, ViewPatterns, TupleSections #-}
 
 {-- Secure compilation
 
@@ -44,7 +44,7 @@ import Paths_geordi (getDataFileName)
 
 import Data.Pointed (Pointed(..))
 import Sys (strsignal, chroot, strerror)
-import Control.Monad (when, liftM2)
+import Control.Monad (when, liftM2, forM_)
 import System.Environment (getEnvironment)
 import System.IO (withFile, IOMode(..), hSetEncoding, utf8, hPutStrLn, hGetContents)
 import GHC.IO.Encoding.UTF8 (mkUTF8)
@@ -162,7 +162,7 @@ jail = do
   setGroupID gid
   setUserID uid
 
-data Request = Request { code :: String, stageOfInterest :: Stage, no_warn :: Bool }
+data Request = Request { units :: [String], stageOfInterest :: Stage, no_warn :: Bool }
 
 pass_env :: String → Bool
 pass_env s = ("LC_" `isPrefixOf` s) || (s `elem` ["PATH", "LD_LIBRARY_PATH", "LD_PRELOAD"])
@@ -171,13 +171,20 @@ evaluate :: CompileConfig → Request → IO EvaluationResult
 evaluate cfg Request{..} = do
   withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd → do
   Flock.exclusive lock_fd
-  withFile "t.cpp" WriteMode $ \h → hSetEncoding h utf8 >> hPutStrLn h code
+
+  let
+    namedUnits :: [(String, String)]
+    namedUnits = zip ["t" ++ show i | i <- [0..9::Int]] units
+
+  forM_ namedUnits $ \(unit, code) ->
+    withFile (unit ++ ".cpp") WriteMode $ \h → hSetEncoding h utf8 >> hPutStrLn h code
+
   baseEnv ← filter (pass_env . fst) . getEnvironment
   let
-    runStages :: [Stage] → IO EvaluationResult
+    runStages :: [(String, Stage)] → IO EvaluationResult
     runStages [] = error "assert failed ;)"
-    runStages (stage : more) = do
-      capture_restricted (path stage) (argv stage) (envi stage) >>= \case
+    runStages ((unit, stage) : more) = do
+      capture_restricted (path stage) (argv unit stage) (envi stage) >>= \case
         CaptureResult (Exited (ExitFailure _)) (isMainMissingDiagnostic -> True) | stage == Link
           → return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "")
         CaptureResult (Exited ExitSuccess) "" | not (null more) → runStages more
@@ -187,20 +194,26 @@ evaluate cfg Request{..} = do
     path Run = "/t"
     path _ = gxxPath cfg
 
-    argv :: Stage → [String]
-    argv s = case s of
+    argv :: String -> Stage → [String]
+    argv unit stage = case stage of
         Run → ["second", "third", "fourth"]
-        Preprocess → ["-fpch-preprocess", "-E", "t.cpp"] ++ cf
-        Compile → ["-S", "t.cpp"] ++ cf
-        Assemble → ["-c", "t.s"] ++ cf
-        Link → ["t.o", "-o", "t"] ++ cf ++ linkFlags cfg
+        Preprocess → ["-fpch-preprocess", "-E", unit ++ ".cpp"] ++ cf
+        Compile → ["-S", unit ++ ".cpp"] ++ cf
+        Assemble → ["-c", unit ++ ".s"] ++ cf
+        Link → ((++ ".o") . fst . namedUnits) ++ ["-o", "t"] ++ cf ++ linkFlags cfg
       where cf = if no_warn then "-w" : compileFlags cfg else compileFlags cfg
 
     envi :: Stage → [(String, String)]
     envi Run = baseEnv ++ prog_env
     envi _ = baseEnv ++ compile_env
 
-  runStages $ if stageOfInterest == Preprocess then [Preprocess] else [Compile .. stageOfInterest]
+    stages_per_unit =
+      if stageOfInterest == Preprocess
+        then [Preprocess]
+        else [Compile .. min stageOfInterest Assemble]
+    final_stages = [Link .. stageOfInterest]
+
+  runStages $ [(unit, s) | (unit, _) <- namedUnits, s <- stages_per_unit] ++ (([],) . final_stages)
 
 data WithEvaluation a
   = WithoutEvaluation a
