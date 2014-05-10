@@ -96,12 +96,13 @@ optParser = first Set.fromList ‥ partitionEithers ‥ option (return []) P.opt
 makeEvalCxxRequest :: Set EvalOpt → Cxx.Parse.Code → EvalCxx.Request
 makeEvalCxxRequest opts sc = EvalCxx.Request{..}
  where
-  code :: String
-  code = show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc)
+  (code, generatedMain) =
+    Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc
   pre = "#include \"prelude.hpp\"\n"
     ++ (if NoUsingStd ∈ opts || PreprocessOnly ∈ opts then "" else "using namespace std;\n")
-  units :: [String]
-  units = (pre ++) . unlines . splitBy ((== "#") . strip) (lines code)
+  units' :: [String]
+  units' = (pre ++) . unlines . splitBy ((== "#") . strip) (lines $ show code)
+  units = (head units' ++ ((show . generatedMain) `orElse` "")) : tail units'
   stageOfInterest
     | CompileOnly ∈ opts = Gcc.Compile
     | PreprocessOnly ∈ opts = Gcc.Preprocess

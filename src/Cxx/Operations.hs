@@ -31,9 +31,9 @@ map_plain f (Parens c) = Parens $ map (map_plain f) c
 map_plain f (Squares c) = Squares $ map (map_plain f) c
 map_plain _ x = x
 
-expand :: ShortCode → Code
-expand (LongForm c) = c
-expand (Block c c') = c' ++ [Plain "\nint main(int argc, char * argv[])", Curlies c]
+expand :: ShortCode → (Code, Maybe Code)
+expand (LongForm c) = (c, Nothing)
+expand (Block c c') = (c', Just [Plain "\nint main(int argc, char * argv[])", Curlies c])
 expand (Call c c') = expand $ Block ([Plain "printf"] ++ c ++ [Plain "\n;"]) c'
 expand (Print c c') = expand $ Block ([Plain "::std::cout << "] ++ c ++ [Plain "\n;"]) c'
   -- The newline before the semicolon makes //-style comments work.
