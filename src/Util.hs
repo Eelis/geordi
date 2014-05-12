@@ -56,6 +56,13 @@ instance (Convert x x', Convert y y') ⇒ Convert (Either x y) (Either x' y') wh
 
 -- List utilities
 
+splitBy :: (a -> Bool) -> [a] -> [[a]]
+splitBy _ [] = [[]]
+splitBy f (x:xs)
+  | f x = [] : splitBy f xs
+  | y:ys <- splitBy f xs = (x:y):ys
+  | otherwise = undefined
+
 total_tail :: [a] → [a]
 total_tail [] = []
 total_tail (_ : t) = t

@@ -8,7 +8,7 @@ bug-reports: mailto:geordi@contacts.eelis.net
 package-url: http://www.eelis.net/geordi/snapshots/
 build-type: Custom
 
-data-files: jail-config compile-config prelude/*.hpp prelude/*.cpp
+data-files: jail-config compile-config prelude/*.hpp prelude/*.cpp lockdown/lockdown.cpp diagnose_sigsys/diagnose_sigsys.c
 
 flag irc
   description: Build IRC front end
@@ -27,23 +27,23 @@ executable geordi-mkrt
   extensions: UnicodeSyntax
   main-is: Mkrt.hs
   hs-source-dirs: src
-  build-depends: filepath, process, base>=4, deepseq, mtl >= 2.0.1.0, syb, unix, utf8-string, network, containers, readline, parsec, Diff, directory, regex-compat, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.7, semigroups>=0.5
+  build-depends: filepath, process>=1.2.0.0, base>=4, deepseq, mtl >= 2.0.1.0, syb, unix, utf8-string, network, containers, readline, parsec, Diff, directory, regex-compat, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.7, semigroups>=0.5
 
 executable geordi-local
-  other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
+  other-modules: Sys, EvalCxx, Flock
   ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans -O0
   build-tools: hsc2hs
-  build-depends: base>=4, deepseq, mtl >= 2.0.1.0, syb, unix, utf8-string, network, containers, readline, parsec, Diff, directory, regex-compat, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.7, semigroups>=0.5, pointed>=0.1.3, setlocale
+  build-depends: base>=4, deepseq, mtl >= 2.0.1.0, syb, unix, utf8-string, network, containers, readline, parsec, Diff, directory, regex-compat, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.7, semigroups>=0.5, pointed>=0.1.3, setlocale, process>=1.2.0.0
   main-is: Local.hs
   hs-source-dirs: src
 
 executable geordi-testsuite
   main-is: Testsuite.hs
   if flag(testsuite)
-    other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
+    other-modules: Sys, EvalCxx, Flock
     ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans -O0
     build-tools: hsc2hs
-    build-depends: base>=4, deepseq, mtl >= 2.0.1.0, syb, unix, utf8-string, network, containers, parsec, Diff, directory, regex-compat, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.7, semigroups>=0.5, pointed>=0.1.3
+    build-depends: base>=4, deepseq, mtl >= 2.0.1.0, syb, unix, utf8-string, network, containers, parsec, Diff, directory, regex-compat, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.7, semigroups>=0.5, pointed>=0.1.3,process>=1.2.0.0
     hs-source-dirs: src
   else
     buildable: False
@@ -51,10 +51,10 @@ executable geordi-testsuite
 executable geordi-irc
   main-is: IrcBot.hs
   if flag(irc)
-    other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
+    other-modules: Sys, EvalCxx, Flock
     ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans -O0
     build-tools: hsc2hs
-    build-depends: base>=4, deepseq, mtl >= 2.0.1.0, syb, unix, utf8-string, network, containers, parsec, Diff, directory, regex-compat, irc, bytestring, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.7, semigroups>=0.5, pointed>=0.1.3, setlocale
+    build-depends: base>=4, deepseq, mtl >= 2.0.1.0, syb, unix, utf8-string, network, containers, parsec, Diff, directory, regex-compat, irc >= 0.6.0.0, bytestring, base-unicode-symbols>=0.1.4, setops>=0.1, streams>=0.7, semigroups>=0.5, pointed>=0.1.3, setlocale, process>=1.2.0.0
     hs-source-dirs: src
   else
     buildable: False
@@ -62,7 +62,7 @@ executable geordi-irc
 executable geordi-xmpp
   main-is: XmppBot.hs
   if flag(xmpp)
-    other-modules: Sys, EvalCxx, SysCalls, Flock, Ptrace
+    other-modules: Sys, EvalCxx, Flock
     ghc-options: -Wall -fno-warn-unused-binds -fno-warn-unused-do-bind -fno-warn-orphans -O0
     build-tools: hsc2hs
     build-depends: base, deepseq, mtl >= 2.0.1.0, syb, unix, utf8-string, network, containers, parsec, Diff, directory, regex-compat, XMPP, base-unicode-symbols>=0.1.4, setops>=0.1, pointed>=0.1.3, setlocale

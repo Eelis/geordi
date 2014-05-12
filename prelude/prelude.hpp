@@ -27,6 +27,7 @@
 #include <complex>
 #include <deque>
 #include <exception>
+#include <forward_list>
 #include <fstream>
 #include <functional>
 #include <iomanip>
@@ -78,22 +79,6 @@
 #include <cwchar>
 #include <cwctype>
 
-#include <boost/version.hpp>
-#include <boost/any.hpp>
-#include <boost/checked_delete.hpp>
-#include <boost/format.hpp>
-#include <boost/implicit_cast.hpp>
-#include <boost/integer.hpp>
-#include <boost/integer_traits.hpp>
-#include <boost/iterator_adaptors.hpp>
-#include <boost/lexical_cast.hpp>
-#include <boost/multi_array.hpp>
-#include <boost/optional.hpp>
-#include <boost/range.hpp>
-#include <boost/rational.hpp>
-#include <boost/utility.hpp>
-#include <boost/variant.hpp>
-
 extern template class std::basic_ostream<char>;
 
 char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
@@ -106,12 +91,6 @@ char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
     std::istreambuf_iterator<C> boost_range_begin(n<C> & i) { return std::istreambuf_iterator<C>(i); } \
     template <typename C> \
     std::istreambuf_iterator<C> boost_range_end(n<C> &) { return std::istreambuf_iterator<C>(); } \
-  } \
-  namespace boost \
-  { template<typename C> \
-    struct range_iterator<std::n<C> > { typedef std::istreambuf_iterator<C> type; }; \
-    template<typename C> \
-    struct range_const_iterator<std::n<C> >; \
   }
 
 T(basic_istream)

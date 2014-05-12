@@ -13,29 +13,22 @@ import Control.Monad.Instances ()
 import Control.Monad.Fix (fix)
 import System.Posix.Time (epochTime)
 import Network.Socket (Socket(..), setSocketOption, SocketOption(..))
-import Foreign (with, sizeOf, peek, Ptr, allocaBytes)
+import Foreign (with, sizeOf, Ptr, allocaBytes)
 import System.IO.Unsafe (unsafePerformIO)
-import System.Exit (ExitCode(..))
-import System.Posix (Fd(Fd), CPid(CPid), ByteCount, Signal)
+import System.Posix (Fd(Fd), ByteCount)
 import Foreign.C
-  (CInt(CInt), CUInt(CUInt), CLong, CString, getErrno, eCHILD, throwErrno, withCString, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen, Errno(Errno))
+  (CInt(CInt), CUInt(CUInt), CLong, CString, getErrno, throwErrno, withCString, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen, Errno(Errno))
 
 import Prelude hiding ((.))
 
 #include <syscall.h>
-#include <sys/ptrace.h>
 #include <sys/reg.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
 syscall_off, syscall_ret :: CLong
-#ifdef __x86_64__
 syscall_off = (#const ORIG_RAX) * 8
 syscall_ret = (#const RAX) * 8
-#else
-syscall_off = (#const ORIG_EAX) * 4
-syscall_ret = (#const EAX) * 4
-#endif
 
 foreign import ccall unsafe "__hsunix_wifexited" c_WIFEXITED :: CInt → CInt
 foreign import ccall unsafe "__hsunix_wexitstatus" c_WEXITSTATUS :: CInt → CInt
@@ -64,28 +57,6 @@ fdReadNonBlocking (Fd fd) bc = do
     n → peekCStringLen (buf, fromIntegral n)
   -- Wrapping c_read ourselves is easier and more to the point than using fdRead and catching&filtering (stringized) eWOULDBLOCK errors. hGetBufNonBlocking works on a Handle, which is even worse.
   -- Note that peekCStringLen decodes Chars according to the current locale.
-
-foreign import ccall "wait" c_wait :: Ptr CInt → IO CPid
-
-data WaitResult = WaitNoChild | WaitExited ExitCode | WaitSignaled Signal | WaitStopped Signal
-  deriving (Show, Eq)
-
-wait :: Ptr CInt → IO WaitResult
-  -- Sharing the CInt is required for acceptable performance when wait is called very often (like when we intercept each system call when ptracing).
-wait p = do
-  r ← c_wait p
-  if r /= -1 then d `fmap` peek p else do
-  e ← getErrno
-  if e == eCHILD then return WaitNoChild else throwErrno "wait"
-  where
-    ec :: CInt → ExitCode
-    ec 0 = ExitSuccess
-    ec n = ExitFailure $ fromIntegral n
-    d :: CInt → WaitResult
-    d s | c_WIFEXITED s /= 0 = WaitExited $ ec $ c_WEXITSTATUS s
-    d s | c_WIFSIGNALED s /= 0 = WaitSignaled $ c_WTERMSIG s
-    d s | c_WIFSTOPPED s /= 0 = WaitStopped $ c_WSTOPSIG s
-    d _ = error "unknown wait status"
 
 foreign import ccall unsafe "setsockopt"
   c_setsockopt :: CInt → CInt → CInt → Ptr CInt → CInt → IO CInt

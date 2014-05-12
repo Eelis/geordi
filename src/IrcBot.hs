@@ -3,17 +3,16 @@ import qualified Network.Socket as Net
 import qualified System.Environment
 import qualified Request
 import qualified RequestEval
-import qualified Codec.Binary.UTF8.String as UTF8
 import qualified Sys
 import qualified Data.Map as Map
 import qualified Network.BSD
 import qualified Cxx.Show
 import qualified IRC
+import qualified Data.ByteString
 
-import IRC (Command(..))
-import Network.IRC (Prefix(..))
+import IRC (Command(..), Prefix(..))
 import Control.Exception (bracketOnError)
-import System.IO (hGetLine, hSetBinaryMode, hFlush, Handle, IOMode(..), stdout)
+import System.IO (hSetBinaryMode, hFlush, Handle, IOMode(..), stdout)
 import Control.Monad (forever, when)
 import Control.Arrow (first)
 import Control.Monad.Error ()
@@ -31,7 +30,7 @@ import Util ((.), elemBy, caselessStringEq, readState, maybeM, describe_new_outp
   strip_utf8_bom, none, takeBack, replaceInfix)
 import Sys (rate_limiter)
 
-import Prelude hiding (catch, (.), readFile)
+import Prelude hiding ((.))
 import Prelude.Unicode hiding ((∈))
 
 data IrcBotConfig = IrcBotConfig
@@ -98,13 +97,12 @@ main = do
   send $ Nick $ nick cfg
   send $ User (nick cfg) 0 (nick cfg)
   flip execStateT (∅) $ forever $ do
-    raw ← lift $ hGetLine h
-    let l = UTF8.decodeString raw
-    case IRC.decode (l ++ "\n") of
-      Nothing → lift $ putStr "Malformed IRC message: " >> putStrLn l
+    l ← lift $ Data.ByteString.hGetLine h
+    case IRC.decode l of
+      Nothing → lift $ putStrLn "Malformed IRC message."
       Just m → do
         lift $ print m
-        r ← on_msg evalRequest cfg (length raw == 511) m
+        r ← on_msg evalRequest cfg (Data.ByteString.length l == 511) m
         lift $ mapM_ print r >> hFlush stdout >> mapM_ send r
   return ()
 
@@ -175,7 +173,7 @@ on_msg :: (Functor m, Monad m) ⇒
 on_msg eval cfg full_size m@(IRC.Message prefix c) = execWriterT $ do
   when (join_trigger cfg == Just m) join
   case c of
-    Quit _ | Just (NickName n _ _) ← prefix, n == nick cfg → send $ Nick $ nick cfg
+    Quit | Just (NickName n _ _) ← prefix, n == nick cfg → send $ Nick $ nick cfg
     PrivMsg _ "\1VERSION\1" | Just (NickName n _ _) ← prefix →
       send $ Notice n $ "\1VERSION " ++ version_response ++ "\1"
     NickNameInUse → send $ Nick $ alternate_nick cfg

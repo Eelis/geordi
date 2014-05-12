@@ -82,7 +82,7 @@ main = do
 tests :: String → [Test]
 
 tests "resources" =
-  [ test "Program timeout" "{ for(;;) ; }" $ ExactMatch "Killed"
+  [ test "Program timeout" "{ for(;;) ; }" $ ExactMatch "CPU time limit exceeded"
   , test "Stack overflow" "<< f(3); int f(int i) { if (i % 10000 == 0) cout << '+' << flush; return -f(++i); }" $
     RegexMatch "\\++ Undefined behavior detected."
   , test "Open FDs" "{ for(int i = 0; i != 1024; ++i) assert(i == 1 || i == 2 || close(i) == -1); }" NoOutput
@@ -90,22 +90,22 @@ tests "resources" =
   , test "Working directory" "<< get_current_dir_name()" $ ExactMatch "/"
   , test "File I/O" "{ { ofstream f (__FILE__); f << \"foo\"; } cout << ifstream(__FILE__).rdbuf(); }" $
     ExactMatch "foo"
-  , test "Memory limit" "{ int i = 0; while (new (nothrow) char [1 << 20]) ++i; assert(i < 250); }" NoOutput
+  , test "Memory limit" "{ int i = 0; while (new (nothrow) char [1 << 20]) ++i; assert(i < 600); }" NoOutput
   , test "Fd limit" "{ int i = 0; while (open(__FILE__, 0) != -1) ++i; assert(errno == EMFILE); assert(i < 50); }  extern \"C\" int open (char const *, int);" NoOutput
   , test "File size limit" "{ ofstream f (__FILE__); string meg (1 << 20, 'x'); for (;;) { f << meg << flush; cout << '+' << flush; } }" $
     RegexMatch "\\+{1,50} File size limit exceeded$"
-  , test "System call interception" "<< fork()" $ RegexMatch "SYS_[^:]*: Operation not permitted"
+  , test "System call interception" "<< fork()" $ ExactMatch "Operation not permitted: clone"
   , test "Signal" "{ int x = 0; cout << 3 / x; }" $ ExactMatch "Floating point exception"
   , test "Recursive exec()"
     "int main (int const argc, char const * const * argv) { string s; if (argc >= 2) s = argv[1]; s += 'x'; if (s.size() % 100 == 0) cout << '+' << flush; execl(\"/t\", \"/t\", s.c_str(), 0); }" $
-    RegexMatch "\\++( Killed)?$"
+    RegexMatch "\\++( CPU time limit exceeded)?$"
   ]
 
 tests "misc" =
   [ test "Simple output" "<< 3" $ ExactMatch "3"
   , let quine = "{string t,u,y(1,34);stringstream i(\"{string t,u,y(1,34);stringstream i(!);getline(i,t,'!')>>u;cout<<t<<y<<i.str()<<y<<u;}\");getline(i,t,'!')>>u;cout<<t<<y<<i.str()<<y<<u;}" in test "Quine" quine $ ExactMatch quine
-  , test "UTF-8 handling" "<< 'b' << char(215) << char(144) << 'c'" $
-    ExactMatch "bאc"
+  , test "UTF-8 handling" "<< 'b' << char(215) << char(144) << 'c' << char(-5) << 'd'" $
+    ExactMatch "bאc�d"
   , let s = "dicekjhbagfl" in
     test "Nontrivial program (Brainfuck interpreter)" ("{b(program);}char program[]=\">>,[>>,]<<[[-<+<]>[>[>>]<[.[-]<[[>>+<<-]<]>>]>]<<]\",input[]=\"" ++ s ++ "\", *i=input,m[512]={},*p=m;void b(char*c){for(;*c&&*c!=']';++c){(*((p+=*c=='>')-=*c=='<')+=*c=='+') -=*c=='-';*c=='.'&&cout<<*p;if(*c==',')*p=*i++;if(*c=='['){for(++c;*p;)b(c);for(int d=0;*c!=']'||d--;++c)d+=*c=='[';}}}") $ ExactMatch (sort s)
   , test "srand()/time()" "{ srand(time(0)); }" NoOutput
@@ -113,6 +113,7 @@ tests "misc" =
   , test "-v" "-v" $ PrefixMatch "g++ (GCC) 4"
   , test "getopt" "-monkey chicken" $ ExactMatch "error: No such option: -m"
   , test "operator new/delete overriding" "{ printf(\"| \"); list<int> v(5); } void * operator new(size_t const s) { printf(\"%lu \", (unsigned long)s); return malloc(s); } void operator delete(void * const p) throw() { free(p); }" $ RegexMatch "[^-]*\\| [[:digit:] ]+"
+  , test "multiple TUs" "{ cout << __FILE__, f<int>(); } template<class> string f(); extern template string f<int>(); \\#\\ template<class> string f() {return __FILE__;} template string f<int>();" $ ExactMatch "t0.cpp, t1.cpp"
   ]
 
 tests "diagnostics" =
@@ -143,9 +144,7 @@ tests "tracked" =
   ]
 
 tests "utilities" =
-  [ test "-t/-c" "-tc use ns boost; tmp <tpn T> cls C { expl C (C co &); pvt: stc dub d; pub: void op() (); };" $
-    ExactMatch "Success"
-  , test "ETYPE" "{ int i = 4; cout << ETYPE(++i); }" $ ExactMatch "lvalue int"
+  [ test "ETYPE" "{ int i = 4; cout << ETYPE(++i); }" $ ExactMatch "lvalue int"
   , test "Range printing" "{ vector<int> v{3, 5, 9, 4, 1}; cout << v; }" $ ExactMatch "{3, 5, 9, 4, 1}"
   , test "Demangled printable typeid" "<< typeid(int)" $ ExactMatch "int"
   , test "Custom assert()/abort()" "{ assert(4 > 9); }" $ ExactMatch "Assertion `4 > 9' fails."

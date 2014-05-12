@@ -1,12 +1,9 @@
-
 // Todo: Automatic parentheses placement.
 
 #ifndef TYPE_STRINGS_HPP
 #define TYPE_STRINGS_HPP
 
 #include "lvalue_rvalue.hpp"
-
-#include <tr1/array>
 
 #include <list>
 #include <map>
@@ -23,11 +20,6 @@
 #include <ios>
 #include <cassert>
 #include <memory>
-
-#include <boost/lexical_cast.hpp>
-#include <boost/optional.hpp>
-#include <boost/type_traits/is_same.hpp>
-#include <boost/type_traits/is_union.hpp>
 
 #include <array>
 #include <tuple>
@@ -110,7 +102,7 @@ namespace textual_type_descriptions
   { if (plural) return many<T>(); else return an<T>(); }
 
   template <typename T> std::string count (size_t const i)
-  { return boost::lexical_cast<std::string>(i) + " " + type_desc<T>(i != 1); }
+  { return std::to_string(i) + " " + type_desc<T>(i != 1); }
 
   template <typename T> std::string an_or_count (size_t const i) { return i == 1 ? an<T>() : count<T>(i); }
 
@@ -251,7 +243,7 @@ namespace textual_type_descriptions
   } };
 
   template<typename T> std::string class_key()
-  { return boost::is_union<T>::value ? "union" : "class";  }
+  { return std::is_union<T>::value ? "union" : "class";  }
 
   // data members
 
@@ -354,12 +346,12 @@ namespace textual_type_descriptions
 
         type_desc_t<map<T, U, less<T const>, ...> >,
 
-      which doesn't match! This is why we use boost::is_same below. As far as I can see map is the only container affected because it has this double-const collapse in its default arguments. */
+      which doesn't match! This is why we use std::is_same below. As far as I can see map is the only container affected because it has this double-const collapse in its default arguments. */
 
     template <typename T, typename U, typename V, typename W>
     struct type_desc_t<std::map<T, U, V, W> >: consonant
     { static std::string s (bool const b) {
-        if (boost::is_same<std::map<T, U>, std::map<T, U, V, W> >::value)
+        if (std::is_same<std::map<T, U>, std::map<T, U, V, W> >::value)
           return pl("map", b) + " from " + many<T>() + " to " + many<U>();
         else return pl(type<std::map<T, U, V, W> >(), b);
     } };
@@ -382,11 +374,6 @@ namespace textual_type_descriptions
     template <typename T> struct type_desc_t<std::stack<T> >: consonant
     { static std::string s (bool b) { return pl("stack", b) + " of " + many<T>(); } };
 
-    // Boost
-
-    template <typename T> struct type_desc_t<boost::optional<T> >: Vowel
-    { static std::string s (bool b) { return "optional " + type_desc<T>(b); } };
-
     // C++0x
 
     template <typename T> struct type_desc_t<std::shared_ptr<T> >: consonant
@@ -400,7 +387,7 @@ namespace textual_type_descriptions
     template <typename... T> struct type_desc_t<std::tuple<T...>> {
       static std::string s (bool b) {
         std::vector<std::string> v; list_desc<T...>::s(v);
-        return boost::lexical_cast<std::string>(sizeof...(T)) + "-" + pl("tuple", b) + " of " + commas_and(v.begin(), v.end());
+        return std::to_string(sizeof...(T)) + "-" + pl("tuple", b) + " of " + commas_and(v.begin(), v.end());
       }
       enum { vowel = num_vowel<sizeof...(T)>::vowel };
     };

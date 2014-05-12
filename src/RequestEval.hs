@@ -1,4 +1,4 @@
-{-# LANGUAGE UnicodeSyntax, CPP, ViewPatterns, RecordWildCards #-}
+{-# LANGUAGE UnicodeSyntax, CPP, ViewPatterns, RecordWildCards, PatternGuards #-}
 
 module RequestEval (evaluator) where
 
@@ -31,10 +31,10 @@ import Data.List.NonEmpty (NonEmpty((:|)), nonEmpty)
 import Data.Set (Set)
 import Editing.Commands (FinalCommand(..))
 import Parsers ((<|>), eof, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), parseOrFail, commit, peek, parseSuccess)
-import Util ((.), (‥), (<<), (.∨.), commas_and, capitalize, length_ge, replace, replaceWithMany, show_long_opt, strip, convert, maybeLast, orElse, E, NeList, propagateE)
+import Util ((.), (‥), (<<), (.∨.), commas_and, capitalize, length_ge, replace, replaceWithMany, show_long_opt, strip, convert, maybeLast, orElse, E, NeList, propagateE, splitBy)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..), popContext)
 import Data.SetOps
-import Prelude hiding (catch, (.))
+import Prelude hiding ((.))
 import Prelude.Unicode hiding ((∈), (∉))
 
 show_EditableRequest :: Highlighter → EditableRequest → String
@@ -94,17 +94,20 @@ optParser :: Parser Char (E (Set EvalOpt, [EphemeralOpt]))
 optParser = first Set.fromList ‥ partitionEithers ‥ option (return []) P.optParser
 
 makeEvalCxxRequest :: Set EvalOpt → Cxx.Parse.Code → EvalCxx.Request
-makeEvalCxxRequest opts sc = EvalCxx.Request
-  (prel ++ (if NoUsingStd ∈ opts || PreprocessOnly ∈ opts then "" else "using namespace std;\n")
-    ++ (if Terse ∈ opts then "#include \"terse.hpp\"\n" else "")
-    ++ show (Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc))
-  stageOfInterest (NoWarn ∈ opts)
+makeEvalCxxRequest opts sc = EvalCxx.Request{..}
  where
-  prel = "#include \"prelude.hpp\"\n"
+  (code, generatedMain) =
+    Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc
+  pre = "#include \"prelude.hpp\"\n"
+    ++ (if NoUsingStd ∈ opts || PreprocessOnly ∈ opts then "" else "using namespace std;\n")
+  units' :: [String]
+  units' = (pre ++) . unlines . splitBy null (lines $ show code)
+  units = (head units' ++ ((show . generatedMain) `orElse` "")) : tail units'
   stageOfInterest
     | CompileOnly ∈ opts = Gcc.Compile
     | PreprocessOnly ∈ opts = Gcc.Preprocess
     | otherwise = Gcc.Run
+  no_warn = NoWarn ∈ opts
 
 execEditableRequest :: EditableRequest → E (WithEvaluation String)
 execEditableRequest (EditableRequest kind (dropWhile isSpace → body)) = case kind of
