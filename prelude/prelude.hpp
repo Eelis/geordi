@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <atomic>
 #include <bitset>
+#include <cfenv>
 #include <chrono>
 #include <complex>
 #include <deque>
