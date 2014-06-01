@@ -98,7 +98,7 @@ makeEvalCxxRequest opts sc = EvalCxx.Request{..}
  where
   (code, generatedMain) =
     Cxx.Operations.expand $ Cxx.Operations.shortcut_syntaxes $ Cxx.Operations.line_breaks sc
-  pre = "#include \"prelude.hpp\"\n"
+  pre = "#ifndef GEORDI_PRELUDE\n#define GEORDI_PRELUDE\n#include \"prelude.hpp\"\n#endif\n"
     ++ (if NoUsingStd ∈ opts || PreprocessOnly ∈ opts then "" else "using namespace std;\n")
   units' :: [String]
   units' = (pre ++) . unlines . splitBy null (lines $ show code)
