@@ -174,10 +174,10 @@ evaluate cfg Request{..} = do
 
   let
     namedUnits :: [(String, String)]
-    namedUnits = zip ["t" ++ show i | i <- [0..9::Int]] units
+    namedUnits = zip [show i | i <- [0..9::Int]] units
 
   forM_ namedUnits $ \(unit, code) ->
-    withFile (unit ++ ".cpp") WriteMode $ \h → hSetEncoding h utf8 >> hPutStrLn h code
+    withFile unit WriteMode $ \h → hSetEncoding h utf8 >> hPutStrLn h code
 
   baseEnv ← filter (pass_env . fst) . getEnvironment
   let
@@ -197,8 +197,8 @@ evaluate cfg Request{..} = do
     argv :: String -> Stage → [String]
     argv unit stage = case stage of
         Run → ["second", "third", "fourth"]
-        Preprocess → ["-fpch-preprocess", "-E", unit ++ ".cpp"] ++ cf
-        Compile → ["-S", unit ++ ".cpp"] ++ cf
+        Preprocess → ["-fpch-preprocess", "-E", unit] ++ cf
+        Compile → ["-S", "-x", "c++", unit] ++ cf
         Assemble → ["-c", unit ++ ".s"] ++ cf
         Link → ((++ ".o") . fst . namedUnits) ++ ["-o", "t"] ++ cf ++ linkFlags cfg
       where cf = if no_warn then "-w" : compileFlags cfg else compileFlags cfg
