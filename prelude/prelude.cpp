@@ -67,6 +67,34 @@ namespace geordi
 
     void terminate_handler() { terminate_handler(false); }
     void unexpected_handler() { terminate_handler(true); }
+
+    void maybe_show_asm()
+    {
+      std::ifstream f("0.s");
+
+      std::string line;
+
+      while (std::getline(f, line) && line.find("unassembled") == std::string::npos);
+
+      if (!f) return;
+
+      while (std::getline(f, line) && line != "\t.cfi_startproc");
+
+      bool first = true;
+
+      while (std::getline(f, line) && line != "\t.cfi_endproc")
+      {
+        if (line.find("\t.cfi") == 0) continue;
+
+        std::replace(line.begin(), line.end(), '\t', ' ');
+
+        if (line.substr(0, 1) == " ") line = line.substr(1);
+
+        if (first) first = false; else std::cout << "; ";
+
+        std::cout << line;
+      }
+    }
   }
 
   initializer_t::initializer_t ()
@@ -101,6 +129,8 @@ namespace geordi
     std::set_unexpected(unexpected_handler);
 
     std::setlocale(LC_ALL, "");
+
+    maybe_show_asm();
   }
 
   utsname uname()
