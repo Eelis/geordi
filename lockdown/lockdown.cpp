@@ -34,6 +34,9 @@ auto rules =
 	, RULE(mmap,            ALLOW)
 	, RULE(arch_prctl,      ALLOW)
 	, RULE(readlink,        ALLOW)
+	, RULE(mprotect,        ALLOW)
+		// Needed by glibc's malloc, though curiously only when
+		// allocation fails (e.g. due to resource limits).
 	, RULE(getcwd,          ALLOW)
 	, RULE(gettimeofday,    ALLOW)
 	, RULE(getdents,        ALLOW)
@@ -52,7 +55,6 @@ auto rules =
 	, RULE(chmod,           ERRNO(-1))
 	, RULE(fcntl,           ERRNO(0))
 	, RULE(unlink,          ERRNO(0))
-	, RULE(mprotect,        ERRNO(0))
 	, RULE(dup2,            ERRNO(0))
 	, RULE(munmap,          ERRNO(0))
 	, RULE(umask,           ERRNO(0))
@@ -66,13 +68,13 @@ void e(char const * const what) { throw std::runtime_error(what); }
 
 void limitResource(int const resource, rlim_t const soft, rlim_t const hard)
 {
-  rlimit const rl = { soft, hard };
-  if (setrlimit(resource, &rl) != 0) e("setrlimit");
+	rlimit const rl = { soft, hard };
+	if (setrlimit(resource, &rl) != 0) e("setrlimit");
 }
 
 void limitResource(int const resource, rlim_t const l)
 {
-  limitResource(resource, l, l);
+	limitResource(resource, l, l);
 }
 
 int main(int const argc, char * const * const argv)
