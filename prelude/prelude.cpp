@@ -96,9 +96,9 @@ namespace geordi
       }
     }
 
-    struct initializer_t
+    struct initializer
     {
-      initializer_t()
+      initializer()
       {
         std::ios_base::Init const i;
 
@@ -133,7 +133,7 @@ namespace geordi
 
         maybe_show_asm();
       }
-    } initializer __attribute__((init_priority(102)));
+    };
   }
 
   utsname uname()
@@ -161,6 +161,13 @@ namespace geordi
   }
 
 } // namespace geordi
+
+extern "C"
+{
+  geordi::initializer geordi_init __attribute__((init_priority(102)));
+    // We have -Wl,--undefined,geordi_init in LINK_FLAGS to make sure
+    // this isn't left out during linking.
+}
 
 std::ostream & operator<<(std::ostream & o, wchar_t const c)
 {
