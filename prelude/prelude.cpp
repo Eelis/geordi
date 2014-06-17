@@ -95,42 +95,45 @@ namespace geordi
         std::cout << line;
       }
     }
-  }
 
-  initializer_t::initializer_t ()
-  {
-    std::ios_base::Init const i;
+    struct initializer_t
+    {
+      initializer_t()
+      {
+        std::ios_base::Init const i;
 
-    std::boolalpha(std::cout);
-    std::boolalpha(std::wcout);
-    std::boolalpha(std::cerr);
-    std::boolalpha(std::wcerr);
-    std::boolalpha(std::clog);
-    std::boolalpha(std::wclog);
+        std::boolalpha(std::cout);
+        std::boolalpha(std::wcout);
+        std::boolalpha(std::cerr);
+        std::boolalpha(std::wcerr);
+        std::boolalpha(std::clog);
+        std::boolalpha(std::wclog);
 
-    std::unitbuf(std::cout);
-    std::unitbuf(std::wcout);
-    std::unitbuf(std::cerr);
-    std::unitbuf(std::wcerr);
-    std::unitbuf(std::clog);
-    std::unitbuf(std::wclog);
+        std::unitbuf(std::cout);
+        std::unitbuf(std::wcout);
+        std::unitbuf(std::cerr);
+        std::unitbuf(std::wcerr);
+        std::unitbuf(std::clog);
+        std::unitbuf(std::wclog);
 
-    static bin_num_put<> bnp(1);
-    static bin_num_put<wchar_t> wbnp(1);
-    std::cout.imbue(std::locale(std::cout.getloc(), &bnp));
-    std::wcout.imbue(std::locale(std::wcout.getloc(), &wbnp));
-    std::cerr.imbue(std::locale(std::cerr.getloc(), &bnp));
-    std::wcerr.imbue(std::locale(std::wcerr.getloc(), &wbnp));
-    std::clog.imbue(std::locale(std::clog.getloc(), &bnp));
-    std::wclog.imbue(std::locale(std::wclog.getloc(), &wbnp));
-      // Having this compiled separately saves more than a full second per request.
+        static bin_num_put<> bnp(1);
+        static bin_num_put<wchar_t> wbnp(1);
+        std::cout.imbue(std::locale(std::cout.getloc(), &bnp));
+        std::wcout.imbue(std::locale(std::wcout.getloc(), &wbnp));
+        std::cerr.imbue(std::locale(std::cerr.getloc(), &bnp));
+        std::wcerr.imbue(std::locale(std::wcerr.getloc(), &wbnp));
+        std::clog.imbue(std::locale(std::clog.getloc(), &bnp));
+        std::wclog.imbue(std::locale(std::wclog.getloc(), &wbnp));
+          // Having this compiled separately saves more than a full second per request.
 
-    std::set_terminate(terminate_handler);
-    std::set_unexpected(unexpected_handler);
+        std::set_terminate(terminate_handler);
+        std::set_unexpected(unexpected_handler);
 
-    std::setlocale(LC_ALL, "");
+        std::setlocale(LC_ALL, "");
 
-    maybe_show_asm();
+        maybe_show_asm();
+      }
+    } initializer __attribute__((init_priority(102)));
   }
 
   utsname uname()

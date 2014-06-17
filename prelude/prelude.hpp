@@ -100,9 +100,6 @@ T(basic_istringstream)
 
 #undef T
 
-namespace geordi { geordi::initializer_t const initializer; }
-  // Could theoretically be located in other TU, but our use of an .a for our .o's makes that painful.
-
 #undef assert
 #define assert(e) ((e) ? void() : (::std::printf("%s", "Assertion `" #e "' fails."), ::std::fclose(stdout), ::std::abort()))
 

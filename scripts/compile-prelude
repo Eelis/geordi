@@ -9,13 +9,14 @@ fi
 
 . "${DATA}/compile-config"
 cd "${DATA}/prelude"
-$GXX $COMPILE_FLAGS -c prelude.cpp tracked.cpp more_ostreaming.cpp bark.cpp
+$GXX $COMPILE_FLAGS -c {prelude,tracked,more_ostreaming,bark}.cpp
 cd "${DATA}"
 g++ -static-libstdc++ -static-libgcc -std=c++11 -O2 lockdown/lockdown.cpp `pkg-config --cflags --libs libseccomp` -o rt/lockdown
 rm -f rt/prelude.a
-ar -rsc rt/prelude.a prelude/*.o
+ar -rsc rt/prelude.a prelude/{bark,tracked,more_ostreaming}.o
+cp prelude/prelude.o rt/
 $GXX $COMPILE_FLAGS -c -x c++-header prelude/prelude.hpp -o rt/prelude.hpp.gch
-chmod 644 rt/prelude.a rt/prelude.hpp.gch
+chmod 644 rt/prelude.a rt/prelude.o rt/prelude.hpp.gch
 mkdir -p rt/usr/include
 cp /usr/include/stdc-predef.h rt/usr/include/
 $GXX $COMPILE_FLAGS -fPIC -shared -o rt/libtpreload.so prelude/tpreload.cpp

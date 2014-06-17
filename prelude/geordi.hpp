@@ -19,8 +19,6 @@ namespace geordi
     std::ostream & operator()() const { return std::cout; }
   };
 
-  struct initializer_t { initializer_t (); };
-
   utsname uname();
 
   template <typename> struct is_character { enum { value = false }; };
