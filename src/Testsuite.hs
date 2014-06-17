@@ -98,7 +98,7 @@ tests "resources" =
   , test "Signal" "{ int x = 0; cout << 3 / x; }" $ ExactMatch "Floating point exception"
   , test "Recursive exec()"
     "int main (int const argc, char const * const * argv) { string s; if (argc >= 2) s = argv[1]; s += 'x'; if (s.size() % 100 == 0) cout << '+' << flush; execl(\"/t\", \"/t\", s.c_str(), 0); }" $
-    RegexMatch "\\++( Alarm clock)?$"
+    RegexMatch "\\++( Alarm clock| CPU time limit exceeded)?$"
   ]
 
 tests "misc" =
