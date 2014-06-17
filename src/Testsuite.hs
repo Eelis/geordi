@@ -98,7 +98,7 @@ tests "resources" =
   , test "Signal" "{ int x = 0; cout << 3 / x; }" $ ExactMatch "Floating point exception"
   , test "Recursive exec()"
     "int main (int const argc, char const * const * argv) { string s; if (argc >= 2) s = argv[1]; s += 'x'; if (s.size() % 100 == 0) cout << '+' << flush; execl(\"/t\", \"/t\", s.c_str(), 0); }" $
-    RegexMatch "\\++( CPU time limit exceeded)?$"
+    RegexMatch "\\++( Alarm clock)?$"
   ]
 
 tests "misc" =
@@ -113,7 +113,7 @@ tests "misc" =
   , test "-v" "-v" $ PrefixMatch "g++ (GCC) 4"
   , test "getopt" "-monkey chicken" $ ExactMatch "error: No such option: -m"
   , test "operator new/delete overriding" "{ printf(\"| \"); list<int> v(5); } void * operator new(size_t const s) { printf(\"%lu \", (unsigned long)s); return malloc(s); } void operator delete(void * const p) throw() { free(p); }" $ RegexMatch "[^-]*\\| [[:digit:] ]+"
-  , test "multiple TUs" "{ cout << __FILE__, f<int>(); } template<class> string f(); extern template string f<int>(); \\\\ template<class> string f() {return __FILE__;} template string f<int>();" $ ExactMatch "t0.cpp, t1.cpp"
+  , test "multiple TUs" "{ cout << __FILE__, f<int>(); } template<class> string f(); extern template string f<int>(); \\\\ template<class> string f() {return __FILE__;} template string f<int>();" $ ExactMatch "0, 1"
   ]
 
 tests "diagnostics" =
