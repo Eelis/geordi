@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <map>
 #include <iostream>
 #include <sys/utsname.h>
 
@@ -27,6 +28,9 @@ namespace geordi
   #undef YES
 
   char const * demangle(char const *);
+
+  std::map<std::string, std::string> depersist();
+  void persist(std::string key, std::string value);
 }
 
 std::ostream & operator<<(std::ostream &, wchar_t);

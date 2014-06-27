@@ -160,6 +160,24 @@ namespace geordi
     // We could return a std::string and free p, but since deallocation is not a concern (and is even a no-op) in geordi anyway, we don't bother.
   }
 
+  std::map<std::string, std::string> depersist()
+  {
+    std::ifstream f("data");
+    std::map<std::string, std::string> r;
+    std::string k, v;
+    while (getline(f, k) && getline(f, v)) r[k] = v;
+    return r;
+  }
+
+  void persist(std::string const k, std::string const v)
+  {
+    auto m = depersist();
+    m[k] = v;
+
+    std::ofstream f("data");
+    for (auto && p : m) f << p.first << '\n' << p.second << '\n';
+  }
+
 } // namespace geordi
 
 extern "C"

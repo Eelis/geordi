@@ -77,6 +77,6 @@ main = do
   setFileCreationMask nullFileMode
   createFile (rt </> "lock") readModes >>= closeFd
   createFile (rt </> "t") accessModes >>= closeFd
-  forM (concat [[show i ++ ext] | i <- [0..9], ext <- ["", ".s", ".o"]]) $
+  forM ("data" : concat [[show i ++ ext] | i <- [0..9], ext <- ["", ".s", ".o"]]) $
     (>>= closeFd) . flip createFile (unionFileModes writeModes readModes) . (rt </>)
   putStrLn " done."
