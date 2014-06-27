@@ -52,13 +52,13 @@ main = do
  (opts, rest) ← getArgs
  if Help ∈ opts then putStrLn help else do
   eval ← RequestEval.evaluator
-  forM_ rest $ \l → do Request.Response _ output ← eval l (Context Cxx.Show.noHighlighting []); putStrLn output
+  forM_ rest $ \l → do Request.Response _ output ← eval l (Context Cxx.Show.noHighlighting []) []; putStrLn output
   addHistory ← make_history_adder
   when (rest == []) $ flip fix blankMemory $ \loop mem → RL.readline "geordi: " >>= \line → case line of
     Nothing → putNewLn
     Just "" → loop mem
     Just l → do
-      Response history_modification output ← eval l $ context mem
+      Response history_modification output ← eval l (context mem) []
       case history_modification of
         Just (AddLast e) → addHistory $ UTF8.encodeString $ show e
         Just (ReplaceLast e) → addHistory $ UTF8.encodeString $ show e

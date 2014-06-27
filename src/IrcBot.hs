@@ -169,7 +169,7 @@ version_response :: String
 version_response = "Geordi C++ bot - http://www.eelis.net/geordi/"
 
 on_msg :: (Functor m, Monad m) ⇒
-  (String → Request.Context → m Request.Response) → IrcBotConfig → Bool → IRC.Message → StateT ChannelMemoryMap m [IRC.Command]
+  (String → Request.Context → [(String, String)] → m Request.Response) → IrcBotConfig → Bool → IRC.Message → StateT ChannelMemoryMap m [IRC.Command]
 on_msg eval cfg full_size m@(IRC.Message prefix c) = execWriterT $ do
   when (join_trigger cfg == Just m) join
   case c of
@@ -196,7 +196,8 @@ on_msg eval cfg full_size m@(IRC.Message prefix c) = execWriterT $ do
             -- The "}"/";" test gains a reduction in false positives at the cost of an increase in false negatives.
           mmem ← Map.lookup wher . lift readState
           let con = (context . mmem) `orElse` Request.Context Cxx.Show.noHighlighting []
-          Request.Response history_modification output ← lift $ lift $ eval r con
+          let extra_env = [("GEORDI_REQUESTER", who), ("GEORDI_WHERE", wher)]
+          Request.Response history_modification output ← lift $ lift $ eval r con extra_env
           let output' = describe_lines $ dropWhile null $ lines output
           lift $ mapState' $ insert (wher, ChannelMemory
             { context = maybe id Request.modify_history history_modification con

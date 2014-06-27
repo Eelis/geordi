@@ -167,8 +167,8 @@ data Request = Request { units :: [String], stageOfInterest :: Stage, no_warn ::
 pass_env :: String → Bool
 pass_env s = ("LC_" `isPrefixOf` s) || (s `elem` ["PATH", "LD_LIBRARY_PATH", "LD_PRELOAD"])
 
-evaluate :: CompileConfig → Request → IO EvaluationResult
-evaluate cfg Request{..} = do
+evaluate :: CompileConfig → Request → [(String, String)] → IO EvaluationResult
+evaluate cfg Request{..} extra_env = do
  withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd → do
   Flock.exclusive lock_fd
 
@@ -204,7 +204,7 @@ evaluate cfg Request{..} = do
       where cf = if no_warn then "-w" : compileFlags cfg else compileFlags cfg
 
     envi :: Stage → [(String, String)]
-    envi Run = baseEnv ++ prog_env
+    envi Run = baseEnv ++ prog_env ++ extra_env
     envi _ = baseEnv ++ compile_env
 
     stages_per_unit =
@@ -234,12 +234,12 @@ withEvaluation r = WithEvaluation r id
 noEvaluation :: a → WithEvaluation a
 noEvaluation = point
 
-evaluator :: IO (WithEvaluation a → IO a, CompileConfig)
+evaluator :: IO ([(String, String)] → WithEvaluation a → IO a, CompileConfig)
 evaluator = do
   cap_fds
   cfg ← readCompileConfig
   jail
-  return (\we → case we of
+  return (\extra_env we → case we of
       WithoutEvaluation x → return x
-      WithEvaluation r g → g . evaluate cfg r
+      WithEvaluation r g → g . evaluate cfg r extra_env
     , cfg)

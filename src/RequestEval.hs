@@ -189,8 +189,8 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
 evaluate :: EvalCxx.Request → WithEvaluation String
 evaluate r = filter (isPrint .∨. (== '\n')) . replaceWithMany '\a' "*BEEP*" . show . EvalCxx.withEvaluation r
 
-evaluator :: IO (String → Context → IO Response)
+evaluator :: IO (String → Context → [(String, String)] → IO Response)
 evaluator = do
   (ev, cfg) ← EvalCxx.evaluator
-  return $ \r context → either (return . Response Nothing . ("error: " ++)) ev $
+  return $ \r context extra_env → either (return . Response Nothing . ("error: " ++)) (ev extra_env) $
     join (parseOrFail (p cfg context) (replace no_break_space ' ' r) "request")
