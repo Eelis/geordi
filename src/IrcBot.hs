@@ -82,29 +82,29 @@ do_censor cfg s = foldr (\r t → subRegex r t "<censored>") s (censor cfg)
 
 main :: IO ()
 main = do
-  setLocale LC_ALL (Just "")
-  opts ← getArgs
-  if Help ∈ opts then putStrLn help else do
+ setLocale LC_ALL (Just "")
+ opts ← getArgs
+ if Help ∈ opts then putStrLn help else do
   cfg ← readTypedFile $ findMaybe (\o → case o of Config cf → Just cf; _ → Nothing) opts `orElse` "irc-config"
   full_evaluate $ do_censor cfg "abc" -- So that any mkRegex failures occur before we start connecting.
   putStrLn $ "Connecting to " ++ server cfg ++ ":" ++ show (port cfg)
   withResource (connect (server cfg) (fromIntegral $ port cfg)) $ \h → do
-  putStrLn "Connected"
-  evalRequest ← RequestEval.evaluator
-  limit_rate ← rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
-  let send m = limit_rate >> IRC.send h (IRC.Message Nothing m)
-  maybeM (password cfg) $ send . Pass
-  send $ Nick $ nick cfg
-  send $ User (nick cfg) 0 (nick cfg)
-  flip execStateT (∅) $ forever $ do
-    l ← lift $ Data.ByteString.hGetLine h
-    case IRC.decode l of
-      Nothing → lift $ putStrLn "Malformed IRC message."
-      Just m → do
-        lift $ print m
-        r ← on_msg evalRequest cfg (Data.ByteString.length l == 511) m
-        lift $ mapM_ print r >> hFlush stdout >> mapM_ send r
-  return ()
+   putStrLn "Connected"
+   evalRequest ← RequestEval.evaluator
+   limit_rate ← rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
+   let send m = limit_rate >> IRC.send h (IRC.Message Nothing m)
+   maybeM (password cfg) $ send . Pass
+   send $ Nick $ nick cfg
+   send $ User (nick cfg) 0 (nick cfg)
+   flip execStateT (∅) $ forever $ do
+     l ← lift $ Data.ByteString.hGetLine h
+     case IRC.decode l of
+       Nothing → lift $ putStrLn "Malformed IRC message."
+       Just m → do
+         lift $ print m
+         r ← on_msg evalRequest cfg (Data.ByteString.length l == 511) m
+         lift $ mapM_ print r >> hFlush stdout >> mapM_ send r
+   return ()
 
 discarded_lines_description :: Int → String
 discarded_lines_description s =
@@ -189,7 +189,7 @@ on_msg eval cfg full_size m@(IRC.Message prefix c) = execWriterT $ do
             (if private then id else (replaceInfix "nick" who (channel_response_prefix cfg) ++)) $
             if null s then no_output_msg cfg else do_censor cfg s
       maybeM (dropWhile isSpace . is_request cfg w txt) $ \r → do
-      case request_allowed cfg who muser mserver w of
+       case request_allowed cfg who muser mserver w of
         Deny reason → maybeM reason reply
         Allow →
           if full_size ∧ none (`isSuffixOf` r) ["}", ";"] then reply $ "Request likely truncated after `" ++ takeBack 15 r ++ "`." else do
@@ -214,10 +214,10 @@ on_msg eval cfg full_size m@(IRC.Message prefix c) = execWriterT $ do
 connect :: Net.HostName → Net.PortNumber → IO Handle
   -- Mostly copied from Network.connectTo. We can't use that one because we want to set SO_KEEPALIVE (and related) options on the socket, which can't be done on a Handle.
 connect host portn = do
-  proto ← Network.BSD.getProtocolNumber "tcp"
-  let hints = Net.defaultHints { Net.addrSocketType = Net.Stream, Net.addrProtocol = proto }
-  target ← head . Net.getAddrInfo (Just hints) (Just host) (Just $ show portn)
-  bracketOnError (Net.socket (Net.addrFamily target) Net.Stream proto) Net.sClose $ \sock → do
+ proto ← Network.BSD.getProtocolNumber "tcp"
+ let hints = Net.defaultHints { Net.addrSocketType = Net.Stream, Net.addrProtocol = proto }
+ target ← head . Net.getAddrInfo (Just hints) (Just host) (Just $ show portn)
+ bracketOnError (Net.socket (Net.addrFamily target) Net.Stream proto) Net.sClose $ \sock → do
   Sys.setKeepAlive sock 30 10 5
   Net.connect sock (Net.addrAddress target)
   h ← Net.socketToHandle sock ReadWriteMode

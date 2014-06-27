@@ -66,9 +66,9 @@ replace_withs s = either (const s) replace_withs $ parse (r >+> getInput) "" s
     v ← cxxArg
     if "&" `isSuffixOf` v then mzero else do
       -- Replacing T in "T&" or "T&&" or even "const T&" with a reference type is too involved for now (see 14.3.1p4).
-    c ← oneOf "],"
-    let before' = subRegex (mkRegex $ "\\b" ++ k ++ "\\b") before (replaceInfix "\\" "\\\\" v)
-    if before' == before then mzero else return $ before' ++ (if c == ']' then "" else " [with")
+     c ← oneOf "],"
+     let before' = subRegex (mkRegex $ "\\b" ++ k ++ "\\b") before (replaceInfix "\\" "\\\\" v)
+     if before' == before then mzero else return $ before' ++ (if c == ']' then "" else " [with")
 
 class Parser p st a | p → st, p → a where parser :: p → CharParser st a
 instance Parser (CharParser st a) st a where parser = id

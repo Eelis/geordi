@@ -41,8 +41,8 @@ executeModes = modes [ownerExecuteMode, groupExecuteMode, otherExecuteMode]
 ldd :: FilePath → IO [FilePath]
 ldd f = do
   (status, out, err) ← readProcessWithExitCode "ldd" [f] ""
-  if status ≠ ExitSuccess then error err else do
-  return $ map head $ mapMaybe (matchRegex $ mkRegex "[[:blank:]](/[^[:blank:]]*)") $ lines out
+  if status ≠ ExitSuccess then error err else
+   return $ map head $ mapMaybe (matchRegex $ mkRegex "[[:blank:]](/[^[:blank:]]*)") $ lines out
 
 compiler_files :: IO [FilePath]
 compiler_files = (nub .) $ do
@@ -51,8 +51,8 @@ compiler_files = (nub .) $ do
   let
     query_gxx q = do
       (status, out, err) ← readProcessWithExitCode gxx [q] ""
-      if status /= ExitSuccess then error err else do
-      return $ head $ lines out
+      if status /= ExitSuccess then error err else
+       return $ head $ lines out
   fs ← (concat .) $ forM l $ \f → do
     out ← query_gxx $ "-print-file-name=" ++ f
     return [out | out ≠ f]

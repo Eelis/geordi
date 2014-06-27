@@ -169,7 +169,7 @@ pass_env s = ("LC_" `isPrefixOf` s) || (s `elem` ["PATH", "LD_LIBRARY_PATH", "LD
 
 evaluate :: CompileConfig → Request → IO EvaluationResult
 evaluate cfg Request{..} = do
-  withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd → do
+ withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd → do
   Flock.exclusive lock_fd
 
   let

@@ -154,7 +154,7 @@ p :: EvalCxx.CompileConfig → Context → Parser Char (E (WithEvaluation Respon
 p compile_cfg context@Context{..} = (spaces >>) $ do
     (Response Nothing .) ‥ (>>=  execFinalCommand context) . (Editing.Parse.finalCommandP << commit eof)
   <|> do
-    kwds ["undo", "revert"]; commit $ propagateE (snd . popContext context) $ \context' → do
+   kwds ["undo", "revert"]; commit $ propagateE (snd . popContext context) $ \context' → do
     kwd "and"
     (Response (Just DropLast) .) ‥ (>>= execFinalCommand context') . (Editing.Parse.finalCommandP << commit eof)
      <|> (\(edited, output) → Response (Just $ ReplaceLast edited) . output) ‥ (>>= execEditCommand context') . (Editing.Parse.commandsP << commit eof)
@@ -170,8 +170,8 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
     parseSuccess $ noErrors $ noEvaluation $ Response Nothing $ unwords $ EvalCxx.compileFlags compile_cfg
   <|> (\(edited, output) → Response (Just $ AddLast edited) . output) ‥ (>>= execEditCommand context) . (Editing.Parse.commandsP << commit eof)
   <|> do
-    mopts ← optParser; spaces
-    propagateE mopts $ \(evalopts, eph_opts) → continueParsing $ do
+   mopts ← optParser; spaces
+   propagateE mopts $ \(evalopts, eph_opts) → continueParsing $ do
     s ← peek
     case () of { ()
       | Help ∈ eph_opts || s == "help" → cout "help"

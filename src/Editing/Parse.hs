@@ -144,9 +144,9 @@ instance Parse Ordinal where
   parse = label "ordinal" $ (>>> arr Ordinal) $ proc _ → do
     optional $ kwd ["the"] -< ()
     (select [(["last"], -1), (["first"], 0)] -< ()) <||> do
-    n ← select $ fmap (\n → ([show (Ordinal n)], n)) [1..9] -< ()
-    b ← select [(["last"], True), ([], False)] -< ()
-    returnA -< if b then - n - 1 else n
+     n ← select $ fmap (\n → ([show (Ordinal n)], n)) [1..9] -< ()
+     b ← select [(["last"], True), ([], False)] -< ()
+     returnA -< if b then - n - 1 else n
 
 parseSmallPositiveCardinal :: Parser a Int
 parseSmallPositiveCardinal = select $ map (\(x,y) → ([x {-, show y-}], y)) $ tail $ zip cardinals [0..]

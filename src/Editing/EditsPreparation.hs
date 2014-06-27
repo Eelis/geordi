@@ -131,8 +131,8 @@ In several other places we can see given-vs.-wf considerations: -}
 instance (Invertible a, Find a b, Convert (FindResult (StickyRange Char)) b) ⇒ Find (Relative a) (NeList b) where
   find (Absolute x) = return . find x
   find (Relative o (AndList bas) w) = do
-    Found c r ← (unanchor_range . full_range) ‥ find w
-    (case c of InGiven → id; InWf → inwf) $ do
+   Found c r ← (unanchor_range . full_range) ‥ find w
+   (case c of InGiven → id; InWf → inwf) $ do
     u ← search_range . ask
     forM bas $ \ba → do
       let h = Editing.Show.show ba ++ " " ++ Editing.Show.show w
@@ -140,20 +140,20 @@ instance (Invertible a, Find a b, Convert (FindResult (StickyRange Char)) b) ⇒
         Before → narrow h (rangeFromTo (start u) (start r)) $ find (invert o)
         After → narrow h (rangeFromTo (end r) (end u)) $ find o
   find (FromTill b e) = do
-    Found c p'@(Anchor _ p) ← (either ($ Before) id .) . find b
-    (case c of InGiven → id; InWf → inwf) $ do
+   Found c p'@(Anchor _ p) ← (either ($ Before) id .) . find b
+   (case c of InGiven → id; InWf → inwf) $ do
     sr ← search_range . ask
     narrow ("after " ++ Editing.Show.show b) (rangeFromTo p (end sr)) $ do
-    Found d y ← either ($ After) id ‥ find e
-    return . convert . Found d . flip stickyRange y . (case d of InGiven → return; InWf → toWf) p'
+     Found d y ← either ($ After) id ‥ find e
+     return . convert . Found d . flip stickyRange y . (case d of InGiven → return; InWf → toWf) p'
   find (Between o be@(Betw b e)) = do
     Found c x ← find b
     Found d y ← find e
     x' ← (if (c, d) == (InGiven, InGiven) ∨ c == InWf then return else toWf) x
     y' ← (if (c, d) == (InGiven, InGiven) ∨ d == InWf then return else toWf) y
     (if (c, d) == (InGiven, InGiven) then id else inwf) $ do
-    let (p, q) = if either ($ Before) id x' ≤ either ($ Before) id y' then (x', y') else (y', x')
-    narrow (Editing.Show.show be) (convert $ stickyRange (either ($ After) id p) (either ($ Before) id q)) $ return . find o
+     let (p, q) = if either ($ Before) id x' ≤ either ($ Before) id y' then (x', y') else (y', x')
+     narrow (Editing.Show.show be) (convert $ stickyRange (either ($ After) id p) (either ($ Before) id q)) $ return . find o
 
 -- More documentation some other time!
 

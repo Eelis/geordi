@@ -51,8 +51,8 @@ strerror = unsafePerformIO `fmap` (peekCString =<<) `fmap` c_strerror
 fdReadNonBlocking :: Fd → ByteCount → IO String
 fdReadNonBlocking (Fd fd) bc = do
   allocaBytes (fromIntegral bc) $ \buf → do
-  r ← System.Posix.Internals.c_read fd (Foreign.Ptr.castPtr buf) bc
-  case r of
+   r ← System.Posix.Internals.c_read fd (Foreign.Ptr.castPtr buf) bc
+   case r of
     -1 → getErrno >>= \e → if e == eWOULDBLOCK then return [] else throwErrno "nonblocking_read"
     n → peekCStringLen (buf, fromIntegral n)
   -- Wrapping c_read ourselves is easier and more to the point than using fdRead and catching&filtering (stringized) eWOULDBLOCK errors. hGetBufNonBlocking works on a Handle, which is even worse.
@@ -64,9 +64,9 @@ foreign import ccall unsafe "setsockopt"
 bareSetSocketOption :: Socket → CInt → CInt → CInt → IO ()
   -- Needed because Network.Socket.SocketOption lacks several options (such as TCP_KEEPIDLE, TCP_KEEPINTVL, and KEEPCNT).
 bareSetSocketOption (MkSocket fd _ _ _ _) level option value = do
-   with value $ \p → do
-   throwErrnoIfMinus1_ "bareSetSocketOption" $
-    c_setsockopt fd level option p (fromIntegral $ sizeOf value)
+   with value $ \p →
+    throwErrnoIfMinus1_ "bareSetSocketOption" $
+     c_setsockopt fd level option p (fromIntegral $ sizeOf value)
    return ()
 
 setKeepAlive :: Socket → CInt → CInt → CInt → IO ()

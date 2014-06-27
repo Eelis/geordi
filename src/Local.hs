@@ -47,10 +47,10 @@ blankMemory = Memory (Context Cxx.Show.noHighlighting []) Nothing
 
 main :: IO ()
 main = do
-  setLocale LC_ALL (Just "")
-  RL.initialize -- Reads stuff from files not present in the chroot.
-  (opts, rest) ← getArgs
-  if Help ∈ opts then putStrLn help else do
+ setLocale LC_ALL (Just "")
+ RL.initialize -- Reads stuff from files not present in the chroot.
+ (opts, rest) ← getArgs
+ if Help ∈ opts then putStrLn help else do
   eval ← RequestEval.evaluator
   forM_ rest $ \l → do Request.Response _ output ← eval l (Context Cxx.Show.noHighlighting []); putStrLn output
   addHistory ← make_history_adder
