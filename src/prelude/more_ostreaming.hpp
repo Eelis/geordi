@@ -12,6 +12,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <algorithm>
+#include <system_error>
 #include "geordi.hpp"
 #include "literal_escape.hpp"
 #include "delimited_ostream.hpp"
@@ -214,6 +215,8 @@ T(micro, " µs")
 T(nano, " ns")
 
 #undef T
+
+std::ostream & operator<<(std::ostream &, std::error_category const &);
 
 #endif // header guard
 
