@@ -49,8 +49,6 @@ import GHC.IO.Encoding.Failure (CodingFailureMode(TransliterateCodingFailure))
 import Foreign.C (CInt, eOK)
 import System.Exit (ExitCode(..))
 import Data.List ((\\), isPrefixOf)
-import System.Posix.User
-  (getGroupEntryForName, getUserEntryForName, setGroupID, setUserID, groupID, userID)
 import System.Process (createProcess, CmdSpec(..), CreateProcess(..), StdStream(..), waitForProcess)
 import System.Posix
   (Signal, sigSEGV, sigILL, openFd, defaultFileFlags, OpenMode(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
@@ -147,14 +145,6 @@ prog_env =
   , ("LD_PRELOAD", "libgeordi_preload.so libdiagnose_sigsys.so")
   ]
 
-jail :: IO ()
-jail = do
-  gid ← groupID . getGroupEntryForName "nogroup"
-  uid ← userID . getUserEntryForName "nobody"
-  System.Directory.setCurrentDirectory "/run/geordi"
-  setGroupID gid
-  setUserID uid
-
 data Request = Request { units :: [String], stageOfInterest :: Stage, no_warn :: Bool }
 
 pass_env :: String → Bool
@@ -229,7 +219,7 @@ evaluator :: IO ([(String, String)] → WithEvaluation a → IO a, CompileConfig
 evaluator = do
   cap_fds
   cfg ← readCompileConfig
-  jail
+  System.Directory.setCurrentDirectory "/run/geordi"
   return (\extra_env we → case we of
       WithoutEvaluation x → return x
       WithEvaluation r g → g . evaluate cfg r extra_env
