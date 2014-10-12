@@ -22,5 +22,9 @@ do
 	chmod 666 $n $n.s $n.o
 done
 
+chmod 700 /etc/geordi/irc-config
+
 touch t
 chmod 777 t
+
+rm `gcc -print-prog-name=collect2`

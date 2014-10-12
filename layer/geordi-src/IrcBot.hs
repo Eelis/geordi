@@ -58,13 +58,10 @@ instance Read Regex where
 instance Read Net.PortNumber where
   readsPrec i s = (\(x, s') → (fromIntegral (x :: Int), s')) . readsPrec i s
 
-data Opt = Config String | Help deriving Eq
+data Opt = Help deriving Eq
 
 optsDesc :: [OptDescr Opt]
-optsDesc =
-  [ Option "c" ["config"] (ReqArg Config "<file>") "Load configuration from <file> instead of \"irc-config\"."
-  , Option "h" ["help"] (NoArg Help) "Display this help and exit."
-  ]
+optsDesc = [Option "h" ["help"] (NoArg Help) "Display this help and exit."]
 
 help :: String
 help = usageInfo "Usage: sudo geordi-irc [option]...\nOptions:" optsDesc ++ "\nSee README.xhtml for more information."
@@ -85,7 +82,7 @@ main = do
  setLocale LC_ALL (Just "")
  opts ← getArgs
  if Help ∈ opts then putStrLn help else do
-  cfg ← readTypedFile $ findMaybe (\o → case o of Config cf → Just cf; _ → Nothing) opts `orElse` "irc-config"
+  cfg ← readTypedFile "/etc/geordi/irc-config"
   full_evaluate $ do_censor cfg "abc" -- So that any mkRegex failures occur before we start connecting.
   putStrLn $ "Connecting to " ++ server cfg ++ ":" ++ show (port cfg)
   withResource (connect (server cfg) (fromIntegral $ port cfg)) $ \h → do
