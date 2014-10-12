@@ -34,13 +34,10 @@ In our code, M is close_range_end.
 
 module EvalCxx (evaluator, WithEvaluation, withEvaluation, noEvaluation, EvaluationResult(..), Request(..), CompileConfig(..)) where
 
-import qualified Flock
 import qualified ErrorFilters
 import qualified System.Directory
 import qualified System.Posix.Process (getProcessID)
 import qualified Data.Char as Char
-
-import Paths_geordi (getDataFileName)
 
 import Data.Pointed (Pointed(..))
 import Sys (strsignal, chroot, strerror)
@@ -99,8 +96,8 @@ capture_restricted :: FilePath → [String] → [(String,String)] → IO Capture
   -- We assume the program produces UTF-8 encoded text and return it as a proper Unicode String.
 capture_restricted a argv envi = do
   (Nothing, Just stdout_hdl, Nothing, p) <- createProcess CreateProcess{
-    cmdspec = RawCommand "/lockdown" (a : argv),
-    cwd = Just "/",
+    cmdspec = RawCommand "/usr/bin/geordi-lockdown" (a : argv),
+    cwd = Just "/run/geordi",
     env = Just envi,
     std_in = Inherit,
     std_out = CreatePipe,
@@ -142,23 +139,19 @@ instance Show EvaluationResult where
 
 compile_env :: [(String, String)]
 compile_env =
-  [("LD_PRELOAD", "/libdiagnose_sigsys.so")]
+  [("LD_PRELOAD", "libdiagnose_sigsys.so")]
 
 prog_env :: [(String, String)]
 prog_env =
   [ ("GLIBCXX_DEBUG_MESSAGE_LENGTH", "0")
-  , ("LD_PRELOAD", "/libtpreload.so /libdiagnose_sigsys.so")
+  , ("LD_PRELOAD", "libgeordi_preload.so libdiagnose_sigsys.so")
   ]
-
-data JailConfig = JailConfig { user, group :: String } deriving Read
 
 jail :: IO ()
 jail = do
-  cfg ← getDataFileName "jail-config" >>= readTypedFile
-  gid ← groupID . getGroupEntryForName (group cfg)
-  uid ← userID . getUserEntryForName (user cfg)
-  getDataFileName "rt" >>= chroot
-  System.Directory.setCurrentDirectory "/"
+  gid ← groupID . getGroupEntryForName "nogroup"
+  uid ← userID . getUserEntryForName "nobody"
+  System.Directory.setCurrentDirectory "/run/geordi"
   setGroupID gid
   setUserID uid
 
@@ -169,8 +162,6 @@ pass_env s = ("LC_" `isPrefixOf` s) || (s `elem` ["PATH", "LD_LIBRARY_PATH", "LD
 
 evaluate :: CompileConfig → Request → [(String, String)] → IO EvaluationResult
 evaluate cfg Request{..} extra_env = do
- withResource (openFd "lock" ReadOnly Nothing defaultFileFlags) $ \lock_fd → do
-  Flock.exclusive lock_fd
 
   let
     namedUnits :: [(String, String)]
@@ -191,7 +182,7 @@ evaluate cfg Request{..} extra_env = do
         cr → return $ EvaluationResult stage cr
 
     path :: Stage → String
-    path Run = "/t"
+    path Run = "/run/geordi/t"
     path _ = gxxPath cfg
 
     argv :: String -> Stage → [String]

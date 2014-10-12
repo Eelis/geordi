@@ -6,7 +6,6 @@ import qualified Data.Map as Map
 import qualified Data.Char as Char
 import qualified Data.Maybe as Maybe
 import Control.Applicative ((<*>))
-import Paths_geordi (getDataFileName)
 import Prelude hiding ((.))
 import Prelude.Unicode
 import Util (readFileNow, (.))
@@ -15,13 +14,13 @@ data CompileConfig = CompileConfig { gxxPath :: FilePath, objectFiles, compileFl
 
 readCompileConfig :: IO CompileConfig
 readCompileConfig = do
-  l ← lines . (getDataFileName file >>= readFileNow)
+  l ← lines . readFileNow file
   let
     m = Map.fromList $ Maybe.catMaybes $ (uncurry parseLine .) $ zip [1..] l
     var k = maybe (fail $ "Missing variable in " ++ file ++ ": " ++ k) return (Map.lookup k m)
   CompileConfig . var "GXX" <*> (words . var "OBJECT_FILES") <*> (words . var "COMPILE_FLAGS") <*> (words . var "LINK_FLAGS")
  where
-  file = "compile-config"
+  file = "/etc/geordi/compile-config"
   parseLine :: Int → String → Maybe (String, String)
   parseLine linenum line
     | s@(c:_) ← dropWhile Char.isSpace line, c ≠ '#' =

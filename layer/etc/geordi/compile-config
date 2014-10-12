@@ -1,4 +1,4 @@
 GXX="/usr/bin/g++"
 OBJECT_FILES="crt1.o crti.o crtn.o crtbegin.o crtend.o libgcc.a libgcc_s.so libstdc++.so libstdc++.so.6 libmcheck.a libc.so libc_nonshared.a libm.so libm.so.6 libc.so.6 libgcc_s.so.1"
 COMPILE_FLAGS="-finput-charset=UTF-8 -std=c++11 -pedantic-errors -Wfatal-errors -Wall -Wextra -Wno-empty-body -Wno-missing-field-initializers -Wwrite-strings -Wno-deprecated -Wno-unused-parameter -Wno-non-virtual-dtor -Wno-variadic-macros -fno-diagnostics-show-option -fno-use-linker-plugin -fmessage-length=0 -ftemplate-depth-128 -fno-merge-constants -fno-nonansi-builtins -fno-gnu-keywords -fno-elide-constructors -fstrict-aliasing -fstack-protector-all -Winvalid-pch -D_GLIBCXX_DEBUG -D_GLIBCXX_DEBUG_PEDANTIC -Wno-deprecated"
-LINK_FLAGS="-Wl,--undefined,geordi_init prelude.a -lmcheck"
+LINK_FLAGS="-Wl,--undefined,geordi_init -lgeordi_prelude -lmcheck"

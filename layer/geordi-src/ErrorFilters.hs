@@ -69,18 +69,18 @@ replace_withs s = either (const s) replace_withs $ parse (r >+> getInput) "" s
      c ← oneOf "],"
      let before' = subRegex (mkRegex $ "\\b" ++ k ++ "\\b") before (replaceInfix "\\" "\\\\" v)
      if before' == before then mzero else return $ before' ++ (if c == ']' then "" else " [with")
-
-class Parser p st a | p → st, p → a where parser :: p → CharParser st a
+{-
+class Parser p st a | p -> st, p → a where parser :: p → CharParser st a
 instance Parser (CharParser st a) st a where parser = id
 instance Parser String st String where parser = string
 instance Parser [String] st String where parser = choice . ((try . string) .)
 instance Parser Char st Char where parser = char
-
+-}
 count_occs :: Eq a ⇒ [a] → [a] → Int
 count_occs x = length . filter (isPrefixOf x) . tails
 
 cleanup_stdlib_templates :: String → String
-cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure") id .
+cleanup_stdlib_templates = id {-either (const "cleanup_stdlib_templates parse failure") id .
   parse (recursive_replacer $ choice cleaners) ""
  where
   cleaners :: [CharParser st String]
@@ -104,7 +104,7 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
     , tmpi "allocator" 1 >> "::" $> "size_type" >> noid >> return "size_t"
     , string "typename " >> return ""
         -- Shows up in assertion failures after replacements have been performed.
-
+-}
     {- defaulters broken by Parsec 3:
     , defaulter ["list", "deque", "vector"] 1 $ tmpl "allocator"
     , defaulter ["set", "multiset", "basic_stringstream", "basic_stringbuf", "basic_string", "basic_ostringstream", "basic_istringstream"] 2 $ tmpl "allocator" . head
@@ -119,7 +119,7 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
     , defaulter ["istream_iterator", "ostream_iterator"] 2 $ tmpl "char_traits" . (!!1)
     , defaulter ["istream_iterator", "ostream_iterator"] 1 $ const "char"
     -}
-    ] -- Together, these must be strongly normalizing.
+--    ] -- Together, these must be strongly normalizing.
 
   -- Things that go wrong but are hard to fix:
   --   set<T>::iterator displayed as const version. Same for multiset.
@@ -131,7 +131,7 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
       where x $>> y = (parser x << spaces) >+> parser y
         -- Hides default template arguments.
 -}
-
+{-
   noid = notFollowedBy (satisfy isIdChar)
 
   a <$ b = parser a << spaces << parser b
@@ -155,3 +155,4 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
   recursive_replacer :: CharParser st String → CharParser st String
   recursive_replacer r = ((r >+> getInput) >>= setInput >> recursive_replacer r) <|> scan
     where scan = (eof >> return "") <|> (anyChar >>= \c → (c:) . if isIdChar c then scan else recursive_replacer r)
+-}

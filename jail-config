@@ -1,4 +1,0 @@
-JailConfig
-{ user = "nobody"
-, group = "nobody"
-}
