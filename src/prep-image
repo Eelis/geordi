@@ -1,0 +1,36 @@
+#!/bin/bash
+set -euv
+
+mkdir /geordi/run
+cd /geordi/run
+
+for n in 0 1 2 3 4 5 6 7 9
+do
+	touch $n $n.s $n.o
+	chmod 666 $n $n.s $n.o
+done
+
+touch t
+chmod 777 t
+
+. /geordi/etc/compile-config
+
+gcc -fPIC -shared -Wall -o /lib/libdiagnose_sigsys.so /geordi/src/diagnose_sigsys.c
+g++ -static-libstdc++ -static-libgcc -std=c++11 -O2 /geordi/src/lockdown.cpp `pkg-config --cflags --libs libseccomp` -o /usr/bin/geordi-lockdown
+
+cd /geordi/src/prelude
+$GXX $COMPILE_FLAGS -c -x c++-header prelude.hpp -o /geordi/run/prelude.hpp.gch
+$GXX $COMPILE_FLAGS -fPIC -shared -o /lib/libgeordi_preload.so preload.cpp
+$GXX $COMPILE_FLAGS -c {prelude,tracked,more_ostreaming,bark}.cpp
+ar -rsc /lib/libgeordi_prelude.a {prelude,bark,tracked,more_ostreaming}.o
+
+chmod 400 /geordi/etc/irc-config
+
+rm `gcc -print-prog-name=collect2`
+	# If collect2 is present, it is called by the gcc driver and
+	# starts making temporaries. GCC functions just fine without it.
+
+export SUDO_FORCE_REMOVE=yes
+apt-get remove -y vim-common vim-tiny python3 upstart perl less iputils-ping logrotate net-tools python3.4 keyboard-configuration sudo 2>&1 > /dev/null
+dpkg --force-all -r apt gnupg ntpdate python3-minimal python3.4-minimal whiptail iproute2 diffutils cron bzip2 bsdutils adduser apt-utils passwd libuuid1 isc-dhcp-client perl-base ubuntu-keyring sed netcat-openbsd login mawk gpgv cpio libtext-charwidth-perl libtext-wrapi18n-perl debconf-i18n liblocale-gettext-perl libtext-iconv-perl netbase libsemanage1 libpython3-stdlib libpython3.4-stdlib mount module-init-tools libgnutls-openssl27 libgcrypt11 libgnutls26 libgpg-error0 makedev tzdata e2fsprogs insserv patch xml-core make lockfile-progs manpages manpages-dev sgml-base ncurses-base ncurses-bin shared-mime-info libxml2 libplymouth2 libpng12-0 libss2 libprocps3 libgdbm3 libncursesw5 gzip fakeroot libfakeroot libjson0 busybox-initramfs hostname libexpat1 pkg-config libpopt0 e2fslibs libestr0 libmount1 klibc-utils libklibc xkb-data ucf isc-dhcp-common file libsqlite3-0 libusb-0.1-4 libp11-kit0 initramfs-tools-bin kmod 2>&1 > /dev/null
+rm -rf /home /mnt /opt /var /sbin /srv /boot /media /root /usr/sbin /bin /tmp

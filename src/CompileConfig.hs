@@ -20,7 +20,7 @@ readCompileConfig = do
     var k = maybe (fail $ "Missing variable in " ++ file ++ ": " ++ k) return (Map.lookup k m)
   CompileConfig . var "GXX" <*> (words . var "OBJECT_FILES") <*> (words . var "COMPILE_FLAGS") <*> (words . var "LINK_FLAGS")
  where
-  file = "/etc/geordi/compile-config"
+  file = "/geordi/etc/compile-config"
   parseLine :: Int → String → Maybe (String, String)
   parseLine linenum line
     | s@(c:_) ← dropWhile Char.isSpace line, c ≠ '#' =

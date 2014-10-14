@@ -44,6 +44,7 @@ import Sys (strsignal, chroot, strerror)
 import Control.Monad (when, liftM2, forM_)
 import System.Environment (getEnvironment)
 import System.IO (withFile, IOMode(..), hSetEncoding, utf8, hPutStrLn, hGetContents)
+import System.IO.Error (tryIOError, ioeGetErrorType, permissionErrorType)
 import GHC.IO.Encoding.UTF8 (mkUTF8)
 import GHC.IO.Encoding.Failure (CodingFailureMode(TransliterateCodingFailure))
 import Foreign.C (CInt, eOK)
@@ -52,6 +53,7 @@ import Data.List ((\\), isPrefixOf)
 import System.Process (createProcess, CmdSpec(..), CreateProcess(..), StdStream(..), waitForProcess)
 import System.Posix
   (Signal, sigSEGV, sigILL, openFd, defaultFileFlags, OpenMode(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
+import System.Posix.User (setUserID)
 import Gcc (Stage(..), isMainMissingDiagnostic)
 import CompileConfig
 
@@ -219,7 +221,12 @@ evaluator :: IO ([(String, String)] → WithEvaluation a → IO a, CompileConfig
 evaluator = do
   cap_fds
   cfg ← readCompileConfig
-  System.Directory.setCurrentDirectory "/run/geordi"
+
+  setUserID 65534
+  Left (ioeGetErrorType -> et) <- tryIOError (readFileNow "/geordi/etc/irc-config")
+  when (et /= permissionErrorType) undefined
+
+  System.Directory.setCurrentDirectory "/geordi/run"
   return (\extra_env we → case we of
       WithoutEvaluation x → return x
       WithEvaluation r g → g . evaluate cfg r extra_env
