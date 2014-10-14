@@ -14,7 +14,7 @@ RUN cabal update && cabal install --global filepath process deepseq mtl syb unix
 COPY etc /geordi/etc
 COPY src /geordi/src
 
-RUN cabal install --global /geordi/src
+RUN cabal install --global /geordi/src --prefix=/usr
 
 RUN /geordi/src/prep-image
 

@@ -97,7 +97,7 @@ capture_restricted :: FilePath → [String] → [(String,String)] → IO Capture
 capture_restricted a argv envi = do
   (Nothing, Just stdout_hdl, Nothing, p) <- createProcess CreateProcess{
     cmdspec = RawCommand "/usr/bin/geordi-lockdown" (a : argv),
-    cwd = Just "/run/geordi",
+    cwd = Just "/geordi/run",
     env = Just envi,
     std_in = Inherit,
     std_out = CreatePipe,
@@ -174,7 +174,7 @@ evaluate cfg Request{..} extra_env = do
         cr → return $ EvaluationResult stage cr
 
     path :: Stage → String
-    path Run = "/run/geordi/t"
+    path Run = "/geordi/run/t"
     path _ = gxxPath cfg
 
     argv :: String -> Stage → [String]
