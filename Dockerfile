@@ -11,13 +11,12 @@ RUN rm /haskell-platform-2014.2.0.0-unknown-linux-x86_64.tar.gz
 RUN cabal update && cabal install --global filepath process deepseq mtl syb unix utf8-string network containers readline parsec Diff directory regex-compat base-unicode-symbols setops streams semigroups regex-posix template-haskell transformers pointed distributive comonad contravariant profunctors semigroupoids irc setlocale
 # (We could rely on the list in geordi.cabal, but having these here shortens the development cycle when I'm testing changes in geordi.)
 
-COPY etc /geordi/etc
 COPY src /geordi/src
-
 RUN cabal install --global /geordi/src --prefix=/usr
 
-RUN /geordi/src/prep-image
-
+COPY etc /geordi/etc
+WORKDIR /geordi/run
 CMD ["/usr/bin/geordi-local"]
 
-WORKDIR /geordi/run
+COPY prep-image /geordi/src/
+RUN /geordi/src/prep-image
