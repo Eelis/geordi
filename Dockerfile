@@ -1,8 +1,8 @@
 FROM ubuntu:14.04
 RUN apt-get update && apt-get install -y libreadline-dev libboost-dev build-essential libgmp-dev pkg-config libseccomp-dev
 
-#ADD https://www.haskell.org/platform/download/2014.2.0.0/haskell-platform-2014.2.0.0-unknown-linux-x86_64.tar.gz /
-COPY haskell-platform-2014.2.0.0-unknown-linux-x86_64.tar.gz /
+ADD https://www.haskell.org/platform/download/2014.2.0.0/haskell-platform-2014.2.0.0-unknown-linux-x86_64.tar.gz /
+
 RUN tar xvf haskell-platform-2014.2.0.0-unknown-linux-x86_64.tar.gz
 RUN /usr/local/haskell/ghc-7.8.3-x86_64/bin/activate-hs
 RUN rm /haskell-platform-2014.2.0.0-unknown-linux-x86_64.tar.gz
