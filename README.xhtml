@@ -21,77 +21,13 @@
 
     <hr/><h2 id='installation'>1. Installation</h2>
 
-    <h3>1.1&emsp;Prerequisites</h3>
-    <ul>
-      <li>An x86-64 machine</li>
-      <li>GNU/Linux &ge; 3.8</li>
-      <li>GCC/G++ &ge; 4.7</li>
-      <li><a href='http://www.boost.org/'>Boost</a> &ge; 1.48 (Only the headers are needed)</li>
-      <li><a href='http://www.haskell.org/ghc/'>GHC</a> &ge; 7.6
-        <!--<p>On Ubuntu, it is highly recommended to use GHC packages from the Ubuntu repositories. Use of haskell.org's GHC packages may result in strange "g++: Virtual timer expired" errors.</p>
-        <p>Some distributions package GHC libraries separately. If, when compiling, you get errors like “Could not find module "Control.Monad.State"”, look for separate mtl and network packages.</p> -->
-      </li>
-    </ul>
-    <p>In addition, geordi depends on a number of <a href='http://hackage.haskell.org/'>Hackage</a> packages, but these will be downloaded, built, and installed automatically by <a href='http://hackage.haskell.org/trac/hackage/wiki/CabalInstall'>cabal-install</a>.</p>
-
-    <h3>1.2&emsp;Installing geordi</h3>
-    <p>The easiest way to build and install geordi is with <a href='http://hackage.haskell.org/trac/hackage/wiki/CabalInstall'>cabal-install</a>, part of the <a href='http://hackage.haskell.org/platform//'>Haskell Platform</a>.</p>
-    <p>In the geordi directory, say:</p>
-    <pre>      cabal update
-      cabal install</pre>
-    <p>This will download, build, and install any missing dependencies from <a href='http://hackage.haskell.org/'>Hackage</a>, and will then build and install geordi (by default into <tt>$HOME/.cabal/</tt>).</p>
-
-    <h3>1.3&emsp;Setting up a chroot</h3>
-
-    <p>To set up a directory for geordi to chroot into when it starts, do the following:</p>
-
-    <ol>
-      <li><p>Edit <kbd>$PREFIX/share/geordi-0/compile-config</kbd> to your liking (where <kbd>$PREFIX</kbd> is the location where Cabal installed geordi, which defaults to <kbd>$HOME/.cabal/</kbd>). Check that the g++ path refers to the actual g++ binary, not some wrapper that adds output coloring or something.</p></li>
-      <li><p>On Debian and Ubuntu, replace</p><pre>  group = "nobody"</pre><p>with</p><pre>  group = "nogroup"</pre><p> in <kbd>$PREFIX/share/geordi-0/jail-config</kbd>.</p></li>
-      <li><kbd>geordi-mkrt</kbd><p>This creates <kbd>$PREFIX/share/geordi-0/rt</kbd>, which will be our chroot root, and copies various files into it that GCC needs in order to function.</p><p>If you ever make further modifications to <kbd>compile-config</kbd>, throw the old <kbd>rt</kbd> away and build a new one with <kbd>geordi-mkrt</kbd> (followed by <kbd>geordi-compile-prelude</kbd>).</p></li>
-      <li><kbd>geordi-compile-prelude</kbd><p>This compiles the prelude files in <kbd>$PREFIX/share/geordi-0/prelude</kbd> to produce <kbd>$PREFIX/share/geordi-0/rt/{prelude.hpp.gch,prelude.a,libtpreload.so.0.0}</kbd>.</p>
-      </li>
-    </ol>
-
-    <p>Now try running</p><pre>  sudo geordi-local "&lt;&lt; 'x'"</pre>
-
-    <p>If this complains about missing executables like <kbd>as</kbd> and <kbd>ld</kbd> which are present in a non-standard location in your <kbd>PATH</kbd>, try</p><pre>  sudo env PATH=$PATH geordi-local "&lt;&lt; 'x'"</pre>
-
-    <p>If you get errors complaining about missing libraries and such (this can happen due to differing versions or configurations of gcc), try locating those on your system and manually copying them into the corresponding place in <kbd>$PREFIX/share/geordi-0/rt</kbd>.</p>
-
-    <p>If your <kbd>compile-config</kbd> points to a custom-built gcc in a non-standard location <kbd>/foo/bar</kbd> and you get an error about <kbd>/t</kbd> missing some libraries, try adding <kbd>-Wl,-rlink,/foo/bar/lib</kbd> to <kbd>LINK_FLAGS</kbd> in <kbd>compile-config</kbd>.</p>
-
-    <h3>1.4&emsp;Running the testsuite</h3>
-    <p>A modest testsuite can now be run with <kbd>sudo geordi-testsuite</kbd> (recommended).</p>
-
-    <hr/><h2 id='running'>2. Running geordi</h2>
-
-    <h3 id='locally'>2.1&emsp;<kbd>geordi-local</kbd></h3>
-    <p><kbd>geordi-local</kbd> lets one test snippets locally (that is, without connecting to any IRC server).</p>
-    <p>Usage:&emsp;<kbd>sudo geordi-local [option]... [request]...</kbd></p>
-
-    <p>Request syntax is described in the <a href='http://www.eelis.net/geordi/#usage'>manual</a>, except that here the nickname (and colon/comma) must be omitted.</p>
-    <p>Options:</p>
-    <dl>
-      <dt><kbd>-h</kbd> / <kbd>--help</kbd></dt>
-      <dd><p>Display help and exit.</p></dd>
-    </dl>
-    <p>If any requests are specified, they are evaluated and their results are shown. If the first request starts with a request option, interject “<kbd>--</kbd>” to prevent it from being interpreted as a command option.</p>
-    <p>If no requests are specified, the program goes into a Read-Eval-Print-Loop.</p>
-
-    <h3 id='ircbot'>2.2&emsp;<kbd>geordi-irc</kbd></h3>
-
-    <p>Usage:&emsp;<kbd>sudo geordi-irc [option]...</kbd></p>
-
-    <p>Starting an IRC bot with root permissions should make one seriously nervous. Geordi requires root permissions only because <a href='http://linux.die.net/man/2/chroot'>chroot(2)</a> does. Geordi chroots into <kbd>rt</kbd> as one of the first things it does on startup, and changes to the user and group specified in jail-config before it starts responding to IRC messages.</p>
-
-    <p>Options:</p>
-    <dl>
-      <dt><kbd>-c &lt;file></kbd> / <kbd>--config &lt;file></kbd></dt>
-      <dd><p>Load bot configuration from &lt;file> instead of <kbd>irc-config</kbd>.</p></dd>
-      <dt><kbd>-h</kbd> / <kbd>--help</kbd></dt>
-      <dd><p>Display help and exit.</p></dd>
-    </dl>
+    <p>geordi runs as a docker container.</p>
+    <p>To build the image from which the container will be instantiated, in the directory where Dockerfile is, say:</p>
+    <pre>  sudo docker build -t geordi .</pre>
+    <p>Then, to run a local interactive geordi session, say:</p>
+    <pre>  sudo docker run -it geordi</pre>
+    <p>Or, to run the IRC bot (using the configuration in irc-config in the image), say:</p>
+    <pre>  sudo docker run geordi geordi-irc</pre>
 
     <h4 id='nickserv'>NickServ identification</h4>
     <p>To have the bot identify to NickServ, change the following line in <kbd>irc-config</kbd>:</p>
@@ -123,13 +59,6 @@
     <p>You may need to install a separate GCC locales package or other kind of language pack for your distro, to get the files above.</p>
     <p>Furthermore, not all of the files above may be available for your locale; copy those that are.</p>
     <p>Additionally, the LC_ALL environment variable must be set to foo_BAR.utf8 when geordi is started. Note that sudo clears environment variables by default, so either use</p><pre>  sudo -E geordi-...</pre><p>or use</p><pre>  sudo env LC_ALL=foo_BAR.utf8 geordi-...</pre>
-
-    <hr/><h2 id='problems'>4. Known problems</h2>
-    <ul>
-      <li>
-        Because <kbd>geordi-irc</kbd> connects as root, IRC servers that query ident may get a root response and may decide to reject the connection. (Quakenet is known to do this.)
-      </li>
-    </ul>
 
   </body>
 </html>
