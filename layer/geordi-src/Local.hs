@@ -9,6 +9,7 @@ import qualified Cxx.Show
 import Request (Response(..), HistoryModification(..), Context(..), modify_history)
 import Control.Monad (forM_, when)
 import Control.Monad.Fix (fix)
+import System.IO (utf8, stdout, hSetEncoding)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import System.Locale.SetLocale (setLocale, Category(..))
 import Data.IORef (newIORef, readIORef, writeIORef)
@@ -48,6 +49,7 @@ blankMemory = Memory (Context Cxx.Show.noHighlighting []) Nothing
 main :: IO ()
 main = do
  setLocale LC_ALL (Just "")
+ hSetEncoding stdout utf8
  RL.initialize -- Reads stuff from files not present in the chroot.
  (opts, rest) ← getArgs
  if Help ∈ opts then putStrLn help else do
