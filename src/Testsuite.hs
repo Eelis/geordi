@@ -8,6 +8,7 @@ import Control.Exception ()
 import Control.Monad (unless, forM_)
 import Control.Monad.Error ()
 import System.Environment (getArgs)
+import System.IO (utf8, stdout, hSetEncoding)
 import Text.Regex (matchRegex, mkRegex)
 import Data.List (sort, isPrefixOf)
 
@@ -55,6 +56,8 @@ utest = test "unnamed test"
 
 main :: IO ()
 main = do
+
+  hSetEncoding stdout utf8
 
   evalRequest ← RequestEval.evaluator
 
