@@ -25,7 +25,7 @@ ar -rsc /lib/libgeordi_prelude.a {prelude,bark,tracked,more_ostreaming}.o
 
 chmod 400 /geordi/etc/irc-config
 
-rm `gcc -print-prog-name=collect2`
+rm -f `g++ -print-prog-name=collect2` `$GXX -print-prog-name=collect2`
 	# If collect2 is present, it is called by the gcc driver and
 	# starts making temporaries. GCC functions just fine without it.
 
