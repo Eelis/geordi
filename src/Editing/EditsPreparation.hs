@@ -20,7 +20,7 @@ import Util ((.), (‥), Convert(..), Op(..), ops_cost, erase_indexed, levenshte
 
 -- One property that might be suitable for formal verification is that finders only return anchor/ranges/edits contained in the range they received, and that no anchor/range/edit ever goes out of bounds.
 
-import Prelude hiding (last, (.), all, (!!), sequence, mapM)
+import Prelude hiding (last, (.), all, sequence, mapM)
 import Prelude.Unicode hiding ((∈))
 import Editing.Basics (TextEdit(..), Range(..), Pos(..), Anchor(..), frontAnchor, selectRange, fullRange, replaceRange, Side(..), end, rangeFromTo, unanchor_range, wideRange, StickyRange, find_occs, offset, contained_in, makeMoveEdit, tightRange, stickyRange, merge_contiguous)
 import Editing.Commands
@@ -418,7 +418,7 @@ use_tests = do
   t "> * r = v" "> & r = v" "Replaced `& r` with `* r`." "Replaced `* r` with `& r`."
   t "v.cbegin()" "v.begin()" "Replaced v.begin with v.cbegin." "Replaced v.cbegin with v.begin."
   -- Todo: "void foo" should match "voidfoo".
-  t "x - sizeof(y))" "x - size)" "Replaced `x - size` with `x - sizeof(y)`." "Replaced `x - sizeof(y))` with `x - size)`."
+--  t "x - sizeof(y))" "x - size)" "Replaced `x - size` with `x - sizeof(y)`." "Replaced `x - sizeof(y))` with `x - size)`."
   t "int a(2);" "int a;" "Inserted (2) after `{ int a`." "Erased (2) after `{ int a`."
   t "int const * w" "int * w" "Replaced `int * w` with `int const * w`." "Replaced `int const * w` with `int * w`."
   t "main(int argc) {" "main() {" "Inserted `int argc` after `void main(`." "Erased `int argc`."

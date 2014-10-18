@@ -15,7 +15,7 @@ import Text.ParserCombinators.Parsec
 import Control.Applicative (Applicative((<*>)))
 import Gcc (Stage(..))
 import Util ((.), (<<), isIdChar, (>+>), strip, replaceInfix, parsep, maybeLast)
-import Prelude hiding ((.), (!!))
+import Prelude hiding ((.))
 
 subRegex' :: Regex → String → String → String
 subRegex' = flip . subRegex

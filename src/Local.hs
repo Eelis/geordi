@@ -41,10 +41,10 @@ make_history_adder = do
       RL.addHistory s
       writeIORef r (Just s)
 
-data Memory = Memory { context :: Context, last_output :: Maybe String }
+data Memory = Memory { context :: Context, last_outputs :: [String] }
 
 blankMemory :: Memory
-blankMemory = Memory (Context Cxx.Show.noHighlighting []) Nothing
+blankMemory = Memory (Context Cxx.Show.noHighlighting []) []
 
 main :: IO ()
 main = do
@@ -65,7 +65,7 @@ main = do
         Just (AddLast e) → addHistory $ UTF8.encodeString $ show e
         Just (ReplaceLast e) → addHistory $ UTF8.encodeString $ show e
         _ → return ()
-      putStrLn $ describe_new_output (last_output mem) output
+      putStrLn $ describe_new_output (last_outputs mem) output
       loop Memory
         { context = maybe id modify_history history_modification $ context mem
-        , last_output = Just output }
+        , last_outputs = output : last_outputs mem }

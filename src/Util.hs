@@ -26,7 +26,7 @@ import Control.DeepSeq (NFData, rnf)
 import System.Posix.Types (Fd(..))
 import System.IO (Handle, hClose)
 import Control.Applicative (Applicative(..))
-import Prelude hiding ((.), (!!), mapM, any)
+import Prelude hiding ((.), mapM, any)
 import Prelude.Unicode hiding ((∈), (∉))
 import Data.SetOps
 
@@ -102,9 +102,6 @@ replace x y = map $ recognize x y id
 
 replaceWithMany :: Eq a ⇒ a → [a] → [a] → [a]
 replaceWithMany x y = concatMap $ recognize x y (:[])
-
-(!!) :: [a] → Int → a
-l !! i = (Prelude.!!) l (i `mod` length l)
 
 erase_indexed :: [Int] → [a] → [a]
 erase_indexed i l = f 0 l
@@ -434,12 +431,23 @@ x << y = x >>= \z → y >> return z
 parsep :: Char
 parsep = '\x2029' -- U+2029 PARAGRAPH SEPARATOR
 
-describe_new_output :: Maybe String → String → String
+describe_new_output :: [String] → String → String
 describe_new_output prev new
-  | prev ≠ Just new ∨ length new ≤ 20 = new
-  | any (`isPrefixOf` new) ["error:", "internal compiler error:"] = "Same error."
-  | "warning:" `isPrefixOf` new = "Same warning."
-  | otherwise = "No change in output."
+  | length new ≤ 20 = new
+  | otherwise = (!! length (takeWhile (== new) prev)) $ cycle
+      [ new
+      , "Same " ++ thing ++ "."
+      , "Still same " ++ thing ++ "."
+      , "Again, same " ++ thing ++ "."
+      , "Same " ++ thing ++ "."
+      , "Give up already."
+      ]
+  where
+    thing
+      | "warning:" `isPrefixOf` new = "warning"
+      | "error:" `isPrefixOf` new = "error"
+      | "internal compiler error:" `isPrefixOf` new = "error"
+      | otherwise = "output"
 
 readState :: Monad y ⇒ StateT x y x
 readState = StateT $ \x → return (x, x)

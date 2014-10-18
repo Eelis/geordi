@@ -112,7 +112,7 @@ describe_lines [] = ""
 describe_lines [x] = x
 describe_lines (x:xs) = x ++ discarded_lines_description (length xs)
 
-data ChannelMemory = ChannelMemory { context :: Request.Context, last_output :: String }
+data ChannelMemory = ChannelMemory { context :: Request.Context, last_outputs :: [String] }
 type ChannelMemoryMap = Map String ChannelMemory
 
 is_request :: IrcBotConfig → Where → String → Maybe String
@@ -196,10 +196,11 @@ on_msg eval cfg full_size m@(IRC.Message prefix c) = execWriterT $ do
           let extra_env = [("GEORDI_REQUESTER", who), ("GEORDI_WHERE", wher)]
           Request.Response history_modification output ← lift $ lift $ eval r con extra_env
           let output' = describe_lines $ dropWhile null $ lines output
+          let lo = (take 50 . last_outputs . mmem) `orElse` []
           lift $ mapState' $ insert (wher, ChannelMemory
             { context = maybe id Request.modify_history history_modification con
-            , last_output = output' })
-          reply $ describe_new_output (last_output . mmem) output'
+            , last_outputs = output' : lo })
+          reply $ describe_new_output lo output'
     Welcome → do
       maybeM (nick_pass cfg) $ send . PrivMsg "NickServ" . ("identify " ++)
       when (join_trigger cfg == Nothing) join

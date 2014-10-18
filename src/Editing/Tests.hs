@@ -312,11 +312,11 @@ diff_tests = do
   dt "struct curr_func { string name; cf(string n):name(n){} }; \\ #define DEFUN(name) name try { throw curr_func(#name); } catch(curr_func& cfun) \\ DEFUN(void haha(int a)) { cout << cfun.name; } int main() { cout << haha; }"
     "struct { string name; cf(string n){} }; \\ #define DEFUN(name) name try { } catch(curr_func& cfun) \\ DEFUN(void haha(int a) { cout << \"tortoise\"; } ) { cout << ETYPE(cfun.name); } int main() { do_something(complicated); cout << haha; }"
     "Replaced `struct curr_func` with struct, erased :name(n) and `throw curr_func(#name);`, inserted `{ cout << \"tortoise\"; }` before `) { cout`, replaced `<< cfun.name` with `<< ETYPE(cfun.name)`, and inserted `do_something(complicated);` before `cout << haha`."
-
+{-
   dt "{ char str[] = \"giraffe\"; char * pch; pch=(char*) memchr(str, 'y', (int)strlen(str)); if (pch!=NULL) { printf(\"'y' was found at position #%d\", pch-str+1); } }"
     "{ char * str = \"giraffe\"; char * pch; pch=(char*) memchr(str, 'v', (size_t)strlen(str)); if (pch!=NULL) { printf(\"'v' was found at position #%d\", pch-str-1); memset(str, '*', 6); puts(str); printf(\"%s\", str); } }"
     "Replaced `char str[]` with `char * str`, replaced 'y' with 'v', replaced int with size_t, replaced `\"'y' was` with `\"'v' was`, and replaced pch-str+1 with `pch-str-1); memset(str, '*', 6); puts(str); printf(\"%s\", str`."
-
+-}
   dt "geordi: { char y(34); stringstream i(\"geordi: { char y(34); stringstream i(!); string t; getline(i, t, '!'); cout << t << y << i.str() << y << i.rdbuf(); }\"); string t; getline(i, t, '!'); cout<< t << y << i.str() << y << i.rdbuf(); }"
     "geordi: { stringstream i(\"geordi: { stringstream i(!); string t; getline(i, t, '!'); cout << t << i.str() << i.rdbuf(); }\"); string t; getline(i, t, '!'); cout << t << i.str() << i.rdbuf(); }"
     "Erased `char y(34);` and `char y(34);` and `<< y` and `<< y` and `<< y` and `<< y`." -- Todo: "Erased all \"char y(34);\" and all \"<< y\"."
