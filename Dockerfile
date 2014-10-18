@@ -12,7 +12,7 @@ RUN cabal update && cabal install --global filepath process deepseq mtl syb unix
 # (We could rely on the list in geordi.cabal, but having these here shortens the development cycle when I'm testing changes in geordi.)
 
 COPY src /geordi/src
-RUN cabal install --global /geordi/src --prefix=/usr
+RUN rm -rf /geordi/src/dist; cabal install --global /geordi/src --prefix=/usr
 
 COPY etc /geordi/etc
 WORKDIR /geordi/run
