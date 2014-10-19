@@ -21,6 +21,7 @@
 #include "bark.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <bitset>
 #include <cfenv>
@@ -42,10 +43,14 @@
 #include <locale>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <new>
 #include <numeric>
 #include <ostream>
 #include <queue>
+#include <random>
+#include <ratio>
+#include <regex>
 #include <set>
 #include <sstream>
 #include <stack>
@@ -53,9 +58,14 @@
 #include <strstream>
 #include <streambuf>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <tuple>
+#include <typeindex>
 #include <typeinfo>
+#include <type_traits>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <valarray>
 #include <vector>
