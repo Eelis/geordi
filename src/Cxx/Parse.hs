@@ -126,13 +126,25 @@ textLit q = (symbol q >>) $ fix $ \h → do
     then do d ← anySymbol; r ← h; return $ s ++ ('\\':d:r)
     else return s
 
+rawStringLit :: ParserLike m Char ⇒ m Chunk
+rawStringLit = do
+  symbol 'R'
+  symbol '"'
+  x <- fst . (anySymbol `manyTill` symbol '(')
+  y <- fst . (anySymbol `manyTill` P.try (symbols (')' : x)))
+  symbol '"'
+  return $ RawStringLiteral x y
+
 -- Parsec's Haskell char/string literal parsers consume whitespace, and save the value rather than the denotation.
 
 charLit, stringLit, plain, parens, curlies, squares, multiComment, singleComment :: ParserLike m Char ⇒ m Chunk
 
 charLit = CharLiteral . textLit '\''
 stringLit = StringLiteral' . textLit '"'
-plain = Plain . ((:[]) . oneOf ";\\" <|> (toList . many1 (noneOf "'\"{([])}/;\\" <|> (symbol '/' << lookAhead (noneOf "*/")))))
+plain = Plain . ((:[]) . oneOf ";\\" <|> toList . many1 punct <|> toList . many1 (satisfy Char.isAlphaNum))
+  where
+    punct = satisfy (\c -> not (Char.isAlphaNum c) && not (c `elem` "'\"{([])}/;\\"))
+      <|> (symbol '/' << lookAhead (noneOf "*/"))
 parens = Parens . (symbol '(' >> code << symbol ')')
 curlies = Curlies . (symbol '{' >> code << symbol '}')
 squares = Squares . (symbol '[' >> code << symbol ']')
@@ -141,7 +153,7 @@ singleComment = SingleComment . (symbols "//" >> many (noneOf "\\"))
 
 code :: ParserLike m Char ⇒ m Code
 code = many $ (<?> "balanced code") $
-  multiComment <|> singleComment <|> charLit <|> parens <|> curlies <|> squares <|> stringLit <|> plain
+  multiComment <|> singleComment <|> charLit <|> parens <|> curlies <|> squares <|> stringLit <|> rawStringLit <|> plain
   -- Uncovers just enough structure for Request.hs to find the split positions in "<< ...; ..." and "{ ... } ..." requests and to implement --resume.
 
 -- Misc parsers.

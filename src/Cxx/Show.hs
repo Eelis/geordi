@@ -16,6 +16,7 @@ import Prelude.Unicode
 instance Show Chunk where
   show (CharLiteral c) = "'" ++ c ++ "'"
   show (StringLiteral' s) = "\"" ++ s ++ "\""
+  show (RawStringLiteral x y) = "R\"" ++ x ++ "(" ++ y ++ ")" ++ x ++ "\""
   show (Plain s) = s
   show (Parens c) = "(" ++ show c ++ ")"
   show (Curlies c) = "{" ++ show c ++ "}"

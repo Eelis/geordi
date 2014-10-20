@@ -1,4 +1,4 @@
-{-# LANGUAGE UnicodeSyntax, DeriveDataTypeable, CPP #-}
+{-# LANGUAGE UnicodeSyntax, DeriveDataTypeable, CPP, DatatypeContexts #-}
 
 {- Notes:
 
@@ -60,7 +60,7 @@ data ShortCode
   | Call Code Code -- /Does/ include Parens.
 
 data Chunk
-  = CharLiteral String | StringLiteral' String
+  = CharLiteral String | StringLiteral' String | RawStringLiteral String String
   | SingleComment String | MultiComment String
   | Curlies Code | Parens Code | Squares Code
   | Plain String
