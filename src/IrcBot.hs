@@ -1,4 +1,4 @@
-{-# LANGUAGE UnicodeSyntax, PatternGuards #-}
+{-# LANGUAGE UnicodeSyntax, PatternGuards, RecordWildCards #-}
 import qualified Network.Socket as Net
 import qualified System.Environment
 import qualified Request
@@ -26,7 +26,7 @@ import Data.List (isSuffixOf)
 import Data.Map (Map)
 import Data.SetOps
 import Util ((.), elemBy, caselessStringEq, readState, maybeM, describe_new_output,
-  orElse, findMaybe, readTypedFile, full_evaluate, withResource, mapState',
+  orElse, readTypedFile, full_evaluate, withResource, mapState',
   strip_utf8_bom, none, takeBack, replaceInfix)
 import Sys (rate_limiter)
 
@@ -82,17 +82,17 @@ main = do
  setLocale LC_ALL (Just "")
  opts ← getArgs
  if Help ∈ opts then putStrLn help else do
-  cfg ← readTypedFile "/geordi/etc/irc-config"
+  cfg@IrcBotConfig{..} ← readTypedFile "/geordi/etc/irc-config"
   full_evaluate $ do_censor cfg "abc" -- So that any mkRegex failures occur before we start connecting.
-  putStrLn $ "Connecting to " ++ server cfg ++ ":" ++ show (port cfg)
-  withResource (connect (server cfg) (fromIntegral $ port cfg)) $ \h → do
+  putStrLn $ "Connecting to " ++ server ++ ":" ++ show port
+  withResource (connect server (fromIntegral port)) $ \h → do
    putStrLn "Connected"
    evalRequest ← RequestEval.evaluator
-   limit_rate ← rate_limiter (rate_limit_messages cfg) (rate_limit_window cfg)
+   limit_rate ← rate_limiter rate_limit_messages rate_limit_window
    let send m = limit_rate >> IRC.send h (IRC.Message Nothing m)
-   maybeM (password cfg) $ send . Pass
-   send $ Nick $ nick cfg
-   send $ User (nick cfg) 0 (nick cfg)
+   maybeM password $ send . Pass
+   send $ Nick nick
+   send $ User nick 0 nick
    flip execStateT (∅) $ forever $ do
      l ← lift $ Data.ByteString.hGetLine h
      case IRC.decode l of
@@ -116,12 +116,12 @@ data ChannelMemory = ChannelMemory { context :: Request.Context, last_outputs ::
 type ChannelMemoryMap = Map String ChannelMemory
 
 is_request :: IrcBotConfig → Where → String → Maybe String
-is_request cfg _ s
+is_request IrcBotConfig{..} _ s
   | Just (n, r) ← Request.is_addressed_request s
-  , any (caselessStringEq n) (nick cfg : alternate_nick cfg : also_respond_to cfg)
+  , any (caselessStringEq n) (nick : alternate_nick : also_respond_to)
     = Just r
-is_request cfg (InChannel c) s
-  | elemBy caselessStringEq c (allow_nickless_requests_in cfg)
+is_request IrcBotConfig{..} (InChannel c) s
+  | elemBy caselessStringEq c allow_nickless_requests_in
   , Just r ← Request.is_nickless_request s
     = Just r
 is_request _ Private s = Just s
@@ -167,24 +167,24 @@ version_response = "Geordi C++ bot - http://www.eelis.net/geordi/"
 
 on_msg :: (Functor m, Monad m) ⇒
   (String → Request.Context → [(String, String)] → m Request.Response) → IrcBotConfig → Bool → IRC.Message → StateT ChannelMemoryMap m [IRC.Command]
-on_msg eval cfg full_size m@(IRC.Message prefix c) = execWriterT $ do
-  when (join_trigger cfg == Just m) join
+on_msg eval cfg@IrcBotConfig{..} full_size m@(IRC.Message prefix c) = execWriterT $ do
+  when (join_trigger == Just m) join
   case c of
-    Quit | Just (NickName n _ _) ← prefix, n == nick cfg → send $ Nick $ nick cfg
+    Quit | Just (NickName n _ _) ← prefix, n == nick → send $ Nick nick
     PrivMsg _ "\1VERSION\1" | Just (NickName n _ _) ← prefix →
       send $ Notice n $ "\1VERSION " ++ version_response ++ "\1"
-    NickNameInUse → send $ Nick $ alternate_nick cfg
+    NickNameInUse → send $ Nick alternate_nick
     Ping x → send $ Pong x
     PrivMsg _ ('\1':_) → return ()
     PrivMsg to txt' | Just (NickName who muser mserver) ← prefix → do
       let
         txt = filter isPrint $ strip_color_codes $ strip_utf8_bom txt'
-        private = elemBy caselessStringEq to [nick cfg, alternate_nick cfg]
+        private = elemBy caselessStringEq to [nick, alternate_nick]
         w = if private then Private else InChannel to
         wher = if private then who else to
-        reply s = send $ PrivMsg wher $ take (max_response_length cfg) $
-            (if private then id else (replaceInfix "nick" who (channel_response_prefix cfg) ++)) $
-            if null s then no_output_msg cfg else do_censor cfg s
+        reply s = send $ PrivMsg wher $ take max_response_length $
+            (if private then id else (replaceInfix "nick" who channel_response_prefix ++)) $
+            if null s then no_output_msg else do_censor cfg s
       maybeM (dropWhile isSpace . is_request cfg w txt) $ \r → do
        case request_allowed cfg who muser mserver w of
         Deny reason → maybeM reason reply
@@ -202,13 +202,13 @@ on_msg eval cfg full_size m@(IRC.Message prefix c) = execWriterT $ do
             , last_outputs = output' : lo })
           reply $ describe_new_output lo output'
     Welcome → do
-      maybeM (nick_pass cfg) $ send . PrivMsg "NickServ" . ("identify " ++)
-      when (join_trigger cfg == Nothing) join
+      maybeM nick_pass $ send . PrivMsg "NickServ" . ("identify " ++)
+      when (join_trigger == Nothing) join
     Invite _ _ → join
     _ → return ()
   where
     send = tell . (:[])
-    join = send $ Join (chans cfg) (key_chans cfg)
+    join = send $ Join chans key_chans
 
 connect :: Net.HostName → Net.PortNumber → IO Handle
   -- Mostly copied from Network.connectTo. We can't use that one because we want to set SO_KEEPALIVE (and related) options on the socket, which can't be done on a Handle.
