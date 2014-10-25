@@ -81,7 +81,7 @@ type UserName = Base.UserName
 type ServerName = Base.ServerName
 
 send :: Handle → Message → IO ()
-send h m = ByteString.hPutStrLn h (ByteString.pack $ take 510 $ enc 450 $ takeWhile (not . (`elem` "\r\n")) $ encode m) >> hFlush h
+send h m = Data.ByteString.Char8.hPutStrLn h (ByteString.pack $ take 510 $ enc 450 $ takeWhile (not . (`elem` "\r\n")) $ encode m) >> hFlush h
   where
     enc n (c:s) | c' ← UTF8.encode [c], n' ← n - length c', n' ≥ 0 ∨ length c' == 1 = c' ++ enc n' s
     enc _ _ = []

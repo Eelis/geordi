@@ -18,7 +18,7 @@ import qualified Data.List as List
 import qualified Data.List.NonEmpty as NeList
 import qualified Gcc
 
-import Control.Monad.Error (throwError)
+import Control.Monad.Except (throwError)
 import Control.Monad (join, when)
 import Control.Arrow (first)
 import Cxx.Show (Highlighter)

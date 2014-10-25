@@ -6,7 +6,7 @@ import qualified Data.List as List
 import qualified Data.Char as Char
 import qualified Data.List.NonEmpty as NeList
 import Control.Arrow ((&&&))
-import Control.Monad.Error (MonadError(..))
+import Control.Monad.Except (MonadError(..))
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Monoid (Monoid(..))
 import Data.Ord (comparing)

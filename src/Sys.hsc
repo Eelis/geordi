@@ -17,7 +17,7 @@ import Foreign (with, sizeOf, Ptr, allocaBytes)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Posix (Fd(Fd), ByteCount)
 import Foreign.C
-  (CInt(CInt), CUInt(CUInt), CLong, CString, getErrno, throwErrno, withCString, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen, Errno(Errno))
+  (CInt(CInt), CUInt(CUInt), CLong, CString, getErrno, throwErrno, throwErrnoIfMinus1_, eWOULDBLOCK, peekCString, peekCStringLen, Errno(Errno))
 
 import Prelude hiding ((.))
 
@@ -76,11 +76,6 @@ setKeepAlive sock keepidle keepintvl keepcnt = do
   sso (#const TCP_KEEPIDLE) keepidle
   sso (#const TCP_KEEPINTVL) keepintvl
   sso (#const TCP_KEEPCNT) keepcnt
-
-foreign import ccall "unistd.h chroot" c_chroot :: CString → IO CInt
-
-chroot :: FilePath → IO ()
-chroot s = throwErrnoIfMinus1_ "chroot" (withCString s c_chroot)
 
 fdOfFd :: Fd → CInt
 fdOfFd (Fd fd) = fd

@@ -14,7 +14,7 @@ import Data.Foldable (toList)
 import Data.Traversable (forM, mapM, sequence)
 import Data.List.NonEmpty (NonEmpty((:|)), nonEmpty)
 import Control.Monad (liftM2, join)
-import Control.Monad.Error (throwError)
+import Control.Monad.Except (throwError)
 import Data.SetOps
 import Util ((.), (‥), Convert(..), Op(..), ops_cost, erase_indexed, levenshtein, replaceAllInfix, approx_match, Cost, Invertible(..), Ordinal(..), test_cmp, multiplicative_numeral, E, or_fail, pairs, NeList, neElim, neHomogenize, safeNth)
 

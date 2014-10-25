@@ -16,7 +16,7 @@ import Data.Function (on)
 import Data.Foldable (toList, any)
 import Control.Arrow (first, second)
 import Control.Monad.Identity
-import Control.Monad.Error (MonadError(..))
+import Control.Monad.Except (MonadError(..))
 import Data.Generics (cast, gmapT, everywhere, Data, Typeable, gfoldl, dataTypeOf, toConstr, Constr, DataType, dataTypeName, constrType)
 
 import Prelude hiding ((.), any)

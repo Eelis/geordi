@@ -8,7 +8,6 @@ import qualified Cxx.Operations
 import qualified Parsers as P
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty((:|)))
-import Control.Monad.Error ()
 import Control.Category (Category, (.), id)
 import Control.Arrow (Arrow, (>>>), first, second, arr, ArrowChoice(..), returnA)
 import Data.Generics (DataType, Constr, toConstr, Data, dataTypeOf)

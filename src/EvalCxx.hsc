@@ -40,7 +40,7 @@ import qualified System.Posix.Process (getProcessID)
 import qualified Data.Char as Char
 
 import Data.Pointed (Pointed(..))
-import Sys (strsignal, chroot, strerror)
+import Sys (strsignal, strerror)
 import Control.Monad (when, liftM2, forM_)
 import System.Environment (getEnvironment)
 import System.IO (withFile, IOMode(..), hSetEncoding, utf8, hPutStrLn, hGetContents)
@@ -52,7 +52,7 @@ import System.Exit (ExitCode(..))
 import Data.List ((\\), isPrefixOf)
 import System.Process (createProcess, CmdSpec(..), CreateProcess(..), StdStream(..), waitForProcess)
 import System.Posix
-  (Signal, sigSEGV, sigILL, openFd, defaultFileFlags, OpenMode(..), Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
+  (Signal, sigSEGV, sigILL, Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
 import System.Posix.User (setUserID)
 import Gcc (Stage(..), isMainMissingDiagnostic)
 import CompileConfig

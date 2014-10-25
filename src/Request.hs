@@ -5,7 +5,7 @@ module Request (is_addressed_request, is_nickless_request, RequestEdit(..), Edit
 import Data.Set (Set)
 import qualified Data.Set as Set
 import Control.Monad (liftM2)
-import Control.Monad.Error (throwError)
+import Control.Monad.Except (throwError)
 import Cxx.Show (Highlighter)
 import Control.Exception ()
 import Data.Char (isAlpha, isDigit, isSpace)

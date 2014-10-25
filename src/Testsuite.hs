@@ -6,7 +6,6 @@ import qualified Cxx.Show
 
 import Control.Exception ()
 import Control.Monad (unless, forM_)
-import Control.Monad.Error ()
 import System.Environment (getArgs)
 import System.IO (utf8, stdout, hSetEncoding)
 import Text.Regex (matchRegex, mkRegex)
