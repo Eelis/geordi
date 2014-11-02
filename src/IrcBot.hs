@@ -15,7 +15,7 @@ import Control.Exception (bracketOnError)
 import System.IO (hSetBinaryMode, hFlush, Handle, IOMode(..), stdout)
 import Control.Monad (forever, when)
 import Control.Arrow (first)
-import Control.Monad.State (execStateT, lift, StateT)
+import Control.Monad.State (execStateT, lift, StateT, get)
 import Control.Monad.Writer (execWriterT, tell)
 import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, usageInfo)
 import System.Locale.SetLocale (setLocale, Category(..))
@@ -24,7 +24,7 @@ import Data.Char (isSpace, isPrint, isDigit)
 import Data.List (isSuffixOf)
 import Data.Map (Map)
 import Data.SetOps
-import Util ((.), elemBy, caselessStringEq, readState, maybeM, describe_new_output,
+import Util ((.), elemBy, caselessStringEq, maybeM, describe_new_output,
   orElse, readTypedFile, full_evaluate, withResource, mapState',
   strip_utf8_bom, none, takeBack, replaceInfix)
 import Sys (rate_limiter)
@@ -111,8 +111,17 @@ describe_lines [] = ""
 describe_lines [x] = x
 describe_lines (x:xs) = x ++ discarded_lines_description (length xs)
 
-data ChannelMemory = ChannelMemory { context :: Request.Context, last_outputs :: [String] }
+data ChannelMemory = ChannelMemory
+  { context :: Request.Context
+  , last_outputs :: [String]
+  , last_nonrequest :: String }
 type ChannelMemoryMap = Map String ChannelMemory
+
+emptyChannelMemory :: ChannelMemory
+emptyChannelMemory = ChannelMemory
+  { context = Request.Context Cxx.Show.noHighlighting []
+  , last_outputs = []
+  , last_nonrequest = "" }
 
 is_request :: IrcBotConfig → Where → String → Maybe String
 is_request IrcBotConfig{..} _ s
@@ -184,20 +193,21 @@ on_msg eval cfg@IrcBotConfig{..} full_size m@(IRC.Message prefix c) = execWriter
         reply s = send $ PrivMsg wher $ take max_response_length $
             (if private then id else (replaceInfix "nick" who channel_response_prefix ++)) $
             if null s then no_output_msg else do_censor cfg s
-      maybeM (dropWhile isSpace . is_request cfg w txt) $ \r → do
-       case request_allowed cfg who muser mserver w of
-        Deny reason → maybeM reason reply
-        Allow →
+      mem@ChannelMemory{..} ← (`orElse` emptyChannelMemory) . Map.lookup wher . lift get
+      case (dropWhile isSpace . is_request cfg w txt) of
+        Nothing → lift $ mapState' $ insert (wher, mem{last_nonrequest = txt'})
+        Just r' → case request_allowed cfg who muser mserver w of
+         Deny reason → maybeM reason reply
+         Allow → do
+          let r = if r' == "^" then last_nonrequest else r'
           if full_size ∧ none (`isSuffixOf` r) ["}", ";"] then reply $ "Request likely truncated after `" ++ takeBack 15 r ++ "`." else do
             -- The "}"/";" test gains a reduction in false positives at the cost of an increase in false negatives.
-          mmem ← Map.lookup wher . lift readState
-          let con = (context . mmem) `orElse` Request.Context Cxx.Show.noHighlighting []
           let extra_env = [("GEORDI_REQUESTER", who), ("GEORDI_WHERE", wher)]
-          Request.Response history_modification output ← lift $ lift $ eval r con extra_env
+          Request.Response history_modification output ← lift $ lift $ eval r context extra_env
           let output' = describe_lines $ dropWhile null $ lines output
-          let lo = (take 50 . last_outputs . mmem) `orElse` []
-          lift $ mapState' $ insert (wher, ChannelMemory
-            { context = maybe id Request.modify_history history_modification con
+          let lo = take 50 last_outputs
+          lift $ mapState' $ insert (wher, mem
+            { context = maybe id Request.modify_history history_modification context
             , last_outputs = output' : lo })
           reply $ describe_new_output lo output'
     Welcome → do

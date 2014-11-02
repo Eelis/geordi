@@ -449,9 +449,6 @@ describe_new_output prev new
       | "internal compiler error:" `isPrefixOf` new = "error"
       | otherwise = "output"
 
-readState :: Monad y ⇒ StateT x y x
-readState = StateT $ \x → return (x, x)
-
 mapState' :: Monad y ⇒ (x → x) → StateT x y ()
 mapState' f = StateT $ \s → return ((), f s)
 
