@@ -90,7 +90,7 @@ int main(int const argc, char * const * const argv)
 		limitResource(RLIMIT_CPU, 9, 11);
 		limitResource(RLIMIT_AS, 512*1024*1024);
 		limitResource(RLIMIT_DATA, 512*1024*1024);
-		limitResource(RLIMIT_FSIZE, 5*1024*1024);
+		limitResource(RLIMIT_FSIZE, 10*1024*1024);
 		limitResource(RLIMIT_LOCKS, 0);
 		limitResource(RLIMIT_MEMLOCK, 0);
 		limitResource(RLIMIT_NPROC, 0);
