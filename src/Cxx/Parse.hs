@@ -136,11 +136,12 @@ rawStringLit = do
 
 -- Parsec's Haskell char/string literal parsers consume whitespace, and save the value rather than the denotation.
 
-charLit, stringLit, plain, parens, curlies, squares, multiComment, singleComment :: ParserLike m Char ⇒ m Chunk
+charLit, stringLit, digits, plain, parens, curlies, squares, multiComment, singleComment :: ParserLike m Char ⇒ m Chunk
 
 charLit = CharLiteral . textLit '\''
 stringLit = StringLiteral' . textLit '"'
-plain = Plain . ((:[]) . oneOf ";\\" <|> toList . many1 punct <|> toList . many1 (satisfy Char.isAlphaNum))
+digits = Plain . (liftM2 (:) (satisfy Char.isDigit) (many (satisfy (\c -> Char.isDigit c || c == '\''))))
+plain = Plain . ((:[]) . oneOf ";\\" <|> toList . many1 punct <|> toList . many1 (satisfy Char.isAlpha))
   where
     punct = satisfy (\c -> not (Char.isAlphaNum c) && not (c `elem` "'\"{([])}/;\\"))
       <|> (symbol '/' << lookAhead (noneOf "*/"))
@@ -152,7 +153,8 @@ singleComment = SingleComment . (symbols "//" >> many (noneOf "\\"))
 
 code :: ParserLike m Char ⇒ m Code
 code = many $ (<?> "balanced code") $
-  multiComment <|> singleComment <|> charLit <|> parens <|> curlies <|> squares <|> stringLit <|> rawStringLit <|> plain
+  multiComment <|> singleComment <|> charLit <|> parens <|> curlies <|> squares
+  <|> stringLit <|> rawStringLit <|> digits <|> plain
   -- Uncovers just enough structure for Request.hs to find the split positions in "<< ...; ..." and "{ ... } ..." requests and to implement --resume.
 
 -- Misc parsers.

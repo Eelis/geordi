@@ -94,7 +94,7 @@ operatorTokName CommaTok = "comma"
 operatorTokName Ellipsis = "ellipsis"
 operatorTokName o = '"' : show o ++ "\""
 
-data SingleTokenType t ⇒ Kwd' t = Kwd' t White deriving (Data, Typeable)
+data Kwd' t = Kwd' t White deriving (Data, Typeable)
 class SingleTokenType t where
   token :: t → Either String OperatorTok
   token_class_name :: Phantom t → String
