@@ -17,11 +17,16 @@
 #include <functional>
 #include <clocale>
 #include <stdlib.h>
+#include <regex>
 #include <cxxabi.h>
 #include <ext/malloc_allocator.h>
 #include <boost/noncopyable.hpp>
 #include "geordi.hpp"
 #include "bin_iomanip.hpp"
+
+template class std::basic_regex<char>;
+template std::string std::regex_replace<std::regex_traits<char>, char>(
+  char const *, std::regex const &, char const *, std::regex_constants::match_flag_type);
 
 namespace geordi
 {

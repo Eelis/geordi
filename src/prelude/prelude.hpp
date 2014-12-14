@@ -92,6 +92,10 @@
 
 extern template class std::basic_ostream<char>;
 
+extern template class std::basic_regex<char>;
+extern template std::string std::regex_replace<std::regex_traits<char>, char>(
+  char const *, std::regex const &, char const *, std::regex_constants::match_flag_type);
+
 char const help [] = "Mini-manual:  http://www.eelis.net/geordi/";
 
 #define RANGE(x) (::std::begin(x)), (::std::end(x))
