@@ -42,6 +42,7 @@ auto rules =
 	, RULE(getdents,        ALLOW)
 	, RULE(set_tid_address, ALLOW)
 	, RULE(fallocate,       ALLOW)
+	, RULE(clock_gettime,   ALLOW)
 	, RULE(futex,           ERRNO(-1))
 	, RULE(lstat,           ERRNO(-1))
 	, RULE(geteuid,         ERRNO(-1))
