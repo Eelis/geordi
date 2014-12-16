@@ -90,6 +90,12 @@
 #include <cwchar>
 #include <cwctype>
 
+#include <experimental/any>
+#include <experimental/optional>
+#include <experimental/string_view>
+
+namespace std { using namespace experimental; }
+
 extern template class std::basic_ostream<char>;
 
 extern template class std::basic_regex<char>;
