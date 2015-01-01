@@ -127,11 +127,9 @@ textLit q = (symbol q >>) $ fix $ \h → do
 
 rawStringLit :: ParserLike m Char ⇒ m Chunk
 rawStringLit = do
-  symbol 'R'
-  symbol '"'
+  symbols "R\""
   x <- fst . (anySymbol `manyTill` symbol '(')
-  y <- fst . (anySymbol `manyTill` P.try (symbols (')' : x)))
-  symbol '"'
+  y <- fst . (anySymbol `manyTill` P.try (symbols (')' : x) >> symbol '"'))
   return $ RawStringLiteral x y
 
 -- Parsec's Haskell char/string literal parsers consume whitespace, and save the value rather than the denotation.
