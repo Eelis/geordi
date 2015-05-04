@@ -23,7 +23,7 @@ import Control.Monad (join, when)
 import Control.Arrow (first)
 import Cxx.Show (Highlighter)
 import EvalCxx (WithEvaluation, noEvaluation)
-import Data.Char (isPrint, isSpace)
+import Data.Char (isPrint, isSpace, showLitChar)
 import Data.Either (partitionEithers)
 import Data.Foldable (toList)
 import Data.Pointed (Pointed(..))
@@ -31,7 +31,7 @@ import Data.List.NonEmpty (NonEmpty((:|)), nonEmpty)
 import Data.Set (Set)
 import Editing.Commands (FinalCommand(..))
 import Parsers ((<|>), eof, option, spaces, getInput, kwd, kwds, Parser, run_parser, ParseResult(..), parseOrFail, commit, peek, parseSuccess)
-import Util ((.), (‥), (<<), (.∨.), commas_and, capitalize, length_ge, replace, replaceWithMany, show_long_opt, strip, convert, maybeLast, orElse, E, NeList, propagateE, splitBy)
+import Util ((.), (‥), (<<), commas_and, capitalize, length_ge, replace, show_long_opt, strip, convert, maybeLast, orElse, E, NeList, propagateE, splitBy)
 import Request (Context(..), EvalOpt(..), Response(..), HistoryModification(..), EditableRequest(..), EditableRequestKind(..), EphemeralOpt(..), popContext)
 import Data.SetOps
 import Prelude hiding ((.))
@@ -187,7 +187,14 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
       | otherwise → parseSuccess . noErrors . respond_and_remember =<< EditableRequest (Evaluate evalopts) . getInput }
 
 evaluate :: EvalCxx.Request → WithEvaluation String
-evaluate r = filter (isPrint .∨. (== '\n')) . replaceWithMany '\a' "*BEEP*" . show . EvalCxx.withEvaluation r
+evaluate r = concatMap f . show . EvalCxx.withEvaluation r
+  where
+    f :: Char -> String
+    f '\a' = "*BEEP*"
+    f '\n' = "\n"
+    f c | isPrint c = [c]
+    f c = '[' : showLitChar c "]"
+
 
 evaluator :: IO (String → Context → [(String, String)] → IO Response)
 evaluator = do
