@@ -1,0 +1,181 @@
+Index: include/llvm/Support/FileOutputBuffer.h
+===================================================================
+--- include/llvm/Support/FileOutputBuffer.h	(revision 236434)
++++ include/llvm/Support/FileOutputBuffer.h	(working copy)
+@@ -78,11 +78,10 @@
+   FileOutputBuffer &operator=(const FileOutputBuffer &) LLVM_DELETED_FUNCTION;
+ 
+   FileOutputBuffer(std::unique_ptr<llvm::sys::fs::mapped_file_region> R,
+-                   StringRef Path, StringRef TempPath);
++                   StringRef Path);
+ 
+   std::unique_ptr<llvm::sys::fs::mapped_file_region> Region;
+   SmallString<128>    FinalPath;
+-  SmallString<128>    TempPath;
+ };
+ } // end namespace llvm
+ 
+Index: lib/Support/FileOutputBuffer.cpp
+===================================================================
+--- lib/Support/FileOutputBuffer.cpp	(revision 236434)
++++ lib/Support/FileOutputBuffer.cpp	(working copy)
+@@ -28,11 +28,10 @@
+ 
+ namespace llvm {
+ FileOutputBuffer::FileOutputBuffer(std::unique_ptr<mapped_file_region> R,
+-                                   StringRef Path, StringRef TmpPath)
+-    : Region(std::move(R)), FinalPath(Path), TempPath(TmpPath) {}
++                                   StringRef Path)
++    : Region(std::move(R)), FinalPath(Path) {}
+ 
+ FileOutputBuffer::~FileOutputBuffer() {
+-  sys::fs::remove(Twine(TempPath));
+ }
+ 
+ std::error_code
+@@ -59,21 +58,13 @@
+         return make_error_code(errc::operation_not_permitted);
+   }
+ 
+-  // Delete target file.
+-  EC = sys::fs::remove(FilePath);
+-  if (EC)
+-    return EC;
+-
+   unsigned Mode = sys::fs::all_read | sys::fs::all_write;
+   // If requested, make the output file executable.
+   if (Flags & F_executable)
+     Mode |= sys::fs::all_exe;
+ 
+-  // Create new file in same directory but with random name.
+-  SmallString<128> TempFilePath;
+   int FD;
+-  EC = sys::fs::createUniqueFile(Twine(FilePath) + ".tmp%%%%%%%", FD,
+-                                 TempFilePath, Mode);
++  EC = sys::fs::openFileForWrite(FilePath, FD, sys::fs::F_None);
+   if (EC)
+     return EC;
+ 
+@@ -90,7 +81,7 @@
+     return std::error_code(errno, std::generic_category());
+ 
+   Result.reset(
+-      new FileOutputBuffer(std::move(MappedFile), FilePath, TempFilePath));
++      new FileOutputBuffer(std::move(MappedFile), FilePath));
+ 
+   return std::error_code();
+ }
+@@ -99,8 +90,6 @@
+   // Unmap buffer, letting OS flush dirty pages to file on disk.
+   Region.reset();
+ 
+-
+-  // Rename file to final name.
+-  return sys::fs::rename(Twine(TempPath), Twine(FinalPath));
++  return std::error_code();
+ }
+ } // namespace
+Index: tools/clang/lib/Frontend/ASTUnit.cpp
+===================================================================
+--- tools/clang/lib/Frontend/ASTUnit.cpp	(revision 236434)
++++ tools/clang/lib/Frontend/ASTUnit.cpp	(working copy)
+@@ -2442,11 +2442,8 @@
+ 
+   // Write to a temporary file and later rename it to the actual file, to avoid
+   // possible race conditions.
+-  SmallString<128> TempPath;
+-  TempPath = File;
+-  TempPath += "-%%%%%%%%";
+   int fd;
+-  if (llvm::sys::fs::createUniqueFile(TempPath.str(), fd, TempPath))
++  if (llvm::sys::fs::openFileForWrite(File, fd, llvm::sys::fs::F_None))
+     return true;
+ 
+   // FIXME: Can we somehow regenerate the stat cache here, or do we need to 
+@@ -2460,11 +2457,6 @@
+     return true;
+   }
+ 
+-  if (llvm::sys::fs::rename(TempPath.str(), File)) {
+-    llvm::sys::fs::remove(TempPath.str());
+-    return true;
+-  }
+-
+   return false;
+ }
+ 
+Index: tools/clang/lib/Frontend/CompilerInstance.cpp
+===================================================================
+--- tools/clang/lib/Frontend/CompilerInstance.cpp	(revision 236434)
++++ tools/clang/lib/Frontend/CompilerInstance.cpp	(working copy)
+@@ -604,6 +604,8 @@
+   assert((!CreateMissingDirectories || UseTemporary) &&
+          "CreateMissingDirectories is only allowed when using temporary files");
+ 
++  UseTemporary = false;
++
+   std::string OutFile, TempFile;
+   if (!OutputPath.empty()) {
+     OutFile = OutputPath;
+Index: tools/clang/lib/Rewrite/Rewriter.cpp
+===================================================================
+--- tools/clang/lib/Rewrite/Rewriter.cpp	(revision 236434)
++++ tools/clang/lib/Rewrite/Rewriter.cpp	(working copy)
+@@ -405,14 +405,10 @@
+ public:
+   AtomicallyMovedFile(DiagnosticsEngine &Diagnostics, StringRef Filename,
+                       bool &AllWritten)
+-    : Diagnostics(Diagnostics), Filename(Filename), AllWritten(AllWritten) {
+-    TempFilename = Filename;
+-    TempFilename += "-%%%%%%%%";
++    : Diagnostics(Diagnostics), AllWritten(AllWritten) {
+     int FD;
+-    if (llvm::sys::fs::createUniqueFile(TempFilename.str(), FD, TempFilename)) {
++    if (llvm::sys::fs::openFileForWrite(Filename.str(), FD, llvm::sys::fs::F_None)) {
+       AllWritten = false;
+-      Diagnostics.Report(clang::diag::err_unable_to_make_temp)
+-        << TempFilename;
+     } else {
+       FileStream.reset(new llvm::raw_fd_ostream(FD, /*shouldClose=*/true));
+     }
+@@ -422,19 +418,6 @@
+     if (!ok()) return;
+ 
+     FileStream->flush();
+-#ifdef LLVM_ON_WIN32
+-    // Win32 does not allow rename/removing opened files.
+-    FileStream.reset();
+-#endif
+-    if (std::error_code ec =
+-            llvm::sys::fs::rename(TempFilename.str(), Filename)) {
+-      AllWritten = false;
+-      Diagnostics.Report(clang::diag::err_unable_to_rename_temp)
+-        << TempFilename << Filename << ec.message();
+-      // If the remove fails, there's not a lot we can do - this is already an
+-      // error.
+-      llvm::sys::fs::remove(TempFilename.str());
+-    }
+   }
+ 
+   bool ok() { return (bool)FileStream; }
+@@ -442,8 +425,6 @@
+ 
+ private:
+   DiagnosticsEngine &Diagnostics;
+-  StringRef Filename;
+-  SmallString<128> TempFilename;
+   std::unique_ptr<llvm::raw_fd_ostream> FileStream;
+   bool &AllWritten;
+ };
+Index: lib/Support/Unix/Signals.inc
+===================================================================
+--- lib/Support/Unix/Signals.inc	(revision 236465)
++++ lib/Support/Unix/Signals.inc	(working copy)
+@@ -93,6 +93,7 @@
+ 
+ 
+ static void RegisterHandler(int Signal) {
++  return;
+   assert(NumRegisteredSignals <
+          sizeof(RegisteredSignalInfo)/sizeof(RegisteredSignalInfo[0]) &&
+          "Out of space for signal handlers!");

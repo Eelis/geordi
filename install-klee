@@ -1,0 +1,32 @@
+#!/bin/bash
+set -euv
+
+cd /
+git clone https://github.com/stp/minisat.git
+cd minisat
+mkdir build && cd build
+cmake ..
+make
+make install
+
+cd /
+git clone https://github.com/stp/stp.git
+cd stp
+mkdir build && cd build
+cmake -G 'Unix Makefiles' /stp
+make
+make install
+
+cd /
+git clone https://github.com/klee/klee-uclibc.git
+cd klee-uclibc
+./configure --make-llvm-lib
+make
+make install
+
+cd /
+git clone https://github.com/ccadeptic23/klee.git
+cd klee
+./configure --with-stp=/usr/local --with-llvmobj=/llvm.build --with-llvmsrc=/llvm --enable-posix-runtime
+make ENABLE_OPTIMIZED=1
+make install
