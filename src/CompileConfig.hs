@@ -12,7 +12,7 @@ import Util (readFileNow, (.))
 
 data CompileConfig = CompileConfig
   { gccPath, clangPath :: FilePath
-  , gccCompileFlags, clangCompileFlags, linkFlags :: [String] }
+  , gccCompileFlags, clangCompileFlags :: [String] }
 
 readCompileConfig :: IO CompileConfig
 readCompileConfig = do
@@ -24,8 +24,7 @@ readCompileConfig = do
     var "GCC" <*>
     var "CLANG" <*>
     (words . var "GCC_COMPILE_FLAGS") <*>
-    (words . var "CLANG_COMPILE_FLAGS") <*>
-    (words . var "LINK_FLAGS")
+    (words . var "CLANG_COMPILE_FLAGS")
  where
   file = "/geordi/etc/compile-config"
   parseLine :: Int → String → Maybe (String, String)

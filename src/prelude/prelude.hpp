@@ -91,7 +91,9 @@
 #include <cwctype>
 
 #include <experimental/algorithm>
+#ifndef __clang__
 #include <experimental/any>
+#endif
 #include <experimental/chrono>
 #include <experimental/functional>
 #include <experimental/optional>
@@ -102,7 +104,6 @@
 #include <experimental/type_traits>
 
 namespace std { using namespace experimental; }
-
 extern template class std::basic_ostream<char>;
 
 extern template class std::basic_regex<char>;
@@ -130,4 +131,6 @@ T(basic_istringstream)
 #undef assert
 #define assert(e) ((e) ? void() : (::std::printf("%s", "Assertion `" #e "' fails."), ::std::fclose(stdout), ::std::abort()))
 
-#define typeid(...) ::type_strings_detail::type_info::from_std(typeid(__VA_ARGS__))
+#ifndef __clang__
+  #define typeid(...) ::type_strings_detail::type_info::from_std(typeid(__VA_ARGS__))
+#endif

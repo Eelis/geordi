@@ -147,7 +147,11 @@ prog_env =
   , ("LD_PRELOAD", "libgeordi_preload.so libdiagnose_sigsys.so")
   ]
 
-data Request = Request { units :: [String], stageOfInterest :: Stage, no_warn :: Bool }
+data Request = Request
+  { units :: [String]
+  , stageOfInterest :: Stage
+  , no_warn :: Bool
+  , clang :: Bool }
 
 pass_env :: String → Bool
 pass_env s = ("LC_" `isPrefixOf` s) || (s `elem` ["PATH", "LD_LIBRARY_PATH", "LD_PRELOAD"])
@@ -175,25 +179,37 @@ evaluate cfg Request{..} extra_env = do
 
     path :: Stage → String
     path Run = "/geordi/run/t"
+    path Analyze = clangPath cfg
+    path Compile | clang = clangPath cfg
+    path Preprocess | clang = clangPath cfg
     path _ = gccPath cfg
 
     argv :: String -> Stage → [String]
     argv unit stage = case stage of
         Run → ["second", "third", "fourth"]
-        Preprocess → ["-fpch-preprocess", "-E", unit] ++ cf
-        Compile → ["-S", "-x", "c++", unit] ++ cf
-        Assemble → ["-c", unit ++ ".s"] ++ cf
-        Link → ((++ ".o") . fst . namedUnits) ++ ["-o", "t"] ++ cf ++ linkFlags cfg
-      where cf = ["-w" | no_warn] ++ gccCompileFlags cfg
+        Preprocess → ["-fpch-preprocess", "-E", unit] ++ compileFlags
+        Analyze → ["-x", "c++", unit, "--analyze", "-Xanalyzer", "-analyzer-output=text"]
+          ++ compileFlags
+        Compile -> ["-x", "c++", unit, if clang then "-c" else "-S"] ++ compileFlags
+          -- We don't use -S for Clang because the assembler sometimes chokes on its output..
+        Assemble → ["-c", unit ++ ".s"] ++ gccCompileFlags cfg
+        Link → ((++ ".o") . fst . namedUnits) ++
+          ["-o", "t", "-Wl,--undefined,geordi_init", "-lgeordi_prelude", "-Wl,--rpath,/usr/local/lib64", "-lmcheck"]
+      where
+        compileFlags = ["-w" | no_warn] ++
+          if clang
+            then ["-I", "/geordi/src/prelude", "-include", "prelude.hpp"]
+              ++ clangCompileFlags cfg
+            else gccCompileFlags cfg
 
     envi :: Stage → [(String, String)]
     envi Run = baseEnv ++ prog_env ++ extra_env
     envi _ = baseEnv ++ compile_env
 
-    stages_per_unit =
-      if stageOfInterest == Preprocess
-        then [Preprocess]
-        else [Compile .. min stageOfInterest Assemble]
+    stages_per_unit
+      | stageOfInterest == Preprocess = [Preprocess]
+      | clang = [Analyze | not no_warn] ++ [Compile]
+      | otherwise = [Compile .. min stageOfInterest Assemble]
     final_stages = [Link .. stageOfInterest]
 
   runStages $ [(unit, s) | (unit, _) <- namedUnits, s <- stages_per_unit] ++ (([],) . final_stages)

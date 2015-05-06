@@ -79,7 +79,7 @@ Index: tools/clang/lib/Frontend/ASTUnit.cpp
 ===================================================================
 --- tools/clang/lib/Frontend/ASTUnit.cpp	(revision 236434)
 +++ tools/clang/lib/Frontend/ASTUnit.cpp	(working copy)
-@@ -2442,11 +2442,8 @@
+@@ -2429,11 +2429,8 @@
  
    // Write to a temporary file and later rename it to the actual file, to avoid
    // possible race conditions.
@@ -87,17 +87,17 @@ Index: tools/clang/lib/Frontend/ASTUnit.cpp
 -  TempPath = File;
 -  TempPath += "-%%%%%%%%";
    int fd;
--  if (llvm::sys::fs::createUniqueFile(TempPath.str(), fd, TempPath))
+-  if (llvm::sys::fs::createUniqueFile(TempPath, fd, TempPath))
 +  if (llvm::sys::fs::openFileForWrite(File, fd, llvm::sys::fs::F_None))
      return true;
  
    // FIXME: Can we somehow regenerate the stat cache here, or do we need to 
-@@ -2460,11 +2457,6 @@
+@@ -2447,11 +2444,6 @@
      return true;
    }
  
--  if (llvm::sys::fs::rename(TempPath.str(), File)) {
--    llvm::sys::fs::remove(TempPath.str());
+-  if (llvm::sys::fs::rename(TempPath, File)) {
+-    llvm::sys::fs::remove(TempPath);
 -    return true;
 -  }
 -

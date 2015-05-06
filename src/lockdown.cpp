@@ -56,6 +56,7 @@ auto rules =
 	, RULE(ioctl,           ERRNO(-1))
 	, RULE(chmod,           ERRNO(-1))
 	, RULE(shmdt,           ERRNO(-1))
+	, RULE(fstatfs,         ERRNO(0))
 	, RULE(fcntl,           ERRNO(0))
 	, RULE(mkdir,           ERRNO(0))
 	, RULE(symlink,         ERRNO(0))

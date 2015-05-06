@@ -5,8 +5,8 @@ COPY llvm-no-temp-files.patch /geordi/src/
 COPY install-clang /geordi/src/
 RUN /geordi/src/install-clang
 
-COPY install-klee /geordi/src/
-RUN /geordi/src/install-klee
+#COPY install-klee /geordi/src/
+#RUN /geordi/src/install-klee
 
 ADD https://www.haskell.org/platform/download/2014.2.0.0/haskell-platform-2014.2.0.0-unknown-linux-x86_64.tar.gz /
 
