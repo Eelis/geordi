@@ -18,14 +18,15 @@ gcc -fPIC -shared -Wall -o /lib/libdiagnose_sigsys.so /geordi/src/diagnose_sigsy
 g++ -static-libstdc++ -static-libgcc -std=c++11 -O2 /geordi/src/lockdown.cpp `pkg-config --cflags --libs libseccomp` -o /usr/bin/geordi-lockdown
 
 cd /geordi/src/prelude
-$GXX $COMPILE_FLAGS -c -x c++-header prelude.hpp -o /geordi/run/prelude.hpp.gch
-$GXX $COMPILE_FLAGS -fPIC -shared -o /lib/libgeordi_preload.so preload.cpp
-$GXX $COMPILE_FLAGS -c {prelude,tracked,more_ostreaming,bark}.cpp
+$GCC $GCC_COMPILE_FLAGS -c -x c++-header prelude.hpp -o /geordi/run/prelude.hpp.gch
+$CLANG $CLANG_COMPILE_FLAGS -x c++-header prelude.hpp -o /geordi/run/prelude.hpp.pch
+$GCC $GCC_COMPILE_FLAGS -fPIC -shared -o /lib/libgeordi_preload.so preload.cpp
+$GCC $GCC_COMPILE_FLAGS -c {prelude,tracked,more_ostreaming,bark}.cpp
 ar -rsc /lib/libgeordi_prelude.a {prelude,bark,tracked,more_ostreaming}.o
 
 chmod 400 /geordi/etc/irc-config
 
-rm -f `g++ -print-prog-name=collect2` `$GXX -print-prog-name=collect2`
+rm -f `g++ -print-prog-name=collect2` `$GCC -print-prog-name=collect2`
 	# If collect2 is present, it is called by the gcc driver and
 	# starts making temporaries. GCC functions just fine without it.
 

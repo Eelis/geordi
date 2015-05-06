@@ -175,7 +175,7 @@ evaluate cfg Request{..} extra_env = do
 
     path :: Stage → String
     path Run = "/geordi/run/t"
-    path _ = gxxPath cfg
+    path _ = gccPath cfg
 
     argv :: String -> Stage → [String]
     argv unit stage = case stage of
@@ -184,7 +184,7 @@ evaluate cfg Request{..} extra_env = do
         Compile → ["-S", "-x", "c++", unit] ++ cf
         Assemble → ["-c", unit ++ ".s"] ++ cf
         Link → ((++ ".o") . fst . namedUnits) ++ ["-o", "t"] ++ cf ++ linkFlags cfg
-      where cf = if no_warn then "-w" : compileFlags cfg else compileFlags cfg
+      where cf = ["-w" | no_warn] ++ gccCompileFlags cfg
 
     envi :: Stage → [(String, String)]
     envi Run = baseEnv ++ prog_env ++ extra_env

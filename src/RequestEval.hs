@@ -167,7 +167,7 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
   <|> do kwds ["uname"]; cout "geordi::uname()"
   <|> do
     kwd "--show-compile-flags"
-    parseSuccess $ noErrors $ noEvaluation $ Response Nothing $ unwords $ EvalCxx.compileFlags compile_cfg
+    parseSuccess $ noErrors $ noEvaluation $ Response Nothing $ unwords $ EvalCxx.gccCompileFlags compile_cfg
   <|> (\(edited, output) → Response (Just $ AddLast edited) . output) ‥ (>>= execEditCommand context) . (Editing.Parse.commandsP << commit eof)
   <|> do
    mopts ← optParser; spaces

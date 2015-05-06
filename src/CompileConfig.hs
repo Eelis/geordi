@@ -10,7 +10,9 @@ import Prelude hiding ((.))
 import Prelude.Unicode
 import Util (readFileNow, (.))
 
-data CompileConfig = CompileConfig { gxxPath :: FilePath, compileFlags, linkFlags :: [String] }
+data CompileConfig = CompileConfig
+  { gccPath, clangPath :: FilePath
+  , gccCompileFlags, clangCompileFlags, linkFlags :: [String] }
 
 readCompileConfig :: IO CompileConfig
 readCompileConfig = do
@@ -18,7 +20,12 @@ readCompileConfig = do
   let
     m = Map.fromList $ Maybe.catMaybes $ (uncurry parseLine .) $ zip [1..] l
     var k = maybe (fail $ "Missing variable in " ++ file ++ ": " ++ k) return (Map.lookup k m)
-  CompileConfig . var "GXX" <*> (words . var "COMPILE_FLAGS") <*> (words . var "LINK_FLAGS")
+  CompileConfig .
+    var "GCC" <*>
+    var "CLANG" <*>
+    (words . var "GCC_COMPILE_FLAGS") <*>
+    (words . var "CLANG_COMPILE_FLAGS") <*>
+    (words . var "LINK_FLAGS")
  where
   file = "/geordi/etc/compile-config"
   parseLine :: Int → String → Maybe (String, String)
