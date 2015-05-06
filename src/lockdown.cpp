@@ -115,7 +115,8 @@ int main(int const argc, char * const * const argv)
 
 		if (seccomp_load(ctx) < 0) e("seccomp_load");
 
-		return execv(argv[1], argv + 1);
+		execv(argv[1], argv + 1);
+		e("execv");
 	}
 	catch (std::exception const & e)
 	{
