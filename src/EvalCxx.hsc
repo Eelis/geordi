@@ -194,7 +194,9 @@ evaluate cfg Request{..} extra_env = do
           -- We don't use -S for Clang because the assembler sometimes chokes on its output..
         Assemble → ["-c", unit ++ ".s"] ++ gccCompileFlags cfg
         Link → ((++ ".o") . fst . namedUnits) ++
-          ["-o", "t", "-Wl,--undefined,geordi_init", "-lgeordi_prelude", "-Wl,--rpath,/usr/local/lib64", "-lmcheck"]
+          ["-o", "t"
+          , "-Wl,--rpath,/usr/local/lib64", "-Wl,--undefined,geordi_init"
+          , "-lgeordi_prelude", "-lmcheck", "-lubsan"]
       where
         compileFlags = ["-w" | no_warn] ++
           if clang
