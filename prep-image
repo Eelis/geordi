@@ -20,6 +20,7 @@ g++ -static-libstdc++ -static-libgcc -std=c++11 -O2 /geordi/src/lockdown.cpp `pk
 cd /geordi/src/prelude
 patch /usr/local/include/c++/6.0.0/typeinfo demangle_typeinfo_name.patch -o patched_typeinfo.hpp
   # TODO: don't hard-code version
+chmod a+r patched_typeinfo.hpp
 $GCC $GCC_COMPILE_FLAGS -c -x c++-header prelude.hpp -o /geordi/run/prelude.hpp.gch
 $CLANG $CLANG_COMPILE_FLAGS -x c++-header prelude.hpp -o /geordi/run/prelude.hpp.pch
 $GCC $GCC_COMPILE_FLAGS -fPIC -shared -o /lib/libgeordi_preload.so preload.cpp
