@@ -28,5 +28,6 @@ COPY etc /geordi/etc
 WORKDIR /geordi/run
 CMD ["/usr/bin/geordi-local"]
 
+COPY prelude /geordi/src/prelude
 COPY prep-image /geordi/src/
 RUN /geordi/src/prep-image
