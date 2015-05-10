@@ -1,0 +1,18 @@
+@@ -77,6 +77,8 @@
+   #endif
+ #endif
+ 
++namespace geordi { char const * demangle(char const *); }
++
+ namespace std
+ {
+   /**
+@@ -97,7 +99,7 @@
+     /** Returns an @e implementation-defined byte string; this is not
+      *  portable between compilers!  */
+     const char* name() const _GLIBCXX_NOEXCEPT
+-    { return __name[0] == '*' ? __name + 1 : __name; }
++    { return geordi::demangle(__name[0] == '*' ? __name + 1 : __name); }
+ 
+ #if !__GXX_TYPEINFO_EQUALITY_INLINE
+     // In old abi, or when weak symbols are not supported, there can

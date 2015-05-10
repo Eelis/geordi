@@ -1,4 +1,4 @@
-
+#include "patched_typeinfo.hpp"
 #include <debug/macros.h>
 
 #ifdef _GLIBCXX_DEBUG_VERIFY
@@ -130,7 +130,3 @@ T(basic_istringstream)
 
 #undef assert
 #define assert(e) ((e) ? void() : (::std::printf("%s", "Assertion `" #e "' fails."), ::std::fclose(stdout), ::std::abort()))
-
-#ifndef __clang__
-  #define typeid(...) ::type_strings_detail::type_info::from_std(typeid(__VA_ARGS__))
-#endif

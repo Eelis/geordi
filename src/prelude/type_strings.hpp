@@ -30,18 +30,6 @@
 
 namespace type_strings_detail {
 
-struct type_info: std::type_info
-{
-  char const * name() const { return geordi::demangle(std::type_info::name()); }
-  static type_info const & from_std(std::type_info const & i) { return static_cast<type_info const&>(i); }
-};
-
-static_assert(sizeof(type_info) == sizeof(std::type_info), "type_info hack thwarted :-(");
-
-template<typename Ch, typename Tr>
-std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, type_info const & t)
-{ return o << t.name(); }
-
 template <typename I>
 std::string commas_and (I b, I e)
 {
@@ -57,13 +45,10 @@ std::string commas_and (I b, I e)
 template <typename> struct identity {};
 
 template <typename T> std::string type() {
-  std::string r(type_info::from_std(typeid(identity<T>)).name()
-    + sizeof("type_strings_detail::identity<") - 1);
-  r.resize(r.size() - 1);
+  std::string r(typeid(identity<T>).name() + sizeof("type_strings_detail::identity<") - 1);
+  r.pop_back();
   return r;
 }
-
-// Note: Since type relies on passing the type as a template argument, it will not work for locally defined types (in C++03).
 
 #define TYPEDEF_TYPE(n) template <> inline std::string type<std::n> () { return #n; }
 
