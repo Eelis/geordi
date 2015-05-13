@@ -190,6 +190,10 @@ namespace std
   std::basic_ostream<Ch, Tr> &
     operator<<(std::basic_ostream<Ch, Tr> & o, std::priority_queue<T, C, P> const & q)
   { return o << underlying(q); }
+
+  template <typename Ch, typename Tr>
+  std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, std::type_info const & t)
+  { return o << t.name(); }
 }
 
 template <typename Ch, typename Tr, typename K, typename D>
