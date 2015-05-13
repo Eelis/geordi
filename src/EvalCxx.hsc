@@ -202,7 +202,10 @@ evaluate cfg Request{..} extra_env = do
           if clang
             then ["-I", "/geordi/src/prelude", "-include", "prelude.hpp"]
               ++ clangCompileFlags cfg
-            else gccCompileFlags cfg
+            else "-fsanitize=undefined" : gccCompileFlags cfg
+              -- The UB sanitation flag is not part of gccCompileFlags, because if
+              -- the prelude is precompiled with it, we run into a gcc bug where
+              -- {deque<int> d;} gives weird assembler errors about UBsan.
 
     envi :: Stage → [(String, String)]
     envi Run = baseEnv ++ prog_env ++ extra_env
