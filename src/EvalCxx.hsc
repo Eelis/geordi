@@ -244,8 +244,6 @@ evaluator = do
   cfg ← readCompileConfig
 
   setUserID 65534
-  Left (ioeGetErrorType -> et) <- tryIOError (readFileNow "/geordi/etc/irc-config")
-  when (et /= permissionErrorType) undefined
 
   System.Directory.setCurrentDirectory "/geordi/run"
   return (\extra_env we → case we of

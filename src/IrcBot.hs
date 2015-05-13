@@ -81,7 +81,7 @@ main = do
  setLocale LC_ALL (Just "")
  opts ← getArgs
  if Help ∈ opts then putStrLn help else do
-  cfg@IrcBotConfig{..} ← readTypedFile "/geordi/etc/irc-config"
+  cfg@IrcBotConfig{..} ← read . getContents
   full_evaluate $ do_censor cfg "abc" -- So that any mkRegex failures occur before we start connecting.
   putStrLn $ "Connecting to " ++ server ++ ":" ++ show port
   withResource (connect server (fromIntegral port)) $ \h → do
