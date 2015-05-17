@@ -10,8 +10,18 @@
 
 namespace geordi
 {
-  namespace { char const parsep[] = "\342\200\251"; }
-    // UTF-8 encoding of PARAGRAPH SEPARATOR (U+2029). See "Output separators" in notes.txt.
+  namespace
+  {
+    char const parsep[] = "\342\200\251";
+      // UTF-8 encoding of PARAGRAPH SEPARATOR (U+2029). See "Output separators" in notes.txt.
+
+    char const compiler_description[] =
+      #ifdef __clang__
+        "Clang " __clang_version__;
+      #else
+        "GCC " __VERSION__;
+      #endif
+  }
 
   struct error
   {

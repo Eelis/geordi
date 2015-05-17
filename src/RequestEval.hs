@@ -211,8 +211,9 @@ execEditCommand context@Context{..} (cs, mfcmd) = do
     Just fcmd → execFinalCommand context{previousRequests = (edited, Nothing) : previousRequests} fcmd
     Nothing → execEditableRequest edited
 
-cout :: String → Parser Char (E (WithEvaluation Response))
-cout s = parseSuccess $ Response Nothing ‥ fst ‥ execEditableRequest (EditableRequest (Evaluate (∅)) ("<< " ++ s))
+cout :: Set EvalOpt → String → Parser Char (E (WithEvaluation Response))
+cout opts s = parseSuccess $
+  Response Nothing ‥ fst ‥ execEditableRequest (EditableRequest (Evaluate opts) ("<< " ++ s))
 
 p :: EvalCxx.CompileConfig → Context → Parser Char (E (WithEvaluation Response))
 p compile_cfg context@Context{..} = (spaces >>) $ do
@@ -228,7 +229,7 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
   <|> do
     kwds ["--make-type", "make type"]
     noErrors . respond_and_remember . EditableRequest MakeType . getInput
-  <|> do kwds ["uname"]; cout "geordi::uname()"
+  <|> do kwds ["uname"]; cout (∅) "geordi::uname()"
   <|> do
     kwd "--show-compile-flags"
     parseSuccess $ noErrors $ noEvaluation $ Response Nothing $ unwords $ EvalCxx.gccCompileFlags compile_cfg
@@ -239,8 +240,8 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
    propagateE mopts $ \(evalopts, eph_opts) → continueParsing $ do
     s ← peek
     case () of { ()
-      | Help ∈ eph_opts || s == "help" → cout "help"
-      | Version ∈ eph_opts || s == "version" → cout "\"g++ (GCC) \" << __VERSION__"
+      | Help ∈ eph_opts || s == "help" → cout (∅) "help"
+      | Version ∈ eph_opts || s == "version" → cout evalopts "geordi::compiler_description"
       | Resume ∈ eph_opts → flip fmap (Cxx.Parse.code << eof) $ \code → case previousRequests of
         [] → throwError "There is no previous resumable request."
         (EditableRequest (Evaluate oldopts) (dropWhile isSpace → oldcodeblob), _) : _ → do
