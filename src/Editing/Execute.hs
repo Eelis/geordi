@@ -70,12 +70,12 @@ sequence_edit fs (Found f e) = do
       maybe return fold_edit t fs
     _ → fold_edit e fs
 
-exec_cmd :: String → FoldState → Command → E FoldState
-exec_cmd s fs = (>>= foldM sequence_edit fs) .
-  findInStr s ((tree &&& anchorAdjuster . adjust_to_wf) . milepost fs)
+exec_cmd :: Maybe (TextEdit Char) -> String → FoldState → Command → E FoldState
+exec_cmd fixit s fs = (>>= foldM sequence_edit fs) .
+  findInStr s fixit ((tree &&& anchorAdjuster . adjust_to_wf) . milepost fs)
 
-execute :: [Command] → EditableRequest → E EditableRequest
-execute l r@(EditableRequest _ s) = current_request . foldM (exec_cmd s) fs l
+execute :: Maybe (TextEdit Char) -> [Command] → EditableRequest → E EditableRequest
+execute fixit l r@(EditableRequest _ s) = current_request . foldM (exec_cmd fixit s) fs l
   where
     f t = WellFormedMilepost t mempty mempty
     fs = (FoldState mempty r $ f . Cxx.Parse.parseRequest s)

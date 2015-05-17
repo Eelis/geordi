@@ -32,7 +32,7 @@ In our code, M is close_range_end.
 
 -}
 
-module EvalCxx (evaluator, WithEvaluation, withEvaluation, noEvaluation, EvaluationResult(..), Request(..), CompileConfig(..)) where
+module EvalCxx (evaluator, WithEvaluation, withEvaluation, noEvaluation, EvaluationResult(..), Request(..), CompileConfig(..), Fix(..), Line, Column) where
 
 import qualified ErrorFilters
 import qualified System.Directory
@@ -40,16 +40,17 @@ import qualified System.Posix.Process (getProcessID)
 import qualified Data.Char as Char
 
 import Data.Pointed (Pointed(..))
+import Data.Maybe (isNothing)
 import Sys (strsignal, strerror)
 import Control.Monad (when, liftM2, forM_)
 import System.Environment (getEnvironment)
-import System.IO (withFile, IOMode(..), hSetEncoding, utf8, hPutStrLn, hGetContents)
-import System.IO.Error (tryIOError, ioeGetErrorType, permissionErrorType)
+import System.IO (withFile, IOMode(..), hSetEncoding, utf8, hPutStr, hGetContents)
 import GHC.IO.Encoding.UTF8 (mkUTF8)
 import GHC.IO.Encoding.Failure (CodingFailureMode(TransliterateCodingFailure))
 import Foreign.C (CInt, eOK)
 import System.Exit (ExitCode(..))
 import Data.List ((\\), isPrefixOf)
+import Text.Regex (Regex, mkRegex, matchRegex)
 import System.Process (createProcess, CmdSpec(..), CreateProcess(..), StdStream(..), waitForProcess)
 import System.Posix
   (Signal, sigSEGV, sigILL, Resource(..), ResourceLimit(..), ResourceLimits(..), setResourceLimit)
@@ -122,20 +123,33 @@ subst_parseps = f
       s' → ' ' : s'
     f (c:s) = c : f s
 
-data EvaluationResult = EvaluationResult Stage CaptureResult
-  -- The capture result of the last stage attempted.
+type Line = Int
+type Column = Int
+
+data Fix = Fix
+  { fix_file :: Int
+  , fix_begin, fix_end :: (Line, Column)
+  , fix_replacement :: String }
+
+data EvaluationResult = EvaluationResult
+  { stage :: Stage
+  , captureResult :: CaptureResult
+      -- The capture result of the last stage attempted.
+  , returnedFix :: (Maybe Fix) }
 
 instance Show EvaluationResult where
-  show (EvaluationResult stage (CaptureResult r o)) = subst_parseps $ ErrorFilters.cleanup_output stage o ++
+  show (EvaluationResult stage (CaptureResult r o) f) =
+    subst_parseps $ ErrorFilters.cleanup_output stage o ++
     if stage == Run
       then case r of
         Exited ExitSuccess → ""
         Signaled s | s ∈ [sigSEGV, sigILL] → parsep : "Undefined behavior detected."
         _ → (parsep : show r)
       else case r of
-        Exited ExitSuccess → if null o then strerror eOK else ""
-        Exited (ExitFailure _) | not (null o) → ""
+        Exited ExitSuccess → if null o then strerror eOK else fixNote
+        Exited (ExitFailure _) | not (null o) → fixNote
         _ → parsep : show stage ++ ": " ++ show r
+    where fixNote = if isNothing f then "" else " (fix known)"
 
 compile_env :: [(String, String)]
 compile_env =
@@ -164,7 +178,7 @@ evaluate cfg Request{..} extra_env = do
     namedUnits = zip [show i | i <- [0..9::Int]] units
 
   forM_ namedUnits $ \(unit, code) ->
-    withFile unit WriteMode $ \h → hSetEncoding h utf8 >> hPutStrLn h code
+    withFile unit WriteMode $ \h → hSetEncoding h utf8 >> hPutStr h code
 
   baseEnv ← filter (pass_env . fst) . getEnvironment
   let
@@ -173,9 +187,9 @@ evaluate cfg Request{..} extra_env = do
     runStages ((unit, stage) : more) = do
       capture_restricted (path stage) (argv unit stage) (envi stage) >>= \case
         CaptureResult (Exited (ExitFailure _)) (isMainMissingDiagnostic -> True) | stage == Link
-          → return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "")
+          → return $ EvaluationResult Compile (CaptureResult (Exited ExitSuccess) "") Nothing
         CaptureResult (Exited ExitSuccess) "" | not (null more) → runStages more
-        cr → return $ EvaluationResult stage cr
+        cr → return $ EvaluationResult stage cr (findFix $ output cr)
 
     path :: Stage → String
     path Run = "/geordi/run/t"
@@ -218,6 +232,21 @@ evaluate cfg Request{..} extra_env = do
     final_stages = [Link .. stageOfInterest]
 
   runStages $ [(unit, s) | (unit, _) <- namedUnits, s <- stages_per_unit] ++ (([],) . final_stages)
+
+unescape :: String → String
+unescape "" = ""
+unescape ('\\':'t':xs) = '\t' : unescape xs
+unescape ('\\':'n':xs) = '\n' : unescape xs
+unescape ('\\':'"':xs) = '"' : unescape xs
+unescape (x:xs) = x : unescape xs
+
+fixitRegex :: Regex
+fixitRegex = mkRegex "\nfix-it:\"([0-9])\":\\{([0-9]{1,3}):([0-9]{1,3})-([0-9]{1,3}):([0-9]{1,3})\\}:\"(([^\\]|\\\\(\\\\|n|t|\"))*)\""
+
+findFix :: String → Maybe Fix
+findFix (matchRegex fixitRegex → Just [file, line, col, line', col', s, _, _]) =
+  Just $ Fix (read file) (read line, read col) (read line', read col') (unescape s)
+findFix _ = Nothing
 
 data WithEvaluation a
   = WithoutEvaluation a

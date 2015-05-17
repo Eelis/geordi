@@ -59,9 +59,9 @@ is_addressed_request :: String → Maybe (Nick, String)
 is_addressed_request txt = either (const Nothing) Just (parse p "" txt)
   where p = liftM2 (,) (spaces >> nickP) (spaces >> (oneOf ":," <|> lookAhead (oneOf "<{-(")) >> getInput)
 
-data Context = Context { highlighter :: Highlighter, previousRequests :: [EditableRequest] }
+data Context = Context { highlighter :: Highlighter, previousRequests :: [HistoricalRequest] }
 
-popContext :: Context → E (EditableRequest, Context)
+popContext :: Context → E (HistoricalRequest, Context)
 popContext c@Context{previousRequests=x:xs} = return (x, c{previousRequests=xs})
 popContext _ = throwError "History exhausted."
 
@@ -74,7 +74,8 @@ instance Show EditableRequestKind where
 
 data EditableRequest = EditableRequest { kind :: EditableRequestKind, editable_body :: String }
 
-data HistoryModification = ReplaceLast EditableRequest | AddLast EditableRequest | DropLast
+type HistoricalRequest = (EditableRequest, Maybe (TextEdit Char) {- a fix-it -})
+data HistoryModification = ReplaceLast HistoricalRequest | AddLast HistoricalRequest | DropLast
 
 modify_history :: HistoryModification → Context → Context
 modify_history m (Context h l) = Context h $ case m of

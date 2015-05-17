@@ -353,6 +353,7 @@ instance Parse Command where
     (kwd ["change"] >>> commit (auto1 Change)) <||>
     (kwd ["make"] >>> commit (auto2 Make)) <||>
     (kwd ["use"] >>> commit (auto1 Use)) <||>
+    (kwd ["fix"] >>> commit (arr (const Fix))) <||>
     (kwd ["move"] >>> commit (auto1 Move)) <||>
     (kwd ["swap"] >>> commit (liftA2 Swap parse (option (kwd ["with"] >>> parse))))
 

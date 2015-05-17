@@ -35,6 +35,7 @@ Since most edit clauses refer to parts of a subject snippet, the translation fro
 data ResolutionContext = ResolutionContext
   { context_suffix :: String
   , _given :: String
+  , fixIt :: Maybe (TextEdit Char)
   , search_range :: Range Char -- Todo: Should this not be an StickyRange?
   , well_formed :: E (Cxx.Basics.GeordiRequest, Anchor Char → E (Anchor Char))
   }
@@ -58,7 +59,7 @@ fail_with_context s = (s ++) . context_suffix . ask >>= throwError
 -- Find instances for things like Relative typically invoke Find instances for constituent clauses on subranges of the range they received themselves. For this we define |narrow|, which simultaneously modifies the search_range and extends the context_suffix:
 
 narrow :: String → Range Char → Resolver a → Resolver a
-narrow x y = local $ \(ResolutionContext z v _ w) → ResolutionContext (" " ++ x ++ z) v y w
+narrow x y = local $ \(ResolutionContext z v f _ w) → ResolutionContext (" " ++ x ++ z) v f y w
 
 {- To motivate the well_formed field in ResolutionContext and the InGiven_to_InWf class, we must first describe some general edit command properties we desire.
 
@@ -79,7 +80,7 @@ instance Functor FindResult where fmap f (Found x y) = Found x (f y)
 
 instance Find String (NeList (FindResult DualStickyRange)) where
   find x = do
-    ResolutionContext _ s r _ ← ask
+    ResolutionContext _ s _ r _ ← ask
     case nonEmpty $ find_occs x $ selectRange r s of
       Nothing → fail_with_context $ "String `" ++ x ++ "` does not occur"
       Just l → return $ (Found InGiven . convert . (\o → tightRange $ rangeFromTo (offset (pos (start r)) o :: Pos Char) (offset (pos (start r) + length x) o))) . l
@@ -96,12 +97,12 @@ instance (Find a (NeList b)) ⇒ Find (In a) (NeList b) where
 -- For the nontrivial case, we first simply search for incl, which yields a number of DualStickyRanges, which we map to their full_range components. Then, for each StickyRange x that was found, we distinguish between two cases. If x is relative to the current _given, we just use |narrow| to focus our attention on x, and try to find |o| there. If x is relative to the well-formed snippet, then we should find |o| in there, too. So in this case, we want to force the Find instance for |o| to search in the well-formed snippet. We do this by first changing _given to the well-formed snippet and setting the Anchor transformer in well_formed to |return|, and then proceeding with |narrow| as before. We realize this with the following utility function:
 
 inwf :: InGiven_to_InWf a ⇒ Resolver a → Resolver a
-inwf re = ReaderT $ \(ResolutionContext w _ r wf) → do
+inwf re = ReaderT $ \(ResolutionContext w _ f r wf) → do
   (tree, anchor_trans) ← or_fail wf
   Anchor _ a ← anchor_trans $ Anchor Before $ start r
   Anchor _ b ← anchor_trans $ Anchor Before $ end r
   (inGiven_to_inWf .) $ runReaderT re $ ResolutionContext w
-    (Cxx.Show.show_simple tree) (rangeFromTo a b) (Right (tree, return))
+    (Cxx.Show.show_simple tree) f (rangeFromTo a b) (Right (tree, return))
 
 -- Results returned by the re-contexted resolver may be marked as Found InGiven, but since we changed _given to the well-formed snippet, these are really Found InWf, so inwf should adjust them, and that's where the InGiven_to_InWf class comes in.
 
@@ -157,8 +158,8 @@ instance (Invertible a, Find a b, Convert (FindResult (StickyRange Char)) b) ⇒
 
 -- More documentation some other time!
 
-findInStr :: Find a b ⇒ String → (E (Cxx.Basics.GeordiRequest, Anchor Char → E (Anchor Char))) → a → E b
-findInStr s e x = runReaderT (find x) $ ResolutionContext "." s (fullRange s) e
+findInStr :: Find a b ⇒ String → Maybe (TextEdit Char) -> (E (Cxx.Basics.GeordiRequest, Anchor Char → E (Anchor Char))) → a → E b
+findInStr s f e x = runReaderT (find x) $ ResolutionContext "." s f (fullRange s) e
 
 instance Find (Around Substrs) (NeList (FindResult DualStickyRange)) where find (Around x) = find x
 
@@ -325,7 +326,7 @@ instance Find Position (FindResult (Anchor Char)) where
 
 instance Find UsePattern (FindResult (Range Char)) where
   find (UsePattern z) = do
-    ResolutionContext _ s r _ ← ask
+    ResolutionContext _ s _ r _ ← ask
     let
       text_tokens = edit_tokens Char.isAlphaNum $ selectRange r s
       pattern_tokens = edit_tokens Char.isAlphaNum z
@@ -395,6 +396,11 @@ instance Find Command [FindResult RequestEdit] where
     l ← (fmap (\(Found _ x) → replace_range x)) . find s
     (Found InGiven .) . concat . toList . forM l (\x →
       (TextEdit .) . Cxx.Operations.make_edits (convert x) b 0 tree)
+  find Fix = do
+    mf ← fixIt . ask
+    case mf of
+      Nothing → throwError "No fix available."
+      Just f → return [Found InGiven $ TextEdit f]
 
 use_tests :: IO ()
 use_tests = do
@@ -455,7 +461,7 @@ use_tests = do
  where
   u :: String → String → String → String → String → IO ()
   u txt pattern match d rd =
-    case runReaderT (find (UseString $ flip In Nothing $ Absolute $ UsePattern pattern)) (ResolutionContext "." txt (fullRange txt) (Left "-")) of
+    case runReaderT (find (UseString $ flip In Nothing $ Absolute $ UsePattern pattern)) (ResolutionContext "." txt Nothing (fullRange txt) (Left "-")) of
       Left e → fail e
       Right (neElim → (Found _ (TextEdit (RangeReplaceEdit rng _)), [])) → do
         test_cmp pattern match (selectRange rng txt)

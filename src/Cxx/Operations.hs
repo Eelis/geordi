@@ -1,6 +1,6 @@
-{-# LANGUAGE UnicodeSyntax, DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ScopedTypeVariables, ExistentialQuantification, TypeSynonymInstances, CPP, ViewPatterns #-}
+{-# LANGUAGE UnicodeSyntax, DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ScopedTypeVariables, ExistentialQuantification, TypeSynonymInstances, CPP, ViewPatterns, TupleSections #-}
 
-module Cxx.Operations (apply, mapply, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, shortcut_syntaxes, blob, resume, expand, line_breaks, specT, find, is_pointer_or_reference, namedPathTo, findable_productions, make_edits) where
+module Cxx.Operations (apply, mapply, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, parseAbbrMain, requestBody, resume, expand, line_breaks, specT, find, is_pointer_or_reference, namedPathTo, findable_productions, make_edits) where
 
 import qualified Cxx.Show
 import qualified Data.List as List
@@ -31,50 +31,65 @@ map_plain f (Parens c) = Parens $ map (map_plain f) c
 map_plain f (Squares c) = Squares $ map (map_plain f) c
 map_plain _ x = x
 
-expand :: ShortCode → (Code, Maybe Code)
-expand (LongForm c) = (c, Nothing)
-expand (Block c c') = (c', Just [Plain "\nint main(int argc, char * argv[])", Curlies c])
-expand (Call c c') = expand $ Block ([Plain "printf"] ++ c ++ [Plain "\n;"]) c'
-expand (Print c c') = expand $ Block ([Plain "::std::cout << "] ++ c ++ [Plain "\n;"]) c'
-  -- The newline before the semicolon makes //-style comments work.
+int_main :: String
+int_main = "\nint main(int argc, char * argv[])"
+
+gen :: String → String → String → TString
+gen left middle right
+   = map (, 0) left
+  ++ zip middle [0..]
+  ++ map (, length middle) right
+
+generateMain :: AbbreviatedMain → TString
+generateMain (Block c) = gen int_main ("{" ++ show c ++ "}") ""
+generateMain (Call c) = gen (int_main ++ "{printf") (show c) "\n;}"
+generateMain (Print c) = gen (int_main ++ "{::std::cout") ("<<" ++ show c) "\n;}"
+  -- The newlines make //-style comments work.
 
 cstyle_comments :: Code → Code
 cstyle_comments = map f where f (SingleComment s) = MultiComment s; f c = c
 
+type ShortCode = (Maybe AbbreviatedMain, Code)
+
 expand_without_main :: ShortCode → Code
-expand_without_main (LongForm d) = erase_main d
+expand_without_main (Nothing, d) = erase_main d
   where
     erase_main (Plain s : Parens _ : Curlies _ : c) | "main" `List.isInfixOf` s = c
     erase_main (Plain s : Parens _ : Plain t : Curlies _ : c)
       | "main" `List.isInfixOf` s, all Char.isSpace t = c
     erase_main (x : y) = (x :) $ erase_main y
     erase_main c = c
-expand_without_main (Print _ c) = c
-expand_without_main (Call _ c) = c
-expand_without_main (Block _ c) = c
+expand_without_main (Just _, c) = c
 
-blob :: ShortCode → Code
-blob (LongForm c) = c
-blob (Print c c') = [Plain "<<"] ++ c ++ [Plain ";"] ++ c'
-blob (Block c c') = Curlies c : c'
-blob (Call c c') = c ++ [Plain ";"] ++ c'
+instance Show AbbreviatedMain where
+  show (Block c) = show [Curlies c]
+  show (Call c) = show c
+  show (Print c) = show $ [Plain "<<"] ++ c
+
+requestBody :: ShortCode → String
+requestBody (m, c) = maybe "" show m ++ show c
 
 resume :: ShortCode → ShortCode → ShortCode
-resume (cstyle_comments . expand_without_main → old) new =
-  case new of
-    LongForm c → LongForm $ old ++ c
-    Print (cstyle_comments → c) c' → Print c $ old ++ c'
-    Block (cstyle_comments → c) c' → Block c $ old ++ c'
-    Call (cstyle_comments → c) c' → Call c $ old ++ c'
+resume (cstyle_comments . expand_without_main → old) (m, new) = (m, old ++ new)
 
-shortcut_syntaxes :: Code → ShortCode
-shortcut_syntaxes (Curlies c : b) = Block c b
-shortcut_syntaxes (Plain ('<':'<':x) : y) = uncurry Print $ second total_tail $ break (== Plain ";") $ Plain x : y
-shortcut_syntaxes (Parens c : b) = Call (Parens c : x) (total_tail y)
+type TString = [(Char, Int {- position in the request body -})]
+
+expand :: Code -> (Maybe TString {- generated main -}, TString {- rest -})
+expand requestChunks =
+    ( generateMain . mAbbrMain
+    , zip (show rest) [maybe 0 (length . show) mAbbrMain ..])
+  where
+    (mAbbrMain, rest) = parseAbbrMain requestChunks
+
+parseAbbrMain :: Code → (Maybe AbbreviatedMain, Code)
+parseAbbrMain (Curlies c : b) = (Just (Block c), b)
+parseAbbrMain (Plain ('<':'<':a) : b) = (Just (Print x), total_tail y)
+  where (x, y) = break (== Plain ";") $ Plain a : b
+parseAbbrMain (Parens c : b) = (Just (Call (Parens c : x)), total_tail y)
   where (x, y) = break (== Plain ";") b
-shortcut_syntaxes c = LongForm c
+parseAbbrMain c = (Nothing, c)
 
-line_breaks ::Code → Code
+line_breaks :: Code → Code
 line_breaks = map $ map_plain $ map $ \c → if c == '\\' then '\n' else c
 
 -- Convenience constructors

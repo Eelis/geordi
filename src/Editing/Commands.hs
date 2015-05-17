@@ -76,6 +76,7 @@ data Command
   | Swap Substrs (Maybe Substrs)
   | Make MakeSubject Cxx.Basics.MakeDeclaration
   | Use (AndList UseClause)
+  | Fix
 
 data FinalCommand
   = Show (Maybe Substrs)

@@ -147,6 +147,10 @@ pairs :: [a] → [(a, a)]
 pairs (x:y:z) = (x,y) : pairs z
 pairs _ = []
 
+mapHead :: (a -> a) -> [a] -> [a]
+mapHead _ [] = []
+mapHead f (x:xs) = f x : xs
+
 findM :: Monad m ⇒ (a → m Bool) → [a] → m (Maybe a)
 findM _ [] = return Nothing
 findM p (x:xs) = do

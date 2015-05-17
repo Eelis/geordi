@@ -53,11 +53,10 @@ make_type_keywords = words "function functions pointer pointers reference refere
 data Findable = FindableDataType DataType | FindableConstr Constr | BodyOf DeclaratorId | DeclarationOf DeclaratorId | Constructor | Destructor | ConversionFunction | FindableParameterDeclaration | TemplateParameter | TemplateArgument
   -- Todo: ParameterDeclarationOf, TemplateParameterOf, ParameterDeclarationClauseOf, similar to BodyOf. Would be nice to do it in a generic fashion.
 
-data ShortCode
-  = LongForm Code
-  | Print Code Code -- Does not include the semicolon.
-  | Block Code Code -- Does not include Curlies.
-  | Call Code Code -- /Does/ include Parens.
+data AbbreviatedMain
+  = Print Code -- Does not include the semicolon.
+  | Block Code -- Does not include Curlies.
+  | Call Code -- /Does/ include Parens.
 
 data Chunk
   = CharLiteral String | StringLiteral' String | RawStringLiteral String String

@@ -24,7 +24,7 @@ This C++ parser is probably extremely inefficient. Fortunately, geordi only ever
 
 -}
 
-module Cxx.Parse (Code, Chunk(..), code, charLit, stringLit, makeType, precedence, parseRequest, makeDeclParser, declaratorIdParser, highlight) where
+module Cxx.Parse (Chunk(..), code, charLit, stringLit, makeType, precedence, parseRequest, makeDeclParser, declaratorIdParser, highlight) where
 
 import qualified Data.Char as Char
 import qualified Data.List as List

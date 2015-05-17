@@ -62,8 +62,8 @@ main = do
     Just l → do
       Response history_modification output ← eval l (context mem) []
       case history_modification of
-        Just (AddLast e) → addHistory $ UTF8.encodeString $ show e
-        Just (ReplaceLast e) → addHistory $ UTF8.encodeString $ show e
+        Just (AddLast e) → addHistory $ UTF8.encodeString $ show $ fst e
+        Just (ReplaceLast e) → addHistory $ UTF8.encodeString $ show $ fst e
         _ → return ()
       putStrLn $ describe_new_output (last_outputs mem) output
       loop Memory
