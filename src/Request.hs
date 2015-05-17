@@ -16,7 +16,7 @@ import Editing.Basics (TextEdit)
 import Prelude hiding ((.))
 import Prelude.Unicode
 
-data EvalOpt = CompileOnly | PreprocessOnly | NoWarn | NoUsingStd | Clang
+data EvalOpt = CompileOnly | PreprocessOnly | NoWarn | NoUsingStd | Clang | Gcc
   deriving (Eq, Enum, Bounded, Ord)
 
 data RequestEdit
@@ -30,11 +30,13 @@ instance Option EvalOpt where
   short PreprocessOnly = Nothing
   short NoUsingStd = Nothing
   short Clang = Nothing
+  short Gcc = Nothing
   long CompileOnly = "compile-only"
   long NoWarn = "no-warn"
   long PreprocessOnly = "preprocess"
   long NoUsingStd = "no-using-std"
   long Clang = "clang"
+  long Gcc = "gcc"
 
 data EphemeralOpt = Resume | Help | Version deriving (Eq, Enum, Bounded)
 
@@ -59,7 +61,10 @@ is_addressed_request :: String → Maybe (Nick, String)
 is_addressed_request txt = either (const Nothing) Just (parse p "" txt)
   where p = liftM2 (,) (spaces >> nickP) (spaces >> (oneOf ":," <|> lookAhead (oneOf "<{-(")) >> getInput)
 
-data Context = Context { highlighter :: Highlighter, previousRequests :: [HistoricalRequest] }
+data Context = Context
+  { highlighter :: Highlighter
+  , clangByDefault :: Bool
+  , previousRequests :: [HistoricalRequest] }
 
 popContext :: Context → E (HistoricalRequest, Context)
 popContext c@Context{previousRequests=x:xs} = return (x, c{previousRequests=xs})
@@ -78,7 +83,7 @@ type HistoricalRequest = (EditableRequest, Maybe (TextEdit Char) {- a fix-it -})
 data HistoryModification = ReplaceLast HistoricalRequest | AddLast HistoricalRequest | DropLast
 
 modify_history :: HistoryModification → Context → Context
-modify_history m (Context h l) = Context h $ case m of
+modify_history m (Context h cbd l) = Context h cbd $ case m of
   ReplaceLast e → e : total_tail l
   AddLast e → e : l
   DropLast → total_tail l

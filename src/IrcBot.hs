@@ -25,7 +25,7 @@ import Data.List (isSuffixOf)
 import Data.Map (Map)
 import Data.SetOps
 import Util ((.), elemBy, caselessStringEq, maybeM, describe_new_output,
-  orElse, readTypedFile, full_evaluate, withResource, mapState',
+  orElse, full_evaluate, withResource, mapState',
   strip_utf8_bom, none, takeBack, replaceInfix)
 import Sys (rate_limiter)
 
@@ -49,6 +49,7 @@ data IrcBotConfig = IrcBotConfig
   , censor :: [Regex]
   , rate_limit_messages, rate_limit_window :: Int
   , serve_private_requests :: Bool
+  , clang_by_default :: Bool
   } deriving Read
 
 instance Read Regex where
@@ -117,9 +118,9 @@ data ChannelMemory = ChannelMemory
   , last_nonrequest :: String }
 type ChannelMemoryMap = Map String ChannelMemory
 
-emptyChannelMemory :: ChannelMemory
-emptyChannelMemory = ChannelMemory
-  { context = Request.Context Cxx.Show.noHighlighting []
+emptyChannelMemory :: IrcBotConfig → ChannelMemory
+emptyChannelMemory IrcBotConfig{..} = ChannelMemory
+  { context = Request.Context Cxx.Show.noHighlighting clang_by_default []
   , last_outputs = []
   , last_nonrequest = "" }
 
@@ -193,7 +194,7 @@ on_msg eval cfg@IrcBotConfig{..} full_size m@(IRC.Message prefix c) = execWriter
         reply s = send $ PrivMsg wher $ take max_response_length $
             (if private then id else (replaceInfix "nick" who channel_response_prefix ++)) $
             if null s then no_output_msg else do_censor cfg s
-      mem@ChannelMemory{..} ← (`orElse` emptyChannelMemory) . Map.lookup wher . lift get
+      mem@ChannelMemory{..} ← (`orElse` emptyChannelMemory cfg) . Map.lookup wher . lift get
       case (dropWhile isSpace . is_request cfg w txt) of
         Nothing → lift $ mapState' $ insert (wher, mem{last_nonrequest = txt'})
         Just r' → case request_allowed cfg who muser mserver w of

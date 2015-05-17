@@ -155,8 +155,8 @@ locationMap us (u, (l, c))
 un_t :: TString → String
 un_t = map fst
 
-execEditableRequest :: EditableRequest → E (WithEvaluation (String, Maybe (TextEdit Char)))
-execEditableRequest (EditableRequest kind (dropWhile isSpace → body)) = case kind of
+execEditableRequest :: Bool → EditableRequest → E (WithEvaluation (String, Maybe (TextEdit Char)))
+execEditableRequest clangByDefault (EditableRequest kind (dropWhile isSpace → body)) = case kind of
   MakeType → noEvaluation . noFixit . Cxx.Show.show_simple . Cxx.Parse.makeType body
   Precedence → noEvaluation . noFixit . Cxx.Parse.precedence body
   Evaluate opts → do
@@ -168,13 +168,15 @@ execEditableRequest (EditableRequest kind (dropWhile isSpace → body)) = case k
         | PreprocessOnly ∈ opts = Gcc.Preprocess
         | otherwise = Gcc.Run
       no_warn = NoWarn ∈ opts
-      clang = Clang ∈ opts
+      clang
+        | clangByDefault = Gcc ∉ opts
+        | otherwise = Clang ∈ opts
       units :: [String]
       units = map (unlines . map un_t) tunits
     return $ second (fix_as_edit (locationMap tunits) .) . evaluate EvalCxx.Request{..}
 
-respond_and_remember :: EditableRequest → WithEvaluation Response
-respond_and_remember er = fmap f (tagError (execEditableRequest er))
+respond_and_remember :: Bool → EditableRequest → WithEvaluation Response
+respond_and_remember clangByDefault er = fmap f (tagError (execEditableRequest clangByDefault er))
   where f (ou, edit) = Response (Just $ AddLast (er, edit)) ou
 
 noFixit :: String -> (String, Maybe (TextEdit Char))
@@ -194,7 +196,7 @@ execFinalCommand context@Context{..} fc = case fc of
     return $ noEvaluation $ noFixit $ concat $ List.intersperse ", " $ map (nicer_namedPathTo . Cxx.Operations.namedPathTo tree . convert . Editing.Commands.replace_range) l
   Parse → evalRequestBody >>= Cxx.Parse.parseRequest >> return (noEvaluation $ noFixit "Looks fine to me.")
   Diff → do ((x, _), context') ← popContext context; noEvaluation . noFixit . diff x . fst . fst . popContext context'
-  Run → fst . fst . popContext context >>= execEditableRequest
+  Run → fst . fst . popContext context >>= execEditableRequest clangByDefault
  where
   evalRequestBody :: E String
   evalRequestBody = do
@@ -209,11 +211,11 @@ execEditCommand context@Context{..} (cs, mfcmd) = do
   when (length_ge 1000 (editable_body edited)) $ throwError "Request would become too large."
   (,) edited . case mfcmd of
     Just fcmd → execFinalCommand context{previousRequests = (edited, Nothing) : previousRequests} fcmd
-    Nothing → execEditableRequest edited
+    Nothing → execEditableRequest clangByDefault edited
 
-cout :: Set EvalOpt → String → Parser Char (E (WithEvaluation Response))
-cout opts s = parseSuccess $
-  Response Nothing ‥ fst ‥ execEditableRequest (EditableRequest (Evaluate opts) ("<< " ++ s))
+cout :: Context → Set EvalOpt → String → Parser Char (E (WithEvaluation Response))
+cout Context{..} opts s = parseSuccess $
+  Response Nothing ‥ fst ‥ execEditableRequest clangByDefault (EditableRequest (Evaluate opts) ("<< " ++ s))
 
 p :: EvalCxx.CompileConfig → Context → Parser Char (E (WithEvaluation Response))
 p compile_cfg context@Context{..} = (spaces >>) $ do
@@ -225,11 +227,11 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
      <|> (\(edited, we) -> (\(output, _) -> Response (Just $ ReplaceLast (edited, Nothing)) output) . we) ‥ (>>= execEditCommand context') . (Editing.Parse.commandsP << commit eof)
   <|> do
     kwds ["--precedence", "precedence"]
-    noErrors . respond_and_remember . EditableRequest Precedence . getInput
+    noErrors . respond_and_remember False . EditableRequest Precedence . getInput
   <|> do
     kwds ["--make-type", "make type"]
-    noErrors . respond_and_remember . EditableRequest MakeType . getInput
-  <|> do kwds ["uname"]; cout (∅) "geordi::uname()"
+    noErrors . respond_and_remember False . EditableRequest MakeType . getInput
+  <|> do kwds ["uname"]; cout context (∅) "geordi::uname()"
   <|> do
     kwd "--show-compile-flags"
     parseSuccess $ noErrors $ noEvaluation $ Response Nothing $ unwords $ EvalCxx.gccCompileFlags compile_cfg
@@ -240,17 +242,18 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
    propagateE mopts $ \(evalopts, eph_opts) → continueParsing $ do
     s ← peek
     case () of { ()
-      | Help ∈ eph_opts || s == "help" → cout (∅) "help"
-      | Version ∈ eph_opts || s == "version" → cout evalopts "geordi::compiler_description"
+      | Help ∈ eph_opts || s == "help" → cout context (∅) "help"
+      | Version ∈ eph_opts || s == "version" → cout context evalopts "geordi::compiler_description"
       | Resume ∈ eph_opts → flip fmap (Cxx.Parse.code << eof) $ \code → case previousRequests of
         [] → throwError "There is no previous resumable request."
         (EditableRequest (Evaluate oldopts) (dropWhile isSpace → oldcodeblob), _) : _ → do
           case run_parser (Cxx.Parse.code << eof) oldcodeblob of
-            ParseSuccess oldcode _ _ _ → noErrors $ respond_and_remember $
+            ParseSuccess oldcode _ _ _ → noErrors $ respond_and_remember clangByDefault $
               EditableRequest (Evaluate $ evalopts ∪ oldopts) $ Cxx.Operations.requestBody $ Cxx.Operations.resume (Cxx.Operations.parseAbbrMain oldcode) (Cxx.Operations.parseAbbrMain code)
             ParseFailure{} → throwError "Previous request too malformed to resume."
         _ → throwError "Last (editable) request was not resumable."
-      | otherwise → parseSuccess . noErrors . respond_and_remember =<< EditableRequest (Evaluate evalopts) . getInput }
+      | otherwise → parseSuccess . noErrors . respond_and_remember clangByDefault
+          =<< EditableRequest (Evaluate evalopts) . getInput }
 
 evaluate :: EvalCxx.Request → WithEvaluation (String, Maybe EvalCxx.Fix)
 evaluate = (g .) . EvalCxx.withEvaluation

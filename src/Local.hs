@@ -44,7 +44,7 @@ make_history_adder = do
 data Memory = Memory { context :: Context, last_outputs :: [String] }
 
 blankMemory :: Memory
-blankMemory = Memory (Context Cxx.Show.noHighlighting []) []
+blankMemory = Memory (Context Cxx.Show.noHighlighting False []) []
 
 main :: IO ()
 main = do
@@ -54,7 +54,7 @@ main = do
  (opts, rest) ← getArgs
  if Help ∈ opts then putStrLn help else do
   eval ← RequestEval.evaluator
-  forM_ rest $ \l → do Request.Response _ output ← eval l (Context Cxx.Show.noHighlighting []) []; putStrLn output
+  forM_ rest $ \l → do Request.Response _ output ← eval l (Context Cxx.Show.noHighlighting False []) []; putStrLn output
   addHistory ← make_history_adder
   when (rest == []) $ flip fix blankMemory $ \loop mem → RL.readline "geordi: " >>= \line → case line of
     Nothing → putNewLn
