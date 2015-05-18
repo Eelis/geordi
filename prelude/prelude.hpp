@@ -95,13 +95,25 @@
 #include <experimental/any>
 #endif
 #include <experimental/chrono>
+#ifndef __clang__
+#include <experimental/filesystem>
+#endif
+#include <experimental/forward_list>
 #include <experimental/functional>
+#include <experimental/iterator>
+#include <experimental/list>
+#include <experimental/map>
+#include <experimental/numeric>
 #include <experimental/optional>
 #include <experimental/ratio>
+#include <experimental/set>
 #include <experimental/string_view>
 #include <experimental/system_error>
 #include <experimental/tuple>
 #include <experimental/type_traits>
+#include <experimental/unordered_map>
+#include <experimental/unordered_set>
+#include <experimental/vector>
 
 namespace std { using namespace experimental; }
 extern template class std::basic_ostream<char>;

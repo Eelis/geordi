@@ -1,4 +1,3 @@
-
 #ifndef MORE_OSTREAMING_HPP
 #define MORE_OSTREAMING_HPP
 
@@ -16,6 +15,10 @@
 #include "geordi.hpp"
 #include "literal_escape.hpp"
 #include "delimited_ostream.hpp"
+
+#ifndef __clang__
+#include <experimental/filesystem>
+#endif
 
 template <typename C, typename Tr>
 std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, utsname const & u)
@@ -195,6 +198,52 @@ namespace std
   std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, std::type_info const & t)
   { return o << t.name(); }
 }
+
+#ifndef __clang__
+
+template <typename Ch, typename Tr>
+std::basic_ostream<Ch, Tr> & operator<<(
+  std::basic_ostream<Ch, Tr> & o, std::experimental::filesystem::perms const p)
+{
+  std::ios::fmtflags f(o.flags());
+  std::oct(o);
+  o << std::underlying_type_t<std::experimental::filesystem::perms>(p);
+  o.flags(f);
+  return o;
+}
+
+template <typename Ch, typename Tr>
+std::basic_ostream<Ch, Tr> & operator<<(
+  std::basic_ostream<Ch, Tr> & o, std::experimental::filesystem::file_type const t)
+{
+  switch (t)
+  {
+    #define CASE(c) \
+      case std::experimental::filesystem::file_type::c: return o << "file_type::" #c;
+
+    CASE(none)
+    CASE(not_found)
+    CASE(regular)
+    CASE(directory)
+    CASE(symlink)
+    CASE(block)
+    CASE(character)
+    CASE(fifo)
+    CASE(socket)
+    CASE(unknown)
+
+    #undef CASE
+
+    default: return o << "?";
+  }
+}
+
+template <typename Ch, typename Tr>
+std::basic_ostream<Ch, Tr> & operator<<(
+  std::basic_ostream<Ch, Tr> & o, std::experimental::filesystem::file_status const & s)
+{ return o << '{' << s.type() << ", " << s.permissions() << '}'; }
+
+#endif
 
 template <typename Ch, typename Tr, typename K, typename D>
 std::basic_ostream<Ch, Tr> &

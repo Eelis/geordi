@@ -210,7 +210,7 @@ evaluate cfg Request{..} extra_env = do
         Link → ((++ ".o") . fst . namedUnits) ++
           ["-o", "t"
           , "-Wl,--rpath,/usr/local/lib64", "-Wl,--undefined,geordi_init"
-          , "-lgeordi_prelude", "-lmcheck", "-lubsan"]
+          , "-lgeordi_prelude", "-lmcheck", "-lubsan", "-lstdc++fs"]
       where
         compileFlags = ["-w" | no_warn] ++
           if clang
