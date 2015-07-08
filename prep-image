@@ -12,7 +12,7 @@ done
 touch t
 chmod 777 t
 
-. /geordi/etc/compile-config
+. /geordi/compile-config
 
 gcc -fPIC -shared -Wall -o /lib/libdiagnose_sigsys.so /geordi/src/diagnose_sigsys.c
 g++ -static-libstdc++ -static-libgcc -std=c++11 -O2 /geordi/src/lockdown.cpp `pkg-config --cflags --libs libseccomp` -o /usr/bin/geordi-lockdown

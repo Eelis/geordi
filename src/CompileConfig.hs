@@ -26,7 +26,7 @@ readCompileConfig = do
     (words . var "GCC_COMPILE_FLAGS") <*>
     (words . var "CLANG_COMPILE_FLAGS")
  where
-  file = "/geordi/etc/compile-config"
+  file = "/geordi/compile-config"
   parseLine :: Int → String → Maybe (String, String)
   parseLine linenum line
     | s@(c:_) ← dropWhile Char.isSpace line, c ≠ '#' =

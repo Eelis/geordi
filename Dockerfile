@@ -24,7 +24,7 @@ RUN cabal update && cabal install --global cabal-install && cabal install --glob
 COPY src /geordi/src
 RUN rm -rf /geordi/src/dist; cabal install --global /geordi/src --prefix=/usr
 
-COPY etc /geordi/etc
+COPY compile-config /geordi/
 WORKDIR /geordi/run
 CMD ["/usr/bin/geordi-local"]
 
