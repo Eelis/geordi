@@ -21,7 +21,7 @@ import System.Console.GetOpt (OptDescr(..), ArgDescr(..), ArgOrder(..), getOpt, 
 import System.Locale.SetLocale (setLocale, Category(..))
 import Text.Regex (Regex, subRegex, mkRegexWithOpts) -- Todo: Text.Regex truncates Char's >256. Get rid of it.
 import Data.Char (isSpace, isPrint, isDigit)
-import Data.List (isSuffixOf)
+import Data.List (isSuffixOf, isPrefixOf)
 import Data.Map (Map)
 import Data.SetOps
 import Util ((.), elemBy, caselessStringEq, maybeM, describe_new_output,
@@ -109,8 +109,9 @@ discarded_lines_description s =
 
 describe_lines :: [String] → String
 describe_lines [] = ""
-describe_lines [x] = x
-describe_lines (x:xs) = x ++ discarded_lines_description (length xs)
+describe_lines (x:xs)
+  | xs == [] || "error:" `isPrefixOf` x = x
+  | otherwise = x ++ discarded_lines_description (length xs)
 
 data ChannelMemory = ChannelMemory
   { context :: Request.Context
