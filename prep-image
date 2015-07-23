@@ -15,7 +15,7 @@ chmod 777 t
 . /geordi/compile-config
 
 gcc -fPIC -shared -Wall -o /lib/libdiagnose_sigsys.so /geordi/src/diagnose_sigsys.c
-g++ -static-libstdc++ -static-libgcc -std=c++11 -O2 /geordi/src/lockdown.cpp `pkg-config --cflags --libs libseccomp` -o /usr/bin/geordi-lockdown
+g++ -static-libstdc++ -static-libgcc -std=c++11 -O2 /geordi/src/lockdown.cpp `pkg-config --cflags --libs libseccomp` -Wl,--rpath,/usr/local/lib64 -o /usr/bin/geordi-lockdown
 
 cd /geordi/src/prelude
 patch /usr/local/include/c++/6.0.0/typeinfo demangle_typeinfo_name.patch -o patched_typeinfo.hpp
