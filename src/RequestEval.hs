@@ -122,6 +122,7 @@ generated :: String → TString
 generated = map (, 0)
 
 tlines :: TString → [TString]
+tlines [] = []
 tlines (break ((== '\n') . fst) → (x, y)) =
   x : case y of
     [] -> []
