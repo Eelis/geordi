@@ -26,12 +26,14 @@
 #include <bitset>
 #include <cfenv>
 #include <chrono>
+#include <condition_variable>
 #include <complex>
 #include <deque>
 #include <exception>
 #include <forward_list>
 #include <fstream>
 #include <functional>
+#include <future>
 #include <iomanip>
 #include <ios>
 #include <iosfwd>
@@ -52,6 +54,7 @@
 #include <ratio>
 #include <regex>
 #include <set>
+#include <shared_mutex>
 #include <sstream>
 #include <stack>
 #include <stdexcept>

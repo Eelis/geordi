@@ -44,6 +44,8 @@ auto rules =
 	, RULE(set_tid_address, ALLOW)
 	, RULE(fallocate,       ALLOW)
 	, RULE(clock_gettime,   ALLOW)
+	, RULE(exit,            ALLOW)
+	, RULE(sched_yield,     ALLOW)
 	, RULE(futex,           ERRNO(-1))
 	, RULE(lstat,           ERRNO(-1))
 	, RULE(geteuid,         ERRNO(-1))
@@ -56,6 +58,7 @@ auto rules =
 	, RULE(ioctl,           ERRNO(-1))
 	, RULE(chmod,           ERRNO(-1))
 	, RULE(shmdt,           ERRNO(-1))
+	, RULE(madvise,         ERRNO(0))
 	, RULE(fstatfs,         ERRNO(0))
 	, RULE(fcntl,           ERRNO(0))
 	, RULE(mkdir,           ERRNO(0))
@@ -100,15 +103,19 @@ int main(int const argc, char * const * const argv)
 		limitResource(RLIMIT_FSIZE, 10*1024*1024);
 		limitResource(RLIMIT_LOCKS, 0);
 		limitResource(RLIMIT_MEMLOCK, 0);
-		limitResource(RLIMIT_NPROC, 0);
+		limitResource(RLIMIT_NPROC, 16);
 
 		if (argc < 2) e("params: program args");
-		
+
 		if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) e("prctl");
 
 		scmp_filter_ctx const ctx = seccomp_init(SCMP_ACT_TRAP);
 
 		if (!ctx) e("seccomp_init");
+
+		if (seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(clone), 1,
+			SCMP_CMP(0, SCMP_CMP_MASKED_EQ, CLONE_THREAD, CLONE_THREAD)) != 0)
+			e("seccomp_rule_add");
 
 		for (auto && p : rules)
 			if (seccomp_rule_add(ctx, p.second, p.first, 0) != 0)
