@@ -34,7 +34,7 @@ import Data.Generics (Data, Typeable, DataType, Constr)
 import Util (Phantom(..), TriBool(..), NeList)
 import Control.Arrow (second)
 
-relational_ops, accessSpecifiers, classKeys, basic_simple_type_specifiers, casts, keywords, make_type_keywords, arithmetic_ops, ops, long_ops :: [String]
+relational_ops, accessSpecifiers, classKeys, basic_simple_type_specifiers, casts, storageClassSpecifiers, keywords, make_type_keywords, arithmetic_ops, ops, long_ops :: [String]
 relational_ops = words "< > <= >= == !="
 arithmetic_ops = concatMap (\x → [x, x ++ "="]) $ words "+ - * / << >> | & ^"
 ops = relational_ops ++ arithmetic_ops ++ words "++ -- -> .* :: && || ! = ~ [ ] ( ) { } :"
@@ -44,9 +44,10 @@ accessSpecifiers = words "public private protected"
 classKeys = words "class struct union"
 basic_simple_type_specifiers = words "short auto bool double int signed unsigned void char wchar_t char32_t float long char16_t"
 casts = words "reinterpret_cast dynamic_cast static_cast const_cast"
-keywords = accessSpecifiers ++ classKeys ++ basic_simple_type_specifiers ++ casts ++ words "alignas continue friend typedef alignof decltype goto return typeid asm default if typename delete inline sizeof break do static_assert using case mutable virtual catch else namespace static enum new volatile explicit nullptr switch export operator template while extern this const false throw constexpr true for register try define elif include defined"
+storageClassSpecifiers = words "register static thread_local extern mutable"
+keywords = accessSpecifiers ++ classKeys ++ basic_simple_type_specifiers ++ casts ++ storageClassSpecifiers ++ words "alignas continue friend typedef alignof decltype goto return typeid asm default if typename delete inline sizeof break do static_assert using case virtual catch else namespace enum new volatile explicit nullptr switch export operator template while this const false throw constexpr true for try define elif include defined"
 
-make_type_keywords = words "function functions pointer pointers reference references returning and lvalue rvalue constant chars character characters floats doubles bools booleans ints integer integers array arrays of from to noninline nonvirtual nonexplicit nonmutable nonstatic nonpure pure impure nonconst nonvolatile implicit nonlong nonshort nonsigned nonunsigned"
+make_type_keywords = words "function functions pointer pointers reference references returning and lvalue rvalue constant chars character characters floats doubles bools booleans ints integer integers array arrays of from to noninline nonvirtual nonexplicit nonmutable nonstatic nonpure pure impure nonconst nonvolatile implicit nonlong nonshort nonsigned nonunsigned thread_local nonthread_local"
 
 -- Todo: The stuff above is old, and could be expressed more properly.
 
@@ -146,6 +147,7 @@ KWD(KwdTry, "try")
 KWD(KwdCatch, "catch")
 KWD(KwdThrow, "throw")
 KWD(KwdMutable, "mutable")
+KWD(KwdThreadLocal, "thread_local")
 
 #undef KWD
 
