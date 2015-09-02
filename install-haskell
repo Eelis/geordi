@@ -1,0 +1,7 @@
+#!/bin/bash
+set -euv
+
+cd /
+wget https://haskell.org/platform/download/7.10.2/haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz
+tar xf haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz
+./install-haskell-platform.sh
