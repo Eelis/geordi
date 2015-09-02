@@ -26,6 +26,7 @@ chmod a+r patched_typeinfo.hpp
 
 cp /usr/bin/gold /usr/bin/ld
 
+. /geordi/compile-config
 rm -f `g++ -print-prog-name=collect2` `$GCC -print-prog-name=collect2`
 	# If collect2 is present, it is called by the gcc driver and
 	# starts making temporaries. GCC functions just fine without it.
