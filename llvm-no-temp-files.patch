@@ -1,39 +1,16 @@
-Index: include/llvm/Support/FileOutputBuffer.h
-===================================================================
---- include/llvm/Support/FileOutputBuffer.h	(revision 244346)
-+++ include/llvm/Support/FileOutputBuffer.h	(working copy)
-@@ -78,11 +78,10 @@
-   FileOutputBuffer &operator=(const FileOutputBuffer &) = delete;
- 
-   FileOutputBuffer(std::unique_ptr<llvm::sys::fs::mapped_file_region> R,
--                   StringRef Path, StringRef TempPath);
-+                   StringRef Path);
- 
-   std::unique_ptr<llvm::sys::fs::mapped_file_region> Region;
-   SmallString<128>    FinalPath;
--  SmallString<128>    TempPath;
- };
- } // end namespace llvm
- 
 Index: lib/Support/FileOutputBuffer.cpp
 ===================================================================
---- lib/Support/FileOutputBuffer.cpp	(revision 244346)
+--- lib/Support/FileOutputBuffer.cpp	(revision 246397)
 +++ lib/Support/FileOutputBuffer.cpp	(working copy)
-@@ -27,11 +27,10 @@
- 
- namespace llvm {
- FileOutputBuffer::FileOutputBuffer(std::unique_ptr<mapped_file_region> R,
--                                   StringRef Path, StringRef TmpPath)
--    : Region(std::move(R)), FinalPath(Path), TempPath(TmpPath) {}
-+                                   StringRef Path)
-+    : Region(std::move(R)), FinalPath(Path) {}
+@@ -31,7 +31,6 @@
+     : Region(std::move(R)), FinalPath(Path), TempPath(TmpPath) {}
  
  FileOutputBuffer::~FileOutputBuffer() {
 -  sys::fs::remove(Twine(TempPath));
  }
  
- std::error_code
-@@ -58,21 +57,13 @@
+ ErrorOr<std::unique_ptr<FileOutputBuffer>>
+@@ -56,11 +55,6 @@
          return make_error_code(errc::operation_not_permitted);
    }
  
@@ -45,10 +22,9 @@ Index: lib/Support/FileOutputBuffer.cpp
    unsigned Mode = sys::fs::all_read | sys::fs::all_write;
    // If requested, make the output file executable.
    if (Flags & F_executable)
-     Mode |= sys::fs::all_exe;
- 
--  // Create new file in same directory but with random name.
--  SmallString<128> TempFilePath;
+@@ -69,8 +63,7 @@
+   // Create new file in same directory but with random name.
+   SmallString<128> TempFilePath;
    int FD;
 -  EC = sys::fs::createUniqueFile(Twine(FilePath) + ".tmp%%%%%%%", FD,
 -                                 TempFilePath, Mode);
@@ -56,16 +32,7 @@ Index: lib/Support/FileOutputBuffer.cpp
    if (EC)
      return EC;
  
-@@ -96,7 +87,7 @@
-     return std::error_code(errno, std::generic_category());
- 
-   Result.reset(
--      new FileOutputBuffer(std::move(MappedFile), FilePath, TempFilePath));
-+      new FileOutputBuffer(std::move(MappedFile), FilePath));
- 
-   return std::error_code();
- }
-@@ -105,8 +96,6 @@
+@@ -102,8 +95,6 @@
    // Unmap buffer, letting OS flush dirty pages to file on disk.
    Region.reset();
  
@@ -167,7 +134,7 @@ Index: tools/clang/lib/Rewrite/Rewriter.cpp
  };
 Index: lib/Support/Unix/Signals.inc
 ===================================================================
---- lib/Support/Unix/Signals.inc	(revision 244346)
+--- lib/Support/Unix/Signals.inc	(revision 246397)
 +++ lib/Support/Unix/Signals.inc	(working copy)
 @@ -90,6 +90,7 @@
  
