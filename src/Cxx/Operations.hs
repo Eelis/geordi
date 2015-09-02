@@ -106,14 +106,14 @@ specT = TypeSpecifier_TrailingTypeSpecifier $ TrailingTypeSpecifier_SimpleTypeSp
 -- Applying make-specifications.
 
 apply_makedecl_to :: Data d ⇒ MakeDeclaration → d → MaybeEitherString d
-apply_makedecl_to makedecl = Maybe.fromMaybe (const mzero) $ Maybe.listToMaybe . Maybe.catMaybes $
+apply_makedecl_to makedecl = Maybe.fromMaybe (const $ MaybeEitherString Nothing) $ Maybe.listToMaybe . Maybe.catMaybes $
   [ cast ((\d → case d of
     SimpleDeclaration specs (Just (InitDeclaratorList (Commad (InitDeclarator x mi) []))) w  →
       case makedecl of
         MakeDeclaration _ _ Definitely → throwError "Cannot purify simple-declaration."
         MakeDeclaration specs' mpad _ → return $ let (specs'', x') = apply (specs', mpad) (specs, x) in
           SimpleDeclaration specs'' (Just (InitDeclaratorList (Commad (InitDeclarator x' mi) []))) w
-    _ → mzero) :: SimpleDeclaration → MaybeEitherString SimpleDeclaration)
+    _ → MaybeEitherString Nothing) :: SimpleDeclaration → MaybeEitherString SimpleDeclaration)
   , cast (mapply makedecl :: ParameterDeclaration → MaybeEitherString ParameterDeclaration)
   , cast ((\d → case d of
     ExceptionDeclaration u (Just (Left e)) →
@@ -121,12 +121,12 @@ apply_makedecl_to makedecl = Maybe.fromMaybe (const mzero) $ Maybe.listToMaybe .
         MakeDeclaration _ _ Definitely → throwError "Cannot purify exception-declaration."
         MakeDeclaration specs mpad _ →
           (\(u', e') → ExceptionDeclaration u' $ Just $ Left e') . mapply (specs, mpad) (u, e)
-    _ → mzero) :: ExceptionDeclaration → MaybeEitherString ExceptionDeclaration)
+    _ → MaybeEitherString Nothing) :: ExceptionDeclaration → MaybeEitherString ExceptionDeclaration)
   , cast ((\d → case d of
     MemberDeclaration specs (Just (MemberDeclaratorList (Commad (MemberDeclarator decl ps) []))) semicolon →
       return $ let (specs', decl', ps') = apply makedecl (specs, decl, ps) in
         MemberDeclaration specs' (Just (MemberDeclaratorList (Commad (MemberDeclarator decl' ps') []))) semicolon
-    _ → mzero) :: MemberDeclaration → MaybeEitherString MemberDeclaration)
+    _ → MaybeEitherString Nothing) :: MemberDeclaration → MaybeEitherString MemberDeclaration)
   , cast (mapply makedecl :: FunctionDefinition → MaybeEitherString FunctionDefinition)
   , cast ((\d → case d of
     Condition_Declaration u e i →
@@ -134,7 +134,7 @@ apply_makedecl_to makedecl = Maybe.fromMaybe (const mzero) $ Maybe.listToMaybe .
         MakeDeclaration _ _ Definitely → throwError "Cannot purify condition-declaration."
         MakeDeclaration specs mpad _ →
           (\(u', e') → Condition_Declaration u' e' i) . mapply (specs, mpad) (u, e)
-    _ → mzero) :: Condition → MaybeEitherString Condition)
+    _ → MaybeEitherString Nothing) :: Condition → MaybeEitherString Condition)
   , cast (mapply makedecl :: ForRangeDeclaration → MaybeEitherString ForRangeDeclaration)
   ]
 

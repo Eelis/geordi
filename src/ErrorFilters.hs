@@ -1,4 +1,4 @@
-{-# LANGUAGE UnicodeSyntax, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeSynonymInstances, UndecidableInstances, ViewPatterns #-}
+{-# LANGUAGE UnicodeSyntax, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, TypeSynonymInstances, UndecidableInstances, ViewPatterns, FlexibleContexts #-}
 
 -- Virtually everything here is GCC specific.
 

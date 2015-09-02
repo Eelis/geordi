@@ -18,10 +18,9 @@ import Data.Generics (Data, Typeable)
 import Data.Traversable (mapM)
 import Control.Exception (bracket, evaluate)
 import Control.Arrow (Arrow, (>>>), arr, first, second, (&&&))
-import Control.Monad (liftM2, when, MonadPlus(..))
+import Control.Monad (liftM2, when)
 import Control.Monad.Except (MonadError(..))
 import Control.Monad.State (MonadState, modify, StateT(..))
-import Control.Monad.Instances ()
 import Control.DeepSeq (NFData, rnf)
 import System.Posix.Types (Fd(..))
 import System.IO (Handle, hClose)
@@ -466,11 +465,6 @@ instance Monad MaybeEitherString where
   MaybeEitherString (Just (Left e)) >>= _ = MaybeEitherString $ Just $ Left e
   MaybeEitherString (Just (Right x)) >>= f = f x
   fail = MaybeEitherString . return . Left
-
-instance MonadPlus MaybeEitherString where
-  mzero = MaybeEitherString Nothing
-  mplus (MaybeEitherString Nothing) = id
-  mplus c = const c
 
 instance Functor MaybeEitherString where
   fmap f (MaybeEitherString (Just (Right x))) = MaybeEitherString $ Just $ Right $ f x

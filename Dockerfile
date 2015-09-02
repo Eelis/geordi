@@ -8,17 +8,18 @@ RUN /geordi/src/install-clang
 #COPY install-klee /geordi/src/
 #RUN /geordi/src/install-klee
 
-ADD https://www.haskell.org/platform/download/2014.2.0.0/haskell-platform-2014.2.0.0-unknown-linux-x86_64.tar.gz /
+ADD https://haskell.org/platform/download/7.10.2/haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz /
 
 COPY install-gcc-trunk /geordi/src/
 RUN /geordi/src/install-gcc-trunk
 
-RUN tar xvf haskell-platform-2014.2.0.0-unknown-linux-x86_64.tar.gz
-RUN /usr/local/haskell/ghc-7.8.3-x86_64/bin/activate-hs
-RUN rm /haskell-platform-2014.2.0.0-unknown-linux-x86_64.tar.gz
-# 15.04's haskell-platform package is too old
+WORKDIR /
+RUN tar xf haskell-platform-7.10.2-a-unknown-linux-deb7.tar.gz
+RUN /install-haskell-platform.sh
+ # 15.04's haskell-platform package is too old
 
-RUN cabal update && cabal install --global cabal-install && cabal install --global --reorder-goals filepath process deepseq mtl syb unix utf8-string network containers readline parsec Diff directory regex-compat base-unicode-symbols setops streams semigroups regex-posix template-haskell transformers pointed distributive comonad contravariant profunctors semigroupoids irc setlocale snap
+RUN cabal update && cabal install --global cabal-install
+RUN cabal install --global --reorder-goals --allow-newer=process filepath process deepseq mtl syb unix utf8-string network containers readline parsec Diff directory regex-compat base-unicode-symbols setops streams semigroups regex-posix template-haskell transformers pointed distributive comonad contravariant profunctors semigroupoids irc setlocale snap
 # (We could rely on the list in geordi.cabal, but having these here shortens the development cycle when I'm testing changes in geordi.)
 
 COPY src /geordi/src

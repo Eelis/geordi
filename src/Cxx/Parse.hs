@@ -578,7 +578,7 @@ instance Parse Declarator where
 instance Parse PtrDeclarator where autoname_parse = liftM2 (flip $ foldl $ flip PtrDeclarator) (reverse . parse) (PtrDeclarator_NoptrDeclarator . parse)
 
 instance Parse NoptrDeclarator where
-  parse = liftM2 (foldl f) (NoptrDeclarator_Parenthesized . parse <|> NoptrDeclarator_Id . parse) parse
+  parse = liftM2 (foldl f :: NoptrDeclarator -> [Either ParametersAndQualifiers (Squared (Maybe ConstantExpression))] -> NoptrDeclarator) (NoptrDeclarator_Parenthesized . parse <|> NoptrDeclarator_Id . parse) parse
    where f d = either (NoptrDeclarator_WithParams d) (NoptrDeclarator_Squared d)
 
 instance Parse DeclaratorId where autoname_parse = auto2 DeclaratorId_IdExpression
