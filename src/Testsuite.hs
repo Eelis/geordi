@@ -89,7 +89,7 @@ tests "resources" =
     RegexMatch "\\++ Undefined behavior detected."
   , test "Open FDs" "{ for(int i = 0; i != 1024; ++i) assert(i == 1 || i == 2 || close(i) == -1); }" NoOutput
   , test "File creation" "{ ofstream f (\"bla\"); assert(errno == EACCES); }" NoOutput
-  , test "Working directory" "<< get_current_dir_name()" $ ExactMatch "/"
+  , test "Working directory" "<< get_current_dir_name()" $ ExactMatch "/geordi/run"
   , test "File I/O" "{ { ofstream f (__FILE__); f << \"foo\"; } cout << ifstream(__FILE__).rdbuf(); }" $
     ExactMatch "foo"
   , test "Memory limit" "{ int i = 0; while (new (nothrow) char [1 << 20]) ++i; assert(i < 600); }" NoOutput
@@ -112,7 +112,8 @@ tests "misc" =
     test "Nontrivial program (Brainfuck interpreter)" ("{b(program);}char program[]=\">>,[>>,]<<[[-<+<]>[>[>>]<[.[-]<[[>>+<<-]<]>>]>]<<]\",input[]=\"" ++ s ++ "\", *i=input,m[512]={},*p=m;void b(char*c){for(;*c&&*c!=']';++c){(*((p+=*c=='>')-=*c=='<')+=*c=='+') -=*c=='-';*c=='.'&&cout<<*p;if(*c==',')*p=*i++;if(*c=='['){for(++c;*p;)b(c);for(int d=0;*c!=']'||d--;++c)d+=*c=='[';}}}") $ ExactMatch (sort s)
   , test "srand()/time()" "{ srand(time(0)); }" NoOutput
   , test "line breaks" "#define X \"\\\\\" \\ #define Y X \\ int main() { cout \\ << Y Y; }" $ ExactMatch "\\\\"
-  , test "-v" "-v" $ PrefixMatch "g++ (GCC) 4"
+  , test "-v" "-v" $ PrefixMatch "GCC "
+  , test "Clang -v" "-v --clang" $ PrefixMatch "Clang "
   , test "getopt" "-monkey chicken" $ ExactMatch "error: No such option: -m"
   , test "operator new/delete overriding" "{ printf(\"| \"); list<int> v(5); } void * operator new(size_t const s) { printf(\"%lu \", (unsigned long)s); return malloc(s); } void operator delete(void * const p) throw() { free(p); }" $ RegexMatch "[^-]*\\| [[:digit:] ]+"
   , test "multiple TUs" "{ cout << __FILE__, f<int>(); } template<class> string f(); extern template string f<int>(); \\\\ template<class> string f() {return __FILE__;} template string f<int>();" $ ExactMatch "0, 1"
@@ -120,7 +121,7 @@ tests "misc" =
 
 tests "diagnostics" =
   [ test "-fstack-protector-all" "-w { char buf [10]; fill(buf, buf+30, 'x'); }" $
-    PrefixMatch "*** stack smashing detected ***: /t terminated\n"
+    PrefixMatch "*** stack smashing detected ***: /geordi/run/t terminated\n"
   , test "-mcheck diagnostic" "{ int * p = new int [3]; p[3] = 6; delete[] p; }" $
     PrefixMatch "memory clobbered past end of allocated block\n"
   , test "Ditto" "{ int * p = new int [3]; p[-1] = 6; delete[] p; }" $
