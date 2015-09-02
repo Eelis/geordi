@@ -105,7 +105,10 @@ capture_restricted a argv envi = do
     std_err = Inherit,
     close_fds = True,
     create_group = False,
-    delegate_ctlc = False}
+    delegate_ctlc = False,
+    detach_console = False,
+    create_new_console = False,
+    new_session = True}
   hSetEncoding stdout_hdl $ mkUTF8 TransliterateCodingFailure
   liftM2 CaptureResult
     (recognizeSignaled . waitForProcess p)
