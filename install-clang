@@ -13,6 +13,6 @@ patch -p0 < /geordi/src/llvm-no-temp-files.patch
 
 mkdir /llvm.build
 cd /llvm.build
-/llvm/configure --disable-threads --disable-pthreads --enable-optimized --disable-assertions --enable-targets=x86_64 --disable-docs --disable-terminfo --disable-libedit --disable-backtraces
+/llvm/configure --enable-optimized --disable-assertions --enable-targets=x86_64 --disable-docs --disable-terminfo --disable-libedit --disable-backtraces --disable-jit
 make -j2
 make install
