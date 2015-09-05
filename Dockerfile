@@ -23,7 +23,9 @@ RUN rm -rf /geordi/src/dist; cabal install --global /geordi/src --prefix=/usr
 
 COPY compile-config /geordi/
 WORKDIR /geordi/run
-CMD /usr/bin/geordi-local
+
+CMD ["/usr/bin/geordi-local"]
+# Omitting the quotes and brackets changes the meaning to "shell form", which needs /bin/sh.
 
 COPY prelude /geordi/src/prelude
 COPY prep-image /geordi/src/
