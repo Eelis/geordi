@@ -26,9 +26,12 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <type_traits>
+#include <experimental/type_traits>
 #include "tlists.hpp"
 
 namespace type_strings_detail {
+
+using std::basic_ostream;
 
 template <typename I>
 std::string commas_and (I b, I e)
@@ -400,24 +403,63 @@ namespace textual_type_descriptions
 
 } // textual_type_descriptions
 
+enum expr_cat { lvalue, xvalue, prvalue };
+
+char const * to_string(expr_cat c)
+{
+  switch (c)
+  {
+    case lvalue: return "lvalue";
+    case xvalue: return "xvalue";
+    case prvalue: return "prvalue";
+    default: return "?";
+  }
+}
+
+template <typename Ch, typename Tr>
+basic_ostream<Ch, Tr> & operator<<(basic_ostream<Ch, Tr> & o, expr_cat c)
+{
+  return o << to_string(c);
+}
+
+template<typename T>
+constexpr expr_cat expression_category()
+{
+  if (std::experimental::is_lvalue_reference_v<T>) return lvalue;
+  if (std::experimental::is_rvalue_reference_v<T>) return xvalue;
+  return prvalue;
+}
+
 template <typename T> std::string type_desc (bool const plural)
 { return textual_type_descriptions::type_desc_t<T>::s(plural); }
-
-// The following macros are variadic so that things like TYPE(pair<int, bool>) and ETYPE(pair<bool, int>(true, 3)) work (note the commas).
-// The E* variants are necessary because decltype does not allow type arguments, and eventually we will want to remove the __typeof__ implementation.
 
 template <typename> struct type_desc_tag {};
 template <typename> struct type_tag {};
 
+template <typename T> struct etype_tag
+{
+  static constexpr expr_cat category = expression_category<T>();
+};
+
+template <typename> struct etype_desc_tag {};
+
 struct adl_hint {};
 
 template <typename Ch, typename Tr, typename T>
-std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, adl_hint(type_desc_tag<T>))
+basic_ostream<Ch, Tr> & operator<<(basic_ostream<Ch, Tr> & o, adl_hint(type_desc_tag<T>))
 { return o << type_desc<T>(); }
 
 template <typename Ch, typename Tr, typename T>
-std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & o, adl_hint(type_tag<T>))
+basic_ostream<Ch, Tr> & operator<<(basic_ostream<Ch, Tr> & o, adl_hint(type_tag<T>))
 { return o << type<T>(); }
+
+template <typename Ch, typename Tr, typename T>
+basic_ostream<Ch, Tr> & operator<<(basic_ostream<Ch, Tr> & o, etype_tag<T>)
+{ return o << expression_category<T>() << ' ' << type<std::remove_reference_t<T>>(); }
+
+template <typename Ch, typename Tr, typename T>
+basic_ostream<Ch, Tr> & operator<<(basic_ostream<Ch, Tr> & o, etype_desc_tag<T>)
+{ return o << expression_category<T>() << ' ' << type_desc<std::remove_reference_t<T>>(); }
 
 } // type_strings_detail
 
@@ -426,46 +468,7 @@ template <typename T> type_strings_detail::adl_hint
 template <typename T> type_strings_detail::adl_hint
   TYPE(type_strings_detail::type_tag<T>) { return type_strings_detail::adl_hint(); }
 
-namespace type_strings_detail {
-
-/* Regarding ETYPE(_DESC) semantics:
-
-  We want ETYPE(_DESC) to return (a string representation of) "the type of the expression". It is not immediately clear what this means. For example, is there a difference between an expression having type int and one having type int&&? And is decltype not exactly what we want? Answers come from chapter 5, paragraphs 5 and 6 (in n2521), which state respectively:
-
-    If an expression initially has the type "lvalue reference to T", the type is adjusted to T prior to any further analysis, the expression designates the object or function denoted by the lvalue reference, and the expression is an lvalue.
-
-    If an expression initially has the type "rvalue reference to T", the type is adjusted to T prior to any further analysis, and the expression designates the object or function denoted by the rvalue reference. If the expression is the result of calling a function, whether implicitly or explicitly, it is an rvalue; otherwise, it is an lvalue.
-
-  Here, we immediately see two important points, on which we will base our ETYPE(_DESC) semantics. First, for all intents and purposes (in particular reference binding), expressions never have reference types. Second, expressions are instead classified as lvalues or rvalues.
-
-  We currently have ETYPE(_DESC) indicate lvalue/rvalue-ness by explicit "lvalue "/"rvalue " prefixes. A nicer approach would be to show lvalue Ts as T&, and show rvalue Ts as plain T. However, there is no room in this rather terse "encoding" to signal the ambiguity that arises when our C++03 lvalue/rvalue tests cannot determine the classification (see lvalue_rvalue.hpp), whereas with the explicit prefix approach we can simply omit any prefix in such cases. Hence, until C++0x mode (in which there is no ambiguity because our tests are conclusive) becomes the default, we stick with explicit prefixes.
-
-  Note that our first question regarding the differences between an expression of type int and one of type int&& was ambiguous, because the answer depends on (1) whether the expression of type int denotes and lvalue or an rvalue, and (2) whether the expression of type int&& is the result of calling a function.
-
-  Furthermore, It is now also easy to see that decltype is in fact /not/ exactly what we want, because it does not include sufficient lvalue/rvalue information: decltype(3) and decltype(i) both denote the type int when i has been declared as int i;, while the former is an rvalue and the latter an lvalue.
-
-*/
-
-  template <typename T> std::string etype()
-  { return type<typename std::remove_reference<T>::type>(); }
-
-  template <typename T> std::string etype_desc()
-  { return type_desc<typename std::remove_reference<T>::type>(); }
-
-  // We can't do the remove_reference in the ETYPE(_DESC) macros because there would be no correct choice for whether or not to use typename, since whether std::remove_reference<T>::type is a dependent type depends on the context. Hence the separate etype(_desc) functions.
-
-  #define TYPE(...) \
-    ((IS_LVALUE(__VA_ARGS__) ? "lvalue " : "rvalue ") + \
-    ::type_strings_detail::etype<decltype(void(), (__VA_ARGS__))>())
-
-  #define TYPE_DESC(...) \
-    ((IS_LVALUE(__VA_ARGS__) ? "lvalue " : "rvalue ") + \
-    ::type_strings_detail::etype_desc<decltype(void(), (__VA_ARGS__))>())
-
-  // Backward compatibility:
-#define ETYPE(...) TYPE(__VA_ARGS__)
-#define ETYPE_DESC(...) TYPE_DESC(__VA_ARGS__)
-
-} // type_strings_detail
+#define TYPE(...) ::type_strings_detail::etype_tag<decltype(void(), (__VA_ARGS__))>{}
+#define TYPE_DESC(...) ::type_strings_detail::etype_desc_tag<decltype(void(), (__VA_ARGS__))>{}
 
 #endif // header guard
