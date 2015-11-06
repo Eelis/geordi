@@ -412,7 +412,7 @@ namespace textual_type_descriptions
 
 enum expr_cat { lvalue, xvalue, prvalue };
 
-char const * to_string(expr_cat c)
+inline char const * to_string(expr_cat c)
 {
   switch (c)
   {
