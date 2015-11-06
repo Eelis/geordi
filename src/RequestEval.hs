@@ -31,7 +31,7 @@ import Control.Monad (join, when)
 import Control.Arrow (first, second)
 import Cxx.Basics (Code)
 import Cxx.Show (Highlighter)
-import EvalCxx (WithEvaluation, noEvaluation, EvaluationResult(..), Line, Column)
+import EvalCxx (WithEvaluation, noEvaluation, EvaluationResult(..), Line, Column, CxxStandard(..), stdDigits)
 import Data.Char (isPrint, isSpace, showLitChar)
 import Data.Either (partitionEithers)
 import Data.Foldable (toList)
@@ -111,7 +111,7 @@ preamble :: Set EvalOpt → [String]
 preamble opts =
   [ "#if !defined(GEORDI_PRELUDE) && !defined(__clang__)"
   , "#define GEORDI_PRELUDE"
-  , "#include \"prelude.hpp\""
+  , "#include \"prelude-" ++ stdDigits (standardSpecifiedBy opts) ++ ".hpp\""
   , "#endif" ] ++
   ["using namespace std;" | NoUsingStd ∉ opts, PreprocessOnly ∉ opts]
 
@@ -156,6 +156,14 @@ locationMap us (u, (l, c))
 un_t :: TString → String
 un_t = map fst
 
+standardSpecifiedBy :: Set EvalOpt -> CxxStandard
+standardSpecifiedBy opts
+  | Std98 ∈ opts = Cxx98
+  | Std03 ∈ opts = Cxx03
+  | Std11 ∈ opts = Cxx11
+  | Std14 ∈ opts = Cxx14
+  | otherwise = CxxExperimental
+
 execEditableRequest :: Bool → EditableRequest → E (WithEvaluation (String, Maybe (TextEdit Char)))
 execEditableRequest clangByDefault (EditableRequest kind (dropWhile isSpace → body)) = case kind of
   MakeType → noEvaluation . noFixit . Cxx.Show.show_simple . Cxx.Parse.makeType body
@@ -174,6 +182,7 @@ execEditableRequest clangByDefault (EditableRequest kind (dropWhile isSpace → 
         | otherwise = Clang ∈ opts
       units :: [String]
       units = map (unlines . map un_t) tunits
+      standard = standardSpecifiedBy opts
     return $ second (fix_as_edit (locationMap tunits) .) . evaluate EvalCxx.Request{..}
 
 respond_and_remember :: Bool → EditableRequest → WithEvaluation Response

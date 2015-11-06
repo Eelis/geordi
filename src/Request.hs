@@ -16,7 +16,17 @@ import Editing.Basics (TextEdit)
 import Prelude hiding ((.))
 import Prelude.Unicode
 
-data EvalOpt = CompileOnly | PreprocessOnly | NoWarn | NoUsingStd | Clang | Gcc
+data EvalOpt
+  = CompileOnly
+  | PreprocessOnly
+  | NoWarn
+  | NoUsingStd
+  | Clang
+  | Gcc
+  | Std98
+  | Std03
+  | Std11
+  | Std14
   deriving (Eq, Enum, Bounded, Ord)
 
 data RequestEdit
@@ -27,16 +37,17 @@ data RequestEdit
 instance Option EvalOpt where
   short CompileOnly = Just 'c'
   short NoWarn = Just 'w'
-  short PreprocessOnly = Nothing
-  short NoUsingStd = Nothing
-  short Clang = Nothing
-  short Gcc = Nothing
+  short _ = Nothing
   long CompileOnly = "compile-only"
   long NoWarn = "no-warn"
   long PreprocessOnly = "preprocess"
   long NoUsingStd = "no-using-std"
   long Clang = "clang"
   long Gcc = "gcc"
+  long Std98 = "1998"
+  long Std03 = "2003"
+  long Std11 = "2011"
+  long Std14 = "2014"
 
 data EphemeralOpt = Resume | Help | Version deriving (Eq, Enum, Bounded)
 

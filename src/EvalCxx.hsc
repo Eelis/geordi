@@ -32,7 +32,7 @@ In our code, M is close_range_end.
 
 -}
 
-module EvalCxx (evaluator, WithEvaluation, withEvaluation, noEvaluation, EvaluationResult(..), Request(..), CompileConfig(..), Fix(..), Line, Column) where
+module EvalCxx (evaluator, WithEvaluation, withEvaluation, noEvaluation, EvaluationResult(..), Request(..), CxxStandard(..), stdDigits, CompileConfig(..), Fix(..), Line, Column) where
 
 import qualified ErrorFilters
 import qualified System.Directory
@@ -158,16 +158,27 @@ compile_env :: [(String, String)]
 compile_env =
   [("LD_PRELOAD", "libdiagnose_sigsys.so")]
 
-prog_env :: [(String, String)]
-prog_env =
+stdDigits :: CxxStandard -> String
+stdDigits = \case
+  Cxx98 -> "98"
+  Cxx03 -> "03"
+  Cxx11 -> "11"
+  Cxx14 -> "14"
+  CxxExperimental -> "1z"
+
+prog_env :: CxxStandard -> [(String, String)]
+prog_env std =
   [ ("GLIBCXX_DEBUG_MESSAGE_LENGTH", "0")
-  , ("LD_PRELOAD", "libgeordi_preload.so libdiagnose_sigsys.so")
+  , ("LD_PRELOAD", "libgeordi_preload-" ++ stdDigits std ++ ".so libdiagnose_sigsys.so")
   ]
+
+data CxxStandard = Cxx98 | Cxx03 | Cxx11 | Cxx14 | CxxExperimental
 
 data Request = Request
   { units :: [String]
   , stageOfInterest :: Stage
   , no_warn :: Bool
+  , standard :: CxxStandard
   , clang :: Bool }
 
 pass_env :: String → Bool
@@ -201,23 +212,25 @@ evaluate cfg Request{..} extra_env = do
     path Preprocess | clang = clangPath cfg
     path _ = gccPath cfg
 
+    stdflag = "-std=c++" ++ stdDigits standard
+
     argv :: String -> Stage → [String]
     argv unit stage = case stage of
         Run → ["second", "third", "fourth"]
-        Preprocess → ["-fpch-preprocess", "-E", unit] ++ compileFlags
-        Analyze → ["-x", "c++", unit, "--analyze", "-Xanalyzer", "-analyzer-output=text"]
+        Preprocess → ["-fpch-preprocess", "-E", unit, stdflag] ++ compileFlags
+        Analyze → ["-x", "c++", stdflag, unit, "--analyze", "-Xanalyzer", "-analyzer-output=text"]
           ++ compileFlags
-        Compile -> ["-x", "c++", unit, if clang then "-c" else "-S"] ++ compileFlags
+        Compile -> ["-x", "c++", stdflag, unit, if clang then "-c" else "-S"] ++ compileFlags
           -- We don't use -S for Clang because the assembler sometimes chokes on its output..
-        Assemble → ["-c", unit ++ ".s"] ++ gccCompileFlags cfg
+        Assemble → ["-c", unit ++ ".s", stdflag] ++ gccCompileFlags cfg
         Link → ((++ ".o") . fst . namedUnits) ++
           ["-o", "t"
           , "-Wl,--rpath,/usr/local/lib64", "-Wl,--undefined,geordi_init"
-          , "-lgeordi_prelude", "-lmcheck", "-lubsan", "-lstdc++fs", "-lpthread", "-save-temps"]
+          , "-lgeordi_prelude-" ++ stdDigits standard, "-lmcheck", "-lubsan", "-lstdc++fs", "-lpthread", "-save-temps"]
       where
         compileFlags = ["-w" | no_warn] ++
           if clang
-            then ["-I", "/geordi/src/prelude", "-include", "prelude.hpp"]
+            then ["-I", "/geordi/src/prelude", "-include", "prelude-" ++ stdDigits standard ++ ".hpp"]
               ++ clangCompileFlags cfg
             else ["-fsanitize=undefined", "-fno-sanitize-recover=all"] ++ gccCompileFlags cfg
               -- The UB sanitation flags are not part of gccCompileFlags, because if
@@ -225,7 +238,7 @@ evaluate cfg Request{..} extra_env = do
               -- {deque<int> d;} gives weird assembler errors about UBsan.
 
     envi :: Stage → [(String, String)]
-    envi Run = baseEnv ++ prog_env ++ extra_env
+    envi Run = baseEnv ++ prog_env standard ++ extra_env
     envi _ = baseEnv ++ compile_env
 
     stages_per_unit
