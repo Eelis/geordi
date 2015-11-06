@@ -34,7 +34,10 @@ namespace geordi
 
   template <typename> struct is_character { enum { value = false }; };
   #define YES(T) template <> struct is_character<T> { enum { value = true }; };
-  YES(char) YES(wchar_t) YES(char16_t) YES(char32_t)
+  YES(char) YES(wchar_t)
+  #if __cplusplus >= 201103
+    YES(char16_t) YES(char32_t)
+  #endif
   #undef YES
 
   char const * demangle(char const *);

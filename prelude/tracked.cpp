@@ -1,3 +1,6 @@
+#if __cplusplus >= 201103
+  // having this #if here removes the need to conditionally exclude tracked.cpp based on standard
+
 #include "tracked.hpp"
 #include <vector>
 #include <cassert>
@@ -255,3 +258,5 @@ namespace tracked
   // In the above, it looks like there is a lot of code duplication for B and D. Previous implementations of these tracking facilities used clever CRTP helper templates to factor out as much of the common code as possible. However, to prevent the cleverness from showing through in gcc diagnostics, small delegators had to be put in B/D for all operations (in addition to the ones for the constructors which were always there, since constructors cannot be inherited (yet)). In the end, the hassle was not worth the gain, so I reverted back to the simple straightforward approach.
 
 } // namespace tracked
+
+#endif

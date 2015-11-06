@@ -16,17 +16,24 @@
 #include <set>
 #include <functional>
 #include <clocale>
+#include <climits>
 #include <stdlib.h>
-#include <regex>
 #include <cxxabi.h>
 #include <ext/malloc_allocator.h>
 #include <boost/noncopyable.hpp>
 #include "geordi.hpp"
-#include "bin_iomanip.hpp"
 
-template class std::basic_regex<char>;
-template std::string std::regex_replace<std::regex_traits<char>, char>(
-  char const *, std::regex const &, char const *, std::regex_constants::match_flag_type);
+#if __cplusplus >= 201103
+
+  #include "bin_iomanip.hpp"
+
+  #include <regex>
+
+  template class std::basic_regex<char>;
+  template std::string std::regex_replace<std::regex_traits<char>, char>(
+    char const *, std::regex const &, char const *, std::regex_constants::match_flag_type);
+
+#endif
 
 namespace geordi
 {
@@ -121,15 +128,18 @@ namespace geordi
         std::unitbuf(std::clog);
         std::unitbuf(std::wclog);
 
-        static bin_num_put<> bnp(1);
-        static bin_num_put<wchar_t> wbnp(1);
-        std::cout.imbue(std::locale(std::cout.getloc(), &bnp));
-        std::wcout.imbue(std::locale(std::wcout.getloc(), &wbnp));
-        std::cerr.imbue(std::locale(std::cerr.getloc(), &bnp));
-        std::wcerr.imbue(std::locale(std::wcerr.getloc(), &wbnp));
-        std::clog.imbue(std::locale(std::clog.getloc(), &bnp));
-        std::wclog.imbue(std::locale(std::wclog.getloc(), &wbnp));
-          // Having this compiled separately saves more than a full second per request.
+        #if __cplusplus >= 201103
+          static bin_num_put<> bnp(1);
+          static bin_num_put<wchar_t> wbnp(1);
+
+          std::cout.imbue(std::locale(std::cout.getloc(), &bnp));
+          std::wcout.imbue(std::locale(std::wcout.getloc(), &wbnp));
+          std::cerr.imbue(std::locale(std::cerr.getloc(), &bnp));
+          std::wcerr.imbue(std::locale(std::wcerr.getloc(), &wbnp));
+          std::clog.imbue(std::locale(std::clog.getloc(), &bnp));
+          std::wclog.imbue(std::locale(std::wclog.getloc(), &wbnp));
+            // Having this compiled separately saves more than a full second per request.
+        #endif
 
         std::set_terminate(terminate_handler);
         std::set_unexpected(unexpected_handler);
@@ -165,23 +175,25 @@ namespace geordi
     // We could return a std::string and free p, but since deallocation is not a concern (and is even a no-op) in geordi anyway, we don't bother.
   }
 
-  std::map<std::string, std::string> depersist()
-  {
-    std::ifstream f("data");
-    std::map<std::string, std::string> r;
-    std::string k, v;
-    while (getline(f, k) && getline(f, v)) r[k] = v;
-    return r;
-  }
+  #if __cplusplus >= 201103
+    std::map<std::string, std::string> depersist()
+    {
+      std::ifstream f("data");
+      std::map<std::string, std::string> r;
+      std::string k, v;
+      while (getline(f, k) && getline(f, v)) r[k] = v;
+      return r;
+    }
 
-  void persist(std::string const k, std::string const v)
-  {
-    auto m = depersist();
-    m[k] = v;
+    void persist(std::string const k, std::string const v)
+    {
+      auto m = depersist();
+      m[k] = v;
 
-    std::ofstream f("data");
-    for (auto && p : m) f << p.first << '\n' << p.second << '\n';
-  }
+      std::ofstream f("data");
+      for (auto && p : m) f << p.first << '\n' << p.second << '\n';
+    }
+  #endif
 
 } // namespace geordi
 

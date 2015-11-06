@@ -26,7 +26,11 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <type_traits>
+
+#if __cplusplus >= 201500
 #include <experimental/type_traits>
+#endif
+
 #include "tlists.hpp"
 
 namespace type_strings_detail {
@@ -425,8 +429,8 @@ basic_ostream<Ch, Tr> & operator<<(basic_ostream<Ch, Tr> & o, expr_cat c)
 template<typename T>
 constexpr expr_cat expression_category()
 {
-  if (std::experimental::is_lvalue_reference_v<T>) return lvalue;
-  if (std::experimental::is_rvalue_reference_v<T>) return xvalue;
+  if (std::is_lvalue_reference<T>::value) return lvalue;
+  if (std::is_rvalue_reference<T>::value) return xvalue;
   return prvalue;
 }
 
@@ -455,11 +459,11 @@ basic_ostream<Ch, Tr> & operator<<(basic_ostream<Ch, Tr> & o, adl_hint(type_tag<
 
 template <typename Ch, typename Tr, typename T>
 basic_ostream<Ch, Tr> & operator<<(basic_ostream<Ch, Tr> & o, etype_tag<T>)
-{ return o << expression_category<T>() << ' ' << type<std::remove_reference_t<T>>(); }
+{ return o << expression_category<T>() << ' ' << type<typename std::remove_reference<T>::type>(); }
 
 template <typename Ch, typename Tr, typename T>
 basic_ostream<Ch, Tr> & operator<<(basic_ostream<Ch, Tr> & o, etype_desc_tag<T>)
-{ return o << expression_category<T>() << ' ' << type_desc<std::remove_reference_t<T>>(); }
+{ return o << expression_category<T>() << ' ' << type_desc<typename std::remove_reference<T>::type>(); }
 
 } // type_strings_detail
 

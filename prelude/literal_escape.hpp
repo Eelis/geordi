@@ -36,8 +36,11 @@ namespace escape_detail
 
   template <> inline char char_literal_key<char>() { return 0; }
   template <> inline char char_literal_key<wchar_t>() { return 'L'; }
+
+  #if __cplusplus >= 201103
   template <> inline char char_literal_key<char16_t>() { return 'u'; }
   template <> inline char char_literal_key<char32_t>() { return 'U'; }
+  #endif
 
   enum unterm { unterm_hex, unterm_oct, unterm_none };
 

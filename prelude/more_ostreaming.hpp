@@ -1,22 +1,18 @@
 #ifndef MORE_OSTREAMING_HPP
 #define MORE_OSTREAMING_HPP
 
-#include <chrono>
 #include <ostream>
 #include <valarray>
 #include <utility>
 #include <stack>
 #include <queue>
-#include <tuple>
 #include <cstdlib>
 #include <ctime>
 #include <algorithm>
-#include <system_error>
 #include "geordi.hpp"
 #include "literal_escape.hpp"
-#include "delimited_ostream.hpp"
 
-#ifndef __clang__
+#if !defined(__clang__) && __cplusplus >= 201500 // TODO
 #include <experimental/filesystem>
 #endif
 
@@ -24,9 +20,14 @@ template <typename C, typename Tr>
 std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, utsname const & u)
 { return o << u.sysname << ' ' << u.release << ' ' << u.version, u.machine; }
 
+
+#if __cplusplus >= 201103
+
 template <typename C, typename Tr, typename T>
 std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::reference_wrapper<T> const & rw)
 { T & r(rw); return o << r; }
+
+#endif
 
 template <typename C, typename Tr, typename A, typename B>
 std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::pair<A, B> const & p)
@@ -47,6 +48,8 @@ template <typename C, typename Tr>
 std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::lldiv_t const d)
 { print_div_t(o, d); return o; }
 
+#if __cplusplus >= 201103
+
 template <typename C, typename T, typename R, typename... A>
 std::basic_ostream<C, T> & operator<<(std::basic_ostream<C, T> & o, R (* const p) (A...))
 {
@@ -56,6 +59,8 @@ std::basic_ostream<C, T> & operator<<(std::basic_ostream<C, T> & o, R (* const p
     reinterpret_cast<char const *>(&p) + sizeof(p), reinterpret_cast<char *>(&q));
   return o << q;
 }
+
+#include <tuple>
 
 namespace more_ostreaming { namespace detail {
 
@@ -82,6 +87,10 @@ template <typename C, typename Tr, typename... P>
 std::basic_ostream<C, Tr> & operator<< (std::basic_ostream<C, Tr> & o, std::tuple<P...> const & t)
 { o << '{'; more_ostreaming::detail::tuple_printer<sizeof...(P)>::print(o, t); return o << '}'; }
 
+#endif
+
+#if __cplusplus >= 201103
+
 namespace more_ostreaming
 {
   template <typename C, typename Tr, typename Range>
@@ -94,6 +103,8 @@ namespace more_ostreaming
   extern template void delimit<char, std::char_traits<char>, std::vector<int> >(std::ostream &, std::vector<int> const &);
     // vector<int> is the most used container for demonstrations, so it's worth making it print fast.
 }
+
+#endif
 
 namespace more_ostreaming { namespace detail {
   struct bytes_t { unsigned char const * p; std::size_t n; };
@@ -124,6 +135,8 @@ namespace more_ostreaming { namespace detail {
   template <typename, typename T> struct snd { typedef T type; };
 }}
 
+#if __cplusplus >= 201103
+
 template <typename C, typename Tr, typename R>
 typename more_ostreaming::detail::snd<typename R::iterator, std::basic_ostream<C, Tr> &>::type
   operator<<(std::basic_ostream<C, Tr> & o, R const & r)
@@ -137,6 +150,8 @@ template <typename C, typename Tr, typename T, size_t N>
 typename std::enable_if<!geordi::is_character<T>::value, std::basic_ostream<C, Tr> &>::type
   operator<<(std::basic_ostream<C, Tr> & o, T const (& a) [N])
 { o << '{'; more_ostreaming::delimit(o, a); return o << '}'; }
+
+#endif
 
 template <typename C, typename Tr>
 std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::tm const * const t)
@@ -199,7 +214,7 @@ namespace std
   { return o << t.name(); }
 }
 
-#ifndef __clang__
+#if !defined(__clang__) && __cplusplus >= 201500
 
 template <typename Ch, typename Tr>
 std::basic_ostream<Ch, Tr> & operator<<(
@@ -245,6 +260,11 @@ std::basic_ostream<Ch, Tr> & operator<<(
 
 #endif
 
+
+#if __cplusplus >= 201103
+
+#include <chrono>
+
 template <typename Ch, typename Tr, typename K, typename D>
 std::basic_ostream<Ch, Tr> &
   operator<<(std::basic_ostream<Ch, Tr> & o, std::chrono::time_point<K, D> const & t)
@@ -269,7 +289,16 @@ T(nano, " ns")
 
 #undef T
 
+#endif
+
+
+#if __cplusplus >= 201103
+
+#include <system_error>
+
 std::ostream & operator<<(std::ostream &, std::error_category const &);
+
+#endif
 
 #endif // header guard
 
