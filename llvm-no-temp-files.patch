@@ -32,13 +32,15 @@ Index: lib/Support/FileOutputBuffer.cpp
    if (EC)
      return EC;
  
-@@ -102,8 +95,6 @@
+@@ -105,10 +98,6 @@ std::error_code FileOutputBuffer::commit() {
    // Unmap buffer, letting OS flush dirty pages to file on disk.
    Region.reset();
  
 -
 -  // Rename file to final name.
--  return sys::fs::rename(Twine(TempPath), Twine(FinalPath));
+-  std::error_code EC = sys::fs::rename(Twine(TempPath), Twine(FinalPath));
+-  sys::DontRemoveFileOnSignal(TempPath);
+-  return EC;
 +  return std::error_code();
  }
  } // namespace
