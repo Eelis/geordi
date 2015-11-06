@@ -244,17 +244,20 @@ namespace textual_type_descriptions
 
   // member function pointers
 
-  namespace // Prevents linker errors when included in different TUs.
+  enum CV { cv_, cv_c, cv_v, cv_cv };
+
+  inline char const * to_string(CV const cv)
   {
-    extern char const
-      cv_ [] = " ",
-      cv_c [] = " constant ",
-      cv_v [] = " volatile ",
-      cv_cv [] = " constant volatile ";
+    switch (cv) {
+      case cv_: return "";
+      case cv_c: return "constant ";
+      case cv_v: return "volatile ";
+      case cv_cv: return "constant volatile ";
+    }
   }
 
-  template <typename T, typename U, char const * e> struct type_desc_t_mem0: consonant
-  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "nullary member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " " + returning<T>(b); } };
+  template <typename T, typename U, CV cv> struct type_desc_t_mem0: consonant
+  { static std::string s (bool b) { return pl("pointer", b) + " to " + to_string(cv) + "nullary member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " " + returning<T>(b); } };
 
   template <typename T, typename U>
   struct type_desc_t<T (U:: *) ()>: type_desc_t_mem0<T, U, cv_> {};
@@ -265,8 +268,8 @@ namespace textual_type_descriptions
   template <typename T, typename U>
   struct type_desc_t<T (U:: *) () const volatile>: type_desc_t_mem0<T, U, cv_cv> {};
 
-  template <typename T, typename U, char const * e> struct type_desc_t_mem_vari: consonant
-  { static std::string s (bool b) { return pl("pointer", b) + " to" + e + "variadic member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " " + returning<T>(b); } };
+  template <typename T, typename U, CV cv> struct type_desc_t_mem_vari: consonant
+  { static std::string s (bool b) { return pl("pointer", b) + " to " + to_string(cv) + "variadic member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " " + returning<T>(b); } };
 
   template <typename T, typename U>
   struct type_desc_t<T (U:: *) (...)>: type_desc_t_mem_vari<T, U, cv_> {};
@@ -277,11 +280,11 @@ namespace textual_type_descriptions
   template <typename T, typename U>
   struct type_desc_t<T (U:: *) (...) const volatile>: type_desc_t_mem_vari<T, U, cv_cv> {};
 
-  template <typename T, typename U, char const * e, typename... P>
+  template <typename T, typename U, CV cv, typename... P>
   struct type_desc_t_memN: consonant {
     static std::string s (bool b) {
       std::vector<std::string> v; list_desc<P...>::s(v); v.push_back(returning<T>(b));
-      return pl("pointer", b) + " to" + e + "member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " taking " + commas_and(v.begin(), v.end());
+      return pl("pointer", b) + " to " + to_string(cv) + "member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " taking " + commas_and(v.begin(), v.end());
     }
   };
 
@@ -294,11 +297,11 @@ namespace textual_type_descriptions
   template <typename T, typename U, typename... P>
   struct type_desc_t<T (U:: *) (P...) const volatile>: type_desc_t_memN<T, U, cv_cv, P...> {};
 
-  template <typename T, typename U, char const * e, typename... P>
+  template <typename T, typename U, CV cv, typename... P>
   struct type_desc_t_memN_vari: consonant {
     static std::string s (bool b) {
       std::vector<std::string> v; list_desc<P...>::s(v); v.push_back(returning<T>(b));
-      return pl("pointer", b) + " to" + e + "variadic member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " taking at least " + commas_and(v.begin(), v.end());
+      return pl("pointer", b) + " to " + to_string(cv) + "variadic member " + pl("function", b) + " of " + class_key<U>() + " " + type<U>() + " taking at least " + commas_and(v.begin(), v.end());
     }
   };
 
