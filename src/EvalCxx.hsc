@@ -108,7 +108,9 @@ capture_restricted a argv envi = do
     delegate_ctlc = False,
     detach_console = False,
     create_new_console = False,
-    new_session = True}
+    new_session = True,
+    child_group = Nothing,
+    child_user = Nothing}
   hSetEncoding stdout_hdl $ mkUTF8 TransliterateCodingFailure
   liftM2 CaptureResult
     (recognizeSignaled . waitForProcess p)
