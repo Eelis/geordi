@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 . /geordi/compile-config
 for std in 98 03 11 14 1z
 do
