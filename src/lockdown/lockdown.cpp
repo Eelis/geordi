@@ -5,8 +5,9 @@
 #include <iostream>
 #include <unistd.h>
 #include <utility>
-#include <sys/prctl.h>
 #include <sys/resource.h>
+#include <sys/prctl.h>
+#include <signal.h>
 
 #ifndef __x86_64__
 	#error Unsupported platform
@@ -71,7 +72,6 @@ auto rules =
 	, RULE(vfork,           ERRNO(0))
 	, RULE(rt_sigprocmask,  ERRNO(0))
 	, RULE(set_robust_list, ERRNO(0))
-	, RULE(rt_sigaction,    ALLOW) // must be allowed for diagnose_sigsys to work
 	};
 
 void e(char const * const what) { throw std::runtime_error(what); }
@@ -115,6 +115,10 @@ int main(int const argc, char * const * const argv)
 
 		if (seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(clone), 1,
 			SCMP_CMP(0, SCMP_CMP_MASKED_EQ, CLONE_THREAD, CLONE_THREAD)) != 0)
+			e("seccomp_rule_add");
+
+		if (seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(rt_sigaction), 1,
+			SCMP_CMP(0, SCMP_CMP_NE, SIGALRM)) != 0)
 			e("seccomp_rule_add");
 
 		for (auto && p : rules)
