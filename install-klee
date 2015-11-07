@@ -30,3 +30,5 @@ cd klee
 ./configure --with-stp=/usr/local --with-llvmobj=/llvm.build --with-llvmsrc=/llvm --enable-posix-runtime
 make ENABLE_OPTIMIZED=1
 make install
+
+rm -rf /minisat /stp /klee-uclibc /klee
