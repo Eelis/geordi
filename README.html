@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang='en'>
+  <head>
+    <title>geordi - C++ eval bot</title>
+    <meta charset='UTF-8'/>
+  </head>
+  <body>
+
+    <div style='text-align:center'>
+      <h1>geordi - C++ eval bot</h1>
+    </div>
+
+    <hr/><h2>Table of Contents</h2>
+
+    <ol>
+      <li><a href='#introduction'>Introduction</a></li>
+      <li>
+        <a href='#using'>Using geordi</a>
+        <ol>
+          <li><a href='#syntax'>Request syntax</a></li>
+          <li><a href='#flags'>Flags</a></li>
+          <li><a href='#operational'>Operational notes</a></li>
+          <li><a href='#prelude'>Prelude</a></li>
+          <li><a href='#rules'>Rules</a></li>
+          <li><a href='#faq'>FAQ</a></li>
+          <li><a href='#clutter'>Minimizing clutter</a></li>
+          <li><a href='#edit'>Edit commands</a></li>
+          <li><a href='#examples'>Example snippets</a></li>
+        </ol>
+      </li>
+      <li>
+        <a href='#running'>Setting up a geordi</a>
+        <ol>
+          <li><a href='#download'>Download</a></li>
+          <li><a href='#install'>Install</a></li>
+          <li><a href='#run'>Run</a></li>
+          <li><a href='#nickserv'>NickServ identification</a></li>
+          <li><a href='#nickless'>Nickless requests</a></li>
+          <li><a href='#autoreconnect'>Auto-reconnect</a></li>
+          <li><a href='#multiplenetworks'>Connecting to multiple networks</a></li>
+          <li><a href='#censor'>Censoring phrases</a></li>
+        </ol>
+      </li>
+    </ol>
+
+    <hr/><h2 id='introduction'>1.&emsp;Introduction</h2>
+
+    <p>Geordi is an IRC bot program that compiles and runs C++ code snippets. It is intended to be used as a demonstration tool when teaching or discussing C++ on IRC.</p>
+
+    <p>Geordi is public domain, free software.</p>
+
+    <hr/><h2 id='using'>2.&emsp;Using geordi</h2>
+
+    <hr/><h3 id='syntax'>2.1&emsp;Request syntax</h3>
+
+    <p>Geordi has 3 main request syntaxes, demonstrated by example below.</p>
+
+    <ol>
+      <li><h4>Printing things</h4>
+        <p>To print things, stream things to geordi as if he were std::cout:</p>
+        <code>
+          &lt;Eelis> geordi &lt;&lt; 3 * 2 &lt;&lt; " foo " &lt;&lt; (9 > 4)<br/>
+          &lt;geordi> 6 foo true
+        </code>
+        <p>To accommodate the use of nick completion, "<kbd>geordi</kbd>" may be followed by a colon or comma.</p>
+
+        <p>The code may be followed by a semicolon followed by more code, which is then placed <em>before</em> the definition of main (where the printing statement is put):</p>
+
+        <code>
+          &lt;Eelis> geordi &lt;&lt; f(3); int f(int x) { return x; }<br/>
+          &lt;geordi> 3
+        </code>
+      </li>
+      <li><h4>Statement blocks</h4>
+        <p>To execute a block of statements, say for example:</p>
+        <code>
+          &lt;Eelis> geordi { string s = "foo"; cout &lt;&lt; s; }<br/>
+          &lt;geordi> foo
+        </code>
+        <p>Here, too, "<kbd>geordi</kbd>" may be followed by a colon or comma.</p>
+
+        <p>The closing brace may be followed by more code, which is then placed <em>before</em> the definition of main (where the statement block is put):</p>
+
+        <code>
+          &lt;Eelis> geordi { cout &lt;&lt; f(3); } int f(int x) { return x; }<br/>
+          &lt;geordi> 3
+        </code>
+      </li>
+      <li><h4>Programs</h4>
+        <p>To execute programs, say for example:</p>
+        <code>
+          &lt;Eelis> geordi: void f(int x) { cout &lt;&lt; x; } int main() { f(3); }<br/>
+          &lt;geordi> 3
+        </code>
+        <p>Here, a colon or comma after "<kbd>geordi</kbd>" is required if the next non-space character is a letter, an asterisk, a slash, or a single quote.</p>
+      </li>
+    </ol>
+
+    <h4>Line breaks</h4>
+    <p>Whereas in ordinary C++ backslashes (outside of character/string literals) splice physical source lines to form a logical source line, in geordi snippets this behavior is inverted; backslashes split the physical source line into logical source lines.</p>
+
+    <h4>Translation unit breaks</h4>
+    <p>Two consecutive newlines (i.e. \\) split the snippet into multiple translation units.</p>
+
+    <hr/><h3 id='flags'>2.2&emsp;Flags</h3>
+
+    <p>In all three syntaxes described in the previous section, flags may be passed before any code. For the first two syntaxes, that means before <kbd>&lt;&lt;</kbd> and <kbd>{</kbd>, respectively.</p>
+
+    <dl>
+      <dt><kbd>-c</kbd> / <kbd>--compile-only</kbd></dt>
+      <dd>
+        <p>Only compile; do not assemble, link, or run.</p>
+        <p>
+          <code>
+            &lt;Eelis> geordi -c void f (string &amp; x) { reverse(x.begin(), x.end()); }<br/>
+            &lt;geordi> Success
+          </code>
+        </p>
+        <p>This better expresses your intent in demonstrations and produces a faster and more appropriate response from geordi. With <kbd>-c</kbd>, a <code>main</code> function is optional.</p>
+      </dd>
+
+      <dt><kbd>-w</kbd> / <kbd>--no-warn</kbd></dt>
+      <dd><p>Suppress warnings.</p></dd>
+
+      <dt><kbd>--no-using-std</kbd></dt>
+      <dd><p>Omits the otherwise implicitly added "<code>using namespace std;</code>".</p></dd>
+
+      <dt><kbd>-h</kbd> / <kbd>--help</kbd></dt>
+      <dd><p>Shows URL for this manual.</p></dd>
+
+      <dt><kbd>-v</kbd> / <kbd>--version</kbd></dt>
+      <dd><p>Shows the GCC version.</p></dd>
+
+      <dt><kbd>--show-compile-flags</kbd></dt>
+      <dd><p>Shows the flags passed to GCC.</p></dd>
+
+      <dt><kbd>--make-type &lt;type description&gt;</kbd></dt>
+      <dd>
+        <p>Shows the type described in C++ syntax.</p>
+        <p>
+          <code>
+            &lt;Eelis> geordi --make-type pointer to function returning a reference to an array of three pointers to functions taking integers and returning doubles<br/>
+            &lt;geordi> double(*(&amp;(*)())[3])(int)
+          </code>
+        </p>
+      </dd>
+
+      <dt><kbd>--precedence &lt;expression&gt;</kbd></dt>
+      <dd>
+        <p>Shows the given expression with added parentheses to illustrate precedence and associativity of operators.</p>
+        <p>
+          <code>
+            &lt;Eelis> geordi --precedence a + b - c ? d : e+++f<br/>
+            &lt;geordi> ((a + b) - c) ? d : ((e++) + f)
+          </code>
+        </p>
+      </dd>
+
+      <dt><kbd>--resume</kbd> / <kbd>-r</kbd></dt>
+      <dd>
+        <p>Adds the previous snippet's code, except for its main function (if any).</p>
+        <p>
+          <code>
+          &lt;Eelis> geordi &lt;&lt; f(); int f() { return 3; }<br/>
+          &lt;geordi> 3<br/>
+          &lt;Eelis> geordi -r &lt;&lt; f() + g(); double g() { return 1.2; }<br/>
+          &lt;geordi> 4.2<br/>
+          &lt;Eelis> geordi, show<br/>
+          &lt;geordi> &lt;&lt; f() + g(); int f() { return 3; } double g() { return 1.2; }
+          </code>
+        </p>
+      </dd>
+
+      <dt><kbd>--clang</kbd></dt>
+      <dd>
+        <p>Use Clang instead of GCC.</p>
+      </dd>
+
+      <dt><kbd>--1998</kbd> / <kbd>--2003</kbd> / <kbd>--2011</kbd> / <kbd>--2014</kbd></dt>
+      <dd>
+      <p>Use version of the standard published in the specified year.</p>
+      <p>If left unspecified, geordi will encourage the compiler to approximate what the <em>next</em> C++ standard might look like.</p>
+      </dd>
+
+    </dl>
+
+    <hr/><h3><a id='operational'>2.3&emsp;Operational notes</a></h3>
+    <ul>
+      <li>Regardless of command syntax, geordi always implicitly #includes the <a href='#prelude'>prelude</a>.</li>
+      <li>When compilation fails, geordi shows the first error or warning only.</li>
+      <li>When compilation succeeds and <kbd>-c</kbd> was not specified, only the first 300 characters of the first line of program output are shown.</li>
+      <li>Stdout and stderr are merged.</li>
+      <li>Stdin is closed.</li>
+      <li>__FILE__ can be used for file I/O demonstrations.</li>
+      <li>Flags passed to the compiler and linker are listed in <a href='http://github.com/Eelis/geordi/blob/master/compile-config'>compile-config</a>.</li>
+      <li>Most system calls are disabled.</li>
+      <li>Non-printable characters are filtered out.</li>
+      <li>There are no headers to #include (except for the implicitly included <a href='#prelude'>prelude</a>).</li>
+    </ul>
+
+    <hr/><h3 id='prelude'>2.4&emsp;Prelude</h3>
+
+    <p>The implicitly included <a href="http://github.com/Eelis/geordi/blob/master/prelude">prelude</a> includes all standard library headers, some namespace usings and aliases, and assorted miscellaneous utilities.</p>
+
+    <p>Descriptions of a few selected utilities follow.</p>
+
+    <h4>2.4.1&emsp;Range and tuple printing</h4>
+    <p>Ranges (such as containers) and tuples have been made streamable:</p>
+    <pre>   &lt;Eelis> geordi { vector&lt;int> v { 3, 5, 9, 4, 1 }; cout &lt;&lt; v; }
+   &lt;geordi> [3, 5, 9, 4, 1]</pre>
+    <p>See <a href='http://github.com/Eelis/geordi/blob/master/prelude/more_ostreaming.hpp'>more_ostreaming.hpp</a> for details.</p>
+
+    <h4>2.4.2&emsp;Displaying types</h4>
+
+    <p>Streaming <code>TYPE&lt;</code><i>T</i><code>&gt;</code> prints the type <i>T</i>.</p>
+    <p><code>TYPE(</code><i>e</i><code>)</code> yields a string representation in C++ syntax of the static type of the expression <i>e</i>.</p>
+    <p><code>TYPE_DESC</code> works the same, but yields string representations in verbose English.</p>
+    <h4>Examples:</h4>
+    <pre>   &lt;Eelis> geordi &lt;&lt; TYPE(&amp;system)
+   &lt;geordi> int (*)(const char*)</pre>
+    <pre>   &lt;Eelis> geordi &lt;&lt; TYPE_DESC&lt; int(&amp;(*)())[5] &gt;
+   &lt;geordi> pointer to a function taking no arguments and
+     returning a reference to an array of 5 integers</pre>
+    <p>See <a href="http://github.com/Eelis/geordi/blob/master/prelude/type_strings.hpp">type_strings.hpp</a> for details.</p>
+
+    <h4>2.4.3&emsp;Tracked objects</h4>
+    <p><code>tracked::B</code> is a simple class whose constructors, destructor, assignment operator, etc. print a short message when called. Objects of type <code>tracked::B</code> are also kept track of in a central registry, and leaks are reported if the program exits while <code>tracked::B</code> objects are still around. For example:</p>
+    <pre>   &lt;Eelis> geordi { using tracked::B; B x (3), * y = new B;
+     swap(x, *y); y->f(); }
+   &lt;geordi>  B0*(3) new(B) B1* B2*(B0) B0=B1 B1=B2 B2~
+      B1.f() B0~ || leaked: B1</pre>
+    <p>See <a href="http://github.com/Eelis/geordi/blob/master/prelude/tracked.hpp">tracked.hpp</a> for a full list of tracked operations and additional tracked classes.</p>
+
+    <h4>2.4.4&emsp;Comma-delimited output</h4>
+    <p>Geordi overloads the comma-operator to make it easy to print comma-delimited values:</p>
+    <pre>   &lt;Eelis> geordi &lt;&lt; 3, "oi", sin(3.9)
+   &lt;geordi> 3, oi, -0.687766</pre>
+
+    <h4>2.4.5&emsp;Base-2 (binary) integer output.</h4>
+    <p>Geordi adds <code>bin</code> to the <code>std::hex</code>/<code>std::oct</code>/<code>std::dec</code> family of I/O manipulators, with the semantics you would expect:</p>
+    <pre>   &lt;Eelis> geordi &lt;&lt; showbase &lt;&lt; bin &lt;&lt; 38
+   &lt;geordi> 0b100110</pre>
+    <p>See <a href='http://github.com/Eelis/geordi/blob/master/prelude/bin_iomanip.hpp'>bin_iomanip.hpp</a> for details.</p>
+
+    <h4>2.4.6&emsp;Labeled value display</h4>
+    <pre>   &lt;Eelis> geordi { int x = 45, y = x * x; cout &lt;&lt; SHOW(x), SHOW(y),
+     SHOW(y - x); }
+   &lt;geordi> x = 45, y = 2025, y - x = 1980</pre>
+
+    <h4>2.4.7&emsp;[Begin, end)-range shorthand</h4>
+    <p>The RANGE macro expands <code>RANGE(r)</code> to&emsp;<code>(boost::begin(r)), (boost::end(r))</code>&emsp;, which saves some typing for common cases.</p>
+    <pre>   &lt;Eelis> geordi { int a [40]; fill(RANGE(a), 6); cout &lt;&lt; a[31]; }
+   &lt;geordi> 6</pre>
+    <p>(See <a href='http://www.boost.org/libs/range/doc/range.html'>Boost.Range</a>.)</p>
+
+    <h4>2.4.8&emsp;<code>BARK</code></h4>
+    <p><code>BARK</code> prints the name and signature of the function in which it appears:</p>
+    <pre>   &lt;Eelis> geordi { f(3.2); f('x'); } void f(int) { BARK; } void f(double) { BARK; }
+   &lt;geordi> f(double) f(int)</pre>
+
+    <hr/><h3 id='rules'>2.5&emsp;Rules</h3>
+    <ol>
+      <li><b>Don't spam (i)</b>
+        <p>Only pass geordi snippets when you're trying to demonstrate something to somebody (except in #geordi, where you are free to experiment as much as you like).</p>
+      </li>
+      <li><b>Don't spam (ii)</b>
+        <p>If you make a mistake in your snippet when trying to demonstrate something, give yourself at most one more attempt to get it right. If you fail to get your snippet right in your second attempt, then /join #geordi, work out your snippet there until it works, and then show it in the other channel.</p>
+      </li>
+    </ol>
+
+    <hr/><h3 id='faq'>2.6&emsp;FAQ</h3>
+
+    <ol>
+      <li><b>How can geordi safely allow execution of arbitrary code?</b>
+        <p>Geordi uses Docker, seccomp, and ordinary resource limits and permissions</p>
+      </li>
+      <li><b>What language is geordi written in?</b>
+        <p><a href='http://www.haskell.org/'>Haskell</a>.</p>
+      </li>
+      <li><b>Can you make your Freenode geordi join channel #foo?</b>
+        <p>First, you can always run your own geordi instance, see <a href='#download'>Download</a>.</p>
+        <p>That said, if #foo is a serious programming channel on Freenode that is not just a place to hang out, <kbd>/join #geordi</kbd> and talk to Eelis.</p>
+      </li>
+      <li><b>Where can I play around with geordi?</b>
+        <p><kbd>/join #geordi</kbd>. Please, please, do not spam other channels!</p>
+      </li>
+      <li><b>Is geordi suitable for small benchmarks?</b>
+        <p>NO! Geordi uses various costly compiler flags and runtime aids to help diagnose ill-behaved code, making any kind of performance measure meaningless.</p>
+      </li>
+      <li><b>I have another question/suggestion.</b>
+        <p>On <a href='http://freenode.net/irc_servers.shtml'>Freenode</a>, <kbd>/join #geordi</kbd> and/or <kbd>/msg Eelis</kbd>. Alternatively, mail to <kbd>&lt;name-of-this-software>@contacts.eelis.net</kbd> .</p>
+      </li>
+    </ol>
+
+    <hr/><h3 id='clutter'>2.7&emsp;Minimizing clutter</h3>
+    <p>Non-syntax-highlighted code with multiple statements all on a single line quickly becomes hard to read. Here are some tips to shave a few tokens off your snippets:</p>
+    <ol>
+      <li>
+        <p>Use the <a href='#syntax'>shorthand syntaxes</a> whenever possible. When you must use the "<code>geordi: ...</code>" syntax, don't list <code>main</code>'s parameters if you don't need them. Finally, <code>return 0;</code> is implicit for <code>main</code>.</p>
+      </li>
+      <li>Use the <a href='#prelude'>prelude utilities</a> when appropriate.</li>
+      <li><p>Don't use <code>std::</code> qualification; namespace <code>std</code> has been <code>using</code>'d. Yes, this is normally considered poor style, but our unique spatial constraints justify its use for geordi.</p></li>
+      <li><p>Don't bother with <code>endl</code> or <code>flush</code>; geordi only outputs the first line anyway, and cout is flushed automatically at the end of the program.</p></li>
+      <li><p>Use <code>struct</code> instead of <code>class</code> to avoid having to type <code>public:</code> for bases and members.</p></li>
+    </ol>
+
+    <hr/><h3 id='edit'>2.8&emsp;Edit commands</h3>
+
+    <p>Geordi provides a set of editing commands that modify and then retry the last snippet.</p>
+
+    <h4>2.8.1&emsp;Syntax:</h4>
+
+    <pre>    command = (insert | append | prepend | erase | replace | move | swap | use | make)*
+
+    insert = ("insert" | "add") (... positions* | wrapping ("around" substrs*)*)
+    append = "append" ... [positions*]
+    prepend = "prepend" (options | ...) [positions*]
+    erase = ("erase" | "remove" | "delete" | "cut" | "omit" | "kill") (substrs | options)*
+    replace = "replace" (substrs* ("with" | "by") ... | options ("with" | "by") options)*
+    move = "move" (substrs "to" position)*
+    swap = "swap" (substr "and" substr)*
+
+    use = "use" (options | ... [relative])*
+    make = "make" declarator-id* type-description
+
+    wrapping = ... "and" ... | "parentheses" | "parens" | "braces" | "curlies"
+      | ("square" | "angle" | "curly" | "round") "brackets"
+      | ("single" | "double") "quotes"
+
+    position = limit | befaft (substr [relative])
+    positions = in-clause | befaft substrs
+
+    substr = "everything" | [ordinal] (named-entity | ...)
+    substrs = (("everything" | rankeds (named-entity | ...)) [relative])*
+
+    befaft = "before" | "after"
+    limit = "begin" | "front" | "end" | "back"
+    ordinal = "first" | ("second" | "third" | etc) ["last"] | "last"
+    rankeds = "all" [("except" | "but") ordinal*] | ["each" | "every" | "any" | ordinal*]
+
+    in-clause = "in" ([ordinal] (named-entity | declarator-id) [relative])*
+    named-entity = ("declaration" | "body") "of" declarator-id
+    relative = between | befaft [ranked] substr | in-clause
+    between = "between" (bound "and" relative-bound | ordinal "and" ordinal ...)
+    range = ([["everything"] "from"] bound | "everything") ("till" | "until") relative-bound
+    bound = limit | [befaft] substr
+    relative-bound = limit | [befaft] substr [relative]</pre>
+
+    <p>Ellipsis denote simple verbatim strings without escaping, quoting, globbing, etc. The notation <code>&nbsp;x*&nbsp;</code> stands for <code>&nbsp;x ["and" x*]&nbsp;</code>.</p>
+    <!-- Todo: We /do/ have quoting, with backticks. Also missing above: EraseAround. It might also be worthwhile to note that declarator-id's are matched identically, so if one has X::f in the source, one needs to say "X::f". -->
+
+    <h4>2.8.2&emsp;Examples:</h4>
+
+    <p><code>
+      &lt;Johnny> geordi: string s = "foo"; cin &lt;&lt; s; }<br/>
+      &lt;geordi> error: expected constructor, destructor, or type conversion before '&lt;&lt;' token<br/>
+      &lt;Eelis> geordi: prepend { and replace cin with cout<br/>
+      &lt;geordi> foo<br/>
+      &lt;Johnny> Ah, I see!<br/>
+    </code></p>
+
+    <p>Fixing longer snippets this way is easier and more to the point than copy&amp;paste-ing.</p>
+
+    <p>The last snippet can be edited and re-edited indefinitely. Use the "<code>show</code>" command to show the snippet in its current form:</p>
+    <p><code>
+      &lt;Johnny> So, what does the snippet look like with those changes?<br/>
+      &lt;Eelis> geordi: show<br/>
+      &lt;geordi> {string s = "foo"; cout &lt;&lt; s;}<br/>
+      &lt;Johnny> Ah, I see!<br/>
+    </code></p>
+
+    <p>More examples:</p>
+
+    <p><code>
+      geordi, wrap parentheses around everything and erase second semicolon<br/>
+      geordi, insert &lt;&lt; flush before second last &lt;&lt; and move int i; to before int j = 3 * i;<br/>
+      geordi, move everything after int main() to front and erase int main()<br/>
+    </code></p>
+
+    <h4>2.8.3&emsp;The "use" edit command</h4>
+
+    <p>For each given string, the "use" edit command searches the previous snippet for the substring that most resembles the given string, and replaces the former with the latter. This can be used to succinctly fix typos or make small adjustments:</p>
+
+    <p><code>
+      &lt;Johnny> geordi: -c class X { void f() }; void main() { statc X x(); x->f(); }<br/>
+      &lt;geordi> error: expected ';' before '}' token<br/>
+      &lt;Eelis> geordi: use void f(); }<br/>
+      &lt;geordi> error: '::main' must return 'int'<br/>
+      &lt;Eelis> geordi: use int main<br/>
+      &lt;geordi> error: 'statc' was not declared in this scope<br/>
+      &lt;Eelis> geordi: use static<br/>
+      &lt;geordi> error: 'static' specified invalid for function 'x' declared out of global scope<br/>
+      &lt;Eelis> geordi: use X x;<br/>
+      &lt;geordi> error: base operand of '->' has non-pointer type 'X'<br/>
+      &lt;Eelis> geordi: use x.f<br/>
+      &lt;geordi> error: 'void X::f()' is private<br/>
+      &lt;Eelis> geordi: use struct<br/>
+      &lt;geordi> Success<br/>
+      &lt;Eelis> geordi: show<br/>
+      &lt;geordi> -c struct X { void f(); }; int main() { static X x; x.f(); }
+    </code></p>
+
+    <p>Alternatively, these edits could have been specified with a single command:</p>
+
+    <p><code>&lt;Eelis> geordi: use void f(); } and int main and static and X x; and x.f and struct</code></p>
+
+    <p>Geordi and the other users in the channel cannot read your mind, and the heuristics they use to determine which substring to replace are only "best effort". To prevent confusion (among geordi and the other users alike), it is therefore recommended to keep the modifications-to-context ratio of patterns low by being liberal with context, by not trying to simultaneously make multiple changes in a short code fragment, and by not trying to replace partial tokens (the heuristics have a strong bias in favour of whole-token replacements).</p>
+
+    <h4>2.8.4&emsp;The "make" edit command</h4>
+
+    <p>The "make" edit command changes properties (including type) of declarations:</p>
+
+    <p><code>
+      &lt;Eelis> geordi -c struct X { int i; virtual void f(X * p) const = 0; };<br/>
+      &lt;geordi> Success<br/>
+      &lt;Eelis> geordi, make f nonconst inline nonvirtual and make i a static reference to long and make p a const pointer to const<br/>
+      &lt;geordi> Success<br/>
+      &lt;Eelis> geordi, show<br/>
+      &lt;geordi> -c struct X { long static int &amp; i; int j; inline void f(const X *const p) ; };<br/>
+    </code></p>
+
+    <p>Property descriptions generally follow the same syntax as with <kbd>--make-type</kbd>, with some additions.</p>
+
+    <p>"make" edit commands currently have a number of severe limitations:</p>
+    <ul>
+      <li>They do not work for snippets containing preprocessor directives.</li>
+      <li>Geordi cannot parse use of certain macros (e.g. "<code>BOOST_FOREACH(int &amp; i)</code>", because it looks like a function call, and "<code>int &amp; i</code>" is not a valid function argument).</li>
+      <li>As an instance of the previous point, "make" edit commands do not work for snippets that use <kbd>--terse</kbd>.</li>
+      <li>The given declarator-id(s) must exactly match the one in the intended declaration(s). No lookup of any kind is done.</li>
+      <li>As a consequence of the previous point, overloaded functions cannot be distinguished.</li>
+      <li>One cannot change a function's return type without also specifying its parameters.</li>
+      <li>Member function definitions cannot be made pure, because geordi isn't smart enough to put separate definitions outside the class definition.</li>
+      <li>The "<kbd>nonconst</kbd>"/"<kbd>nonvolatile</kbd>" properties are only supported at top-level, so "<kbd>make x a pointer to nonconst</kbd>" doesn't work.</li>
+      <li>Locally ambiguous constructs are always parsed as declarations whenever possible. Hence, given "<code>int x; f(x);</code>", the command "<kbd>make x const</kbd>" will produce "<code>const int x; const f(x);</code>" (because "<code>f(x);</code>" is parsed as a declaration of a variable named <code>x</code>).</li>
+    </ul>
+
+    <hr/><h2 id='examples'>2.9&emsp;Example snippets</h2>
+
+    <ul>
+      <!-- template:
+      <li><b></b>
+        <p><code></code></p>
+        <p><i>Output:</i>&emsp;<code></code></p>
+      </li>
+      -->
+
+      <!-- CDATA would be nicer for the C++ code, but it seems to confuse the hell out of Firefox in text/html mode... -->
+      <!-- There must be no whitespace between <p><code> and the start of the code, for it has a tendency to pop up when copy-pasting snippets from one's browser. -->
+
+      <li><b>First thing everybody tries..</b>
+        <p><code>geordi { for(;;) ; }</code></p>
+        <p><i>Output:</i>&emsp;<code>Killed</code></p>
+      </li>
+
+      <li><b><a href='http://en.wikipedia.org/wiki/Reverse_Polish_notation'>Reverse Polish notation</a> expression evaluator</b>
+        <p><code>geordi { istringstream e ("2 4 * 3 2.1 + / 9 -"); stack&lt;double> s; char c; while (e >> c) if (isdigit(c)) { e.putback(c); s.push(0); e >> s.top(); } else { double const x = s.top(); s.pop(); if (c == '+') s.top() += x; else if (c == '*') s.top() *= x; else if (c == '-') s.top() -= x; else if (c == '/') s.top() /= x; } cout &lt;&lt; s.top(); }</code></p>
+        <p><i>Output:</i>&emsp;<code>-7.43137</code></p>
+      </li>
+      <li><b>Floating-point arithmetic has errors</b>
+        <p><code>geordi &lt;&lt; (3 * 0.1 == 0.3)</code></p>
+        <p><i>Output:</i>&emsp;<code>false</code></p>
+      </li>
+      <li><b>Custom sorting predicate</b>
+        <p><code>geordi: bool comp (string const &amp; a, string const &amp; b) { return a.size() &lt; b.size(); } int main () { using namespace boost::assign; vector&lt;string> v; v += "superman", "spiderman", "batman", "hulk", "iceman", "wolverine"; sort(v.begin(), v.end(), comp); cout &lt;&lt; v; }</code></p>
+        <p><i>Output:</i>&emsp;<code>[hulk, batman, iceman, superman, spiderman, wolverine]</code></p>
+      </li>
+      <li><b>rand()%N is flawed</b>
+        <p><code>geordi { int const range = 1400000000, samples = 10000000; assert(range &lt; RAND_MAX); int x = 0; for (int u = 0; u != samples; ++u) if ((rand() % range) &lt; range / 2) ++x; cout &lt;&lt; x / double(samples) * 100 &lt;&lt; "% of samples lie in lower half of chosen range"; }</code></p>
+        <p><i>Output:</i>&emsp;<code>65.1787% of samples lie in lower half of chosen range</code></p>
+      </li>
+      <!-- broken:
+      <li><b>Inline assembly</b>
+        <p><code>geordi: extern "C" char const s [] = "Hello world!"; int main() { asm("push $12; push $s; push $1; call write; pop %eax; pop %eax; pop %eax"); }</code></p>
+        <p><i>Output:</i>&emsp;<code>Hello world!</code></p>
+      </li>
+      -->
+      <li><b>Just an innocent string...</b>
+        <p><code>geordi -tw {char const*p=" weird yogurt craves most typical grayish germs covering my hyper hammer wheels arced underneath ugly cans ";while(*++p){uchar r=0;do r^=*p-'a'&lt;&lt;(*p&amp;4);while(*++p!=' ');cout&lt;&lt;hex&lt;&lt;int(r)&lt;&lt;' ';}}</code></p>
+        <p><i>Output:</i>&emsp;<code><a href='http://en.wikipedia.org/wiki/AACS_encryption_key_controversy'>9 f9 11 2 9d 74 e3 5b d8 41 56 c5 63 56 88 c0</a></code></p>
+      </li>
+      <li><b>Function plotter (only works well in some fonts)</b>
+        <p><code>geordi: typedef double D;void plot(D(*f)(D),D ymin,D ymax,D xstart,D xstep,D xend){char c[]="_.,=-*'~`"; for (D x=xstart;x&lt;=xend;x+=xstep){size_t h=size_t((f(x)-ymin)/(ymax-ymin)*sizeof(c));cout&lt;&lt;(h&lt;sizeof(c)?c[h]:' ');}}  int main() { plot(sin, -1, 1, 0, 0.3, 5 * M_PI); }</code></p>
+        <p><i>Output:</i>&emsp;<code>*'~``~*-,.____.,=*'~``~*-,.____.,=*'~`'*</code></p>
+      </li>
+      <li><b>Untyped lambda calculus reducer</b>
+        <p>(Calculates 1+1 using Church numerals, producing a weak head normal form of 2. Uses de Bruijn indices.)</p>
+        <p><code>geordi -t &lt;&lt;m("(.(.(.(.3(210)0))))(.(.01))(.(.01))zs");tpd str S;tpd S::iterator I;int p;I h(I i){do p+=*i==40,p-=*i++==41;wh(p);ret i;}S r(I i,I e,int x,S a){if(i==e)ret"";I o=h(i);ret *i-40?(*i-x?S(1,*i):a)+r(i+1,e,x,a):'('+(i[1]-46?r(i+1,o-1,x,a):'.'+r(i+2,o-1,x+1,a))+')'+r(o,e,x,a);}S m(S);S m(I i,I e){S q(i,e);I j=h(i);ret *i-40?q:i[1]-46?m(m(i+1,j-1)+S(j,e)):j-e?m(r(i+2,j-1,48,S(j,h(j)))+S(h(j),e)):q;}S m(S x){ret m(RANGE(x));}</code></p>
+        <p><i>Output:</i>&emsp;<code>s((.(.01))zs)</code></p>
+        <!-- notes
+          syntax:
+              expr := constant | var | expr expr | '(' expr ')' | '(.' expr ')'
+              var := 0 | 1 | ... | 9
+              constant := a | b | ... | z
+          crucial: every '.' has a '(' in front of it.
+          only reduces to WHNF.
+        -->
+      </li>
+      <li><b>The <a href='http://en.wikipedia.org/wiki/Curiously_recurring_template_pattern'>Curiously Recurring Template Pattern (CRTP)</a></b>
+        <p>(In this snippet, X implements prefix increment, and obtains a canonically implemented postfix increment in terms of its prefix increment by inheriting postfix_incr&lt;X&gt;. Snippet based on <a href='http://www.boost.org/libs/utility/operators.htm'>Boost.Operators</a>.)</p>
+        <p><code>geordi: template &lt;typename Derived&gt; struct postfix_incr { Derived * derived_this() { return static_cast&lt;Derived *>(this); } Derived operator++(int) { Derived const t(*derived_this()); ++*derived_this(); return t; } };  struct X: postfix_incr&lt;X> { int i; X &amp; operator++() { ++i; return *this; } using postfix_incr&lt;X&gt;::operator++; };  int main() { X x; x.i = 2; x++; cout &lt;&lt; x.i; }</code></p>
+        <p><i>Output:</i>&emsp;<code>3</code></p>
+      </li>
+      <li><b><a href='http://en.wikipedia.org/wiki/Quine_%28computing%29'>Quine</a> using iostreams</b>
+        <p><code>geordi: { char y(34); stringstream i("geordi: { char y(34); stringstream i(!); string t; getline(i, t, '!'); cout &lt;&lt; t &lt;&lt; y &lt;&lt; i.str() &lt;&lt; y &lt;&lt; i.rdbuf(); }"); string t; getline(i, t, '!'); cout &lt;&lt; t &lt;&lt; y &lt;&lt; i.str() &lt;&lt; y &lt;&lt; i.rdbuf(); }</code></p>
+      </li>
+      <li><b><a href='http://en.wikipedia.org/wiki/Brainfuck'>Brainfuck</a> interpreter</b>
+        <p><code>geordi: char program[]="&gt;&gt;,[&gt;&gt;,]&lt;&lt;[[-&lt;+&lt;]>[>[>>]&lt;[.[-]&lt;[[>>+&lt;&lt;-]&lt;]>>]>]&lt;&lt;]", input[]="dicekjhbagfl", *i=input,m[512]={},*p=m;void b(char*c){for(;*c&amp;&amp;*c!=']';++c){(*((p+=*c=='>')-=*c=='&lt;')+=*c=='+') -=*c=='-';*c=='.'&amp;&amp;cout&lt;&lt;*p;if(*c==',')*p=*i++;if(*c=='['){ for(++c;*p;)b(c);for(int d=0;*c!=']'||d--;++c)d+=*c=='[';}}}int main(){b(program);}</code></p>
+        <p><i>Output:</i>&emsp;<code>abcdefghijkl</code></p>
+      </li>
+
+      <li><b><a href='http://en.wikipedia.org/wiki/Quicksort'>Quicksort</a></b>
+        <p><code>geordi: { int a[] = { 2, 3, 7, 1, 5, 6, 4, 0 }; quicksort(RANGE(a)); cout &lt;&lt; a; }  template &lt;typename I> void quicksort(I const i, I const e) { if(i == e || boost::next(i) == e) return; I v(e); for(I u(boost::next(i)); u != v; ) if(*u &lt;= *i) ++u; else swap(*u, *--v); swap(*i, *--v); quicksort(i, v); quicksort(++v, e); }</code></p>
+        <p><i>Output:</i>&emsp;<code>[0, 1, 2, 3, 4, 5, 6, 7]</code></p>
+      </li>
+      <li><b>Permutation sort ;-)</b>
+        <p><code>geordi: { int v[] = { 2, 3, 7, 1, 5, 6, 4, 0 }; while (!sorted(RANGE(v))) next_permutation(RANGE(v)); cout &lt;&lt; v; } template &lt;typename I> bool sorted (I b, I const e) { if (b == e) return true; I const c = b++; return b == e || (*c &le; *b &amp;&amp; sorted(b, e)); }</code></p>
+        <p><i>Output:</i>&emsp;<code>[0, 1, 2, 3, 4, 5, 6, 7]</code></p>
+      </li>
+      <li><b>GNU libc <a href='http://www.gnu.org/software/libc/manual/html_node/Heap-Consistency-Checking.html#Heap-Consistency-Checking'>heap consistency checking</a></b>
+        <p><code>geordi { int * const p = new int[3]; for (int i = 0; i &lt;= 3; ++i) p[i] = 8; delete[] p; }</code></p>
+        <p><i>Output:</i>&emsp;<code>memory clobbered past end of allocated block</code></p>
+      </li>
+      <li><b>GNU libstdc++ <a href='http://gcc.gnu.org/onlinedocs/libstdc++/debug.html'>debug mode</a> diagnostics</b>
+        <p><code>geordi { vector&lt;int> s (3); cout &lt;&lt; *(s.begin() + 4); }</code></p>
+        <p><i>Output:</i>&emsp;<code>attempt to advance a dereferenceable (start-of-sequence) iterator 4 steps, which falls outside its valid range.</code></p>
+      </li>
+      <li><b>Memory exhaustion</b>
+        <p><code>geordi { int i = 0; while (new (nothrow) char [1024 * 1024]) ++i; cout &lt;&lt; i &lt;&lt; " MiB"; }</code></p>
+        <p><i>Output:</i>&emsp;<code>188 MiB</code></p>
+      </li>
+      <li><b>File size limit</b>
+        <p><code>geordi { ofstream f (__FILE__); string const meg (1024 * 1024, 'x'); for (;;) { f &lt;&lt; meg &lt;&lt; flush; cout &lt;&lt; "+ " &lt;&lt; flush; } }</code></p>
+        <p><i>Output:</i>&emsp;<code>+ + + + + File size limit exceeded</code></p>
+      </li>
+      <li><b>File handle exhaustion</b>
+        <p><code>geordi: extern "C" int open (char const *, int); int main () { int i = 0; while (open(__FILE__, 0) != -1) ++i; cout &lt;&lt; strerror(errno), i; }</code></p>
+        <p><i>Output:</i>&emsp;<code>Too many open files, 23</code></p>
+      </li>
+      <li><b>Stack protection (-fstack-protector-all)</b>
+        <p><code>geordi: { char buf [10]; fill(buf, buf+30, 'x'); }</code></p>
+        <p><i>Output:</i>&emsp;<code>*** stack smashing detected ***: /t terminated</code></p>
+      </li>
+      <li><b>Naive fork bomb attempt</b>
+        <p><code>geordi: { for(;;) fork(); }</code></p>
+        <p><i>Output:</i>&emsp;<code>SYS_clone: Operation not permitted</code></p>
+      </li>
+    </ul>
+
+    <hr/><h2 id='setup'>3&emsp;Setting up a geordi</h2>
+
+    <hr/><h3 id='download'>3.1&emsp;Download</h3>
+
+    <p>Geordi can be downloaded from <a href='http://github.com/Eelis/geordi'>github</a>.</p>
+
+    <hr/><h3 id='install'>3.2&emsp;Install</h3>
+
+    <p>geordi runs as a <a href='https://docs.docker.com/engine/userguide/'>Docker</a> container.</p>
+    <p>To build the image from which the container will be instantiated, in the directory where Dockerfile is, say:</p>
+    <pre>  sudo docker build -t geordi .</pre>
+    <p>Since this involves building GCC and Clang from source, it may take some time.</p>
+
+    <hr/><h3 id='run'>3.3&emsp;Run</h3>
+    
+
+    <p>To run a local interactive geordi session, say:</p>
+    <pre>  sudo docker run -it geordi</pre>
+    <p>To run the IRC bot, edit <kbd>irc-config</kbd> and then say:</p>
+    <pre>  sudo docker run -i geordi geordi-irc &lt; irc-config</pre>
+
+    <hr/><h3 id='nickserv'>3.4&emsp;NickServ identification</h3>
+    <p>To have the bot identify to NickServ, change the following line in <kbd>irc-config</kbd>:</p>
+    <pre>  , nick_pass = Nothing</pre>
+    <p>into:</p>
+    <pre>  , nick_pass = Just "mypassword"</pre>
+
+    <hr/><h3 id='nickless'>3.5&emsp;Nickless requests</h3>
+    <p>To have the bot respond to nickless requests (e.g. "<kbd>&lt;&lt; 3</kbd>") in channels #foo, #bar, and #bas, use:</p>
+    <pre>  , allow_nickless_requests_in = ["#foo", "#bar", "#bas"]</pre>
+
+    <hr/><h3 id='reconnect'>3.6&emsp;Auto-reconnect</h3>
+    <p>Geordi does not auto-reconnect. For that, just use something like</p>
+    <pre>  while true; do sudo docker run -i geordi geordi-irc &lt; irc-config; sleep 120; done</pre>
+
+    <hr/><h3 id='multinetwork'>3.7&emsp;Connecting to multiple networks</h3>
+    <p>Make config files for the different networks, and run an instance for each network.</p>
+
+    <hr/><h3 id='censor'>3.8&emsp;Censoring phrases</h3>
+    <p>Some networks automatically kick or ban clients that utter certain phrases (like botnet commands). To prevent a geordi bot from uttering these, list regexes for them in irc-config. E.g.:</p>
+    <pre>  , censor = ["some naughty phrase", "some wicked utterance"]</pre>
+
+  </body>
+</html>
