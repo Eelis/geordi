@@ -1,11 +1,11 @@
-{-# LANGUAGE UnicodeSyntax #-}
+{-# LANGUAGE UnicodeSyntax, RecordWildCards #-}
 
 import qualified Request
 import qualified RequestEval
 import qualified Cxx.Show
 
 import Control.Exception ()
-import Control.Monad (unless, forM_)
+import Control.Monad (unless, forM_, foldM)
 import System.Environment (getArgs)
 import System.IO (utf8, stdout, hSetEncoding)
 import Text.Regex (matchRegex, mkRegex)
@@ -68,13 +68,15 @@ main = do
   args ← getArgs
   forM_ (case args of [] → default_test_sets; _ → args) $ \set → do
     putStrLn $ box $ "Test set: " ++ set
-    forM_ (tests set) $ \(Test n r p pn) → do
-      putStrLn $ "\nTest: " ++ yellow n
-      putStrLn $ "Request: " ++ cyan r
-      out ← fmap Request.response_output $ evalRequest r (Request.Context Cxx.Show.noHighlighting False []) []
-      let success = p out
-      putStrLn $ "Output: " ++ (if success then green else red) (if out == "" then "<none>" else out)
-      unless success $ putStrLn $ "Expected: " ++ pn
+    foldM (\context (Test n r p pn) → do
+        putStrLn $ "\nTest: " ++ yellow n
+        putStrLn $ "Request: " ++ cyan r
+        Request.Response{..} ← evalRequest r context []
+        let success = p response_output
+        putStrLn $ "Output: " ++ (if success then green else red) (if response_output == "" then "<none>" else response_output)
+        unless success $ putStrLn $ "Expected: " ++ pn
+        return $ maybe context (`Request.modify_history` context) response_history_modification
+      ) (Request.Context Cxx.Show.noHighlighting False []) (tests set)
     putStrLn ""
 
   putStrLn "Done running tests."
@@ -101,6 +103,13 @@ tests "resources" =
   , test "Recursive exec()"
     "int main (int const argc, char const * const * argv) { string s; if (argc >= 2) s = argv[1]; s += 'x'; if (s.size() % 100 == 0) cout << '+' << flush; execl(\"/t\", \"/t\", s.c_str(), 0); }" $
     RegexMatch "\\++( Alarm clock| CPU time limit exceeded)?$"
+  ]
+
+tests "resume" =
+  [ test "" "<< i;int i=2;" $ ExactMatch "2"
+  , test "" "-r <<i+i" $ ExactMatch "4"
+  , test "" "int i=3; int /**/ main (){} int j=4;" $ ExactMatch ""
+  , test "" "-r <<i+j" $ ExactMatch "7"
   ]
 
 tests "misc" =

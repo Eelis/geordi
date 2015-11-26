@@ -1,12 +1,10 @@
 {-# LANGUAGE UnicodeSyntax, DeriveDataTypeable, MultiParamTypeClasses, FunctionalDependencies, FlexibleInstances, FlexibleContexts, UndecidableInstances, PatternGuards, Rank2Types, OverlappingInstances, ScopedTypeVariables, ExistentialQuantification, TypeSynonymInstances, CPP, ViewPatterns, TupleSections #-}
 
-module Cxx.Operations (apply, mapply, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, parseAbbrMain, requestBody, resume, expand, line_breaks, specT, find, is_pointer_or_reference, namedPathTo, findable_productions, make_edits) where
+module Cxx.Operations (apply, mapply, squared, parenthesized, is_primary_TypeSpecifier, split_all_decls, map_plain, parseAbbrMain, expand, line_breaks, specT, find, is_pointer_or_reference, namedPathTo, findable_productions, make_edits, ShortCode) where
 
 import qualified Cxx.Show
-import qualified Data.List as List
 import qualified Data.List.NonEmpty as NeList
 import Data.List.NonEmpty (NonEmpty((:|)), nonEmpty)
-import qualified Data.Char as Char
 import qualified Data.Maybe as Maybe
 import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..), Phantom(..), neElim, NeList, orElse, neFilter, Apply(..), MaybeApply(..))
 import Cxx.Basics
@@ -51,26 +49,10 @@ cstyle_comments = map f where f (SingleComment s) = MultiComment s; f c = c
 
 type ShortCode = (Maybe AbbreviatedMain, Code)
 
-expand_without_main :: ShortCode → Code
-expand_without_main (Nothing, d) = erase_main d
-  where
-    erase_main (Plain s : Parens _ : Curlies _ : c) | "main" `List.isInfixOf` s = c
-    erase_main (Plain s : Parens _ : Plain t : Curlies _ : c)
-      | "main" `List.isInfixOf` s, all Char.isSpace t = c
-    erase_main (x : y) = (x :) $ erase_main y
-    erase_main c = c
-expand_without_main (Just _, c) = c
-
 instance Show AbbreviatedMain where
   show (Block c) = show [Curlies c]
   show (Call c) = show c
   show (Print c) = show $ [Plain "<<"] ++ c
-
-requestBody :: ShortCode → String
-requestBody (m, c) = maybe "" show m ++ show c
-
-resume :: ShortCode → ShortCode → ShortCode
-resume (cstyle_comments . expand_without_main → old) (m, new) = (m, old ++ new)
 
 type TString = [(Char, Int {- position in the request body -})]
 

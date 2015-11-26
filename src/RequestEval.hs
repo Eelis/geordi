@@ -29,7 +29,7 @@ import qualified Gcc
 import Control.Monad.Error (Error(..), throwError)
 import Control.Monad (join, when)
 import Control.Arrow (first, second)
-import Cxx.Basics (Code)
+import Cxx.Basics (Code, AbbreviatedMain(..), Findable(DeclarationOf), DeclaratorId(..), IdExpression(..), UnqualifiedId(..), Identifier(..), White(..))
 import Cxx.Show (Highlighter)
 import EvalCxx (WithEvaluation, noEvaluation, EvaluationResult(..), Line, Column, CxxStandard(..), stdDigits)
 import Data.Char (isPrint, isSpace, showLitChar)
@@ -227,6 +227,23 @@ cout :: Context → Set EvalOpt → String → Parser Char (E (WithEvaluation Re
 cout Context{..} opts s = parseSuccess $
   Response Nothing ‥ fst ‥ execEditableRequest clangByDefault (EditableRequest (Evaluate opts) ("<< " ++ s))
 
+mainId :: DeclaratorId
+mainId = DeclaratorId_IdExpression Nothing $ IdExpression $ Right $ UnqualifiedId_Identifier $ Identifier "main" (White "")
+
+removeMain :: String -> String
+removeMain s =
+  case run_parser (Cxx.Parse.code << eof) s of
+    ParseFailure{} → s
+    ParseSuccess oldcode _ _ _ →
+      case Cxx.Operations.parseAbbrMain oldcode of
+        (Just _, x) -> show x
+        (Nothing, _) -> 
+          case Cxx.Parse.parseRequest s of
+            Left _ -> s
+            Right parsedReq -> case Cxx.Operations.find (DeclarationOf mainId) parsedReq of
+              [] -> s
+              ((r, _) : _) -> Editing.Basics.replaceRange r [] s
+
 p :: EvalCxx.CompileConfig → Context → Parser Char (E (WithEvaluation Response))
 p compile_cfg context@Context{..} = (spaces >>) $ do
     (Response Nothing .) ‥ (>>= (fst ‥) . execFinalCommand context) . (Editing.Parse.finalCommandP << commit eof)
@@ -256,14 +273,18 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
       | Version ∈ eph_opts || s == "version" → cout context evalopts "geordi::compiler_description"
       | Resume ∈ eph_opts → flip fmap (Cxx.Parse.code << eof) $ \code → case previousRequests of
         [] → throwError "There is no previous resumable request."
-        (EditableRequest (Evaluate oldopts) (dropWhile isSpace → oldcodeblob), _) : _ → do
-          case run_parser (Cxx.Parse.code << eof) oldcodeblob of
-            ParseSuccess oldcode _ _ _ → noErrors $ respond_and_remember clangByDefault $
-              EditableRequest (Evaluate $ evalopts ∪ oldopts) $ Cxx.Operations.requestBody $ Cxx.Operations.resume (Cxx.Operations.parseAbbrMain oldcode) (Cxx.Operations.parseAbbrMain code)
-            ParseFailure{} → throwError "Previous request too malformed to resume."
+        (EditableRequest (Evaluate oldopts) (dropWhile isSpace → oldcodeblob), _) : _ →
+            noErrors $ respond_and_remember clangByDefault $
+              EditableRequest (Evaluate $ evalopts ∪ oldopts)
+                $ resume (removeMain oldcodeblob) (Cxx.Operations.parseAbbrMain code)
         _ → throwError "Last (editable) request was not resumable."
       | otherwise → parseSuccess . noErrors . respond_and_remember clangByDefault
           =<< EditableRequest (Evaluate evalopts) . getInput }
+
+resume :: String -> Cxx.Operations.ShortCode → String
+resume old (Nothing, c) = old ++ show c
+resume old (Just x@(Block _), c) = show x ++ old ++ show c
+resume old (Just x, c) = show x ++ ";" ++ old ++ show c
 
 evaluate :: EvalCxx.Request → WithEvaluation (String, Maybe EvalCxx.Fix)
 evaluate = (g .) . EvalCxx.withEvaluation
