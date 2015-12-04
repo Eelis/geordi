@@ -143,6 +143,4 @@ Index: lib/Support/Unix/Signals.inc
  
  static void RegisterHandler(int Signal) {
 +  return;
-   assert(NumRegisteredSignals <
-          sizeof(RegisteredSignalInfo)/sizeof(RegisteredSignalInfo[0]) &&
-          "Out of space for signal handlers!");
+   assert(NumRegisteredSignals < array_lengthof(RegisteredSignalInfo) &&
