@@ -44,11 +44,11 @@ template <typename C, typename Tr>
 std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::ldiv_t const d)
 { print_div_t(o, d); return o; }
 
+#if __cplusplus >= 201103
+
 template <typename C, typename Tr>
 std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::lldiv_t const d)
 { print_div_t(o, d); return o; }
-
-#if __cplusplus >= 201103
 
 template <typename C, typename T, typename R, typename... A>
 std::basic_ostream<C, T> & operator<<(std::basic_ostream<C, T> & o, R (* const p) (A...))
