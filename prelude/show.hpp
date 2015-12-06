@@ -12,7 +12,7 @@ namespace show_detail
     char const * const s;
     mutable bool due;
 
-    shower(T const & v, char const * const s): v(v), s(s), due(true) {}
+    shower(T const & v_, char const * const s_): v(v_), s(s_), due(true) {}
     shower(shower const & o): v(o.v), s(o.s), due(o.due) { o.due = false; }
     ~shower() { if(due) std::cout << *this; }
 

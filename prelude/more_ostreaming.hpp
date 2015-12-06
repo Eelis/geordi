@@ -163,25 +163,25 @@ std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, std::tm co
 template <typename T, typename C>
 C const & underlying(std::stack<T, C> const & s) {
   struct S: std::stack<T, C> {
-    static C const & peek(std::stack<T, C> const & s) { return s.*(&S::c); }
+    static C const & peek(std::stack<T, C> const & ss) { return ss.*(&S::c); }
   };
   return S::peek(s);
 }
 
 template <typename T, typename C>
-C const & underlying(std::queue<T, C> const & s) {
+C const & underlying(std::queue<T, C> const & q) {
   struct S: std::queue<T, C> {
-    static C const & peek(std::queue<T, C> const & s) { return s.*(&S::c); }
+    static C const & peek(std::queue<T, C> const & qq) { return qq.*(&S::c); }
   };
-  return S::peek(s);
+  return S::peek(q);
 }
 
 template <typename T, typename C, typename P>
-C const & underlying(std::priority_queue<T, C, P> const & s) {
+C const & underlying(std::priority_queue<T, C, P> const & pq) {
   struct S: std::priority_queue<T, C> {
-    static C const & peek(std::priority_queue<T, C> const & s) { return s.*(&S::c); }
+    static C const & peek(std::priority_queue<T, C> const & pqpq) { return pqpq.*(&S::c); }
   };
-  return S::peek(s);
+  return S::peek(pq);
 }
 
 namespace std
