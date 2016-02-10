@@ -39,7 +39,7 @@ std::pair<int, int> g() { BARK("g()"); return std::make_pair(0, 0); }
 struct X { operator unsigned int() { BARK("X::operator unsigned int()"); return 0; } void f(){ BARK("X::f()");} };
 void operator<<(X,X){ BARK("operator<<(X, X)"); }
 std::vector<unsigned int> vf(){ BARK("vf()"); return std::vector<unsigned int>(); }
-template<typename A, typename B> struct Y { void f(){ BARK("Y<A, B>::f() [with A = int, B = int]"); } };
+template<typename A, typename B> struct Y { void f(){ BARK("Y<A, B>::f() [with A = int; B = int]"); } };
 signed char h(void(*)()) { BARK("h(void (*)())"); return 0; }
 template<void(*)(X,X)> void bla(){ BARK("bla() [with void (* <anonymous>)(X, X) = operator<<]"); }
 
