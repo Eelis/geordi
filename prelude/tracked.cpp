@@ -1,15 +1,7 @@
-#if __cplusplus >= 201103
-  // having this #if here removes the need to conditionally exclude tracked.cpp based on standard
-
 #include "tracked.hpp"
 #include <vector>
 #include <cassert>
 #include <cstdlib>
-#include <sstream>
-#include <boost/implicit_cast.hpp>
-#include <boost/ref.hpp>
-#include <boost/noncopyable.hpp>
-#include "more_ostreaming.hpp"
 #include "geordi.hpp"
 
 namespace tracked
@@ -17,19 +9,23 @@ namespace tracked
   namespace detail
   {
     using geordi::error;
-    using geordi::parsep;
 
     bool muted = false;
 
-    struct info: boost::noncopyable
+    struct info
     {
-      info() { if(!muted) std::cout << parsep; }
-      ~info() { if(!muted) std::cout << parsep; }
+      info() { if (!muted) std::cout << geordi::parsep; }
+      ~info() { if (!muted) std::cout << geordi::parsep; }
+
       std::ostream & operator()() const
       {
         static std::ostream s(0); // used as null sink
         return muted ? s : std::cout;
       }
+
+      private:
+        info(info const &);
+        info & operator=(info const &);
     };
 
     enum Status { fresh, pillaged, destructed };
@@ -41,27 +37,37 @@ namespace tracked
     };
 
     typedef std::vector<Entry> Entries;
-    Entries entries;
+
+    Entries & entries() { static Entries * p = new Entries; return *p; }
       // Keeping track of Trackeds outside of the objects themselves allows us to give nice diagnostics for operations on objects that have already perished.
       // Invariant: If multiple entries have identical p, then all but the last have status==destructed.
+      // Todo: not good enough
 
-    std::ostream & operator<<(std::ostream & o, Entry const & e)
-    { return o << e.name << &e - &entries.front(); }
+    std::ptrdiff_t id(Entry const & e) { return &e - &entries().front(); }
+
+
+    void print(Entry const & e) { std::printf("%s%lu", e.name, id(e)); }
 
     Entry * entry(Tracked const * const r) {
-      for (Entries::reverse_iterator i(entries.rbegin()); i != entries.rend(); ++i) if (i->p == r) return &*i;
+      for (Entries::reverse_iterator i(entries().rbegin()); i != entries().rend(); ++i)
+        if (i->p == r) return &*i;
       return 0;
     }
+
+    std::ptrdiff_t id(Tracked const & t) { return id(*entry(&t)); }
+
+    std::ostream & operator<<(std::ostream & o, Entry const & e)
+    { return o << e.name << id(e); }
 
     void make_entry(Tracked const * const r) {
       if (Entry * const e = entry(r)) if (e->status != destructed) error()() << "leaked: " << *e << '.';
       Entry const e = { r, "?", fresh };
-      entries.push_back(e);
+      entries().push_back(e);
     }
 
     void assert_status_below(Tracked const * const r, Status const st, std::string const & s) {
       Entry * const e = entry(r);
-      if(!e) error()() << "tried to " << s << " non-existent object.";
+      if (!e) error()() << "tried to " << s << " non-existent object.";
       if (e->status < st) return;
       error()() << "tried to " << s << (e->status == pillaged ? " pillaged " : " destructed ") << *e << '.';
     }
@@ -72,22 +78,38 @@ namespace tracked
       return r;
     }
 
-    void op_delete(void * const p, bool const array, std::size_t const s) {
-      if (array) ::operator delete[](p);
-      else ::operator delete(p);
-      std::vector<boost::reference_wrapper<Entry const> > v;
-      for (Entries::const_iterator j = entries.begin(); j != entries.end(); ++j)
-        if (p <= j->p && boost::implicit_cast<void const *>(j->p) <= static_cast<char *>(p) + s)
-          v.push_back(boost::cref(*j));
-      if (array) { info i; i() << "delete["; more_ostreaming::delimit(i(), v); i() << ']'; }
-      else { assert(v.size() == 1); info()() << "delete(" << v.front() << ")"; }
+    void op_delete(void * const p, std::size_t const s) {
+
+      ::operator delete(p);
+
+      for (Entries::const_iterator j = entries().begin(); j != entries().end(); ++j)
+        if (p <= j->p && static_cast<void const *>(j->p) <= static_cast<char *>(p) + s)
+        {
+          info()() << "delete(" << *j << ")";
+          return;
+        }
+    }
+
+    void op_array_delete(void * const p, std::size_t const s) {
+      ::operator delete[](p);
+      info i;
+      i() << "delete[";
+      bool first = true;
+      for (Entries::const_iterator j = entries().begin(); j != entries().end(); ++j)
+        if (p <= j->p && static_cast<void const *>(j->p) <= static_cast<char *>(p) + s)
+        {
+          if (first) { first = false; }
+          else i() << ", ";
+          i() << *j;
+        }
+      i() << ']';
     }
 
     void Tracked::set_name(char const * const s) const { entry(this)->name = s; }
 
     Tracked::Tracked() { make_entry(this); }
 
-    Tracked::Tracked(Tracked const & i) { assert_status_below(&i, pillaged, "copy");  make_entry(this); }
+    Tracked::Tracked(Tracked const & i) { assert_status_below(&i, pillaged, "copy"); make_entry(this); }
 
     void Tracked::operator=(Tracked const & r) {
       assert_status_below(this, destructed, "assign to");
@@ -95,6 +117,7 @@ namespace tracked
       entry(this)->status = fresh;
     }
 
+    #if __cplusplus >= 201103
     Tracked::Tracked(Tracked && r)
     { assert_status_below(&r, pillaged, "move"); make_entry(this); entry(&r)->status = pillaged; }
 
@@ -104,27 +127,10 @@ namespace tracked
       entry(this)->status = fresh;
       entry(&r)->status = pillaged;
     }
+    #endif
 
     Tracked::~Tracked()
     { assert_status_below(this, destructed, "re-destruct"); entry(this)->status = destructed; }
-
-    struct LeakReporter {
-      ~LeakReporter() {
-        std::vector<boost::reference_wrapper<Entry const> > v;
-        for (Entries::const_iterator i = entries.begin(); i != entries.end(); ++i)
-          if (i->status != destructed) v.push_back(boost::cref(*i));
-        if (!v.empty() && !muted)
-        {
-          std::ostringstream oss;
-            // We don't use cout here because apparently it can be unavailable by the time this code runs (judging by the segfaults I observed when this code used cout).
-          more_ostreaming::delimit(oss, v);
-          std::printf("%sleaked: %s.", parsep, oss.str().c_str());
-          abort();
-        }
-      }
-    } leakReporter; // Must come after entries, so it will be destructed first.
-
-    unsigned int id(Tracked const & t) { return entry(&t) - &entries.front(); }
 
   } // namespace detail
 
@@ -133,9 +139,25 @@ namespace tracked
 
   // B:
 
-    B::B() { set_name("B"); detail::info const i; print(i()); i() << '*'; }
-    B::B(B const & b): Tracked(b) { set_name("B"); detail::info const i; print(i()); i() << "*("; b.print(i()); i() << ')'; }
-      // todo: Delegating ctors should make this much cleaner.
+    B::B()
+    {
+      set_name("B");
+      detail::info const i;
+      print(i());
+      i() << '*';
+    }
+
+    B::B(B const & b)
+      : Tracked(b)
+    {
+      set_name("B");
+      detail::info const i;
+      print(i());
+      i() << "*(";
+      b.print(i());
+      i() << ')';
+    }
+
     B & B::operator=(B const & b) { Tracked::operator=(b); detail::info const i; print(i()); i() << '='; b.print(i()); return *this; }
     B::~B() {
       assert_status_below(this, detail::destructed, "destruct");
@@ -146,14 +168,18 @@ namespace tracked
     { return detail::op_new(s, false, ::operator new(s), "B"); }
     void * B::operator new[](std::size_t const s)
     { return detail::op_new(s, true, ::operator new[](s), "B"); }
+
+    #if __cplusplus >= 201103
     void * B::operator new(std::size_t const s, std::nothrow_t const & t) throw ()
     { return detail::op_new(s, false, ::operator new(s, t), "B"); }
     void * B::operator new[](std::size_t const s, std::nothrow_t const & t) throw ()
     { return detail::op_new(s, true, ::operator new[](s, t), "B"); }
+    #endif
+
     void B::operator delete(void * const p, std::size_t const s) throw ()
-    { detail::op_delete(p, false, s); }
+    { detail::op_delete(p, s); }
     void B::operator delete[](void * const p, std::size_t const s) throw ()
-    { detail::op_delete(p, true, s); }
+    { detail::op_array_delete(p, s); }
 
     void B::f() const {
       assert_status_below(this, detail::pillaged, "call B::f() on");
@@ -165,6 +191,7 @@ namespace tracked
       detail::info const i; print(i()); i() << ".vf()";
     }
 
+    #if __cplusplus >= 201103
     B::B(B && b): Tracked(std::move(b))
     { set_name("B"); detail::info const i; b.print(i()); i() << "=>"; print(i()); i() << '*'; }
     B & B::operator=(B && b) {
@@ -172,6 +199,7 @@ namespace tracked
       detail::info const i; b.print(i()); i() << "=>"; print(i());
       return *this;
     }
+    #endif
 
     B & B::operator++() {
       assert_status_below(this, detail::pillaged, "pre-increment");
@@ -192,7 +220,7 @@ namespace tracked
 
     template<typename C, typename Tr>
     void B::print(std::basic_ostream<C, Tr> & o) const
-    { o << 'B' << detail::id(*this); }
+    { o << 'B' << id(*this); }
 
     template<typename C, typename Tr>
     std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, B const & b)
@@ -204,7 +232,7 @@ namespace tracked
   // D:
 
     D::D() { set_name("D"); detail::info const i; print(i()); i() << '*'; }
-    D::D(D const & d): B(boost::implicit_cast<B const&>(d))
+    D::D(D const & d): B(d)
     { set_name("D"); detail::info const i; print(i()); i() << "*("; d.print(i()); i() << ')'; }
 
     D & D::operator=(D const & d) { B::operator=(d); detail::info const i; print(i()); i() << '='; d.print(i()); return *this; }
@@ -217,14 +245,16 @@ namespace tracked
     { return detail::op_new(s, false, ::operator new(s), "D"); }
     void * D::operator new[](std::size_t const s)
     { return detail::op_new(s, true, ::operator new[](s), "D"); }
+    #if __cplusplus >= 201103
     void * D::operator new(std::size_t const s, std::nothrow_t const & t) throw ()
     { return detail::op_new(s, false, ::operator new(s, t), "D"); }
     void * D::operator new[](std::size_t const s, std::nothrow_t const & t) throw ()
     { return detail::op_new(s, true, ::operator new[](s, t), "D"); }
+    #endif
     void D::operator delete(void * const p, std::size_t const s) throw ()
-    { detail::op_delete(p, false, s); }
+    { detail::op_delete(p, s); }
     void D::operator delete[](void * const p, std::size_t const s) throw ()
-    { detail::op_delete(p, true, s); }
+    { detail::op_array_delete(p, s); }
 
     void D::f() const {
       assert_status_below(this, detail::pillaged, "call D::f() on");
@@ -238,7 +268,7 @@ namespace tracked
 
     template<typename C, typename Tr>
     void D::print(std::basic_ostream<C, Tr> & o) const
-    { o << 'D' << detail::id(*this); }
+    { o << 'D' << id(*this); }
 
     template<typename C, typename Tr>
     std::basic_ostream<C, Tr> & operator<<(std::basic_ostream<C, Tr> & o, D const & d)
@@ -247,6 +277,7 @@ namespace tracked
     template std::ostream & operator<<<char, std::char_traits<char> >(std::ostream &, D const &);
     template std::wostream & operator<<<wchar_t, std::char_traits<wchar_t> >(std::wostream &, D const &);
 
+    #if __cplusplus >= 201103
     D::D(D && d): B(std::move(d))
     { set_name("D"); detail::info const i; d.print(i()); i() << "=>"; print(i()); i() << '*'; }
     D & D::operator=(D && d) {
@@ -254,9 +285,30 @@ namespace tracked
       detail::info const i; d.print(i()); i() << "=>"; print(i());
       return *this;
     }
+    #endif
 
   // In the above, it looks like there is a lot of code duplication for B and D. Previous implementations of these tracking facilities used clever CRTP helper templates to factor out as much of the common code as possible. However, to prevent the cleverness from showing through in gcc diagnostics, small delegators had to be put in B/D for all operations (in addition to the ones for the constructors which were always there, since constructors cannot be inherited (yet)). In the end, the hassle was not worth the gain, so I reverted back to the simple straightforward approach.
 
-} // namespace tracked
+  void atexit()
+  {
+    bool first = true;
+    for (detail::Entries::const_iterator
+        i = detail::entries().begin();
+        i != detail::entries().end();
+        ++i)
+      if (i->status != detail::destructed)
+      {
+        if (first) { std::printf("%sleaked: ", geordi::parsep); first = false; }
+        else std::printf(", ");
 
-#endif
+        print(*i);
+      }
+
+    if (!first)
+    {
+      std::printf(".");
+      abort();
+    }
+  }
+
+} // namespace tracked

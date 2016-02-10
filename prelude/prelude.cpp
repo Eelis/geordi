@@ -20,7 +20,6 @@
 #include <stdlib.h>
 #include <cxxabi.h>
 #include <ext/malloc_allocator.h>
-#include <boost/noncopyable.hpp>
 #include "geordi.hpp"
 
 #if __cplusplus >= 201103
@@ -34,6 +33,8 @@
     char const *, std::regex const &, char const *, std::regex_constants::match_flag_type);
 
 #endif
+
+namespace tracked { void atexit(); }
 
 namespace geordi
 {
@@ -145,6 +146,8 @@ namespace geordi
         std::set_unexpected(unexpected_handler);
 
         std::setlocale(LC_ALL, "");
+
+        std::atexit(tracked::atexit);
 
         maybe_show_asm();
       }

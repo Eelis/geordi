@@ -1,9 +1,8 @@
 #ifndef TRACKED_HPP
 #define TRACKED_HPP
 
-#include <boost/noncopyable.hpp>
 #include <iosfwd>
-#include <string>
+#include <new>
 
 namespace tracked
 {
@@ -15,16 +14,19 @@ namespace tracked
 
         Tracked();
         Tracked(Tracked const &);
+        #if __cplusplus >= 201103
         Tracked(Tracked &&);
+        #endif
+
         void operator=(Tracked const &);
+        #if __cplusplus >= 201103
         void operator=(Tracked &&);
-        virtual ~Tracked();
+        #endif
+
+        ~Tracked();
 
         void set_name(char const *) const;
     };
-
-    unsigned int id(Tracked const &);
-
   }
 
   void mute(); void unmute();
@@ -63,16 +65,22 @@ namespace tracked
   {
     B();
     B(B const &);
+    #if __cplusplus >= 201103
     B(B &&);
+    #endif
 
     B & operator=(B const &);
+    #if __cplusplus >= 201103
     B & operator=(B &&);
+    #endif
     virtual ~B();
 
     void * operator new(std::size_t);
     void * operator new[](std::size_t);
+    #if __cplusplus >= 201103
     void * operator new(std::size_t, std::nothrow_t const &) throw();
     void * operator new[](std::size_t, std::nothrow_t const &) throw();
+    #endif
     void * operator new(std::size_t const, void * const p) throw() { return p; }
     void * operator new[](std::size_t const, void * const p) throw() { return p; }
     void operator delete(void *, std::size_t) throw();
@@ -104,16 +112,22 @@ namespace tracked
   {
     D();
     D(D const &);
+    #if __cplusplus >= 201103
     D(D &&);
+    #endif
 
     D & operator=(D const &);
+    #if __cplusplus >= 201103
     D & operator=(D &&);
+    #endif
     ~D();
 
     void * operator new(std::size_t);
     void * operator new[](std::size_t);
+    #if __cplusplus >= 201103
     void * operator new(std::size_t, std::nothrow_t const &) throw();
     void * operator new[](std::size_t, std::nothrow_t const &) throw();
+    #endif
     void * operator new(std::size_t const, void * const p) throw() { return p; }
     void * operator new[](std::size_t const, void * const p) throw() { return p; }
     void operator delete(void *, std::size_t) throw();
