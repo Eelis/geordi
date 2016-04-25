@@ -110,7 +110,7 @@ discarded_lines_description s =
 describe_lines :: [String] → String
 describe_lines [] = ""
 describe_lines (x:xs)
-  | xs == [] || "error:" `isPrefixOf` x = x
+  | xs == [] || "error:" `isPrefixOf` x || "Error:" `isPrefixOf` x = x
   | otherwise = x ++ discarded_lines_description (length xs)
 
 data ChannelMemory = ChannelMemory
