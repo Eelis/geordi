@@ -253,6 +253,7 @@ namespace textual_type_descriptions
       case cv_c: return "constant ";
       case cv_v: return "volatile ";
       case cv_cv: return "constant volatile ";
+      default: abort();
     }
   }
 
