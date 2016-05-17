@@ -18,7 +18,7 @@ gcc -fPIC -shared -Wall -o /lib/libdiagnose_sigsys.so /geordi/src/diagnose_sigsy
 /geordi/src/lockdown/compile.sh
 
 cd /geordi/src/prelude
-patch /usr/local/include/c++/6.0.0/typeinfo demangle_typeinfo_name.patch -o patched_typeinfo.hpp
+patch /usr/local/include/c++/7.0.0/typeinfo demangle_typeinfo_name.patch -o patched_typeinfo.hpp
   # TODO: don't hard-code version
 chmod a+r patched_typeinfo.hpp
 
