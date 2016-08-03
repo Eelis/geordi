@@ -127,7 +127,6 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
     , string "typename " >> return ""
         -- Shows up in assertion failures after replacements have been performed.
 
-    {- defaulters broken by Parsec 3:
     , defaulter ["list", "deque", "vector"] 1 $ tmpl "allocator"
     , defaulter ["set", "multiset", "basic_stringstream", "basic_stringbuf", "basic_string", "basic_ostringstream", "basic_istringstream"] 2 $ tmpl "allocator" . head
     , defaulter ["map", "multimap"] 3 $ \[k, v, _] → tmpl "allocator" (tmpl "pair" (try (("const " $> k) <|> (k $> "const")) `comma` v))
@@ -136,23 +135,21 @@ cleanup_stdlib_templates = either (const "cleanup_stdlib_templates parse failure
     , defaulter ["queue", "stack"] 1 $ \[e] → tmpl "deque" (e `comma` tmpl "allocator" e)
     , defaulter ["map", "multimap", "priority_queue"] 2 $ tmpl "less" . head
     , defaulter ((("basic_" ++) . ioBasics) ++ ["ostreambuf_iterator", "istreambuf_iterator"]) 1 $ tmpl "char_traits"
-    , defaulter ["istream_iterator"] 3 $ const $ option [] (string "long") $> "int"
+    --, defaulter ["istream_iterator"] 3 $ const $ option [] (string "long") $> "int"
         -- "int"/"long int" is what is printed for ptrdiff_t.
     , defaulter ["istream_iterator", "ostream_iterator"] 2 $ tmpl "char_traits" . (!!1)
     , defaulter ["istream_iterator", "ostream_iterator"] 1 $ const "char"
-    -}
     ] -- Together, these must be strongly normalizing.
 
   -- Things that go wrong but are hard to fix:
   --   set<T>::iterator displayed as const version. Same for multiset.
 
-{- broken by Parsec 3:
-  defaulter :: Parser p st a ⇒ [String] → Int → ([String] → p) → CharParser st String
+  defaulter :: Parser p () a ⇒ [String] → Int → ([String] → p) → CharParser () String
   defaulter names idx def =
-    names $>> "<" $>> (count idx (cxxArg <$ char ',' << spaces) >>= \prec → parser (def prec) >> return (concat $ intersperse ", " prec)) $>> ">"
+    names $>> "<" $>> (count idx (cxxArg <$ ',' << spaces) >>= \prec → parser (def prec) >> return (concat $ intersperse ", " prec)) $>> ">"
       where x $>> y = (parser x << spaces) >+> parser y
         -- Hides default template arguments.
--}
+
 
   noid = notFollowedBy (satisfy isIdChar)
 
