@@ -59,6 +59,7 @@ auto rules =
 	, RULE(ioctl,           ERRNO(-1))
 	, RULE(chmod,           ERRNO(-1))
 	, RULE(shmdt,           ERRNO(-1))
+	, RULE(sysinfo,         ERRNO(-1))
 	, RULE(madvise,         ERRNO(0))
 	, RULE(fstatfs,         ERRNO(0))
 	, RULE(fcntl,           ERRNO(0))
