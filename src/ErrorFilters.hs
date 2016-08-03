@@ -35,23 +35,31 @@ cleanup_ubsan_errors
 cleanup_ubsan_errors x = x
 
 cleanup_output :: Stage → String → String
-cleanup_output stage e = case stage of
-  Preprocess → unlines $ dropWhile (\(dropWhile isSpace → l) → null l || "#" `isPrefixOf` l) $ lines e
-  Compile → cleanup_stdlib_templates
-    -- $ replace_withs
-    $ hide_clutter_namespaces
-    $ fromMaybe e $ maybeLast $ flip mapMaybe (lines e) $ \l → do
-        (_, _, x, _) ← matchRegexAll (mkRegex "(^|\n)[^:]+:([[:digit:]]+:)+ ") l
-        guard $ not $ "note:" `isPrefixOf` x
-        return x
-      -- Even though we use -Wfatal-errors, we may still get several "instantiated from ..." lines. Only the last of these (the one we're interested in) actually says "error"/"warning". We used to have the regex match on that, greatly simplifying the above, but that broke when a language other than English was used.
-  Run → replaceInfix "E7tKRJpMcGq574LY:" [parsep]
-    $ cleanup_stdlib_templates
-    -- $ replace_withs
-    $ cleanup_ubsan_errors
-    $ hide_clutter_namespaces e
-  -- We also clean up successful output, because it might include dirty assertion failures and {E}TYPE strings. The "E7tKRJpMcGq574LY:" is for libstdc++ debug mode errors; see prelude.hpp.
-  _ {- Assemble, Link -} → maybe e (\(_, x, _, _) → uncapitalize x) $ matchRegexAll (mkRegexWithOpts "\\b(error|warning): [^\n]*|\\bundefined reference to [^\n]*" True False) e
+cleanup_output stage e
+
+  | stage == Preprocess =
+    unlines $ dropWhile (\(dropWhile isSpace → l) → null l || "#" `isPrefixOf` l) $ lines e
+
+  | stage == Compile || stage == Analyze =
+    cleanup_stdlib_templates
+      -- $ replace_withs
+      $ hide_clutter_namespaces
+      $ fromMaybe e $ maybeLast $ flip mapMaybe (lines e) $ \l → do
+          (_, _, x, _) ← matchRegexAll (mkRegex "(^|\n)[^:]+:([[:digit:]]+:)+ ") l
+          guard $ not $ "note:" `isPrefixOf` x
+          return x
+        -- Even though we use -Wfatal-errors, we may still get several "instantiated from ..." lines. Only the last of these (the one we're interested in) actually says "error"/"warning". We used to have the regex match on that, greatly simplifying the above, but that broke when a language other than English was used.
+
+  | stage == Run =
+    replaceInfix "E7tKRJpMcGq574LY:" [parsep]
+      $ cleanup_stdlib_templates
+      -- $ replace_withs
+      $ cleanup_ubsan_errors
+      $ hide_clutter_namespaces e
+    -- We also clean up successful output, because it might include dirty assertion failures and {E}TYPE strings. The "E7tKRJpMcGq574LY:" is for libstdc++ debug mode errors; see prelude.hpp.
+
+  | otherwise = -- Assemble, Link
+    maybe e (\(_, x, _, _) → uncapitalize x) $ matchRegexAll (mkRegexWithOpts "\\b(error|warning): [^\n]*|\\bundefined reference to [^\n]*" True False) e
 
 cxxArg :: CharParser st String
 cxxArg = strip . ce
