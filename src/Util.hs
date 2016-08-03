@@ -449,6 +449,7 @@ describe_new_output prev new
     thing
       | "warning:" `isPrefixOf` new = "warning"
       | "error:" `isPrefixOf` new = "error"
+      | "Error:" `isPrefixOf` new = "error"
       | "internal compiler error:" `isPrefixOf` new = "error"
       | otherwise = "output"
 
