@@ -55,9 +55,6 @@ data IrcBotConfig = IrcBotConfig
 instance Read Regex where
   readsPrec i s = first (\r → mkRegexWithOpts r True False) . readsPrec i s
 
-instance Read Net.PortNumber where
-  readsPrec i s = (\(x, s') → (fromIntegral (x :: Int), s')) . readsPrec i s
-
 data Opt = Help deriving Eq
 
 optsDesc :: [OptDescr Opt]
