@@ -73,6 +73,7 @@ auto rules =
 	, RULE(vfork,           ERRNO(0))
 	, RULE(rt_sigprocmask,  ERRNO(0))
 	, RULE(set_robust_list, ERRNO(0))
+	, RULE(sigaltstack,     ERRNO(0))
 	};
 
 void e(char const * const what) { throw std::runtime_error(what); }
