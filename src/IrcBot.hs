@@ -26,7 +26,7 @@ import Data.Map (Map)
 import Data.SetOps
 import Util ((.), elemBy, caselessStringEq, maybeM, describe_new_output,
   orElse, full_evaluate, withResource, mapState',
-  strip_utf8_bom, none, takeBack, replaceInfix)
+  strip_utf8_bom, none, takeBack, replaceInfix, classify_diagnostic)
 import Sys (rate_limiter)
 
 import Prelude hiding ((.))
@@ -107,7 +107,7 @@ discarded_lines_description s =
 describe_lines :: [String] → String
 describe_lines [] = ""
 describe_lines (x:xs)
-  | xs == [] || "error:" `isPrefixOf` x || "Error:" `isPrefixOf` x = x
+  | xs == [] || classify_diagnostic x == Just "error" = x
   | otherwise = x ++ discarded_lines_description (length xs)
 
 data ChannelMemory = ChannelMemory

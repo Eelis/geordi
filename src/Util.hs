@@ -434,6 +434,15 @@ x << y = x >>= \z → y >> return z
 parsep :: Char
 parsep = '\x2029' -- U+2029 PARAGRAPH SEPARATOR
 
+classify_diagnostic :: String -> Maybe String
+classify_diagnostic s
+  | "warning:" `isPrefixOf` s = Just "warning"
+  | "error:" `isPrefixOf` s = Just "error"
+  | "Error:" `isPrefixOf` s = Just "error"
+  | "fatal error:" `isPrefixOf` s = Just "error"
+  | "internal compiler error:" `isPrefixOf` s = Just "error"
+  | otherwise = Nothing
+
 describe_new_output :: [String] → String → String
 describe_new_output prev new
   | length new ≤ 20 = new
@@ -445,13 +454,7 @@ describe_new_output prev new
       , "Same " ++ thing ++ "."
       , "Give up already."
       ]
-  where
-    thing
-      | "warning:" `isPrefixOf` new = "warning"
-      | "error:" `isPrefixOf` new = "error"
-      | "Error:" `isPrefixOf` new = "error"
-      | "internal compiler error:" `isPrefixOf` new = "error"
-      | otherwise = "output"
+  where thing = classify_diagnostic new `orElse` "output"
 
 mapState' :: Monad y ⇒ (x → x) → StateT x y ()
 mapState' f = StateT $ \s → return ((), f s)
