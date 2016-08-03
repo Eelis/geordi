@@ -101,7 +101,7 @@ tests "resources" =
   , test "System call interception" "<< fork()" $ ExactMatch "Operation not permitted: clone"
   , test "Signal" "{ int x = 0; cout << 3 / x; }" $ ExactMatch "Floating point exception"
   , test "Recursive exec()"
-    "int main (int const argc, char const * const * argv) { string s; if (argc >= 2) s = argv[1]; s += 'x'; if (s.size() % 100 == 0) cout << '+' << flush; execl(\"/t\", \"/t\", s.c_str(), 0); }" $
+    "int main (int const argc, char const * const * argv) { string s; if (argc >= 2) s = argv[1]; s += 'x'; if (s.size() % 100 == 0) cout << '+' << flush; execl(\"/geordi/run/t\", \"t\", s.c_str(), 0); }" $
     RegexMatch "\\++( Alarm clock| CPU time limit exceeded)?$"
   ]
 
@@ -156,7 +156,7 @@ tests "tracked" =
   ]
 
 tests "utilities" =
-  [ test "ETYPE" "{ int i = 4; cout << ETYPE(++i); }" $ ExactMatch "lvalue int"
+  [ test "TYPE" "{ int i = 4; cout << TYPE(++i); }" $ ExactMatch "lvalue int"
   , test "Range printing" "{ vector<int> v{3, 5, 9, 4, 1}; cout << v; }" $ ExactMatch "{3, 5, 9, 4, 1}"
   , test "Demangled printable typeid" "<< typeid(int)" $ ExactMatch "int"
   , test "Custom assert()/abort()" "{ assert(4 > 9); }" $ ExactMatch "Assertion `4 > 9' fails."
@@ -169,7 +169,7 @@ tests "utilities" =
 tests "errorfilters" =
   [ test "Type cleanup" "{ wistringstream is; !is.str(); }" $
     ExactMatch "error: no match for 'operator!' in '!wistringstream::str() const()'"
-  , test "Ditto" "<< ETYPE(&vector<queue<istream_iterator<int> > >::foo)" $
+  , test "Ditto" "<< TYPE(&vector<queue<istream_iterator<int> > >::foo)" $
     ExactMatch "error: 'foo' is not a member of 'vector<queue<istream_iterator<int>>>'"
   , test "Preprocessor error" "<< 08" $ ExactMatch "error: invalid digit \"8\" in octal constant"
   , test "[with ...]-replacement" "<< 1 == 1" $ ExactMatch "error: no match for 'operator==' in 'cout.ostream::operator<<(1) == 1'"
