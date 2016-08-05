@@ -1,0 +1,4 @@
+315,317d314
+< #if defined _DEFAULT_SOURCE
+< # define __USE_MISC	1
+< #endif

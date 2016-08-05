@@ -21,6 +21,7 @@ cd /geordi/src/prelude
 patch /usr/local/include/c++/7.0.0/typeinfo demangle_typeinfo_name.patch -o patched_typeinfo.hpp
   # TODO: don't hard-code version
 chmod a+r patched_typeinfo.hpp
+patch /usr/include/features.h dont_use_misc.patch
 
 /geordi/src/prelude/compile.sh
 
