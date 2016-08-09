@@ -140,7 +140,7 @@ tests "diagnostics" =
   , test "Ditto." "{ int * const p = new int; delete p; new int; delete p; }" $ ExactMatch "error: tried to delete already deleted pointer. Aborted"
   , test "Custom terminate() handler" "{ throw std::logic_error(\"It is not logical, Captain.\"); }" $
     ExactMatch "terminated by logic_error: It is not logical, Captain."
-  , test "libstdc++ debug mode" "<< *vector<int>().begin()" $ PrefixMatch "Error: attempt to dereference a past-the-end iterator"
+  , test "libstdc++ debug mode" "<< *vector<int>().begin()" $ PrefixMatch "error: attempt to dereference a past-the-end iterator"
   , test "Fatal warnings" "{} int f() {}" $ PrefixMatch "warning: "
   ]
 

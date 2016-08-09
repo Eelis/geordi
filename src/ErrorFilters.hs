@@ -34,6 +34,14 @@ cleanup_ubsan_errors
   (dropWhile isDigit -> stripPrefix ": runtime error:" -> Just x))) = "error:" ++ x
 cleanup_ubsan_errors x = x
 
+spaceIsh :: Char -> Bool
+spaceIsh c = c == parsep || isSpace c
+
+canonical_error :: String → String
+canonical_error (dropWhile spaceIsh -> span (/= ':') -> (a, b))
+  | a `elem` ["error", "Error", "fatal error"] = "error" ++ b
+canonical_error x = x
+
 cleanup_output :: Stage → String → String
 cleanup_output stage e
 
@@ -44,6 +52,7 @@ cleanup_output stage e
     cleanup_stdlib_templates
       -- $ replace_withs
       $ hide_clutter_namespaces
+      $ canonical_error
       $ fromMaybe e $ maybeLast $ flip mapMaybe (lines e) $ \l → do
           (_, _, x, _) ← matchRegexAll (mkRegex "(^|\n)[^:]+:([[:digit:]]+:)+ ") l
           guard $ not $ "note:" `isPrefixOf` x
@@ -51,10 +60,11 @@ cleanup_output stage e
         -- Even though we use -Wfatal-errors, we may still get several "instantiated from ..." lines. Only the last of these (the one we're interested in) actually says "error"/"warning". We used to have the regex match on that, greatly simplifying the above, but that broke when a language other than English was used.
 
   | stage == Run =
-    replaceInfix "E7tKRJpMcGq574LY:" [parsep]
-      $ cleanup_stdlib_templates
+      cleanup_stdlib_templates
       -- $ replace_withs
+      $ canonical_error
       $ cleanup_ubsan_errors
+      $ replaceInfix "E7tKRJpMcGq574LY:" [parsep]
       $ hide_clutter_namespaces e
     -- We also clean up successful output, because it might include dirty assertion failures and {E}TYPE strings. The "E7tKRJpMcGq574LY:" is for libstdc++ debug mode errors; see prelude.hpp.
 
