@@ -2,10 +2,10 @@
 set -euv
 
 cd /
-wget https://haskell.org/platform/download/7.10.3/haskell-platform-7.10.3-unknown-posix-x86_64.tar.gz
-tar xf haskell-platform-7.10.3-unknown-posix-x86_64.tar.gz
+wget https://haskell.org/platform/download/8.0.1/haskell-platform-8.0.1-unknown-posix--minimal-x86_64.tar.gz
+tar xf haskell-platform-8.0.1-unknown-posix--minimal-x86_64.tar.gz
 ./install-haskell-platform.sh
 
 rm install-haskell-platform.sh
 rm hp-usr-local.tar.gz
-rm haskell-platform-7.10.3-unknown-posix-x86_64.tar.gz
+rm haskell-platform-8.0.1-unknown-posix--minimal-x86_64.tar.gz

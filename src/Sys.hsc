@@ -30,13 +30,6 @@ syscall_off, syscall_ret :: CLong
 syscall_off = (#const ORIG_RAX) * 8
 syscall_ret = (#const RAX) * 8
 
-foreign import ccall unsafe "__hsunix_wifexited" c_WIFEXITED :: CInt → CInt
-foreign import ccall unsafe "__hsunix_wexitstatus" c_WEXITSTATUS :: CInt → CInt
-foreign import ccall unsafe "__hsunix_wifsignaled" c_WIFSIGNALED :: CInt → CInt
-foreign import ccall unsafe "__hsunix_wtermsig" c_WTERMSIG :: CInt → CInt
-foreign import ccall unsafe "__hsunix_wifstopped" c_WIFSTOPPED :: CInt → CInt
-foreign import ccall unsafe "__hsunix_wstopsig" c_WSTOPSIG :: CInt → CInt
-
 foreign import ccall unsafe "unistd.h sleep" sleep :: CUInt → IO ()
 
 foreign import ccall unsafe "string.h strsignal" c_strsignal :: CInt → IO CString

@@ -84,7 +84,6 @@ executable geordi-http
     pointed >= 0.1.3,
     setlocale,
     process >= 1.4.0.0,
-    MonadCatchIO-transformers >= 0.2.1,
     transformers,
     snap-core >= 0.9,
     snap-server >= 0.9
