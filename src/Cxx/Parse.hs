@@ -35,7 +35,7 @@ import Control.Arrow (first, second)
 import Control.Applicative (Applicative(..))
 import Control.Monad.Fix (fix)
 import Control.Monad.Instances ()
-import Control.Monad (liftM2, liftM3)
+import Control.Monad (liftM2, liftM3, when)
 import Data.List ((\\))
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Generics (Data, Typeable, dataTypeOf)
@@ -141,8 +141,10 @@ stringLit = StringLiteral' . textLit '"'
 digits = Plain . (liftM2 (:) (satisfy Char.isDigit) (many (satisfy (\c -> Char.isDigit c || c == '\''))))
 plain = Plain . ((:[]) . oneOf ";\\" <|> toList . many1 punct <|> toList . many1 (satisfy Char.isAlpha))
   where
-    punct = satisfy (\c -> not (Char.isAlphaNum c) && not (c `elem` "'\"{([])}/;\\"))
-      <|> (symbol '/' << lookAhead (noneOf "*/"))
+    punct = do
+      c <- satisfy (\c -> not (Char.isAlphaNum c) && not (c `elem` "'\"{([])};\\"))
+      when (c == '/') $ lookAhead (noneOf "*/") >> return ()
+      return c
 parens = Parens . (symbol '(' >> code << symbol ')')
 curlies = Curlies . (symbol '{' >> code << symbol '}')
 squares = Squares . (symbol '[' >> code << symbol ']')
