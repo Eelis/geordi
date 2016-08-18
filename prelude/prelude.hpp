@@ -114,7 +114,9 @@
   #ifndef __clang__
   #include <experimental/any>
   #endif
+  #include <experimental/array>
   #include <experimental/chrono>
+  #include <experimental/deque>
   #ifndef __clang__
   #include <experimental/filesystem>
   #endif
@@ -123,19 +125,24 @@
   #include <experimental/iterator>
   #include <experimental/list>
   #include <experimental/map>
+  #include <experimental/memory>
+  #include <experimental/memory_resource>
   #include <experimental/numeric>
   #include <experimental/optional>
+  #include <experimental/propagate_const>
+  #include <experimental/random>
   #include <experimental/ratio>
+  #include <experimental/regex>
   #include <experimental/set>
+  #include <experimental/string>
   #include <experimental/string_view>
   #include <experimental/system_error>
   #include <experimental/tuple>
   #include <experimental/type_traits>
   #include <experimental/unordered_map>
   #include <experimental/unordered_set>
+  #include <experimental/utility>
   #include <experimental/vector>
-
-  namespace std { using namespace experimental; }
 #endif
 
 #if __cplusplus >= 201103
