@@ -259,9 +259,6 @@ p compile_cfg context@Context{..} = (spaces >>) $ do
     kwds ["--make-type", "make type"]
     noErrors . respond_and_remember False . EditableRequest MakeType . getInput
   <|> do kwds ["uname"]; cout context (∅) "geordi::uname()"
-  <|> do
-    kwd "--show-compile-flags"
-    parseSuccess $ noErrors $ noEvaluation $ Response Nothing $ unwords $ EvalCxx.gccCompileFlags compile_cfg
   <|>
     (\(edited, we) → (\(s, e) → Response (Just $ AddLast (edited, e)) s) . we) ‥ (>>= execEditCommand context) . (Editing.Parse.commandsP << commit eof)
   <|> do
