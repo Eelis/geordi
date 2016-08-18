@@ -143,6 +143,12 @@
   #include <experimental/unordered_set>
   #include <experimental/utility>
   #include <experimental/vector>
+
+  #include <any>
+  #include <optional>
+  #include <string_view>
+  #include <variant>
+
 #endif
 
 #if __cplusplus >= 201103
