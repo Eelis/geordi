@@ -307,7 +307,7 @@
 
     <h4>2.8.1&emsp;Syntax:</h4>
 
-    <pre>    command = (insert | append | prepend | erase | replace | move | swap | use | make)*
+    <pre>    command = (insert | append | prepend | erase | replace | move | swap | use | make | "fix")*
 
     insert = ("insert" | "add") (... positions* | wrapping ("around" substrs*)*)
     append = "append" ... [positions*]
@@ -403,7 +403,20 @@
 
     <p>Geordi and the other users in the channel cannot read your mind, and the heuristics they use to determine which substring to replace are only "best effort". To prevent confusion (among geordi and the other users alike), it is therefore recommended to keep the modifications-to-context ratio of patterns low by being liberal with context, by not trying to simultaneously make multiple changes in a short code fragment, and by not trying to replace partial tokens (the heuristics have a strong bias in favour of whole-token replacements).</p>
 
-    <h4>2.8.4&emsp;The "make" edit command</h4>
+    <h4>2.8.4&emsp;The "fix" edit command</h4>
+
+    <p>If geordi prints "<code>(fix known)</code>" at the end of an error, it means the compiler told geordi how the error might be fixed, and you can ask geordi to apply that fix:</p>
+
+    <p><code>
+      &lt;Eelis> geordi: struct A {} int main(){ cout &lt;&lt; sizeof(A); }<br/>
+      &lt;geordi> error: expected ';' after struct definition (fix known)<br/>
+      &lt;Eelis> geordi: fix<br/>
+      &lt;geordi> 1<br/>
+      &lt;Eelis> geordi: show<br/>
+      &lt;geordi> struct A {}; int main(){ cout &lt;&lt; sizeof(A); }<br/>
+    </code></p>
+
+    <h4>2.8.5&emsp;The "make" edit command</h4>
 
     <p>The "make" edit command changes properties (including type) of declarations:</p>
 
