@@ -31,11 +31,17 @@ namespace bark_detail
   }
 
   string bark(string const pf, string const func) {
+
+    string::size_type const with = pf.find(" [with ");
+    if(with != string::npos)
+      return bark(pf.substr(0, with), func) + pf.substr(with);
+
     string::const_iterator p = boost::ends_with(pf, ")>") ? pf.end() : boost::find_first(pf, func + '(').begin();
     if(p == pf.end() || (p != pf.begin() && *(p-1) == ':')) {
       std::reverse_iterator<string::const_iterator> j(p);
       p = find_toplevel(' ', j, pf.rend()).base();
     }
+
     return string(p, pf.end());
   }
 }

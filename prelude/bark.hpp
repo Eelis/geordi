@@ -54,6 +54,7 @@ int main()
   boost::implicit_cast<unsigned int>(X());
   ::operator new(0, 'x');
   [](int){ BARK("main()::<lambda(int)>"); }(3);
+  [](int, auto){ BARK("main()::<lambda(int, auto:1)> [with auto:1 = int]"); }(3, 2);
   bla<&operator<< >();
   X()<<X();
 
