@@ -26,7 +26,6 @@ import qualified Data.List as List
 import qualified Data.List.NonEmpty as NeList
 import qualified Gcc
 
-import Control.Monad.Error (Error(..), throwError)
 import Control.Monad (join, when)
 import Control.Arrow (first, second)
 import Cxx.Basics (Code, AbbreviatedMain(..), Findable(DeclarationOf), DeclaratorId(..), IdExpression(..), UnqualifiedId(..), Identifier(..), White(..))
@@ -56,6 +55,9 @@ instance Show EditableRequest where
 
 no_break_space :: Char
 no_break_space = '\x00A0'
+
+throwError :: String -> Either String a
+throwError = Left
 
 diff :: EditableRequest → EditableRequest → String
 diff (EditableRequest MakeType y) (EditableRequest MakeType x) = pretty $ show . Editing.Diff.diff x y
@@ -97,12 +99,9 @@ inE = id
 continueParsing :: Parser t a → Parser t a
 continueParsing = id
 
-tagError :: (Pointed p, Error a) ⇒ E (p a) → p a
-tagError = either (point . strMsg . ("error: " ++)) id
-
-instance Error (String, Maybe (TextEdit Char)) where
-  noMsg = ("", Nothing)
-  strMsg = noFixit . strMsg
+tagError :: E (WithEvaluation (String, Maybe (TextEdit Char)))
+            -> WithEvaluation (String, Maybe (TextEdit Char))
+tagError = either (point . noFixit . ("error: " ++)) id
 
 optParser :: Parser Char (E (Set EvalOpt, [EphemeralOpt]))
 optParser = first Set.fromList ‥ partitionEithers ‥ option (return []) P.optParser
@@ -244,8 +243,8 @@ removeMain s =
               [] -> s
               ((r, _) : _) -> Editing.Basics.replaceRange r [] s
 
-p :: EvalCxx.CompileConfig → Context → Parser Char (E (WithEvaluation Response))
-p compile_cfg context@Context{..} = (spaces >>) $ do
+p :: Context → Parser Char (E (WithEvaluation Response))
+p context@Context{..} = (spaces >>) $ do
     (Response Nothing .) ‥ (>>= (fst ‥) . execFinalCommand context) . (Editing.Parse.finalCommandP << commit eof)
   <|> do
    kwds ["undo", "revert"]; commit $ propagateE (snd . popContext context) $ \context' → do
@@ -296,6 +295,6 @@ evaluate = (g .) . EvalCxx.withEvaluation
 
 evaluator :: IO (String → Context → [(String, String)] → IO Response)
 evaluator = do
-  (ev, cfg) ← EvalCxx.evaluator
+  (ev, _) ← EvalCxx.evaluator
   return $ \r context extra_env → either (return . Response Nothing . ("error: " ++)) (ev extra_env) $
-    join (parseOrFail (p cfg context) (replace no_break_space ' ' r) "request")
+    join (parseOrFail (p context) (replace no_break_space ' ' r) "request")

@@ -14,7 +14,6 @@ import Control.Arrow ((&&&))
 import Control.Monad.Except (MonadError(..))
 import Request (EditableRequest(..), EditableRequestKind(..), RequestEdit(..), addEvalOpt)
 import Cxx.Basics (GeordiRequest)
-import Data.SetOps
 import Util ((.), E, MaybeApply(..), Apply(..))
 
 import Prelude hiding ((.))
