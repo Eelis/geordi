@@ -1,6 +1,6 @@
 {-# LANGUAGE UnicodeSyntax, FlexibleInstances, UndecidableInstances, OverlappingInstances, ViewPatterns #-}
 
-module Request (is_addressed_request, is_nickless_request, RequestEdit(..), EditableRequest(..), EditableRequestKind(..), Context(..), Response(..), EvalOpt(..), EphemeralOpt(..), HistoryModification(..), modify_history, popContext) where
+module Request (is_addressed_request, is_nickless_request, RequestEdit(..), EditableRequest(..), EditableRequestKind(..), Context(..), Response(..), EvalOpt(..), EphemeralOpt(..), HistoryModification(..), modify_history, popContext, addEvalOpt) where
 
 import Data.Set (Set)
 import qualified Data.Set as Set
@@ -102,3 +102,19 @@ modify_history m (Context h cbd l) = Context h cbd $ case m of
 data Response = Response
   { response_history_modification :: Maybe HistoryModification
   , response_output :: String }
+
+data EvalOptKind = StageOpt | StdOpt | CompilerOpt | MiscOpt
+  deriving Eq
+
+evalOptKind :: EvalOpt -> EvalOptKind
+evalOptKind x
+  | x `elem` [Std98,Std03,Std11,Std14] = StdOpt
+  | x `elem` [Gcc, Clang] = CompilerOpt
+  | x `elem` [CompileOnly, PreprocessOnly] = StageOpt
+  | otherwise = MiscOpt
+
+replaces :: EvalOpt -> EvalOpt -> Bool
+x `replaces` y = evalOptKind x == evalOptKind y && evalOptKind x /= MiscOpt
+
+addEvalOpt :: EvalOpt -> Set EvalOpt -> Set EvalOpt
+addEvalOpt o = Set.insert o . Set.filter (not . (o `replaces`))

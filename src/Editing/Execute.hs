@@ -12,7 +12,7 @@ import Data.Monoid (Monoid(..))
 import Control.Applicative ((<|>))
 import Control.Arrow ((&&&))
 import Control.Monad.Except (MonadError(..))
-import Request (EditableRequest(..), EditableRequestKind(..), RequestEdit(..))
+import Request (EditableRequest(..), EditableRequestKind(..), RequestEdit(..), addEvalOpt)
 import Cxx.Basics (GeordiRequest)
 import Data.SetOps
 import Util ((.), E, MaybeApply(..), Apply(..))
@@ -31,7 +31,7 @@ instance MaybeApply RequestEdit EditableRequest where
       | Evaluate f ← kind → return er{ kind = Evaluate $ (Set.\\) f $ Set.fromList opts }
       | otherwise → throwError $ "Cannot remove evaluation options from \"" ++ show kind ++ "\" request."
     AddOptions opts
-      | Evaluate f ← kind → return er{ kind = Evaluate $ f ∪ Set.fromList opts }
+      | Evaluate f ← kind → return er{ kind = Evaluate $ foldr addEvalOpt f opts }
       | otherwise → throwError $ "Cannot use evaluation options for \"" ++ show kind ++ "\" request."
 
 data FoldState = FoldState
