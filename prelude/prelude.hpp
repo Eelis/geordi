@@ -8,13 +8,10 @@
 #endif
   // "E7tKRJpMcGq574LY" is just a random string, recognized by the error filters, chosen to minimize the chance of false positives.
 
-#if __cplusplus >= 201103 // maybe backport parts of these someday
+#if __cplusplus >= 201103 // maybe backport parts of these even further someday
   #include "lvalue_rvalue.hpp"
   #include "bin_iomanip.hpp"
-#endif
-
-#if __cplusplus >= 201402
-  #include "type_strings.hpp" // TODO: supporting 11 shouldn't be too painful
+  #include "type_strings.hpp"
 #endif
 
 #include "tracked.hpp"

@@ -3,7 +3,9 @@
 #ifndef TYPE_STRINGS_HPP
 #define TYPE_STRINGS_HPP
 
+#if __cplusplus >= 201103
 #include "lvalue_rvalue.hpp"
+#endif
 
 #include <list>
 #include <map>
@@ -21,17 +23,18 @@
 #include <cassert>
 #include <memory>
 
-#include <array>
-#include <tuple>
-#include <unordered_set>
+#if __cplusplus >= 201103
 #include <unordered_map>
+#include <unordered_set>
+#include <tuple>
+#include <array>
 #include <type_traits>
+#include "tlists.hpp"
+#endif
 
 #if __cplusplus >= 201500
 #include <experimental/type_traits>
 #endif
-
-#include "tlists.hpp"
 
 namespace type_strings_detail {
 
@@ -42,9 +45,9 @@ std::string commas_and (I b, I e)
 {
   assert(b != e);
   if (e - b == 3) { std::string r = *b++; r += ", " + *b++; return r + ", and " + *b; }
-  else if (e - b == 2) return *b + " and " + *std::next(b);
+  else if (e - b == 2) { I c = b; ++c; return *b + " and " + *c; }
   else if (e - b == 1) return *b;
-  else return *b + ", " + commas_and(std::next(b), e);
+  else { I c = b; ++c; return *b + ", " + commas_and(c, e); }
 }
 
 // Type strings in ordinary C++ syntax
@@ -53,7 +56,7 @@ template <typename> struct identity {};
 
 template <typename T> std::string type() {
   std::string r(typeid(identity<T>).name() + sizeof("type_strings_detail::identity<") - 1);
-  r.pop_back();
+  r.erase(r.end() - 1);
   return r;
 }
 
@@ -79,6 +82,7 @@ TYPEDEF_TYPE(wstring)
 
 template <typename> std::string type_desc (bool plural = false);
 
+#if __cplusplus >= 201103
 namespace textual_type_descriptions
 {
   inline std::string pl (std::string const & s, bool const b) { return s + (b ? "s" : ""); }
@@ -93,8 +97,15 @@ namespace textual_type_descriptions
   template <typename T> std::string an_or_many (bool const plural = false)
   { if (plural) return many<T>(); else return an<T>(); }
 
+  std::string to_string(int i)
+  {
+    std::ostringstream s;
+    s << i;
+    return s.str();
+  }
+
   template <typename T> std::string count (size_t const i)
-  { return std::to_string(i) + " " + type_desc<T>(i != 1); }
+  { return to_string(i) + " " + type_desc<T>(i != 1); }
 
   template <typename T> std::string an_or_count (size_t const i) { return i == 1 ? an<T>() : count<T>(i); }
 
@@ -172,8 +183,10 @@ namespace textual_type_descriptions
   template <typename T> struct type_desc_t<T &>: Vowel
   { static std::string s (bool b) { return pl("lvalue reference", b) + " to " + an_or_many<T>(b); } };
 
+  #if __cplusplus >= 201103
   template <typename T> struct type_desc_t<T &&>: Vowel
   { static std::string s (bool b) { return pl("rvalue reference", b) + " to " + an_or_many<T>(b); } };
+  #endif
 
   #define TYPE_STRINGS_EMPTY
 
@@ -410,6 +423,7 @@ namespace textual_type_descriptions
     { static std::string s (bool b) { return pl("unordered multi-set", b) + " of " + many<T>(); } };
 
 } // textual_type_descriptions
+#endif
 
 enum expr_cat { lvalue, xvalue, prvalue };
 
@@ -431,7 +445,7 @@ basic_ostream<Ch, Tr> & operator<<(basic_ostream<Ch, Tr> & o, expr_cat c)
 }
 
 template<typename T>
-constexpr expr_cat expression_category()
+expr_cat expression_category()
 {
   if (std::is_lvalue_reference<T>::value) return lvalue;
   if (std::is_rvalue_reference<T>::value) return xvalue;
@@ -443,12 +457,7 @@ template <typename T> std::string type_desc (bool const plural)
 
 template <typename> struct type_desc_tag {};
 template <typename> struct type_tag {};
-
-template <typename T> struct etype_tag
-{
-  static constexpr expr_cat category = expression_category<T>();
-};
-
+template <typename> struct etype_tag {};
 template <typename> struct etype_desc_tag {};
 
 struct adl_hint {};
