@@ -19,7 +19,7 @@ RUN cabal install --global --reorder-goals --allow-newer=process filepath proces
 # (We could rely on the list in geordi.cabal, but having these here shortens the development cycle when I'm testing changes in geordi.)
 
 COPY src /geordi/src
-RUN rm -rf /geordi/src/dist; cabal install --global /geordi/src --prefix=/usr
+RUN cabal install --global /geordi/src --prefix=/usr
 
 COPY compile-config /geordi/
 WORKDIR /geordi/run
