@@ -97,7 +97,7 @@ namespace textual_type_descriptions
   template <typename T> std::string an_or_many (bool const plural = false)
   { if (plural) return many<T>(); else return an<T>(); }
 
-  std::string to_string(int i)
+  inline std::string to_string(int i)
   {
     std::ostringstream s;
     s << i;
