@@ -2,13 +2,13 @@ Index: lib/Support/FileOutputBuffer.cpp
 ===================================================================
 --- lib/Support/FileOutputBuffer.cpp	(revision 246397)
 +++ lib/Support/FileOutputBuffer.cpp	(working copy)
-@@ -31,7 +31,6 @@
-     : Region(std::move(R)), FinalPath(Path), TempPath(TmpPath) {}
- 
- FileOutputBuffer::~FileOutputBuffer() {
+@@ -35,7 +35,6 @@
+   // Close the mapping before deleting the temp file, so that the removal
+   // succeeds.
+   Region.reset();
 -  sys::fs::remove(Twine(TempPath));
  }
- 
+
  ErrorOr<std::unique_ptr<FileOutputBuffer>>
 @@ -56,11 +55,6 @@
          return make_error_code(errc::operation_not_permitted);
