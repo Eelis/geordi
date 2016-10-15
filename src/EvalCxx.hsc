@@ -212,6 +212,7 @@ evaluate cfg Request{..} extra_env = do
     path Analyze = clangPath cfg
     path Compile | clang = clangPath cfg
     path Preprocess | clang = clangPath cfg
+    path _ | clang = clangPath cfg
     path _ = gccPath cfg
 
     stdflag = "-std=c++" ++ stdDigits standard
@@ -227,8 +228,10 @@ evaluate cfg Request{..} extra_env = do
         Assemble → ["-c", unit ++ ".s", stdflag] ++ gccCompileFlags cfg
         Link → ((++ ".o") . fst . namedUnits) ++
           ["-o", "t"
-          , "-Wl,--rpath,/usr/local/lib64", "-Wl,--undefined,geordi_init"
-          , "-lgeordi_prelude-" ++ stdDigits standard, "-lmcheck", "-lubsan", "-lstdc++fs", "-lpthread", "-save-temps"]
+          , "-Wl,--rpath,/usr/local/" ++ (if clang then "lib" else "lib64")
+          , "-Wl,--undefined,geordi_init"
+          , "-lgeordi_prelude-" ++ stdDigits standard, "-lmcheck", "-lubsan", "-lstdc++fs", "-lpthread", "-save-temps"] ++
+          ["-lc++" | clang]
       where
         compileFlags = ["-w" | no_warn] ++
           if clang

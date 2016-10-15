@@ -7,14 +7,16 @@ cd /llvm/tools
 svn checkout http://llvm.org/svn/llvm-project/cfe/trunk/ clang
 cd /llvm/projects
 svn checkout http://llvm.org/svn/llvm-project/compiler-rt/trunk/ compiler-rt
+svn checkout http://llvm.org/svn/llvm-project/libcxx/trunk libcxx
 
 cd /llvm
 patch -p0 < /geordi/src/llvm-no-temp-files.patch
 
 mkdir /llvm.build
 cd /llvm.build
-cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_BUILD_DOCS=OFF /llvm
+cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_BUILD_DOCS=OFF -DLIBCXX_CXX_ABI=libstdc++ /llvm
 make -j2
 make install
+make install-cxx
 
 rm -rf /llvm /llvm.build
