@@ -109,6 +109,15 @@
   #include <shared_mutex>
 #endif
 
+#if __cplusplus > 201402
+  #include <any>
+  #include <optional>
+  #include <string_view>
+  #ifndef __clang__
+    #include <variant>
+  #endif
+#endif
+
 #if __cplusplus >= 201500
   // TODO: use better way to detect usability of experimental headers, because this doesn't work for clang
   #include <experimental/algorithm>
@@ -144,12 +153,6 @@
   #include <experimental/unordered_set>
   #include <experimental/utility>
   #include <experimental/vector>
-
-  #include <any>
-  #include <optional>
-  #include <string_view>
-  #include <variant>
-
 #endif
 
 #if __cplusplus >= 201103
