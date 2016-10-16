@@ -1,0 +1,26 @@
+@@ -69,6 +69,8 @@
+ #pragma GCC system_header
+ #endif
+ 
++namespace geordi { char const * demangle(char const *); }
++
+ namespace std  // purposefully not using versioning namespace
+ {
+ 
+@@ -98,11 +100,14 @@
+ 
+     _LIBCPP_INLINE_VISIBILITY
+     const char* name() const _NOEXCEPT
++    {
+ #ifndef _LIBCPP_NONUNIQUE_RTTI_BIT
+-        {return __type_name;}
++        char const * r = __type_name;
+ #else
+-        {return reinterpret_cast<const char*>(__type_name & ~_LIBCPP_NONUNIQUE_RTTI_BIT);}
++        char const * r = reinterpret_cast<const char*>(__type_name & ~_LIBCPP_NONUNIQUE_RTTI_BIT);
+ #endif
++        return geordi::demangle(r);
++    }
+ 
+     _LIBCPP_INLINE_VISIBILITY
+     bool before(const type_info& __arg) const _NOEXCEPT
