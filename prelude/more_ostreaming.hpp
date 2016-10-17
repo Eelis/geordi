@@ -100,8 +100,10 @@ namespace more_ostreaming
     for (auto && x : r) { if (first) first = false; else o << ", "; o << escape(x); }
   }
 
+  #if !defined(__clang__)
   extern template void delimit<char, std::char_traits<char>, std::vector<int> >(std::ostream &, std::vector<int> const &);
     // vector<int> is the most used container for demonstrations, so it's worth making it print fast.
+  #endif
 }
 
 #endif
@@ -291,12 +293,16 @@ T(nano, " ns")
 
 #endif
 
-
 #if __cplusplus >= 201103
 
 #include <system_error>
 
-std::ostream & operator<<(std::ostream &, std::error_category const &);
+template<typename Ch, typename Tr>
+inline std::basic_ostream<Ch, Tr> &
+  operator<<(std::basic_ostream<Ch, Tr> & o, std::error_category const & c)
+{
+  return o << c.name();
+}
 
 #endif
 
