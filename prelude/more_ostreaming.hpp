@@ -306,6 +306,22 @@ inline std::basic_ostream<Ch, Tr> &
 
 #endif
 
+#if __cplusplus >= 201500 && __has_include(<variant>)
+
+#include <variant>
+
+template<typename Ch, typename Tr, typename... T>
+inline std::basic_ostream<Ch, Tr> &
+  operator<<(std::basic_ostream<Ch, Tr> & o, std::variant<T...> const & v)
+{
+  if (v.valueless_by_exception()) return o << "<valueless>";
+
+  std::visit([&](auto const & x){ o << x; }, v);
+  return o;
+}
+
+#endif
+
 #endif // header guard
 
 #ifdef MORE_OSTREAMING_TEST
