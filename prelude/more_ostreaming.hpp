@@ -337,6 +337,31 @@ inline std::basic_ostream<Ch, Tr> &
 
 #endif
 
+#if __cplusplus >= 201103
+
+#include <memory>
+
+template<typename Ch, typename Tr, typename T>
+inline std::basic_ostream<Ch, Tr> &
+  operator<<(std::basic_ostream<Ch, Tr> & o, std::unique_ptr<T> const & p)
+{
+  if (p) o << p.get();
+  else o << "nullptr";
+  return o;
+}
+
+template<typename Ch, typename Tr, typename T>
+inline std::basic_ostream<Ch, Tr> &
+  operator<<(std::basic_ostream<Ch, Tr> & o, std::shared_ptr<T> const & p)
+{
+  if (p) o << p.get();
+  else o << "nullptr";
+  return o;
+}
+
+#endif
+
+
 #endif // header guard
 
 #ifdef MORE_OSTREAMING_TEST
