@@ -322,6 +322,21 @@ inline std::basic_ostream<Ch, Tr> &
 
 #endif
 
+#if __cplusplus > 201402 && __has_include(<optional>)
+
+#include <optional>
+
+template<typename Ch, typename Tr, typename T>
+inline std::basic_ostream<Ch, Tr> &
+  operator<<(std::basic_ostream<Ch, Tr> & o, std::optional<T> const & x)
+{
+  if (x) o << *x;
+  else o << "<none>";
+  return o;
+}
+
+#endif
+
 #endif // header guard
 
 #ifdef MORE_OSTREAMING_TEST
