@@ -22,6 +22,7 @@
 #include <ios>
 #include <cassert>
 #include <memory>
+#include <cstring>
 
 #if __cplusplus >= 201103
 #include <unordered_map>
@@ -52,12 +53,21 @@ std::string commas_and (I b, I e)
 
 // Type strings in ordinary C++ syntax
 
-template <typename> struct identity {};
+template <typename T>
+char const * helper()
+{
+  return __PRETTY_FUNCTION__ + sizeof(
+    #ifdef __clang__
+      "const char* type_strings_detail::helper() [T = "
+    #else
+      "const char* type_strings_detail::helper() [with T = "
+    #endif
+      ) - 1;
+}
 
 template <typename T> std::string type() {
-  std::string r(typeid(identity<T>).name() + sizeof("type_strings_detail::identity<") - 1);
-  r.erase(r.end() - 1);
-  return r;
+  char const * const p = helper<T>();
+  return std::string(p, std::strlen(p) - sizeof(']'));
 }
 
 #define TYPEDEF_TYPE(n) template <> inline std::string type<std::n> () { return #n; }
