@@ -310,10 +310,12 @@ inline std::basic_ostream<Ch, Tr> &
 
 #include <variant>
 
-template<typename Ch, typename Tr, typename... T>
+template<typename Ch, typename Tr, typename T, typename... Ts>
 inline std::basic_ostream<Ch, Tr> &
-  operator<<(std::basic_ostream<Ch, Tr> & o, std::variant<T...> const & v)
+  operator<<(std::basic_ostream<Ch, Tr> & o, std::variant<T, Ts...> const & v)
 {
+  // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=78966
+
   if (v.valueless_by_exception()) return o << "<valueless>";
 
   std::visit([&](auto const & x){ o << x; }, v);
