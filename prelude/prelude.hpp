@@ -108,54 +108,100 @@
   #include <system_error>
 #endif
 
-#if __cplusplus >= 201402
+#if __cplusplus >= 201703
   #include <shared_mutex>
-#endif
-
-#if __cplusplus > 201402
   #include <any>
   #include <optional>
   #include <string_view>
-  #ifndef __clang__
-    #include <variant>
-  #endif
-#endif
+  #include <variant>
 
-#if __cplusplus >= 201500
-  // TODO: use better way to detect usability of experimental headers, because this doesn't work for clang
-  #include <experimental/algorithm>
-  #ifndef __clang__
-  #include <experimental/any>
+  #if __has_include(<experimental/array>)
+    #include <experimental/array>
   #endif
-  #include <experimental/array>
-  #include <experimental/chrono>
-  #include <experimental/deque>
-  #ifndef __clang__
-  #include <experimental/filesystem>
+  #if __has_include(<experimental/algorithm>)
+    #include <experimental/algorithm>
   #endif
-  #include <experimental/forward_list>
-  #include <experimental/functional>
-  #include <experimental/iterator>
-  #include <experimental/list>
-  #include <experimental/map>
-  #include <experimental/memory>
-  #include <experimental/memory_resource>
-  #include <experimental/numeric>
-  #include <experimental/optional>
-  #include <experimental/propagate_const>
-  #include <experimental/random>
-  #include <experimental/ratio>
-  #include <experimental/regex>
-  #include <experimental/set>
-  #include <experimental/string>
-  #include <experimental/string_view>
-  #include <experimental/system_error>
-  #include <experimental/tuple>
-  #include <experimental/type_traits>
-  #include <experimental/unordered_map>
-  #include <experimental/unordered_set>
-  #include <experimental/utility>
-  #include <experimental/vector>
+  #if __has_include(<experimental/any>)
+    #include <experimental/any>
+  #endif
+  #if __has_include(<experimental/chrono>)
+    #include <experimental/chrono>
+  #endif
+  #if __has_include(<experimental/deque>)
+    #include <experimental/deque>
+  #endif
+  #if __has_include(<experimental/filesystem>)
+    #include <experimental/filesystem>
+  #endif
+  #if __has_include(<experimental/forward_list>)
+    #include <experimental/forward_list>
+  #endif
+  #if __has_include(<experimental/functional>)
+    #include <experimental/functional>
+  #endif
+  #if __has_include(<experimental/iterator>)
+    #include <experimental/iterator>
+  #endif
+  #if __has_include(<experimental/list>)
+    #include <experimental/list>
+  #endif
+  #if __has_include(<experimental/map>)
+    #include <experimental/map>
+  #endif
+  #if __has_include(<experimental/memory>)
+    #include <experimental/memory>
+  #endif
+  #if __has_include(<experimental/memory_resource>)
+    #include <experimental/memory_resource>
+  #endif
+  #if __has_include(<experimental/numeric>)
+    #include <experimental/numeric>
+  #endif
+  #if __has_include(<experimental/optional>)
+    #include <experimental/optional>
+  #endif
+  #if __has_include(<experimental/propagate_const>)
+    #include <experimental/propagate_const>
+  #endif
+  #if __has_include(<experimental/random>)
+    #include <experimental/random>
+  #endif
+  #if __has_include(<experimental/ratio>)
+    #include <experimental/ratio>
+  #endif
+  #if __has_include(<experimental/regex>)
+    #include <experimental/regex>
+  #endif
+  #if __has_include(<experimental/set>)
+    #include <experimental/set>
+  #endif
+  #if __has_include(<experimental/string>)
+    #include <experimental/string>
+  #endif
+  #if __has_include(<experimental/string_view>)
+    #include <experimental/string_view>
+  #endif
+  #if __has_include(<experimental/system_error>)
+    #include <experimental/system_error>
+  #endif
+  #if __has_include(<experimental/tuple>)
+    #include <experimental/tuple>
+  #endif
+  #if __has_include(<experimental/type_traits>)
+    #include <experimental/type_traits>
+  #endif
+  #if __has_include(<experimental/unordered_map>)
+    #include <experimental/unordered_map>
+  #endif
+  #if __has_include(<experimental/unordered_set>)
+    #include <experimental/unordered_set>
+  #endif
+  #if __has_include(<experimental/utility>)
+    #include <experimental/utility>
+  #endif
+  #if __has_include(<experimental/vector>)
+    #include <experimental/vector>
+  #endif
 #endif
 
 #if __cplusplus >= 201103
