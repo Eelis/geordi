@@ -18,7 +18,6 @@ import Data.SetOps
 
 basic_tests :: IO ()
 basic_tests = do
-
   f "" "make foo bar bas" "Unexpected end of command. Expected \"::\" or template-arguments."
   f "" "make " "Unexpected end of command. Expected \"declaration\", \"body\", production-name, \"all\", \"any\", \"every\", \"each\", ordinal, or declarator-id."
   f "" "make i pointer to" "Unexpected end of command. Expected type description."
@@ -184,6 +183,7 @@ basic_tests = do
   t "prepend x before everything after 4 and add y after 4" $ Right "1 2 3 2 3 4yx 5"
   t "add y after 4 and prepend x before everything after 4" $ Right "1 2 3 2 3 4xy 5"
   -- Semantic edits:
+  ct "a x;" "add b after first identifier" $ Right "ab x;"
   ct "struct X { operator bool() { return true; } };" "move declaration of operator bool to end" $ Right "struct X { };operator bool() { return true; } "
   ct "namespace N { void f(); } class C { void g() {} };" "swap body of N and body of C" $ Right "namespace N { void g() {} } class C { void f(); };"
   ct "void f() { int i; } void g() { int j; } void h() {}" "prepend BARK; in f and append BARK; in g and in h" $ Right "void f() { BARK;int i; } void g() { int j; BARK;} void h() {BARK;}"
@@ -191,7 +191,7 @@ basic_tests = do
   ct "void f() { cout << 3; g(); }" "erase everything from after 3; until after body of f" $ Right "void f() { cout << 3;}"
   ct "int main() { cout << 3; }" "move << 3 to front and erase declaration of main" $ Right "<< 3"
   ct "{ cout << x; } enum E { x };" "add `cout, y;` in main and add ,y in E" $ Right "{ cout << x; cout, y;} enum E { x ,y};"
-  ct "namespace N { void f(); void g(); void f(); } void h();" "add int x; after declaration of g in N" $ Right "namespace N { void f(); void g(); int x;void f(); } void h();"
+  ct "namespace N { void f(); void g(); void f(); } void h();" "add int x; after declaration of g in N" $ Right "namespace N { void f(); void g();int x; void f(); } void h();"
   ct "struct X { void f(); }; struct Y { void f(); };" "erase declaration of f in Y" $ Right "struct X { void f(); }; struct Y { };"
   ct "namespace N { void f(); void g(); void f(); } void h();" "move declaration of h to after declaration of g in N" $ Right "namespace N { void f(); void g(); void h();void f(); } "
   ct "void f() {} void g() {} namespace N { void f() {} } void f(int) {}" "add int x; in f in N and in g and append y" $ Right "void f() {} void g() {int x;} namespace N { void f() {int x;} } void f(int) {}y"
@@ -210,9 +210,9 @@ basic_tests = do
   ct "{ 3; 4; 5; }" "swap statements around 4;" $ Right "{ 5; 4; 3; }"
   ct "{ 3; 4; 5; 6; }" "swap statements before 5 with last statement" $ Right "{ 6; 5; 3; 4; }"
   ct "void f(int,double,char);" "swap first two parameter-declarations" $ return "void f(double,int,char);"
-  ct "{ if(b) 3; 4; 5; }" "add curlies around first two statements after if" $ Right "{ if(b) {3; 4; }5; }"
-  ct "{ 3; 4; 5; }" "add curlies around first and second statement" $ Right "{ {3; 4; }5; }"
-  ct "{ 3; 4; 5; }" "add curlies around first statement and around second statement" $ Right "{ {3; }{4; }5; }"
+--todo:  ct "{ if(b) 3; 4; 5; }" "add curlies around first two statements after if" $ Right "{ if(b) {3; 4;} 5; }"
+--todo:  ct "{ 3; 4; 5; }" "add curlies around first and second statement" $ Right "{ {3; 4;} 5; }"
+  ct "{ 3; 4; 5; }" "add curlies around first statement and around second statement" $ Right "{ {3;} {4;} 5; }"
   ct "<< max(3, 2, 1)" "add curlies around code between parens" $ return "<< max({3, 2, 1})"
   ct "{ 1;2;3;4;5; }" "swap first two statements with last two statements" $ Right "{ 4;5; 3;1;2;}"
   ct "{ 1;2;3; }" "swap first two statements" $ Right "{ 2;1;3; }"

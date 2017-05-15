@@ -249,7 +249,7 @@ instance Find PrependPositionsClause (NeList (FindResult (Anchor Char))) where
 
 instance Find PositionsClause (NeList (FindResult (Anchor Char))) where
   find (PositionsClause (AndList bas) x) = do
-    Found w l ← ((full_range .) .) . find x >>= merge_contiguous_FindResult_StickyRanges
+    Found w l ← ((replace_range .) .) . find x >>= merge_contiguous_FindResult_StickyRanges
     return $ l >>= (\e → (\ba → Found w $ e ba) . bas)
 
 instance Find Replacer (NeList (FindResult RequestEdit)) where
