@@ -231,8 +231,9 @@ evaluate cfg Request{..} extra_env = do
           , "-Wl,--rpath,/usr/local/" ++ (if clang then "lib" else "lib64")
           , "-Wl,--undefined,geordi_init"
           , "-lgeordi_prelude-" ++ stdDigits standard, "-lmcheck", "-lubsan", "-lstdc++fs", "-lpthread", "-save-temps"] ++
-          ["-lc++" | clang]
+          (if clang then clangLinkFlags else [])
       where
+        clangLinkFlags = ["-fsanitize=undefined", "-lc++"]
         compileFlags = ["-w" | no_warn] ++
           if clang
             then ["-I", "/geordi/src/prelude", "-include", "prelude-" ++ stdDigits standard ++ ".hpp"]
