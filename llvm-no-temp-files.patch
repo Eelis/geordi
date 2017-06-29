@@ -159,6 +159,28 @@ Index: tools/clang/lib/Rewrite/Rewriter.cpp
    std::unique_ptr<llvm::raw_fd_ostream> FileStream;
    bool &AllWritten;
  };
+Index: lib/Support/Unix/Program.inc
+===================================================================
+--- lib/Support/Unix/Program.inc	(revision 306665)
++++ lib/Support/Unix/Program.inc	(working copy)
+@@ -180,7 +180,7 @@
+ 
+   // If this OS has posix_spawn and there is no memory limit being implied, use
+   // posix_spawn.  It is more efficient than fork/exec.
+-#ifdef HAVE_POSIX_SPAWN
++#if 0
+   if (memoryLimit == 0) {
+     posix_spawn_file_actions_t FileActionsStore;
+     posix_spawn_file_actions_t *FileActions = nullptr;
+@@ -247,7 +247,7 @@
+ #endif
+ 
+   // Create a child process.
+-  int child = fork();
++  int child = 0;
+   switch (child) {
+     // An error occurred:  Return to the caller.
+     case -1:
 Index: lib/Support/Unix/Signals.inc
 ===================================================================
 --- lib/Support/Unix/Signals.inc	(revision 246397)
