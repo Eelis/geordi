@@ -182,6 +182,7 @@ execEditableRequest clangByDefault (EditableRequest kind (dropWhile isSpace → 
       units :: [String]
       units = map (unlines . map un_t) tunits
       standard = standardSpecifiedBy opts
+      tracing = Tracing ∈ opts
     return $ second (fix_as_edit (locationMap tunits) .) . evaluate EvalCxx.Request{..}
 
 respond_and_remember :: Bool → EditableRequest → WithEvaluation Response

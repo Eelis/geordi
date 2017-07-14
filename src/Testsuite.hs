@@ -153,6 +153,7 @@ tests "tracked" =
   , test "Operation on non-existent object" "{ tracked::B * p = 0; p->f(); }" $ ExactMatch "error: tried to call B::f() on non-existent object. Aborted"
   , test "Read from dead object." "-w << f(); using tracked::B; B const & f() { return B(); }" $ ExactMatch "B0* B0~ error: tried to read destructed B0. Aborted"
   , test "Initialization" "{ tracked::B b = 1, c(1); }" $ ExactMatch "B0*(1) B1*(B0) B0~ B2*(1) B2~ B1~"
+  , test "--trace" "--trace {X x;}struct X{X(){}~X(){}}y;" $ ExactMatch "X::X(){}main{X::X(){}X::~X(){}}X::~X(){}"
   ]
 
 tests "utilities" =

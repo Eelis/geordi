@@ -19,6 +19,8 @@
 #include <climits>
 #include <stdlib.h>
 #include <cxxabi.h>
+#include <dlfcn.h>
+#include <execinfo.h>
 #include <ext/malloc_allocator.h>
 #include "geordi.hpp"
 
@@ -219,3 +221,39 @@ std::ostream & operator<<(std::ostream & o, wchar_t const * s)
 
 std::ostream & operator<<(std::ostream & o, std::wstring const & s)
 { for(std::wstring::const_iterator i = s.begin(); i != s.end(); ++i) o << *i; return o; }
+
+static char const * lookup_name(void * func)
+{
+	static void * handle = dlopen(NULL, RTLD_NOW);
+	if (!handle) return NULL;
+
+	Dl_info info;
+	dladdr(func, &info);
+
+	if (!info.dli_sname) return NULL;
+
+	char const * name = info.dli_sname;
+
+	if (*name == '_')
+	{
+		int st;
+		if (char const * s = abi::__cxa_demangle(name, 0, 0, &st))
+			name = s;
+	}
+
+	return name;
+}
+
+extern "C"
+{
+	void __cyg_profile_func_enter(void * func, void * /*caller*/)
+	{
+		if (char const * name = lookup_name(func))
+			std::cout << name << '{';
+	}
+
+	void __cyg_profile_func_exit(void * func, void * /*caller*/)
+	{
+		if (lookup_name(func)) std::cout << '}';
+	}
+}

@@ -19,6 +19,7 @@ import Prelude.Unicode
 data EvalOpt
   = CompileOnly
   | PreprocessOnly
+  | Tracing
   | NoWarn
   | NoUsingStd
   | Clang
@@ -41,6 +42,7 @@ instance Option EvalOpt where
   long CompileOnly = "compile-only"
   long NoWarn = "no-warn"
   long PreprocessOnly = "preprocess"
+  long Tracing = "trace"
   long NoUsingStd = "no-using-std"
   long Clang = "clang"
   long Gcc = "gcc"

@@ -180,6 +180,7 @@ data Request = Request
   { units :: [String]
   , stageOfInterest :: Stage
   , no_warn :: Bool
+  , tracing :: Bool
   , standard :: CxxStandard
   , clang :: Bool }
 
@@ -223,14 +224,15 @@ evaluate cfg Request{..} extra_env = do
         Preprocess → ["-fpch-preprocess", "-E", unit, stdflag] ++ compileFlags
         Analyze → ["-x", "c++", stdflag, unit, "--analyze", "-Xanalyzer", "-analyzer-output=text"]
           ++ compileFlags
-        Compile -> ["-x", "c++", stdflag, unit, if clang then "-c" else "-S"] ++ compileFlags
+        Compile -> ["-x", "c++", stdflag, unit, if clang then "-c" else "-S"] ++ compileFlags ++ ["-finstrument-functions" | tracing]
           -- We don't use -S for Clang because the assembler sometimes chokes on its output..
         Assemble → ["-c", unit ++ ".s", stdflag] ++ gccCompileFlags cfg
         Link → ((++ ".o") . fst . namedUnits) ++
           ["-o", "t"
           , "-Wl,--rpath,/usr/local/" ++ (if clang then "lib" else "lib64")
           , "-Wl,--undefined,geordi_init"
-          , "-lgeordi_prelude-" ++ stdDigits standard, "-lmcheck", "-lubsan", "-lstdc++fs", "-lpthread", "-save-temps"] ++
+          , "-rdynamic"
+          , "-lgeordi_prelude-" ++ stdDigits standard, "-lmcheck", "-lubsan", "-lstdc++fs", "-lpthread", "-save-temps", "-ldl"] ++
           (if clang then clangLinkFlags else [])
       where
         clangLinkFlags = ["-fsanitize=undefined", "-lc++"]
