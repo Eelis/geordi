@@ -24,10 +24,7 @@ data EvalOpt
   | NoUsingStd
   | Clang
   | Gcc
-  | Std98
-  | Std03
-  | Std11
-  | Std14
+  | Std98 | Std03 | Std11 | Std14 | Std17
   deriving (Eq, Enum, Bounded, Ord)
 
 data RequestEdit
@@ -50,6 +47,7 @@ instance Option EvalOpt where
   long Std03 = "2003"
   long Std11 = "2011"
   long Std14 = "2014"
+  long Std17 = "2017"
 
 data EphemeralOpt = Resume | Help | Version deriving (Eq, Enum, Bounded)
 
@@ -110,7 +108,7 @@ data EvalOptKind = StageOpt | StdOpt | CompilerOpt | MiscOpt
 
 evalOptKind :: EvalOpt -> EvalOptKind
 evalOptKind x
-  | x `elem` [Std98,Std03,Std11,Std14] = StdOpt
+  | x `elem` [Std98,Std03,Std11,Std14,Std17] = StdOpt
   | x `elem` [Gcc, Clang] = CompilerOpt
   | x `elem` [CompileOnly, PreprocessOnly] = StageOpt
   | otherwise = MiscOpt

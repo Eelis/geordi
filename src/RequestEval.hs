@@ -157,10 +157,11 @@ un_t = map fst
 
 standardSpecifiedBy :: Set EvalOpt -> CxxStandard
 standardSpecifiedBy opts
-  | Std98 ∈ opts = Cxx98
-  | Std03 ∈ opts = Cxx03
-  | Std11 ∈ opts = Cxx11
-  | Std14 ∈ opts = Cxx14
+  | Std98 ∈ opts = Cxx 1998
+  | Std03 ∈ opts = Cxx 2003
+  | Std11 ∈ opts = Cxx 2011
+  | Std14 ∈ opts = Cxx 2014
+  | Std17 ∈ opts = Cxx 2017
   | otherwise = CxxExperimental
 
 execEditableRequest :: Bool → EditableRequest → E (WithEvaluation (String, Maybe (TextEdit Char)))

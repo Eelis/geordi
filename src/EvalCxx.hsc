@@ -161,12 +161,8 @@ compile_env =
   [("LD_PRELOAD", "libdiagnose_sigsys.so")]
 
 stdDigits :: CxxStandard -> String
-stdDigits = \case
-  Cxx98 -> "98"
-  Cxx03 -> "03"
-  Cxx11 -> "11"
-  Cxx14 -> "14"
-  CxxExperimental -> "1z"
+stdDigits (Cxx y) = drop 2 (show y)
+stdDigits CxxExperimental = "2a"
 
 prog_env :: CxxStandard -> [(String, String)]
 prog_env std =
@@ -174,7 +170,7 @@ prog_env std =
   , ("LD_PRELOAD", "libgeordi_preload-" ++ stdDigits std ++ ".so libdiagnose_sigsys.so")
   ]
 
-data CxxStandard = Cxx98 | Cxx03 | Cxx11 | Cxx14 | CxxExperimental
+data CxxStandard = Cxx Int | CxxExperimental
 
 data Request = Request
   { units :: [String]
