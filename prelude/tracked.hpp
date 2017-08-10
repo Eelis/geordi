@@ -132,6 +132,7 @@ namespace tracked
     void * operator new[](std::size_t const, void * const p) throw() { return p; }
     void operator delete(void *, std::size_t) throw();
     void operator delete[](void *, std::size_t) throw();
+    void operator delete(void *) throw() {}
 
     void f() const;
     virtual void vf() const;
