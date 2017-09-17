@@ -169,7 +169,7 @@ Index: lib/Support/Unix/Program.inc
    // posix_spawn.  It is more efficient than fork/exec.
 -#ifdef HAVE_POSIX_SPAWN
 +#if 0
-   if (memoryLimit == 0) {
+   if (MemoryLimit == 0) {
      posix_spawn_file_actions_t FileActionsStore;
      posix_spawn_file_actions_t *FileActions = nullptr;
 @@ -247,7 +247,7 @@
