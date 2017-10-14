@@ -10,17 +10,8 @@ Index: FileOutputBuffer.cpp
  }
  
  ErrorOr<std::unique_ptr<FileOutputBuffer>>
-@@ -63,36 +62,12 @@
-       IsRegular = false;
-   }
+@@ -67,27 +66,11 @@
  
--  if (IsRegular) {
--    // Delete target file.
--    EC = sys::fs::remove(FilePath);
--    if (EC)
--      return EC;
--  }
--
    SmallString<128> TempFilePath;
    int FD;
 -  if (IsRegular) {
@@ -38,7 +29,7 @@ Index: FileOutputBuffer.cpp
 -    EC = sys::fs::createTemporaryFile(sys::path::filename(FilePath), "", FD,
 -                                      TempFilePath);
 -  }
--
+ 
 +  EC = sys::fs::openFileForWrite(FilePath, FD, sys::fs::F_None);
    if (EC)
      return EC;
@@ -48,13 +39,13 @@ Index: FileOutputBuffer.cpp
  #ifndef LLVM_ON_WIN32
    // On Windows, CreateFileMapping (the mmap function on Windows)
    // automatically extends the underlying file. We don't need to
-@@ -121,19 +96,6 @@
+@@ -116,19 +99,6 @@
    // Unmap buffer, letting OS flush dirty pages to file on disk.
    Region.reset();
  
 -  std::error_code EC;
 -  if (IsRegular) {
--    // Rename file to final name.
+-    // Atomically replace the existing file with the new one.
 -    EC = sys::fs::rename(Twine(TempPath), Twine(FinalPath));
 -    sys::DontRemoveFileOnSignal(TempPath);
 -  } else {
@@ -73,7 +64,7 @@ Index: tools/clang/lib/Frontend/ASTUnit.cpp
 ===================================================================
 --- tools/clang/lib/Frontend/ASTUnit.cpp	(revision 244347)
 +++ tools/clang/lib/Frontend/ASTUnit.cpp	(working copy)
-@@ -2455,11 +2455,8 @@
+@@ -2217,11 +2217,8 @@
  
    // Write to a temporary file and later rename it to the actual file, to avoid
    // possible race conditions.
@@ -86,7 +77,7 @@ Index: tools/clang/lib/Frontend/ASTUnit.cpp
      return true;
  
    // FIXME: Can we somehow regenerate the stat cache here, or do we need to 
-@@ -2473,11 +2470,6 @@
+@@ -2235,11 +2232,6 @@
      return true;
    }
  
@@ -102,7 +93,7 @@ Index: tools/clang/lib/Frontend/CompilerInstance.cpp
 ===================================================================
 --- tools/clang/lib/Frontend/CompilerInstance.cpp	(revision 244347)
 +++ tools/clang/lib/Frontend/CompilerInstance.cpp	(working copy)
-@@ -606,6 +606,8 @@
+@@ -725,6 +725,8 @@
    assert((!CreateMissingDirectories || UseTemporary) &&
           "CreateMissingDirectories is only allowed when using temporary files");
  
