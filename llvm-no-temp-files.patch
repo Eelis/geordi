@@ -1,65 +1,16 @@
-Index: FileOutputBuffer.cpp
+Index: lib/Support/FileOutputBuffer.cpp
 ===================================================================
---- lib/Support/FileOutputBuffer.cpp	(revision 291677)
+--- lib/Support/FileOutputBuffer.cpp	(revision 321491)
 +++ lib/Support/FileOutputBuffer.cpp	(working copy)
-@@ -38,7 +38,6 @@
-   // Close the mapping before deleting the temp file, so that the removal
-   // succeeds.
-   Region.reset();
--  sys::fs::remove(Twine(TempPath));
- }
- 
- ErrorOr<std::unique_ptr<FileOutputBuffer>>
-@@ -67,27 +66,11 @@
- 
-   SmallString<128> TempFilePath;
-   int FD;
--  if (IsRegular) {
--    unsigned Mode = sys::fs::all_read | sys::fs::all_write;
--    // If requested, make the output file executable.
--    if (Flags & F_executable)
--      Mode |= sys::fs::all_exe;
--    // Create new file in same directory but with random name.
--    EC = sys::fs::createUniqueFile(Twine(FilePath) + ".tmp%%%%%%%", FD,
--                                   TempFilePath, Mode);
--  } else {
--    // Create a temporary file. Since this is a special file, we will not move
--    // it and the new file can be in another filesystem. This avoids trying to
--    // create a temporary file in /dev when outputting to /dev/null for example.
--    EC = sys::fs::createTemporaryFile(sys::path::filename(FilePath), "", FD,
--                                      TempFilePath);
--  }
- 
-+  EC = sys::fs::openFileForWrite(FilePath, FD, sys::fs::F_None);
-   if (EC)
-     return EC;
- 
--  sys::RemoveFileOnSignal(TempFilePath);
--
- #ifndef LLVM_ON_WIN32
-   // On Windows, CreateFileMapping (the mmap function on Windows)
-   // automatically extends the underlying file. We don't need to
-@@ -116,19 +99,6 @@
-   // Unmap buffer, letting OS flush dirty pages to file on disk.
-   Region.reset();
- 
--  std::error_code EC;
--  if (IsRegular) {
--    // Atomically replace the existing file with the new one.
--    EC = sys::fs::rename(Twine(TempPath), Twine(FinalPath));
--    sys::DontRemoveFileOnSignal(TempPath);
--  } else {
--    EC = sys::fs::copy_file(TempPath, FinalPath);
--    std::error_code RMEC = sys::fs::remove(TempPath);
--    sys::DontRemoveFileOnSignal(TempPath);
--    if (RMEC)
--      return RMEC;
--  }
--
--  return EC;
-+  return std::error_code();
- }
- } // namespace
+@@ -163,7 +163,7 @@
+   case fs::file_type::regular_file:
+   case fs::file_type::file_not_found:
+   case fs::file_type::status_error:
+-    return createOnDiskBuffer(Path, Size, Mode);
++    return createInMemoryBuffer(Path, Size, Mode);
+   default:
+     return createInMemoryBuffer(Path, Size, Mode);
+   }
 Index: tools/clang/lib/Frontend/ASTUnit.cpp
 ===================================================================
 --- tools/clang/lib/Frontend/ASTUnit.cpp	(revision 244347)
