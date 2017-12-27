@@ -354,6 +354,9 @@ void install_handler()
 	if (sigprocmask(0, 0, &sa.sa_mask) != 0)
 		abort();
 
+	if (sigaction(31, &sa, 0) != 0)
+		abort();
+
 	if (sigaction(SIGSYS, &sa, 0) != 0)
 		abort();
 }
