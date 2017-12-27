@@ -262,7 +262,7 @@ namespace textual_type_descriptions
 
   // data members
 
-  template <typename T, typename U> struct type_desc_t<T (U:: *)>: consonant
+  template <typename T, typename U> struct type_desc_t<T U:: *>: consonant
   { static std::string s (bool b) { return pl("pointer", b) + " to data " + pl("member", b) + " of " + class_key<U>() + " " + type<U>() + " of type " + type_desc<T>(); } };
 
   // member function pointers
