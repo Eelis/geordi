@@ -6,6 +6,6 @@ svn checkout svn://gcc.gnu.org/svn/gcc/trunk gcc-trunk
 mkdir gcc-trunk.build
 cd gcc-trunk.build
 /gcc-trunk/configure --disable-multilib --enable-languages=c,c++ --disable-bootstrap --disable-libgomp --enable-checking=no --disable-checking --disable-decimal-float
-make -j2
+make -j`nproc`
 make install
 rm -rf /gcc-trunk /gcc-trunk.build
