@@ -15,7 +15,7 @@ patch -p0 < /geordi/src/llvm-no-temp-files.patch
 mkdir /llvm.build
 cd /llvm.build
 cmake -DCMAKE_BUILD_TYPE=Release -DLLVM_TARGETS_TO_BUILD=X86 -DLLVM_BUILD_DOCS=OFF -DLIBCXX_CXX_ABI=libstdc++ /llvm
-make -j2
+make -j`nproc`
 make install
 make install-cxx
 
