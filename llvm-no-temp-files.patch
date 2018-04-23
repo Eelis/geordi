@@ -61,10 +61,10 @@ Index: tools/clang/lib/Rewrite/Rewriter.cpp
  public:
    AtomicallyMovedFile(DiagnosticsEngine &Diagnostics, StringRef Filename,
                        bool &AllWritten)
--    : Diagnostics(Diagnostics), Filename(Filename), AllWritten(AllWritten) {
+-      : Diagnostics(Diagnostics), Filename(Filename), AllWritten(AllWritten) {
 -    TempFilename = Filename;
 -    TempFilename += "-%%%%%%%%";
-+    : Diagnostics(Diagnostics), AllWritten(AllWritten) {
++      : Diagnostics(Diagnostics), AllWritten(AllWritten) {
      int FD;
 -    if (llvm::sys::fs::createUniqueFile(TempFilename, FD, TempFilename)) {
 +    if (llvm::sys::fs::openFileForWrite(Filename, FD, llvm::sys::fs::F_None)) {
