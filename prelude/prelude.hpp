@@ -121,12 +121,6 @@
   #if __has_include(<experimental/algorithm>)
     #include <experimental/algorithm>
   #endif
-  #if __has_include(<experimental/any>)
-    #include <experimental/any>
-  #endif
-  #if __has_include(<experimental/chrono>)
-    #include <experimental/chrono>
-  #endif
   #if __has_include(<experimental/deque>)
     #include <experimental/deque>
   #endif
@@ -154,20 +148,11 @@
   #if __has_include(<experimental/memory_resource>)
     #include <experimental/memory_resource>
   #endif
-  #if __has_include(<experimental/numeric>)
-    #include <experimental/numeric>
-  #endif
-  #if __has_include(<experimental/optional>)
-    #include <experimental/optional>
-  #endif
   #if __has_include(<experimental/propagate_const>)
     #include <experimental/propagate_const>
   #endif
   #if __has_include(<experimental/random>)
     #include <experimental/random>
-  #endif
-  #if __has_include(<experimental/ratio>)
-    #include <experimental/ratio>
   #endif
   #if __has_include(<experimental/regex>)
     #include <experimental/regex>
@@ -177,15 +162,6 @@
   #endif
   #if __has_include(<experimental/string>)
     #include <experimental/string>
-  #endif
-  #if __has_include(<experimental/string_view>)
-    #include <experimental/string_view>
-  #endif
-  #if __has_include(<experimental/system_error>)
-    #include <experimental/system_error>
-  #endif
-  #if __has_include(<experimental/tuple>)
-    #include <experimental/tuple>
   #endif
   #if __has_include(<experimental/type_traits>)
     #include <experimental/type_traits>
