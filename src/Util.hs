@@ -19,8 +19,10 @@ import Data.Traversable (mapM)
 import Control.Exception (bracket, evaluate)
 import Control.Arrow (Arrow, (>>>), arr, first, second, (&&&))
 import Control.Monad (liftM2, when)
-import Control.Monad.Except (MonadError(..))
 import Control.Monad.State (MonadState, modify, StateT(..))
+import Control.Monad.Reader (ReaderT(..))
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Reader as Reader
 import Control.DeepSeq (NFData, rnf)
 import System.Posix.Types (Fd(..))
 import System.IO (Handle, hClose)
@@ -475,7 +477,7 @@ instance Functor MaybeEitherString where
   fmap _ (MaybeEitherString (Just (Left e))) = MaybeEitherString $ Just $ Left e
   fmap _ (MaybeEitherString Nothing) = MaybeEitherString Nothing
 
-instance MonadError [Char] MaybeEitherString where
+instance MyMonadError [Char] MaybeEitherString where
   throwError = MaybeEitherString . Just . Left
   catchError = error "sorry, not implemented"
 
@@ -484,14 +486,14 @@ type E = Either String
 nothingAsError :: String → Maybe a → E a
 nothingAsError s = maybe (Left s) return
 
-or_fail :: MonadError String m ⇒ E a → m a
+or_fail :: MyMonadError String m ⇒ E a → m a
 or_fail = either throwError return
 
 strip_utf8_bom :: String → String
 strip_utf8_bom ('\239':'\187':'\191':s) = s
 strip_utf8_bom s = s
 
-instance MonadError [Char] Maybe where
+instance MyMonadError [Char] Maybe where
   throwError = const Nothing
   catchError Nothing f = f "error"
   catchError m _ = m
@@ -500,9 +502,22 @@ propagateE :: Monad m ⇒ E a → (a → m (E b)) → m (E b)
 propagateE (Left e) _ = return $ Left e
 propagateE (Right x) f = f x
 
+class Monad m => MyMonadError e m | m -> e where
+  throwError :: e -> m a
+  catchError :: m a -> (e -> m a) -> m a
+
+instance MyMonadError e (Either e) where
+  throwError = Left
+  Left  l `catchError` h = h l
+  Right r `catchError` _ = Right r
+
+instance MyMonadError e m => MyMonadError e (ReaderT r m) where
+  throwError = lift . throwError
+  catchError = liftCatch catchError
+
 -- Natural applications
 
 class Apply a b c | a b → c where apply :: a → b → c
-class MaybeApply a b where mapply :: (Functor m, MonadError String m) ⇒ a → b → m b
+class MaybeApply a b where mapply :: (Functor m, MyMonadError String m) ⇒ a → b → m b
 
 instance Apply a b b ⇒ Apply (Maybe a) b b where apply m x = maybe x (flip apply x) m

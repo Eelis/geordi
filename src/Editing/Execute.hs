@@ -11,10 +11,9 @@ import Control.Monad (foldM)
 import Data.Monoid (Monoid(..))
 import Control.Applicative ((<|>))
 import Control.Arrow ((&&&))
-import Control.Monad.Except (MonadError(..))
 import Request (EditableRequest(..), EditableRequestKind(..), RequestEdit(..), addEvalOpt)
 import Cxx.Basics (GeordiRequest)
-import Util ((.), E, MaybeApply(..), Apply(..))
+import Util ((.), E, MaybeApply(..), Apply(..), MyMonadError(..))
 
 import Prelude hiding ((.))
 import Editing.Basics

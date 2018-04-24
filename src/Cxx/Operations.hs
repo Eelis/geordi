@@ -6,7 +6,7 @@ import qualified Cxx.Show
 import qualified Data.List.NonEmpty as NeList
 import Data.List.NonEmpty (NonEmpty((:|)), nonEmpty)
 import qualified Data.Maybe as Maybe
-import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..), Phantom(..), neElim, NeList, orElse, neFilter, Apply(..), MaybeApply(..))
+import Util (Convert(..), (.), total_tail, strip, isIdChar, TriBool(..), MaybeEitherString(..), Phantom(..), neElim, NeList, orElse, neFilter, Apply(..), MaybeApply(..), MyMonadError(..))
 import Cxx.Basics
 import Editing.Basics (Range(..), Offsettable(..), TextEdit(..), Pos(Pos), pos, contained_in, fullRange)
 import Editing.Diff (diff_as_Edits)
@@ -14,7 +14,6 @@ import Data.Function (on)
 import Data.Foldable (toList, any)
 import Control.Arrow (first, second)
 import Control.Monad.Identity
-import Control.Monad.Except (MonadError(..))
 import Data.Generics (cast, gmapT, everywhere, Data, Typeable, gfoldl, dataTypeOf, toConstr, Constr, DataType, dataTypeName, constrType)
 
 import Prelude hiding ((.), any)
@@ -386,7 +385,7 @@ namedPathTo d r = map Cxx.Show.dataType_abbreviated_productionName $
 findRange :: (Offsettable a, Data d) ⇒ (TreePath → Maybe a) → [AnyData] → Int → d → [a]
 findRange p tp i x = Maybe.maybeToList (offset i . p (AnyData x :| tp)) ++ gfoldl_with_lengths i (findRange p (AnyData x : tp)) x
 
-make_edits :: (MonadError String m, Data d) ⇒ Range Char → MakeDeclaration → Int → d → m [TextEdit Char]
+make_edits :: (MyMonadError String m, Data d) ⇒ Range Char → MakeDeclaration → Int → d → m [TextEdit Char]
 make_edits r m i d = do
   ot ← gfoldl_with_lengthsM i (make_edits r m) d
   oi ← (if Range (Pos i) (length $ strip $ Cxx.Show.show_simple d) == r

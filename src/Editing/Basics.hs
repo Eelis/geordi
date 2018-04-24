@@ -6,11 +6,10 @@ import qualified Data.List as List
 import qualified Data.Char as Char
 import qualified Data.List.NonEmpty as NeList
 import Control.Arrow ((&&&))
-import Control.Monad.Except (MonadError(..))
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Monoid (Monoid(..))
 import Data.Ord (comparing)
-import Util ((.), NeList, neElim, E, nothingAsError, Apply(..), isIdChar, none)
+import Util ((.), NeList, neElim, E, nothingAsError, Apply(..), isIdChar, none, MyMonadError(..))
 
 import Prelude.Unicode
 import Prelude hiding ((.))
@@ -145,7 +144,7 @@ data TextEdit a
   deriving Eq
     -- The source ranges for move and replace are implicitly narrow-sticky (i.e. right-sticky begin & left-sticky end).
 
-makeMoveEdit :: MonadError String m ⇒ Anchor a → Range a → m (TextEdit a)
+makeMoveEdit :: MyMonadError String m ⇒ Anchor a → Range a → m (TextEdit a)
 makeMoveEdit (Anchor ba p) r
   | p ≤ start r = return $ MoveEdit ba (pos p - pos (start r)) r
   | end r ≤ p = return $ MoveEdit ba (pos p - pos (start r) - size r) r

@@ -12,11 +12,10 @@ import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Foldable (toList)
 import Control.Monad (liftM, liftM2)
 import Control.Arrow (first)
-import Control.Monad.Except (MonadError(..))
 import Data.List ((\\))
 import Data.Maybe (fromMaybe)
 import Editing.Basics (positionIn)
-import Util ((.), Finite(..), commas_or, Option(..), (.∨.), isIdChar, (<<), NeList)
+import Util ((.), Finite(..), commas_or, Option(..), (.∨.), isIdChar, (<<), NeList, MyMonadError(..))
 
 import Prelude hiding ((.))
 import Prelude.Unicode
@@ -217,7 +216,7 @@ silent (Parser p) = Parser $ \s → case p s of
   ParseFailure _ b → ParseFailure uninformativeExpectation b
   ParseSuccess r t n _ → ParseSuccess r t n Nothing
 
-optParser :: (MonadError String m, Functor m, Finite o, Option o) ⇒ Parser Char (m [o])
+optParser :: (MyMonadError String m, Functor m, Finite o, Option o) ⇒ Parser Char (m [o])
 optParser = (<?> "option") $ (char '-' >>) $ do
     char '-'
     n ← (<?> "option name") $ toList . many1 (satisfy $ isIdChar .∨. (== '-'))
