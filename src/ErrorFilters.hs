@@ -64,9 +64,8 @@ cleanup_output stage e
       -- $ replace_withs
       $ canonical_error
       $ cleanup_ubsan_errors
-      $ replaceInfix "E7tKRJpMcGq574LY:" [parsep]
       $ hide_clutter_namespaces e
-    -- We also clean up successful output, because it might include dirty assertion failures and {E}TYPE strings. The "E7tKRJpMcGq574LY:" is for libstdc++ debug mode errors; see prelude.hpp.
+    -- We also clean up successful output, because it might include dirty assertion failures and {E}TYPE strings.
 
   | otherwise = -- Assemble, Link
     maybe e (\(_, x, _, _) → uncapitalize x) $ matchRegexAll (mkRegexWithOpts "\\b(error|warning): [^\n]*|\\bundefined reference to [^\n]*" True False) e
