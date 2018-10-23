@@ -1,4 +1,4 @@
-FROM ubuntu:17.10
+FROM ubuntu:18.04
 RUN apt-get update && apt-get install -y libreadline-dev libboost-dev build-essential libgmp-dev pkg-config libseccomp-dev software-properties-common subversion libmpfr-dev libmpc-dev flex zlib1g-dev git libedit-dev ncurses-dev cmake bison libcap-dev python wget locales-all dnsutils
 
 #COPY llvm-no-temp-files.patch /geordi/src/
