@@ -14,8 +14,9 @@ RUN /geordi/src/install-haskell
 COPY install-gcc-trunk /geordi/src/
 RUN /geordi/src/install-gcc-trunk
 
+RUN mkdir -p ~/.cabal/bin # working around a cabal bug
 RUN cabal update && cabal --ghc-option="-optl-no-pie" install --global cabal-install
-RUN cabal update && cabal --ghc-option="-optl-no-pie" install --global --reorder-goals --allow-newer=process bytestring text deepseq mtl syb utf8-string network containers readline parsec Diff regex-compat base-unicode-symbols setops streams semigroups regex-posix template-haskell transformers pointed distributive comonad contravariant profunctors semigroupoids irc setlocale HTTP
+RUN cabal update && cabal --ghc-option="-optl-no-pie" install --global --reorder-goals --allow-newer=process bytestring text deepseq mtl syb utf8-string network containers readline parsec Diff regex-compat base-unicode-symbols setops streams semigroups regex-posix template-haskell transformers pointed distributive comonad contravariant profunctors semigroupoids irc setlocale HTTP Cabal
 # (We could rely on the list in geordi.cabal, but having these here shortens the development cycle when I'm testing changes in geordi.)
 
 COPY src /geordi/src
