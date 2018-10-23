@@ -190,9 +190,11 @@ tok_len (Token x y) = length x + length y
 toks_len :: [Token] → Int
 toks_len = sum . (tok_len .)
 
+instance Semigroup Token where
+  Token x y <> Token "" y' = Token x (y ++ y')
+  Token x y <> Token x' y' = Token (x ++ y ++ x') y'
+
 instance Monoid Token where
-  mappend (Token x y) (Token "" y') = Token x (y ++ y')
-  mappend (Token x y) (Token x' y') = Token (x ++ y ++ x') y'
   mempty = Token "" ""
 
 toks_text :: [Token] → String

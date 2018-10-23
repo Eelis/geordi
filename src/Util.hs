@@ -9,6 +9,7 @@ import qualified Data.List as List
 import qualified Data.List.NonEmpty as NeList
 import Data.Maybe (listToMaybe, mapMaybe, fromMaybe)
 import Data.Monoid (Monoid(..))
+import Data.Semigroup (Semigroup(..))
 import Data.List (sortBy, minimumBy, isPrefixOf, tails, stripPrefix)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Char (isSpace, isAlphaNum, toLower, toUpper)
@@ -319,9 +320,11 @@ type Cost = Float
 data Op a = SkipOp a | InsertOp a | EraseOp a | ReplaceOp a a
 data OpsWithCost a = OpsWithCost [Op a] Cost
 
+instance Semigroup (OpsWithCost a) where
+  OpsWithCost l c <> OpsWithCost l' c' = OpsWithCost (l ++ l') (c + c')
+
 instance Monoid (OpsWithCost a) where
   mempty = OpsWithCost [] 0
-  mappend (OpsWithCost l c) (OpsWithCost l' c') = OpsWithCost (l ++ l') (c + c')
 
 ops_cost :: OpsWithCost a → Cost
 ops_cost (OpsWithCost _ c) = c

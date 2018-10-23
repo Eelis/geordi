@@ -7,6 +7,7 @@ import qualified Data.Char as Char
 import qualified Data.List.NonEmpty as NeList
 import Control.Arrow ((&&&))
 import Data.List.NonEmpty (NonEmpty((:|)))
+import Data.Semigroup (Semigroup(..))
 import Data.Monoid (Monoid(..))
 import Data.Ord (comparing)
 import Util ((.), NeList, neElim, E, nothingAsError, Apply(..), isIdChar, none, MyMonadError(..))
@@ -221,11 +222,13 @@ data Adjuster a = Adjuster
   { editAdjuster :: TextEdit a → E (Maybe (TextEdit a))
   , anchorAdjuster :: Anchor a → E (Anchor a) }
 
-instance Monoid (Adjuster a) where
-  mempty = Adjuster { editAdjuster = return . return, anchorAdjuster = return }
-  mappend x y = Adjuster
+instance Semigroup (Adjuster a) where
+  x <> y = Adjuster
     { editAdjuster = (>>= maybe (return Nothing) (editAdjuster y)) . editAdjuster x
     , anchorAdjuster = \a → anchorAdjuster x a >>= anchorAdjuster y }
+
+instance Monoid (Adjuster a) where
+  mempty = Adjuster { editAdjuster = return . return, anchorAdjuster = return }
 
 adjuster :: String → TextEdit Char → Adjuster Char
 adjuster s add = Adjuster
