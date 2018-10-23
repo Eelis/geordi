@@ -1,11 +1,14 @@
 #!/bin/bash
 set -euv
 
+PACKAGE_VERSION=8.4.3
+PACKAGE_FILE=haskell-platform-${PACKAGE_VERSION}-unknown-posix--core-x86_64.tar.gz
+
 cd /
-wget https://haskell.org/platform/download/8.0.2/haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
-tar xf haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
+wget https://haskell.org/platform/download/${PACKAGE_VERSION}/${PACKAGE_FILE}
+tar xf ${PACKAGE_FILE}
 ./install-haskell-platform.sh
 
 rm install-haskell-platform.sh
 rm hp-usr-local.tar.gz
-rm haskell-platform-8.0.2-unknown-posix--minimal-x86_64.tar.gz
+rm ${PACKAGE_FILE}
