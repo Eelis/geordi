@@ -48,6 +48,7 @@ auto rules =
 	, RULE(exit,            ALLOW)
 	, RULE(sched_yield,     ALLOW)
 	, RULE(pipe,            ALLOW)
+	, RULE(pipe2,           ALLOW)
 	, RULE(lstat,           ERRNO(EPERM))
 	, RULE(geteuid,         ERRNO(EPERM))
 	, RULE(gettid,          ERRNO(EPERM))
