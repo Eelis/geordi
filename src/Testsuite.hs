@@ -98,7 +98,7 @@ tests "resources" =
   , test "Fd limit" "{ int i = 0; while (open(__FILE__, 0) != -1) ++i; assert(errno == EMFILE); assert(i < 50); }  extern \"C\" int open (char const *, int);" NoOutput
   , test "File size limit" "{ ofstream f (__FILE__); string meg (1 << 20, 'x'); for (;;) { f << meg << flush; cout << '+' << flush; } }" $
     RegexMatch "\\+{1,50} File size limit exceeded$"
-  , test "System call interception" "<< fork()" $ ExactMatch "Operation not permitted: clone"
+  , test "System call interception" "{ wait(nullptr); } #include <sys/wait.h>" $ PrefixMatch "Operation not permitted: wait"
   , test "Signal" "{ int x = 0; cout << 3 / x; }" $ ExactMatch "Floating point exception"
   , test "Recursive exec()"
     "int main (int const argc, char const * const * argv) { string s; if (argc >= 2) s = argv[1]; s += 'x'; if (s.size() % 100 == 0) cout << '+' << flush; execl(\"/geordi/run/t\", \"t\", s.c_str(), 0); }" $
