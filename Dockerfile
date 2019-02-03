@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM ubuntu:18.10
 RUN apt-get update && apt-get install -y libreadline-dev libboost-dev build-essential libgmp-dev pkg-config libseccomp-dev software-properties-common subversion libmpfr-dev libmpc-dev flex zlib1g-dev git libedit-dev ncurses-dev cmake bison libcap-dev python wget locales-all dnsutils
 
 #COPY llvm-no-temp-files.patch /geordi/src/
@@ -8,8 +8,7 @@ RUN apt-get update && apt-get install -y libreadline-dev libboost-dev build-esse
 #COPY install-klee /geordi/src/
 #RUN /geordi/src/install-klee
 
-COPY install-haskell /geordi/src/
-RUN /geordi/src/install-haskell
+RUN apt-get install -y haskell-platform
 
 COPY install-gcc-trunk /geordi/src/
 RUN /geordi/src/install-gcc-trunk
