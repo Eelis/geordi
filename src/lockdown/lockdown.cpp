@@ -49,6 +49,7 @@ auto rules =
 	, RULE(sched_yield,     ALLOW)
 	, RULE(pipe,            ALLOW)
 	, RULE(pipe2,           ALLOW)
+	, RULE(getdents64,      ALLOW)
 	, RULE(lstat,           ERRNO(EPERM))
 	, RULE(geteuid,         ERRNO(EPERM))
 	, RULE(gettid,          ERRNO(EPERM))
