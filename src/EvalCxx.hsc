@@ -105,6 +105,7 @@ capture_restricted a argv envi = do
     std_err = Inherit,
     close_fds = True,
     create_group = False,
+    use_process_jobs = False,
     delegate_ctlc = False,
     detach_console = False,
     create_new_console = False,

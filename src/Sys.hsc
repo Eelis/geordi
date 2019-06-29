@@ -12,7 +12,7 @@ import Data.IORef (newIORef, readIORef, writeIORef)
 import Control.Monad.Instances ()
 import Control.Monad.Fix (fix)
 import System.Posix.Time (epochTime)
-import Network.Socket (Socket(..), setSocketOption, SocketOption(..))
+import Network.Socket (Socket(..), setSocketOption, SocketOption(..), withFdSocket)
 import Foreign (with, sizeOf, Ptr, allocaBytes)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Posix (Fd(Fd), ByteCount)
@@ -56,7 +56,7 @@ foreign import ccall unsafe "setsockopt"
 
 bareSetSocketOption :: Socket → CInt → CInt → CInt → IO ()
   -- Needed because Network.Socket.SocketOption lacks several options (such as TCP_KEEPIDLE, TCP_KEEPINTVL, and KEEPCNT).
-bareSetSocketOption (MkSocket fd _ _ _ _) level option value = do
+bareSetSocketOption sock level option value = withFdSocket sock $ \fd -> do
    with value $ \p →
     throwErrnoIfMinus1_ "bareSetSocketOption" $
      c_setsockopt fd level option p (fromIntegral $ sizeOf value)

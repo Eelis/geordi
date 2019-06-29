@@ -224,7 +224,7 @@ connect host portn = do
  proto ← Network.BSD.getProtocolNumber "tcp"
  let hints = Net.defaultHints { Net.addrSocketType = Net.Stream, Net.addrProtocol = proto }
  target ← head . Net.getAddrInfo (Just hints) (Just host) (Just $ show portn)
- bracketOnError (Net.socket (Net.addrFamily target) Net.Stream proto) Net.sClose $ \sock → do
+ bracketOnError (Net.socket (Net.addrFamily target) Net.Stream proto) Net.close $ \sock → do
   Sys.setKeepAlive sock 30 10 5
   Net.connect sock (Net.addrAddress target)
   h ← Net.socketToHandle sock ReadWriteMode
