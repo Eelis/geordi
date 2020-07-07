@@ -401,7 +401,7 @@ namespace textual_type_descriptions
     template <typename T, size_t N> struct type_desc_t<std::array<T, N> >: Vowel
     { static std::string s (bool b) { return pl("array", b) + " of " + count<T>(N); } };
 
-    template<size_t N> struct num_vowel { enum { vowel = N == 8 || N == 18 }; };
+    template<size_t N> struct num_vowel { enum { vowel = N == 8 || N == 11 || N == 18 }; };
 
     template <typename... T> struct type_desc_t<std::tuple<T...>> {
       static std::string s (bool b) {
