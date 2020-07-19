@@ -2,10 +2,11 @@
 set -euv
 
 cd /
-svn checkout svn://gcc.gnu.org/svn/gcc/trunk gcc-trunk
-mkdir gcc-trunk.build
-cd gcc-trunk.build
-/gcc-trunk/configure --disable-multilib --enable-languages=c,c++ --disable-bootstrap --disable-libgomp --enable-checking=no --disable-checking --disable-decimal-float
+wget --no-verbose https://github.com/gcc-mirror/gcc/archive/master.zip
+unzip master.zip
+mkdir gcc-master.build
+cd gcc-master.build
+/gcc-master/configure --disable-multilib --enable-languages=c,c++ --disable-bootstrap --disable-libgomp --enable-checking=no --disable-checking --disable-decimal-float
 make -j`nproc`
 make install
-rm -rf /gcc-trunk /gcc-trunk.build
+rm -rf /gcc-master /gcc-master.build
