@@ -131,10 +131,6 @@ tests "misc" =
 tests "diagnostics" =
   [ test "-fstack-protector-all" "-w { char buf [10]; fill(buf, buf+30, 'x'); }" $
     PrefixMatch "*** stack smashing detected ***"
-  , test "-mcheck diagnostic" "{ int * p = new int [3]; p[3] = 6; delete[] p; }" $
-    PrefixMatch "memory clobbered past end of allocated block\n"
-  , test "Ditto" "{ int * p = new int [3]; p[-1] = 6; delete[] p; }" $
-    PrefixMatch "memory clobbered before allocated block\n"
   , test "Checking global allocation/deallocation operators" "{ delete new int[3]; }" $
     PrefixMatch "error: tried to apply non-array operator delete to pointer returned by new[]. Aborted"
   , test "Ditto." "{ int * const p = new int; delete p; new int; delete p; }" $ ExactMatch "error: tried to delete already deleted pointer. Aborted"

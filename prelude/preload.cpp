@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <cstdio>
 #include <ext/malloc_allocator.h>
-#include <mcheck.h>
 #include "geordi.hpp"
 
 extern "C"
@@ -67,8 +66,6 @@ namespace
     i->second = ar_deleted;
 
     // We don't actually deallocate the memory, because then it could be reallocated, causing UB in { int * const p = new int; delete p; new int; delete p; } to go unnoticed if the second allocation returns the same address (which is not unlikely).
-
-    mprobe(p);
   }
 }
 
