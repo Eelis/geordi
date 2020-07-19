@@ -7,7 +7,7 @@ module Editing.Diff (diff, diff_as_Edits) where
 import qualified Cxx.Basics
 import qualified Editing.Basics
 import qualified Data.Char as Char
-import Data.Algorithm.Diff (Diff(..), getDiff)
+import Data.Algorithm.Diff (Diff(..), getDiff, PolyDiff(..))
 import Data.Maybe (listToMaybe)
 import Data.Monoid (Monoid(..))
 import Util (orElse, take_atleast, (.), isIdChar, invert)
