@@ -12,7 +12,7 @@ import Data.IORef (newIORef, readIORef, writeIORef)
 import Control.Monad.Instances ()
 import Control.Monad.Fix (fix)
 import System.Posix.Time (epochTime)
-import Network.Socket (Socket(..), setSocketOption, SocketOption(..), withFdSocket)
+import Network.Socket (Socket(..), setSocketOption, SocketOption(..))
 import Foreign (with, sizeOf, Ptr, allocaBytes)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Posix (Fd(Fd), ByteCount)
@@ -54,21 +54,13 @@ fdReadNonBlocking (Fd fd) bc = do
 foreign import ccall unsafe "setsockopt"
   c_setsockopt :: CInt → CInt → CInt → Ptr CInt → CInt → IO CInt
 
-bareSetSocketOption :: Socket → CInt → CInt → CInt → IO ()
-  -- Needed because Network.Socket.SocketOption lacks several options (such as TCP_KEEPIDLE, TCP_KEEPINTVL, and KEEPCNT).
-bareSetSocketOption sock level option value = withFdSocket sock $ \fd -> do
-   with value $ \p →
-    throwErrnoIfMinus1_ "bareSetSocketOption" $
-     c_setsockopt fd level option p (fromIntegral $ sizeOf value)
-   return ()
-
-setKeepAlive :: Socket → CInt → CInt → CInt → IO ()
+setKeepAlive :: Socket → Int → Int → Int → IO ()
 setKeepAlive sock keepidle keepintvl keepcnt = do
   setSocketOption sock KeepAlive 1
-  let sso = bareSetSocketOption sock (#const IPPROTO_TCP)
-  sso (#const TCP_KEEPIDLE) keepidle
-  sso (#const TCP_KEEPINTVL) keepintvl
-  sso (#const TCP_KEEPCNT) keepcnt
+  setSocketOption sock (CustomSockOpt ((#const IPPROTO_TCP), (#const TCP_KEEPIDLE))) keepidle
+  setSocketOption sock (CustomSockOpt ((#const IPPROTO_TCP), (#const TCP_KEEPINTVL))) keepintvl
+  setSocketOption sock (CustomSockOpt ((#const IPPROTO_TCP), (#const TCP_KEEPCNT))) keepcnt
+
 
 fdOfFd :: Fd → CInt
 fdOfFd (Fd fd) = fd
