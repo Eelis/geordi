@@ -169,6 +169,17 @@
   #endif
 #endif
 
+#if __cplusplus > 201703
+  #include <numbers>
+  #include <concepts>
+  #include <version>
+  #include <compare>
+  #include <span>
+  #include <ranges>
+  #include <bit>
+  #include <stop_token>
+#endif
+
 #if __cplusplus >= 201103
   extern template class std::basic_ostream<char>;
 
