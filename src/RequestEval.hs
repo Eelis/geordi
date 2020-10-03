@@ -162,6 +162,7 @@ standardSpecifiedBy opts
   | Std11 ∈ opts = Cxx 2011
   | Std14 ∈ opts = Cxx 2014
   | Std17 ∈ opts = Cxx 2017
+  | Std20 ∈ opts = Cxx 2020
   | otherwise = CxxExperimental
 
 execEditableRequest :: Bool → EditableRequest → E (WithEvaluation (String, Maybe (TextEdit Char)))

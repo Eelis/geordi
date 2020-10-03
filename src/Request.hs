@@ -24,7 +24,7 @@ data EvalOpt
   | NoUsingStd
   | Clang
   | Gcc
-  | Std98 | Std03 | Std11 | Std14 | Std17
+  | Std98 | Std03 | Std11 | Std14 | Std17 | Std20
   deriving (Eq, Enum, Bounded, Ord)
 
 data RequestEdit
@@ -48,6 +48,7 @@ instance Option EvalOpt where
   long Std11 = "2011"
   long Std14 = "2014"
   long Std17 = "2017"
+  long Std20 = "2020"
 
 data EphemeralOpt = Resume | Help | Version deriving (Eq, Enum, Bounded)
 
