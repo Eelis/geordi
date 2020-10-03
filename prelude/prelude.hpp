@@ -103,6 +103,7 @@
   #include <optional>
   #include <string_view>
   #include <variant>
+  #include <filesystem>
 
   #if __has_include(<experimental/array>)
     #include <experimental/array>
@@ -178,6 +179,37 @@
   #include <ranges>
   #include <bit>
   #include <stop_token>
+
+  #if __has_include(<syncstream>)
+    #include <syncstream>
+  #endif
+  #if __has_include(<source_location>)
+    #include <source_location>
+  #endif
+  #if __has_include(<semaphore>)
+    #include <semaphore>
+  #endif
+  #if __has_include(<barrier>)
+    #include <barrier>
+  #endif
+  #if __has_include(<latch>)
+    #include <latch>
+  #endif
+  #if __has_include(<memory_resource>)
+    #include <memory_resource>
+  #endif
+  #if __has_include(<charconv>)
+    #include <charconv>
+  #endif
+  #if __has_include(<coroutine>)
+    #include <coroutine>
+  #endif
+  #if __has_include(<execution>)
+    #include <execution>
+  #endif
+  #if __has_include(<format>)
+    #include <format>
+  #endif
 #endif
 
 #if __cplusplus >= 201103
