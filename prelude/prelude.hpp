@@ -204,9 +204,9 @@
   #if __has_include(<coroutine>)
     #include <coroutine>
   #endif
-  #if __has_include(<execution>)
-    #include <execution>
-  #endif
+//  #if __has_include(<execution>)
+//    #include <execution>
+//  #endif
   #if __has_include(<format>)
     #include <format>
   #endif
