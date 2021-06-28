@@ -57,9 +57,9 @@ foreign import ccall unsafe "setsockopt"
 setKeepAlive :: Socket → Int → Int → Int → IO ()
 setKeepAlive sock keepidle keepintvl keepcnt = do
   setSocketOption sock KeepAlive 1
-  setSocketOption sock (CustomSockOpt ((#const IPPROTO_TCP), (#const TCP_KEEPIDLE))) keepidle
-  setSocketOption sock (CustomSockOpt ((#const IPPROTO_TCP), (#const TCP_KEEPINTVL))) keepintvl
-  setSocketOption sock (CustomSockOpt ((#const IPPROTO_TCP), (#const TCP_KEEPCNT))) keepcnt
+  setSocketOption sock (SockOpt (#const IPPROTO_TCP) (#const TCP_KEEPIDLE)) keepidle
+  setSocketOption sock (SockOpt (#const IPPROTO_TCP) (#const TCP_KEEPINTVL)) keepintvl
+  setSocketOption sock (SockOpt (#const IPPROTO_TCP) (#const TCP_KEEPCNT)) keepcnt
 
 
 fdOfFd :: Fd → CInt
