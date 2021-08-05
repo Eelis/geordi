@@ -229,7 +229,7 @@ evaluate cfg Request{..} extra_env = do
           , "-Wl,--rpath,/usr/local/" ++ (if clang then "lib" else "lib64")
           , "-Wl,--undefined,geordi_init"
           , "-rdynamic"
-          , "-lgeordi_prelude-" ++ stdDigits standard, "-lstdc++fs", "-lpthread", "-save-temps", "-ldl"] ++
+          , "-lgeordi_prelude-" ++ stdDigits standard, "-lstdc++fs", "-lpthread", "-save-temps", "-ldl", "-latomic"] ++
           (if clang then clangLinkFlags else [])
       where
         clangLinkFlags = ["-lc++"]
