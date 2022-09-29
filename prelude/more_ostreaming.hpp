@@ -363,6 +363,40 @@ inline std::basic_ostream<Ch, Tr> &
 
 #endif
 
+#if __cplusplus >= 201800 &&__has_include(<compare>)
+
+#include <compare>
+
+template<typename Ch, typename Tr>
+std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & os, std::strong_ordering const ord)
+{
+    if (ord == std::strong_ordering::less) return os << "less";
+    if (ord == std::strong_ordering::greater) return os << "greater";
+    if (ord == std::strong_ordering::equal) return os << "equal";
+    if (ord == std::strong_ordering::equivalent) return os << "equivalent";
+    return os << '?';
+}
+
+template<typename Ch, typename Tr>
+std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & os, std::weak_ordering const ord)
+{
+    if (ord == std::weak_ordering::less) return os << "less";
+    if (ord == std::weak_ordering::greater) return os << "greater";
+    if (ord == std::weak_ordering::equivalent) return os << "equivalent";
+    return os << '?';
+}
+
+template<typename Ch, typename Tr>
+std::basic_ostream<Ch, Tr> & operator<<(std::basic_ostream<Ch, Tr> & os, std::partial_ordering const ord)
+{
+    if (ord == std::partial_ordering::less) return os << "less";
+    if (ord == std::partial_ordering::greater) return os << "greater";
+    if (ord == std::partial_ordering::unordered) return os << "unordered";
+    if (ord == std::partial_ordering::equivalent) return os << "equivalent";
+    return os << '?';
+}
+
+#endif
 
 #endif // header guard
 
