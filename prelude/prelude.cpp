@@ -44,7 +44,7 @@ namespace geordi
   {
     bool is_prefix_of(char const * a, char const * b) { while(*a && *b == *a) { ++a; ++b; } return !*a; }
 
-    void terminate_handler(bool const unexp)
+    void terminate_handler()
     {
       // We use printf because cout/cerr may be dead.
 
@@ -58,7 +58,6 @@ namespace geordi
         // In OOM conditions, the above call to __cxa_demangle will fail (and name will be 0). Supplying a preallocated buffer using __cxa_demangle's second and third parameters does not help, because it performs additional internal allocations.
 
         std::printf(" by ");
-        if(unexp) std::printf("unexpected ");
         try { throw; }
         catch(std::exception const & e)
         {
@@ -79,9 +78,6 @@ namespace geordi
       std::fclose(stdout);
       std::abort();
     }
-
-    void terminate_handler() { terminate_handler(false); }
-    void unexpected_handler() { terminate_handler(true); }
 
     void maybe_show_asm()
     {
@@ -145,7 +141,6 @@ namespace geordi
         #endif
 
         std::set_terminate(terminate_handler);
-        std::set_unexpected(unexpected_handler);
 
         std::setlocale(LC_ALL, "");
 

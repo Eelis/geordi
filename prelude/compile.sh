@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 . /geordi/compile-config
-for std in 98 03 11 14 17 2a
+for std in 98 03 11 14 17 20 2b
 do
   stdflag="-std=c++${std}"
   echo "compiling prelude with ${stdflag}"
